@@ -4,14 +4,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { I } from "../../_lib/icons";
 import {
+  PROJECT_TYPE_STYLES,
   QUOTE_STATUSES,
+  QUOTE_STATUS_COLORS,
+  ownerInitials,
   type ContactInfo,
   type ProjectType,
   type Quote,
   type QuoteStatus,
 } from "../../_lib/quotes";
 import { setQuotes, useQuotes } from "../../_lib/quotes-store";
-import { useClients } from "../../_lib/clients-store";
+import { setClients, useClients } from "../../_lib/clients-store";
+import { nextClientId, type Client } from "../../_lib/clients";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 
 const PROJECT_TYPES: ProjectType[] = [
@@ -21,6 +25,14 @@ const PROJECT_TYPES: ProjectType[] = [
   "Ogrodzenie",
   "Osłony okienne",
   "Inne",
+];
+
+const DEADLINE_QUICK: { label: string; days: number }[] = [
+  { label: "Dziś", days: 0 },
+  { label: "+3 dni", days: 3 },
+  { label: "+7 dni", days: 7 },
+  { label: "+14 dni", days: 14 },
+  { label: "+30 dni", days: 30 },
 ];
 
 function nextQuoteId(quotes: Quote[]): string {
@@ -36,8 +48,10 @@ function nextQuoteId(quotes: Quote[]): string {
   return `${prefix}${String(next).padStart(4, "0")}`;
 }
 
-function todayIso(): string {
+function isoFromOffsetDays(days: number): string {
   const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -49,29 +63,108 @@ function trimOrUndefined(v: string): string | undefined {
   return t.length > 0 ? t : undefined;
 }
 
+function formatDeadlineLabel(iso: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const d = new Date(iso);
+  return d.toLocaleDateString("pl-PL", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+type RankedClient = { client: Client; count: number; saved: boolean };
+
 export default function NowaWycenaPage() {
   const router = useRouter();
   const quotes = useQuotes();
   const clients = useClients();
 
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const allClients = useMemo<RankedClient[]>(() => {
+    const map = new Map<string, RankedClient>();
+    for (const c of clients) {
+      map.set(c.name, { client: c, count: 0, saved: true });
+    }
+    for (const q of quotes) {
+      const name = q.contact.name.trim();
+      if (!name) continue;
+      const existing = map.get(name);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(name, {
+          client: {
+            id: `virtual-${name}`,
+            name,
+            street: q.contact.street,
+            postalCity: q.contact.postalCity,
+            phone: q.contact.phone,
+            email: q.contact.email,
+          },
+          count: 1,
+          saved: false,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) => {
+      if (b.count !== a.count) return b.count - a.count;
+      return a.client.name.localeCompare(b.client.name);
+    });
+  }, [clients, quotes]);
+
+  const frequentClients = useMemo(
+    () => allClients.slice(0, 6),
+    [allClients],
+  );
+
+  const frequentOwners = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const q of quotes) {
+      const o = q.owner.trim();
+      if (o) counts.set(o, (counts.get(o) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name]) => name);
+  }, [quotes]);
+
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientQuery, setClientQuery] = useState("");
+  const [showNewClientForm, setShowNewClientForm] = useState(false);
+  const [saveNewClient, setSaveNewClient] = useState(true);
+
   const [name, setName] = useState("");
   const [street, setStreet] = useState("");
   const [postalCity, setPostalCity] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+
   const [projectType, setProjectType] = useState<ProjectType>("Zadaszenia");
   const [status, setStatus] = useState<QuoteStatus>("Do zrobienia");
   const [valueText, setValueText] = useState("");
-  const [deadline, setDeadline] = useState(todayIso());
+  const [deadline, setDeadline] = useState(isoFromOffsetDays(7));
   const [owner, setOwner] = useState("");
   const [touched, setTouched] = useState(false);
 
-  function applyClient(id: string) {
-    setSelectedClientId(id);
-    if (!id) return;
-    const c = clients.find((x) => x.id === id);
-    if (!c) return;
+  const searchResults = useMemo<RankedClient[]>(() => {
+    const q = clientQuery.trim().toLowerCase();
+    if (!q) return [];
+    return allClients
+      .filter((entry) => {
+        const c = entry.client;
+        return [c.name, c.phone, c.email, c.postalCity, c.street]
+          .filter(Boolean)
+          .some((v) => v!.toLowerCase().includes(q));
+      })
+      .slice(0, 6);
+  }, [clientQuery, allClients]);
+
+  function applyClient(c: Client) {
+    setSelectedClient(c);
+    setShowNewClientForm(false);
+    setClientQuery("");
     setName(c.name);
     setStreet(c.street ?? "");
     setPostalCity(c.postalCity ?? "");
@@ -79,11 +172,27 @@ export default function NowaWycenaPage() {
     setEmail(c.email ?? "");
   }
 
-  function clearSelectionOnEdit(setter: (v: string) => void) {
-    return (v: string) => {
-      if (selectedClientId) setSelectedClientId("");
-      setter(v);
-    };
+  function clearClientFields() {
+    setName("");
+    setStreet("");
+    setPostalCity("");
+    setPhone("");
+    setEmail("");
+  }
+
+  function clearClient() {
+    setSelectedClient(null);
+    clearClientFields();
+  }
+
+  function startNewClient(initialName?: string) {
+    setSelectedClient(null);
+    setShowNewClientForm(true);
+    setName(initialName ?? "");
+    setStreet("");
+    setPostalCity("");
+    setPhone("");
+    setEmail("");
   }
 
   const parsedValue = useMemo(() => {
@@ -103,8 +212,7 @@ export default function NowaWycenaPage() {
     router.push("/admin");
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function submitForm() {
     setTouched(true);
     if (!canSubmit) return;
     const contact: ContactInfo = {
@@ -125,7 +233,34 @@ export default function NowaWycenaPage() {
       owner: owner.trim(),
     };
     setQuotes((prev) => [created, ...prev]);
+
+    const shouldPersist =
+      !selectedClient &&
+      showNewClientForm &&
+      saveNewClient &&
+      contact.name.length > 0;
+
+    if (shouldPersist) {
+      setClients((prev) => {
+        if (prev.some((c) => c.name === contact.name)) return prev;
+        const newClient: Client = {
+          id: nextClientId(prev),
+          name: contact.name,
+          street: contact.street,
+          postalCity: contact.postalCity,
+          phone: contact.phone,
+          email: contact.email,
+        };
+        return [newClient, ...prev];
+      });
+    }
+
     router.push(`/admin/wyceny/${id}`);
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    submitForm();
   }
 
   useEffect(() => {
@@ -147,226 +282,598 @@ export default function NowaWycenaPage() {
             onClick={handleCancel}
           />
         </RibbonGroup>
+        <RibbonGroup label="Akcje">
+          <RibbonBtn
+            icon={<I.save s={22} sw={2.2} />}
+            label="Zapisz"
+            primary
+            disabled={touched && !canSubmit}
+            onClick={submitForm}
+          />
+        </RibbonGroup>
       </div>
 
       <main className="fluent-content">
-        <form className="quote-new" onSubmit={handleSubmit}>
-          <header className="quote-new-header">
-            <div className="quote-new-header-icon">
-              <I.plus s={18} sw={2.2} />
+        <form className="quote-new-v2" onSubmit={handleSubmit}>
+          <header className="quote-new-v2-header">
+            <div className="quote-new-v2-header-icon">
+              <I.plus s={20} sw={2.2} />
             </div>
             <div>
-              <h1 className="quote-new-title">Nowa wycena</h1>
-              <p className="quote-new-subtitle">
-                Wypełnij dane kontaktowe i parametry wyceny. Możesz też wybrać
-                istniejącego klienta z listy.
+              <h1 className="quote-new-v2-title">Nowa wycena</h1>
+              <p className="quote-new-v2-subtitle">
+                Wybierz klienta jednym kliknięciem, dorzuć typ projektu i termin —
+                gotowe.
               </p>
             </div>
           </header>
 
-          <section className="quote-new-section">
-            <div className="quote-new-section-head">
-              <I.user s={14} />
-              <span>Dane kontaktowe</span>
-            </div>
-            <div className="fluent-form-grid">
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">Istniejący klient</span>
-                <select
-                  className="fluent-input"
-                  value={selectedClientId}
-                  onChange={(e) => applyClient(e.target.value)}
-                  disabled={clients.length === 0}
-                >
-                  <option value="">
-                    {clients.length === 0
-                      ? "— brak zapisanych klientów —"
-                      : "— wpisz nowe dane lub wybierz klienta —"}
-                  </option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
+          <div className="quote-new-v2-grid">
+            <FormBox
+              title="Klient"
+              icon={<I.user s={14} />}
+              required
+              span={12}
+              tag={
+                selectedClient ? (
+                  <span className="quote-new-v2-tag is-ok">
+                    <I.check s={10} sw={2.6} /> wybrany
+                  </span>
+                ) : null
+              }
+              action={
+                selectedClient || showNewClientForm ? (
+                  <button
+                    type="button"
+                    className="quote-new-v2-linkbtn"
+                    onClick={() => {
+                      setShowNewClientForm(false);
+                      clearClient();
+                    }}
+                  >
+                    Wybierz innego
+                  </button>
+                ) : null
+              }
+            >
+              {selectedClient ? (
+                <SelectedClientCard client={selectedClient} />
+              ) : showNewClientForm ? (
+                <NewClientForm
+                  name={name}
+                  street={street}
+                  postalCity={postalCity}
+                  phone={phone}
+                  email={email}
+                  save={saveNewClient}
+                  nameError={touched && !nameValid}
+                  onName={setName}
+                  onStreet={setStreet}
+                  onPostalCity={setPostalCity}
+                  onPhone={setPhone}
+                  onEmail={setEmail}
+                  onSaveToggle={setSaveNewClient}
+                />
+              ) : (
+                <ClientPicker
+                  query={clientQuery}
+                  onQuery={setClientQuery}
+                  searchResults={searchResults}
+                  frequent={frequentClients}
+                  onPick={(rc) => applyClient(rc.client)}
+                  onCreateNew={() => startNewClient(clientQuery.trim())}
+                />
+              )}
+            </FormBox>
+
+            <FormBox
+              title="Typ projektu"
+              icon={<I.layers s={14} />}
+              span={8}
+            >
+              <div className="quote-new-v2-type-grid">
+                {PROJECT_TYPES.map((t) => {
+                  const s = PROJECT_TYPE_STYLES[t];
+                  const active = projectType === t;
+                  return (
+                    <button
+                      type="button"
+                      key={t}
+                      className={`quote-new-v2-type${active ? " is-active" : ""}`}
+                      style={
+                        active
+                          ? {
+                              background: s.bg,
+                              color: s.fg,
+                              borderColor: s.border,
+                            }
+                          : undefined
+                      }
+                      onClick={() => setProjectType(t)}
+                    >
+                      <span
+                        className="quote-new-v2-type-dot"
+                        style={{ background: s.fg }}
+                      />
+                      <span>{t}</span>
+                      {active && (
+                        <span className="quote-new-v2-type-check">
+                          <I.check s={12} sw={2.6} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </FormBox>
+
+            <FormBox
+              title="Właściciel"
+              icon={<I.user s={14} />}
+              required
+              span={4}
+            >
+              {frequentOwners.length > 0 && (
+                <div className="quote-new-v2-owner-chips">
+                  {frequentOwners.map((o) => (
+                    <button
+                      key={o}
+                      type="button"
+                      className={`quote-new-v2-owner-chip${
+                        owner.trim() === o ? " is-active" : ""
+                      }`}
+                      onClick={() => setOwner(o)}
+                    >
+                      <span className="kanban-card-owner-avatar">
+                        {ownerInitials(o)}
+                      </span>
+                      <span>{o}</span>
+                    </button>
                   ))}
-                </select>
-              </label>
+                </div>
+              )}
+              <input
+                className="fluent-input"
+                type="text"
+                value={owner}
+                onChange={(e) => setOwner(e.target.value)}
+                placeholder={
+                  frequentOwners.length > 0
+                    ? "lub wpisz inną osobę"
+                    : "np. Adam Borowski"
+                }
+              />
+              {touched && !ownerValid && (
+                <span className="fluent-field-error">Podaj właściciela.</span>
+              )}
+            </FormBox>
 
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">
-                  Nazwa / firma <span className="fluent-field-required">*</span>
-                </span>
+            <FormBox
+              title="Status początkowy"
+              icon={<I.flag s={14} />}
+              span={12}
+            >
+              <div className="quote-new-v2-status-row">
+                {QUOTE_STATUSES.map((s, idx) => {
+                  const color = QUOTE_STATUS_COLORS[s];
+                  const active = status === s;
+                  return (
+                    <button
+                      type="button"
+                      key={s}
+                      className={`quote-new-v2-status-step${
+                        active ? " is-active" : ""
+                      }`}
+                      style={
+                        active
+                          ? {
+                              borderColor: color,
+                              boxShadow: `inset 0 0 0 1px ${color}`,
+                            }
+                          : undefined
+                      }
+                      onClick={() => setStatus(s)}
+                    >
+                      <span
+                        className="quote-new-v2-status-dot"
+                        style={{ background: color }}
+                      />
+                      <span className="quote-new-v2-status-label">{s}</span>
+                      <span className="quote-new-v2-status-idx">{idx + 1}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </FormBox>
+
+            <FormBox
+              title="Termin oferty"
+              icon={<I.cal s={14} />}
+              required
+              span={6}
+              tag={
+                deadlineValid ? (
+                  <span className="quote-new-v2-hint">
+                    {formatDeadlineLabel(deadline)}
+                  </span>
+                ) : null
+              }
+            >
+              <div className="quote-new-v2-quickrow">
+                {DEADLINE_QUICK.map((q) => {
+                  const iso = isoFromOffsetDays(q.days);
+                  const active = deadline === iso;
+                  return (
+                    <button
+                      type="button"
+                      key={q.label}
+                      className={`quote-new-v2-quick${active ? " is-active" : ""}`}
+                      onClick={() => setDeadline(iso)}
+                    >
+                      {q.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <input
+                className="fluent-input"
+                type="date"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+              {touched && !deadlineValid && (
+                <span className="fluent-field-error">Wybierz datę.</span>
+              )}
+            </FormBox>
+
+            <FormBox
+              title="Wartość brutto"
+              icon={<I.pln s={14} />}
+              span={6}
+              tag={<span className="quote-new-v2-hint">opcjonalnie</span>}
+            >
+              <div className="quote-new-v2-money">
                 <input
-                  className="fluent-input"
-                  type="text"
-                  value={name}
-                  onChange={(e) => clearSelectionOnEdit(setName)(e.target.value)}
-                  placeholder="np. ProBud Inwestycje"
-                  autoFocus
-                />
-                {touched && !nameValid && (
-                  <span className="fluent-field-error">Podaj nazwę lub firmę.</span>
-                )}
-              </label>
-
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">Ulica</span>
-                <input
-                  className="fluent-input"
-                  type="text"
-                  value={street}
-                  onChange={(e) =>
-                    clearSelectionOnEdit(setStreet)(e.target.value)
-                  }
-                  placeholder="np. ul. Kwiatowa 12"
-                />
-              </label>
-
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">Kod, miasto</span>
-                <input
-                  className="fluent-input"
-                  type="text"
-                  value={postalCity}
-                  onChange={(e) =>
-                    clearSelectionOnEdit(setPostalCity)(e.target.value)
-                  }
-                  placeholder="np. 00-001 Warszawa"
-                />
-              </label>
-
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">Telefon</span>
-                <input
-                  className="fluent-input"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) =>
-                    clearSelectionOnEdit(setPhone)(e.target.value)
-                  }
-                  placeholder="np. +48 600 000 000"
-                />
-              </label>
-
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">E-mail</span>
-                <input
-                  className="fluent-input"
-                  type="email"
-                  value={email}
-                  onChange={(e) =>
-                    clearSelectionOnEdit(setEmail)(e.target.value)
-                  }
-                  placeholder="np. kontakt@firma.pl"
-                />
-              </label>
-            </div>
-          </section>
-
-          <section className="quote-new-section">
-            <div className="quote-new-section-head">
-              <I.layers s={14} />
-              <span>Wycena</span>
-            </div>
-            <div className="fluent-form-grid">
-              <label className="fluent-field">
-                <span className="fluent-field-label">Typ projektu</span>
-                <select
-                  className="fluent-input"
-                  value={projectType}
-                  onChange={(e) => setProjectType(e.target.value as ProjectType)}
-                >
-                  {PROJECT_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="fluent-field">
-                <span className="fluent-field-label">Status</span>
-                <select
-                  className="fluent-input"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as QuoteStatus)}
-                >
-                  {QUOTE_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="fluent-field">
-                <span className="fluent-field-label">Wartość brutto (PLN)</span>
-                <input
-                  className="fluent-input"
+                  className="fluent-input quote-new-v2-money-input"
                   type="text"
                   inputMode="decimal"
                   value={valueText}
                   onChange={(e) => setValueText(e.target.value)}
-                  placeholder="opcjonalnie"
+                  placeholder="0,00"
                 />
-                {touched && !valueValid && (
-                  <span className="fluent-field-error">
-                    Podaj liczbę nieujemną.
-                  </span>
-                )}
-              </label>
-
-              <label className="fluent-field">
-                <span className="fluent-field-label">
-                  Termin oferty <span className="fluent-field-required">*</span>
+                <span className="quote-new-v2-money-unit">PLN</span>
+              </div>
+              {touched && !valueValid && (
+                <span className="fluent-field-error">
+                  Podaj liczbę nieujemną.
                 </span>
-                <input
-                  className="fluent-input"
-                  type="date"
-                  value={deadline}
-                  onChange={(e) => setDeadline(e.target.value)}
-                />
-                {touched && !deadlineValid && (
-                  <span className="fluent-field-error">Wybierz datę.</span>
-                )}
-              </label>
+              )}
+            </FormBox>
+          </div>
 
-              <label className="fluent-field fluent-field-full">
-                <span className="fluent-field-label">
-                  Właściciel <span className="fluent-field-required">*</span>
-                </span>
-                <input
-                  className="fluent-input"
-                  type="text"
-                  value={owner}
-                  onChange={(e) => setOwner(e.target.value)}
-                  placeholder="np. Adam Borowski"
-                />
-                {touched && !ownerValid && (
-                  <span className="fluent-field-error">Podaj właściciela.</span>
-                )}
-              </label>
-            </div>
-          </section>
-
-          <footer className="quote-new-foot">
-            <button
-              type="button"
-              className="fluent-btn fluent-btn-ghost"
-              onClick={handleCancel}
-            >
-              Anuluj
-            </button>
-            <button
-              type="submit"
-              className="fluent-btn fluent-btn-primary"
-              disabled={touched && !canSubmit}
-            >
-              <I.plus s={14} sw={2.2} />
-              <span>Utwórz wycenę</span>
-            </button>
-          </footer>
+          <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
         </form>
       </main>
     </>
+  );
+}
+
+function FormBox({
+  title,
+  icon,
+  required,
+  span,
+  tag,
+  action,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  required?: boolean;
+  span: 4 | 6 | 8 | 12;
+  tag?: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={`quote-detail-section quote-new-v2-cell quote-new-v2-cell-${span}`}
+    >
+      <header className="quote-detail-section-head">
+        <div className="quote-detail-section-title">
+          <span className="quote-detail-section-icon">{icon}</span>
+          <span>{title}</span>
+          {required && <span className="quote-new-v2-required">*</span>}
+          {tag}
+        </div>
+        {action && (
+          <div className="quote-detail-section-action">{action}</div>
+        )}
+      </header>
+      <div className="quote-detail-section-body quote-new-v2-body">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SelectedClientCard({ client }: { client: Client }) {
+  const hasMeta =
+    client.street || client.postalCity || client.phone || client.email;
+  return (
+    <div className="quote-new-v2-selected">
+      <div className="quote-new-v2-selected-avatar">
+        {ownerInitials(client.name)}
+      </div>
+      <div className="quote-new-v2-selected-body">
+        <div className="quote-new-v2-selected-name">{client.name}</div>
+        {hasMeta ? (
+          <div className="quote-new-v2-selected-meta">
+            {client.street && <span>{client.street}</span>}
+            {client.postalCity && <span>{client.postalCity}</span>}
+            {client.phone && (
+              <span className="quote-new-v2-selected-inline">
+                <I.phone s={12} /> {client.phone}
+              </span>
+            )}
+            {client.email && (
+              <span className="quote-new-v2-selected-inline">
+                <I.mail s={12} /> {client.email}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="quote-new-v2-selected-meta quote-new-v2-selected-empty">
+            Brak dodatkowych danych kontaktowych.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ClientPicker({
+  query,
+  onQuery,
+  searchResults,
+  frequent,
+  onPick,
+  onCreateNew,
+}: {
+  query: string;
+  onQuery: (v: string) => void;
+  searchResults: RankedClient[];
+  frequent: RankedClient[];
+  onPick: (c: RankedClient) => void;
+  onCreateNew: () => void;
+}) {
+  const trimmed = query.trim();
+  return (
+    <div className="quote-new-v2-picker">
+      <div className="quote-new-v2-search">
+        <I.search s={14} />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => onQuery(e.target.value)}
+          placeholder="Szukaj klienta po nazwie, telefonie, e-mailu…"
+          autoFocus
+        />
+        {query && (
+          <button
+            type="button"
+            className="quote-new-v2-search-clear"
+            onClick={() => onQuery("")}
+            aria-label="Wyczyść"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {trimmed ? (
+        <div className="quote-new-v2-results">
+          {searchResults.length === 0 ? (
+            <div className="quote-new-v2-empty">
+              Brak klientów pasujących do „{trimmed}”
+            </div>
+          ) : (
+            searchResults.map((entry) => (
+              <button
+                key={entry.client.id}
+                type="button"
+                className="quote-new-v2-result"
+                onClick={() => onPick(entry)}
+              >
+                <span className="quote-new-v2-result-avatar">
+                  {ownerInitials(entry.client.name)}
+                </span>
+                <span className="quote-new-v2-result-body">
+                  <span className="quote-new-v2-result-name">
+                    {entry.client.name}
+                  </span>
+                  <span className="quote-new-v2-result-meta">
+                    {[
+                      entry.client.postalCity,
+                      entry.client.phone,
+                      entry.client.email,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "—"}
+                  </span>
+                </span>
+                {entry.count > 0 && (
+                  <span className="quote-new-v2-result-badge">
+                    {entry.count}×
+                  </span>
+                )}
+                <span className="quote-new-v2-result-add">
+                  <I.arrow s={14} sw={2.2} />
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      ) : frequent.length > 0 ? (
+        <>
+          <div className="quote-new-v2-sublabel">
+            <span>Najczęściej wybierani</span>
+            <span className="quote-new-v2-sublabel-hint">
+              kliknij, aby wybrać
+            </span>
+          </div>
+          <div className="quote-new-v2-freq-grid">
+            {frequent.map((entry) => (
+              <button
+                key={entry.client.id}
+                type="button"
+                className="quote-new-v2-freq"
+                onClick={() => onPick(entry)}
+              >
+                <span className="quote-new-v2-freq-avatar">
+                  {ownerInitials(entry.client.name)}
+                </span>
+                <span className="quote-new-v2-freq-body">
+                  <span className="quote-new-v2-freq-name">
+                    {entry.client.name}
+                  </span>
+                  <span className="quote-new-v2-freq-meta">
+                    {entry.client.postalCity ||
+                      entry.client.phone ||
+                      entry.client.email ||
+                      "—"}
+                  </span>
+                </span>
+                {entry.count > 0 && (
+                  <span className="quote-new-v2-freq-badge">
+                    {entry.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="quote-new-v2-empty">
+          Brak zapisanych klientów. Dodaj pierwszego poniżej.
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="quote-new-v2-create"
+        onClick={onCreateNew}
+      >
+        <I.plus s={14} sw={2.2} />
+        <span>
+          {trimmed
+            ? `Dodaj nowego klienta „${trimmed}”`
+            : "Dodaj nowego klienta"}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function NewClientForm({
+  name,
+  street,
+  postalCity,
+  phone,
+  email,
+  save,
+  nameError,
+  onName,
+  onStreet,
+  onPostalCity,
+  onPhone,
+  onEmail,
+  onSaveToggle,
+}: {
+  name: string;
+  street: string;
+  postalCity: string;
+  phone: string;
+  email: string;
+  save: boolean;
+  nameError: boolean;
+  onName: (v: string) => void;
+  onStreet: (v: string) => void;
+  onPostalCity: (v: string) => void;
+  onPhone: (v: string) => void;
+  onEmail: (v: string) => void;
+  onSaveToggle: (v: boolean) => void;
+}) {
+  return (
+    <div className="quote-new-v2-newclient">
+      <div className="quote-new-v2-newclient-grid">
+        <label className="fluent-field fluent-field-full">
+          <span className="fluent-field-label">
+            Nazwa / firma <span className="fluent-field-required">*</span>
+          </span>
+          <input
+            className="fluent-input"
+            type="text"
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            placeholder="np. ProBud Inwestycje"
+            autoFocus
+          />
+          {nameError && (
+            <span className="fluent-field-error">
+              Podaj nazwę lub firmę.
+            </span>
+          )}
+        </label>
+        <label className="fluent-field">
+          <span className="fluent-field-label">Ulica</span>
+          <input
+            className="fluent-input"
+            type="text"
+            value={street}
+            onChange={(e) => onStreet(e.target.value)}
+            placeholder="np. ul. Kwiatowa 12"
+          />
+        </label>
+        <label className="fluent-field">
+          <span className="fluent-field-label">Kod, miasto</span>
+          <input
+            className="fluent-input"
+            type="text"
+            value={postalCity}
+            onChange={(e) => onPostalCity(e.target.value)}
+            placeholder="np. 00-001 Warszawa"
+          />
+        </label>
+        <label className="fluent-field">
+          <span className="fluent-field-label">Telefon</span>
+          <input
+            className="fluent-input"
+            type="tel"
+            value={phone}
+            onChange={(e) => onPhone(e.target.value)}
+            placeholder="np. +48 600 000 000"
+          />
+        </label>
+        <label className="fluent-field">
+          <span className="fluent-field-label">E-mail</span>
+          <input
+            className="fluent-input"
+            type="email"
+            value={email}
+            onChange={(e) => onEmail(e.target.value)}
+            placeholder="np. kontakt@firma.pl"
+          />
+        </label>
+      </div>
+      <label className="quote-new-v2-savetoggle">
+        <input
+          type="checkbox"
+          checked={save}
+          onChange={(e) => onSaveToggle(e.target.checked)}
+        />
+        <span>Zapisz w bazie klientów po utworzeniu wyceny</span>
+      </label>
+    </div>
   );
 }

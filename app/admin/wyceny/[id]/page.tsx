@@ -307,7 +307,7 @@ function QuoteDetailHeader({ quote }: { quote: Quote }) {
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Właściciel</div>
+            <div className="quote-detail-meta-label">Przypisany</div>
             <div className="quote-detail-meta-value quote-detail-meta-owner">
               <span className="kanban-card-owner-avatar">{ownerInitials(quote.owner)}</span>
               <span className="quote-detail-meta-num">{quote.owner}</span>
@@ -452,7 +452,7 @@ function TabSzczegoly({ quote }: { quote: Quote }) {
           <Field label="Typ" value={quote.projectType} />
           <Field label="Status" value={quote.status} />
           <Field label="Termin oferty" value={formatDeadline(quote.deadline)} />
-          <Field label="Właściciel" value={quote.owner} />
+          <Field label="Przypisany" value={quote.owner} />
           <Field label="Źródło leada" value={<span className="quote-detail-muted">— uzupełnij —</span>} />
           <Field label="Ważność oferty" value={<span className="quote-detail-muted">30 dni (domyślnie)</span>} />
         </div>
@@ -484,11 +484,7 @@ function TabSzczegoly({ quote }: { quote: Quote }) {
         )}
       </Section>
 
-      <Section title="Uwagi" icon={<I.doc s={14} />}>
-        <div className="quote-detail-empty">
-          <div className="quote-detail-empty-text">Brak notatek do tej wyceny.</div>
-        </div>
-      </Section>
+      <OpisUwagiSection author={quote.owner} />
 
       <ZadaniaSection />
     </div>
@@ -623,6 +619,124 @@ function TabPowiazane() {
         </div>
       </Section>
     </div>
+  );
+}
+
+type QuoteNote = {
+  id: string;
+  text: string;
+  createdAt: string;
+  author: string;
+};
+
+function formatNoteDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function OpisUwagiSection({ author }: { author: string }) {
+  const [notes, setNotes] = useState<QuoteNote[]>([]);
+  const [draft, setDraft] = useState("");
+
+  function addNote() {
+    const text = draft.trim();
+    if (!text) return;
+    setNotes((prev) => [
+      ...prev,
+      {
+        id: `n-${Date.now()}`,
+        text,
+        createdAt: new Date().toISOString(),
+        author,
+      },
+    ]);
+    setDraft("");
+  }
+
+  function remove(id: string) {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+  }
+
+  return (
+    <Section
+      title="Opis/Uwagi"
+      icon={<I.doc s={14} />}
+      action={
+        <span className="quote-detail-todo-count">{notes.length}</span>
+      }
+      bodyClassName="quote-detail-todo-body"
+    >
+      <ul className="quote-detail-notes-list">
+        {notes.length === 0 && (
+          <li className="quote-detail-todo-empty">
+            Brak notatek — dodaj pierwszą poniżej.
+          </li>
+        )}
+        {notes.map((n) => (
+          <li key={n.id} className="quote-detail-note-item">
+            <div className="quote-detail-note-body">
+              <div className="quote-detail-note-text">{n.text}</div>
+              <div className="quote-detail-note-meta">
+                <span className="quote-detail-note-author">
+                  <span className="kanban-card-owner-avatar">
+                    {ownerInitials(n.author)}
+                  </span>
+                  <span>{n.author}</span>
+                </span>
+                <span className="quote-detail-note-sep">·</span>
+                <span>{formatNoteDate(n.createdAt)}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="quote-detail-todo-remove"
+              onClick={() => remove(n.id)}
+              aria-label="Usuń notatkę"
+            >
+              <I.trash s={12} />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <form
+        className="quote-detail-todo-add quote-detail-note-add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          addNote();
+        }}
+      >
+        <span className="quote-detail-todo-add-icon">
+          <I.plus s={14} />
+        </span>
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              addNote();
+            }
+          }}
+          placeholder="Dodaj notatkę… (Cmd/Ctrl+Enter)"
+          className="quote-detail-todo-input quote-detail-note-input"
+          rows={2}
+        />
+        <button
+          type="submit"
+          className="quote-detail-todo-submit"
+          disabled={!draft.trim()}
+        >
+          Dodaj
+        </button>
+      </form>
+    </Section>
   );
 }
 
