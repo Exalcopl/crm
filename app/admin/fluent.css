@@ -139,8 +139,11 @@
 }
 
 .fluent-titlebar .global-search {
-  flex: 0 1 480px;
-  margin: 0 auto;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, 40vw);
   display: flex;
   align-items: center;
   gap: 8px;
