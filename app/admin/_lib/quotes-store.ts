@@ -1,9 +1,26 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { INITIAL_QUOTES, type Quote } from "./quotes";
+import { INITIAL_QUOTES, QUOTE_STATUSES, type Quote, type QuoteStatus } from "./quotes";
 
 const STORAGE_KEY = "exalco.quotes.v2";
+
+const LEGACY_STATUS_MAP: Record<string, QuoteStatus> = {
+  Pomiary: "Pomiary i uzgodnienia",
+  "Szykowanie produkcji": "Pomiary i uzgodnienia",
+};
+
+function migrateQuotes(rows: Quote[]): { quotes: Quote[]; changed: boolean } {
+  let changed = false;
+  const valid = new Set<string>(QUOTE_STATUSES);
+  const quotes = rows.map((q) => {
+    if (valid.has(q.status)) return q;
+    const next = LEGACY_STATUS_MAP[q.status as string] ?? "Do zrobienia";
+    changed = true;
+    return { ...q, status: next };
+  });
+  return { quotes, changed };
+}
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -18,7 +35,15 @@ function loadFromStorage(): Quote[] {
     if (!raw) return INITIAL_QUOTES;
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return INITIAL_QUOTES;
-    return parsed as Quote[];
+    const { quotes, changed } = migrateQuotes(parsed as Quote[]);
+    if (changed) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(quotes));
+      } catch {
+        /* ignore */
+      }
+    }
+    return quotes;
   } catch {
     return INITIAL_QUOTES;
   }

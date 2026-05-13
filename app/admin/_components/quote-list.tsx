@@ -1,0 +1,214 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { I } from "../_lib/icons";
+import {
+  PROJECT_TYPE_STYLES,
+  QUOTE_STATUSES,
+  QUOTE_STATUS_COLORS,
+  deadlineTone,
+  formatDeadline,
+  ownerInitials,
+  type Quote,
+} from "../_lib/quotes";
+
+type SortColumn =
+  | "id"
+  | "client"
+  | "projectType"
+  | "status"
+  | "value"
+  | "deadline"
+  | "owner";
+type SortState = { column: SortColumn; dir: "asc" | "desc" };
+
+export function QuoteListView({
+  quotes,
+  emptyLabel = "Brak wycen pasujących do filtra.",
+}: {
+  quotes: Quote[];
+  emptyLabel?: string;
+}) {
+  const [sort, setSort] = useState<SortState>({ column: "deadline", dir: "asc" });
+
+  const sortedQuotes = useMemo(() => {
+    const arr = [...quotes];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      switch (sort.column) {
+        case "id":
+          cmp = a.id.localeCompare(b.id);
+          break;
+        case "client":
+          cmp = a.contact.name.localeCompare(b.contact.name, "pl");
+          break;
+        case "projectType":
+          cmp = a.projectType.localeCompare(b.projectType, "pl");
+          break;
+        case "status":
+          cmp = QUOTE_STATUSES.indexOf(a.status) - QUOTE_STATUSES.indexOf(b.status);
+          break;
+        case "value":
+          cmp = (a.value ?? -Infinity) - (b.value ?? -Infinity);
+          break;
+        case "deadline":
+          cmp = a.deadline.localeCompare(b.deadline);
+          break;
+        case "owner":
+          cmp = a.owner.localeCompare(b.owner, "pl");
+          break;
+      }
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [quotes, sort]);
+
+  const toggleSort = (column: SortColumn) => {
+    setSort((s) =>
+      s.column === column
+        ? { column, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { column, dir: "asc" },
+    );
+  };
+
+  return (
+    <div className="quote-list" role="table" aria-label="Lista wycen">
+      <div className="quote-list-header" role="row">
+        <SortHeader label="ID" column="id" sort={sort} onSort={toggleSort} />
+        <SortHeader label="Klient" column="client" sort={sort} onSort={toggleSort} />
+        <SortHeader label="Typ" column="projectType" sort={sort} onSort={toggleSort} />
+        <SortHeader label="Status" column="status" sort={sort} onSort={toggleSort} />
+        <SortHeader
+          label="Wartość"
+          column="value"
+          sort={sort}
+          onSort={toggleSort}
+          align="right"
+        />
+        <SortHeader label="Termin" column="deadline" sort={sort} onSort={toggleSort} />
+        <SortHeader
+          label="Właściciel"
+          column="owner"
+          sort={sort}
+          onSort={toggleSort}
+          align="center"
+        />
+      </div>
+      <div className="quote-list-body">
+        {sortedQuotes.length === 0 ? (
+          <div className="quote-list-empty">{emptyLabel}</div>
+        ) : (
+          sortedQuotes.map((q) => <QuoteListRow key={q.id} quote={q} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SortHeader({
+  label,
+  column,
+  sort,
+  onSort,
+  align,
+}: {
+  label: string;
+  column: SortColumn;
+  sort: SortState;
+  onSort: (c: SortColumn) => void;
+  align?: "right" | "center";
+}) {
+  const active = sort.column === column;
+  return (
+    <button
+      type="button"
+      role="columnheader"
+      className={`quote-list-header-cell${active ? " is-active" : ""}${
+        align ? ` align-${align}` : ""
+      }`}
+      onClick={() => onSort(column)}
+      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <span>{label}</span>
+      <span className="quote-list-header-arrow" aria-hidden>
+        {active ? (sort.dir === "asc" ? "▲" : "▼") : "▾"}
+      </span>
+    </button>
+  );
+}
+
+function QuoteListRow({ quote }: { quote: Quote }) {
+  const router = useRouter();
+  const typeStyle = PROJECT_TYPE_STYLES[quote.projectType];
+  const statusColor = QUOTE_STATUS_COLORS[quote.status];
+  const tone = deadlineTone(quote.deadline);
+  const hasValue = quote.value !== null;
+  const go = () => router.push(`/admin/wyceny/${quote.id}`);
+  return (
+    <div
+      className="quote-list-row"
+      role="row"
+      tabIndex={0}
+      onClick={go}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go();
+        }
+      }}
+    >
+      <div className="quote-list-cell quote-list-cell-id">{quote.id}</div>
+      <div className="quote-list-cell quote-list-cell-client">{quote.contact.name}</div>
+      <div className="quote-list-cell">
+        <span
+          className="kanban-chip kanban-chip-type"
+          style={{
+            background: typeStyle.bg,
+            color: typeStyle.fg,
+            borderColor: typeStyle.border,
+          }}
+        >
+          <span className="kanban-chip-dot" style={{ background: typeStyle.fg }} />
+          {quote.projectType}
+        </span>
+      </div>
+      <div className="quote-list-cell">
+        <span className="quote-list-status" style={{ color: statusColor }}>
+          <span className="quote-list-status-dot" />
+          {quote.status}
+        </span>
+      </div>
+      <div className="quote-list-cell quote-list-cell-value align-right">
+        {hasValue ? (
+          <>
+            <span className="quote-list-value-num">
+              {quote.value!.toLocaleString("pl-PL", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            <span className="quote-list-value-unit">PLN</span>
+          </>
+        ) : (
+          <span className="quote-list-value-empty">— brak —</span>
+        )}
+      </div>
+      <div className="quote-list-cell">
+        <span className={`kanban-chip kanban-chip-deadline tone-${tone}`}>
+          <I.cal s={11} />
+          {formatDeadline(quote.deadline)}
+        </span>
+      </div>
+      <div className="quote-list-cell quote-list-cell-owner align-center">
+        <span
+          className="kanban-card-owner-avatar"
+          title={quote.owner}
+          aria-label={quote.owner}
+        >
+          {ownerInitials(quote.owner)}
+        </span>
+      </div>
+    </div>
+  );
+}

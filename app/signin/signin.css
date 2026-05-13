@@ -1,0 +1,127 @@
+.signin-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0d1117;
+  color: #ffffff;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 32px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 380px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 32px 28px 28px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.32);
+}
+
+.signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.signin-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #d41d3c, #7a1024);
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 18px;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.signin-brand-title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.signin-brand-sub {
+  font-size: 12px;
+  color: #8b949e;
+  margin-top: 2px;
+}
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signin-label {
+  font-size: 12px;
+  color: #c9d1d9;
+  font-weight: 500;
+}
+
+.signin-input {
+  appearance: none;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.signin-input::placeholder {
+  color: #6e7681;
+}
+
+.signin-input:hover {
+  border-color: #484f58;
+}
+
+.signin-input:focus {
+  border-color: #d41d3c;
+  box-shadow: 0 0 0 3px rgba(212, 29, 60, 0.15);
+}
+
+.signin-error {
+  background: rgba(248, 81, 73, 0.12);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+  border-radius: 6px;
+  color: #ffb4af;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.signin-submit {
+  appearance: none;
+  background: #d41d3c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, opacity 120ms ease;
+  margin-top: 4px;
+}
+
+.signin-submit:hover:not(:disabled) {
+  background: #e63350;
+}
+
+.signin-submit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

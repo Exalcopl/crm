@@ -1,8 +1,7 @@
 export type QuoteStatus =
   | "Do zrobienia"
   | "Kontakt z klientem"
-  | "Pomiary"
-  | "Szykowanie produkcji"
+  | "Pomiary i uzgodnienia"
   | "Zrobione";
 
 export type ProjectType =
@@ -29,21 +28,20 @@ export type Quote = {
   deadline: string;
   projectType: ProjectType;
   owner: string;
+  archived?: boolean;
 };
 
 export const QUOTE_STATUSES: QuoteStatus[] = [
   "Do zrobienia",
   "Kontakt z klientem",
-  "Pomiary",
-  "Szykowanie produkcji",
+  "Pomiary i uzgodnienia",
   "Zrobione",
 ];
 
 export const QUOTE_STATUS_COLORS: Record<QuoteStatus, string> = {
   "Do zrobienia": "#8b949e",
   "Kontakt z klientem": "#79c0ff",
-  Pomiary: "#79c0ff",
-  "Szykowanie produkcji": "#ffa657",
+  "Pomiary i uzgodnienia": "#79c0ff",
   Zrobione: "#3fb950",
 };
 
@@ -65,11 +63,11 @@ export const INITIAL_QUOTES: Quote[] = [
   { id: "WC-2026-0721", contact: { name: "Vistula Dev." }, value: 384000, status: "Do zrobienia", deadline: "2026-06-02", projectType: "Pergola", owner: "Joanna Krawczyk" },
   { id: "WC-2026-0729", contact: { name: "Anna Kowalska" }, value: 92400, status: "Kontakt z klientem", deadline: "2026-05-10", projectType: "Stolarka", owner: "Marek Wiśniewski" },
   { id: "WC-2026-0727", contact: { name: "Studio Architektury MW" }, value: 412000, status: "Kontakt z klientem", deadline: "2026-05-09", projectType: "Ogrodzenie", owner: "Ewa Bielecka" },
-  { id: "WC-2026-0731", contact: { name: "Marwit Sp. z o.o." }, value: 184200, status: "Pomiary", deadline: "2026-05-15", projectType: "Osłony okienne", owner: "Joanna Krawczyk" },
-  { id: "WC-2026-0733", contact: { name: "Pawlak & Synowie" }, value: null, status: "Pomiary", deadline: "2026-05-14", projectType: "Stolarka", owner: "Ewa Bielecka" },
-  { id: "WC-2026-0728", contact: { name: "Gmina Brzesko" }, value: 218600, status: "Pomiary", deadline: "2026-05-12", projectType: "Zadaszenia", owner: "Adam Borowski" },
-  { id: "WC-2026-0725", contact: { name: "Hotel Nadwiślański" }, value: 78400, status: "Szykowanie produkcji", deadline: "2026-05-18", projectType: "Pergola", owner: "Marek Wiśniewski" },
-  { id: "WC-2026-0718", contact: { name: "Bartolini S.A." }, value: 296400, status: "Szykowanie produkcji", deadline: "2026-05-22", projectType: "Stolarka", owner: "Joanna Krawczyk" },
+  { id: "WC-2026-0731", contact: { name: "Marwit Sp. z o.o." }, value: 184200, status: "Pomiary i uzgodnienia", deadline: "2026-05-15", projectType: "Osłony okienne", owner: "Joanna Krawczyk" },
+  { id: "WC-2026-0733", contact: { name: "Pawlak & Synowie" }, value: null, status: "Pomiary i uzgodnienia", deadline: "2026-05-14", projectType: "Stolarka", owner: "Ewa Bielecka" },
+  { id: "WC-2026-0728", contact: { name: "Gmina Brzesko" }, value: 218600, status: "Pomiary i uzgodnienia", deadline: "2026-05-12", projectType: "Zadaszenia", owner: "Adam Borowski" },
+  { id: "WC-2026-0725", contact: { name: "Hotel Nadwiślański" }, value: 78400, status: "Pomiary i uzgodnienia", deadline: "2026-05-18", projectType: "Pergola", owner: "Marek Wiśniewski" },
+  { id: "WC-2026-0718", contact: { name: "Bartolini S.A." }, value: 296400, status: "Pomiary i uzgodnienia", deadline: "2026-05-22", projectType: "Stolarka", owner: "Joanna Krawczyk" },
   { id: "WC-2026-0712", contact: { name: "Nowak Bud Sp.j." }, value: 488200, status: "Zrobione", deadline: "2026-04-28", projectType: "Ogrodzenie", owner: "Ewa Bielecka" },
   { id: "WC-2026-0705", contact: { name: "Architekci Pracownia 7" }, value: 96400, status: "Zrobione", deadline: "2026-04-22", projectType: "Inne", owner: "Adam Borowski" },
 ];

@@ -39,11 +39,23 @@ export default function QuoteDetailPage({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DetailTab>("szczegoly");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const isArchived = quote?.archived === true;
 
   function confirmDelete() {
     if (!quote) return;
     setQuotes((prev) => prev.filter((q) => q.id !== quote.id));
     setConfirmDeleteOpen(false);
+    router.push(isArchived ? "/admin/archiwum" : "/admin");
+  }
+
+  function toggleArchive() {
+    if (!quote) return;
+    const goingToArchive = !isArchived;
+    setQuotes((prev) =>
+      prev.map((q) =>
+        q.id === quote.id ? { ...q, archived: goingToArchive } : q,
+      ),
+    );
     router.push("/admin");
   }
 
@@ -55,6 +67,8 @@ export default function QuoteDetailPage({
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onDelete={() => setConfirmDeleteOpen(true)}
+          onArchive={toggleArchive}
+          archived={false}
           disabled
         />
         <main className="fluent-content">
@@ -73,13 +87,20 @@ export default function QuoteDetailPage({
   return (
     <>
       <QuoteDetailRibbon
-        onBack={() => router.push("/admin")}
+        onBack={() => router.push(isArchived ? "/admin/archiwum" : "/admin")}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onDelete={() => setConfirmDeleteOpen(true)}
+        onArchive={toggleArchive}
+        archived={isArchived}
       />
       <main className="fluent-content">
-        <QuoteDetailLayout quote={quote} activeTab={activeTab} />
+        <QuoteDetailLayout
+          quote={quote}
+          activeTab={activeTab}
+          archived={isArchived}
+          onRestore={toggleArchive}
+        />
       </main>
       {confirmDeleteOpen && (
         <ConfirmDeleteModal
@@ -187,12 +208,16 @@ function QuoteDetailRibbon({
   activeTab,
   onTabChange,
   onDelete,
+  onArchive,
+  archived,
   disabled,
 }: {
   onBack: () => void;
   activeTab: DetailTab;
   onTabChange: (tab: DetailTab) => void;
   onDelete: () => void;
+  onArchive: () => void;
+  archived: boolean;
   disabled?: boolean;
 }) {
   return (
@@ -213,7 +238,12 @@ function QuoteDetailRibbon({
         ))}
       </RibbonGroup>
       <RibbonGroup label="Operacje">
-        <RibbonBtn icon={<I.archive s={22} />} label="Archiwizuj" disabled={disabled} />
+        <RibbonBtn
+          icon={archived ? <I.arrowLeft s={22} /> : <I.archive s={22} />}
+          label={archived ? "Przywróć" : "Archiwizuj"}
+          disabled={disabled}
+          onClick={onArchive}
+        />
         <RibbonBtn
           icon={<I.trash s={22} />}
           label="Usuń"
@@ -225,9 +255,20 @@ function QuoteDetailRibbon({
   );
 }
 
-function QuoteDetailLayout({ quote, activeTab }: { quote: Quote; activeTab: DetailTab }) {
+function QuoteDetailLayout({
+  quote,
+  activeTab,
+  archived,
+  onRestore,
+}: {
+  quote: Quote;
+  activeTab: DetailTab;
+  archived: boolean;
+  onRestore: () => void;
+}) {
   return (
     <div className="quote-detail">
+      {archived && <ArchivedBanner onRestore={onRestore} />}
       <QuoteDetailHeader quote={quote} />
       <div className="quote-detail-main">
         {activeTab === "szczegoly" && <TabSzczegoly quote={quote} />}
@@ -237,6 +278,32 @@ function QuoteDetailLayout({ quote, activeTab }: { quote: Quote; activeTab: Deta
         {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
         {activeTab === "powiazane" && <TabPowiazane />}
       </div>
+    </div>
+  );
+}
+
+function ArchivedBanner({ onRestore }: { onRestore: () => void }) {
+  return (
+    <div className="quote-detail-archived-banner" role="status">
+      <span className="quote-detail-archived-banner-icon" aria-hidden="true">
+        <I.archive s={18} sw={2} />
+      </span>
+      <div className="quote-detail-archived-banner-text">
+        <div className="quote-detail-archived-banner-title">
+          Ta wycena jest w archiwum
+        </div>
+        <div className="quote-detail-archived-banner-sub">
+          Tylko do odczytu — zmiany nie będą zapisywane.
+        </div>
+      </div>
+      <button
+        type="button"
+        className="quote-detail-archived-banner-action"
+        onClick={onRestore}
+      >
+        <span>Przywróć</span>
+        <I.arrowLeft s={12} sw={2.2} />
+      </button>
     </div>
   );
 }
@@ -537,7 +604,7 @@ function TabPozycje({ quote }: { quote: Quote }) {
 }
 
 function TabPomiary({ quote }: { quote: Quote }) {
-  const needsMeasurement = quote.status === "Pomiary" || quote.status === "Kontakt z klientem";
+  const needsMeasurement = quote.status === "Pomiary i uzgodnienia" || quote.status === "Kontakt z klientem";
   return (
     <div className="quote-detail-stack">
       <Section title="Pomiary" icon={<I.ruler s={14} />}>

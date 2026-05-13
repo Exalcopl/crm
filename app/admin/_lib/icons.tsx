@@ -288,4 +288,14 @@ export const I = {
       <path d="m21 11-9.5 9.5a5 5 0 0 1-7-7L13 5a3.5 3.5 0 0 1 5 5L8.5 19.5a2 2 0 0 1-3-3L14 8" />
     </Icon>
   ),
+  signOut: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </Icon>
+  ),
+  x: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Icon>
+  ),
 };

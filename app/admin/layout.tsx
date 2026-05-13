@@ -1,18 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { AdministracjaRibbon } from "./_components/administracja-ribbon";
 import { I } from "./_lib/icons";
+import {
+  PermissionGate,
+  PermissionsProvider,
+  usePermissions,
+} from "./_lib/permissions";
 import "./fluent.css";
+
+type Has = (resource: string, action: string) => boolean;
 
 type TabDef = {
   id: string;
   label: string;
   href: string;
   match: (pathname: string) => boolean;
-  badge?: number;
+  visible?: (has: Has) => boolean;
+  resource?: string;
+  action?: string;
 };
+
+const ADMIN_SECTION_PREFIXES = ["/admin/users", "/admin/roles"] as const;
+
+const isAdminSection = (p: string) =>
+  ADMIN_SECTION_PREFIXES.some((prefix) => p.startsWith(prefix));
 
 const TABS: TabDef[] = [
   {
@@ -20,17 +36,52 @@ const TABS: TabDef[] = [
     label: "Wyceny",
     href: "/admin",
     match: (p) => p === "/admin" || p.startsWith("/admin/wyceny"),
+    resource: "wyceny",
+    action: "read",
   },
   {
     id: "klienci",
     label: "Klienci",
     href: "/admin/klienci",
     match: (p) => p.startsWith("/admin/klienci"),
+    resource: "klienci",
+    action: "read",
+  },
+  {
+    id: "administracja",
+    label: "Administracja",
+    href: "/admin/users",
+    match: (p) => isAdminSection(p),
+    visible: (has) => has("users", "read") || has("roles", "read"),
   },
 ];
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+function ownerInitials(name: string | null, email: string | null) {
+  if (name && name.trim().length > 0) {
+    const parts = name.trim().split(/\s+/);
+    return (parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "");
+  }
+  return (email ?? "??").slice(0, 2).toUpperCase();
+}
+
+function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/admin";
+  const router = useRouter();
+  const { user, isLoading, has } = usePermissions();
+  const { signOut } = useAuthActions();
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.mustChangePassword && !pathname.startsWith("/account")) {
+      router.replace("/account/change-password");
+    }
+  }, [user, pathname, router]);
+
+  async function onSignOut() {
+    await signOut();
+    router.push("/signin");
+    router.refresh();
+  }
 
   return (
     <div className="fluent-shell" data-theme="carbon" data-density="compact">
@@ -54,22 +105,42 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <button type="button" className="icon-btn" title="Pomoc">
             <I.help s={15} />
           </button>
-          <button type="button" className="icon-btn" title="Ustawienia">
+          <Link href="/account" className="icon-btn" title="Ustawienia konta">
             <I.cog s={15} />
-          </button>
+          </Link>
           <div className="divider" />
-          <button type="button" className="profile">
-            <div className="av">LS</div>
-            <div className="profile-meta">
-              <div className="profile-name">Leszek Sakowski</div>
-              <div className="profile-role">Administrator</div>
+          <Link href="/account" className="profile" title="Twoje konto">
+            <div className="av">
+              {isLoading
+                ? ".."
+                : ownerInitials(user?.name ?? null, user?.email ?? null)}
             </div>
+            <div className="profile-meta">
+              <div className="profile-name">
+                {isLoading ? "..." : user?.name ?? user?.email ?? "Nieznany"}
+              </div>
+              <div className="profile-role">
+                {user?.role?.displayName ?? "Brak roli"}
+              </div>
+            </div>
+          </Link>
+          <button
+            type="button"
+            className="icon-btn"
+            title="Wyloguj"
+            onClick={onSignOut}
+          >
+            <I.signOut s={15} />
           </button>
         </div>
       </div>
 
       <div className="fluent-tabs" role="tablist">
         {TABS.map((t) => {
+          const visible = t.visible
+            ? t.visible(has)
+            : !t.resource || !t.action || has(t.resource, t.action);
+          if (!visible) return null;
           const active = t.match(pathname);
           return (
             <Link
@@ -80,13 +151,24 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               href={t.href}
             >
               {t.label}
-              {t.badge != null && <span className="tab-badge">{t.badge}</span>}
             </Link>
           );
         })}
       </div>
 
+      {isAdminSection(pathname) && <AdministracjaRibbon />}
+
       {children}
     </div>
   );
 }
+
+export default function AdminLayout({ children }: { children: ReactNode }) {
+  return (
+    <PermissionsProvider>
+      <AdminShell>{children}</AdminShell>
+    </PermissionsProvider>
+  );
+}
+
+export { PermissionGate };

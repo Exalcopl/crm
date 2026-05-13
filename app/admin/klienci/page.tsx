@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { I } from "../_lib/icons";
 import { nextClientId, type Client } from "../_lib/clients";
 import { setClients, useClients } from "../_lib/clients-store";
@@ -42,17 +42,6 @@ export default function KlienciPage() {
   const [dialog, setDialog] = useState<
     { mode: "create" } | { mode: "edit"; id: string } | null
   >(null);
-  const [query, setQuery] = useState("");
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return clients;
-    return clients.filter((c) =>
-      [c.name, c.street, c.postalCity, c.phone, c.email]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(q)),
-    );
-  }, [clients, query]);
 
   function handleCreate(draft: ClientDraft) {
     const id = nextClientId(clients);
@@ -105,17 +94,6 @@ export default function KlienciPage() {
             onClick={() => setDialog({ mode: "create" })}
           />
         </RibbonGroup>
-        <RibbonGroup label="Szukaj">
-          <label className="client-search">
-            <I.search s={14} />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Szukaj po nazwie, adresie, telefonie…"
-            />
-          </label>
-        </RibbonGroup>
       </div>
       <main className="fluent-content">
         {clients.length === 0 ? (
@@ -148,20 +126,14 @@ export default function KlienciPage() {
               </div>
             </div>
             <div className="client-list-body">
-              {filtered.length === 0 ? (
-                <div className="client-list-empty">
-                  Brak wyników dla „{query}”.
-                </div>
-              ) : (
-                filtered.map((c) => (
-                  <ClientRow
-                    key={c.id}
-                    client={c}
-                    onEdit={() => setDialog({ mode: "edit", id: c.id })}
-                    onDelete={() => handleDelete(c.id)}
-                  />
-                ))
-              )}
+              {clients.map((c) => (
+                <ClientRow
+                  key={c.id}
+                  client={c}
+                  onEdit={() => setDialog({ mode: "edit", id: c.id })}
+                  onDelete={() => handleDelete(c.id)}
+                />
+              ))}
             </div>
           </div>
         )}

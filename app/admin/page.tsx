@@ -29,12 +29,17 @@ import {
   deadlineTone,
   formatDeadline,
   ownerInitials,
-  type ProjectType,
   type Quote,
   type QuoteStatus,
 } from "./_lib/quotes";
 import { setQuotes, useQuotes } from "./_lib/quotes-store";
 import { RibbonBtn, RibbonGroup, RibbonToggleGroup } from "./_components/ribbon";
+import {
+  ProjectTypeFilterStrip,
+  computeProjectTypeCounts,
+  type ProjectTypeFilter,
+} from "./_components/project-type-filter";
+import { QuoteListView } from "./_components/quote-list";
 
 type WycenyViewMode = "kanban" | "lista";
 
@@ -42,10 +47,12 @@ function WycenyRibbon({
   view,
   onViewChange,
   onNewQuote,
+  onArchive,
 }: {
   view: WycenyViewMode;
   onViewChange: (v: WycenyViewMode) => void;
   onNewQuote: () => void;
+  onArchive: () => void;
 }) {
   return (
     <div className="fluent-ribbon">
@@ -55,6 +62,11 @@ function WycenyRibbon({
           label="Nowa wycena"
           primary
           onClick={onNewQuote}
+        />
+        <RibbonBtn
+          icon={<I.archive s={22} />}
+          label="Archiwum"
+          onClick={onArchive}
         />
       </RibbonGroup>
       <RibbonGroup label="Widok">
@@ -71,50 +83,24 @@ function WycenyRibbon({
   );
 }
 
-type QuoteFilter = "Wszystkie" | ProjectType | "Archiwum";
-
-const FILTERS: QuoteFilter[] = [
-  "Wszystkie",
-  "Zadaszenia",
-  "Pergola",
-  "Stolarka",
-  "Ogrodzenie",
-  "Osłony okienne",
-  "Inne",
-  "Archiwum",
-];
-
 function WycenyView({ view }: { view: WycenyViewMode }) {
-  const quotes = useQuotes();
-  const [filter, setFilter] = useState<QuoteFilter>("Wszystkie");
+  const allQuotes = useQuotes();
+  const quotes = useMemo(
+    () => allQuotes.filter((q) => !q.archived),
+    [allQuotes],
+  );
+  const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
-  const counts = useMemo(() => {
-    const c: Record<QuoteFilter, number> = {
-      Wszystkie: quotes.length,
-      Zadaszenia: 0,
-      Pergola: 0,
-      Stolarka: 0,
-      Ogrodzenie: 0,
-      "Osłony okienne": 0,
-      Inne: 0,
-      Archiwum: 0,
-    };
-    quotes.forEach((q) => {
-      c[q.projectType] += 1;
-      if (q.status === "Zrobione") c.Archiwum += 1;
-    });
-    return c;
-  }, [quotes]);
+  const counts = useMemo(() => computeProjectTypeCounts(quotes), [quotes]);
 
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return quotes;
-    if (filter === "Archiwum") return quotes.filter((q) => q.status === "Zrobione");
     return quotes.filter((q) => q.projectType === filter);
   }, [quotes, filter]);
 
   return (
     <>
-      <KanbanFilterStrip value={filter} counts={counts} onChange={setFilter} />
+      <ProjectTypeFilterStrip value={filter} counts={counts} onChange={setFilter} />
       {view === "kanban" ? (
         <WycenyKanbanBoard
           quotes={quotes}
@@ -122,7 +108,7 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
           filteredQuotes={filteredQuotes}
         />
       ) : (
-        <WycenyList quotes={filteredQuotes} />
+        <QuoteListView quotes={filteredQuotes} />
       )}
     </>
   );
@@ -148,8 +134,7 @@ function WycenyKanbanBoard({
     const map: Record<QuoteStatus, Quote[]> = {
       "Do zrobienia": [],
       "Kontakt z klientem": [],
-      Pomiary: [],
-      "Szykowanie produkcji": [],
+      "Pomiary i uzgodnienia": [],
       Zrobione: [],
     };
     filteredQuotes.forEach((q) => map[q.status].push(q));
@@ -240,62 +225,6 @@ function WycenyKanbanBoard({
         {activeQuote ? <KanbanCardView quote={activeQuote} overlay /> : null}
       </DragOverlay>
     </DndContext>
-  );
-}
-
-function KanbanFilterStrip({
-  value,
-  counts,
-  onChange,
-}: {
-  value: QuoteFilter;
-  counts: Record<QuoteFilter, number>;
-  onChange: (v: QuoteFilter) => void;
-}) {
-  return (
-    <div className="kanban-filter-strip">
-      {FILTERS.map((f) => {
-        const active = value === f;
-        const isMeta = f === "Wszystkie" || f === "Archiwum";
-        const style = isMeta ? null : PROJECT_TYPE_STYLES[f];
-        const metaActiveBg = f === "Wszystkie" ? "var(--accent-soft)" : "rgba(139, 148, 158, 0.18)";
-        const metaActiveBorder = f === "Wszystkie" ? "var(--accent-line)" : "rgba(139, 148, 158, 0.6)";
-        const metaActiveFg = f === "Wszystkie" ? "var(--text-accent)" : "#c9d1d9";
-        const metaRail = f === "Wszystkie" ? "var(--accent-primary)" : "rgba(139, 148, 158, 0.7)";
-
-        const activeStyle = active
-          ? {
-              background: style ? style.bg : metaActiveBg,
-              borderColor: style ? style.border : metaActiveBorder,
-              color: style ? style.fg : metaActiveFg,
-            }
-          : undefined;
-        const railColor = style ? style.fg : metaRail;
-
-        return (
-          <button
-            key={f}
-            type="button"
-            className={`kanban-filter-tile${active ? " active" : ""}${
-              f === "Archiwum" ? " is-archive" : ""
-            }`}
-            style={activeStyle}
-            onClick={() => onChange(f)}
-            aria-pressed={active}
-          >
-            <span className="kanban-filter-tile-label">{f}</span>
-            <span className="kanban-filter-tile-count">{counts[f]}</span>
-            {!active && (
-              <span
-                className="kanban-filter-tile-rail"
-                style={{ background: railColor }}
-                aria-hidden
-              />
-            )}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
@@ -403,39 +332,6 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
           {quote.projectType}
         </span>
         <span className="kanban-card-id">{quote.id}</span>
-      </div>
-      <div className="kanban-card-client">{quote.contact.name}</div>
-      {hasValue ? (
-        <div className="kanban-card-value">
-          <span className="kanban-card-value-num">
-            {quote.value!.toLocaleString("pl-PL", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-          <span className="kanban-card-value-unit">PLN</span>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className="kanban-card-value-empty"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-        >
-          <span className="kanban-card-value-empty-icon" aria-hidden>
-            <I.plus s={12} sw={2.2} />
-          </span>
-          <span className="kanban-card-value-empty-label">Dodaj wycenę</span>
-          <span className="kanban-card-value-empty-hint">brak kwoty</span>
-        </button>
-      )}
-      <div className="kanban-card-footer">
-        <span className={`kanban-chip kanban-chip-deadline tone-${tone}`}>
-          <I.cal s={11} />
-          {formatDeadline(quote.deadline)}
-        </span>
         <div
           className="kanban-card-owner"
           title={quote.owner}
@@ -446,194 +342,39 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
           </span>
         </div>
       </div>
-    </>
-  );
-}
-
-type SortColumn = "id" | "client" | "projectType" | "status" | "value" | "deadline" | "owner";
-type SortState = { column: SortColumn; dir: "asc" | "desc" };
-
-function WycenyList({ quotes }: { quotes: Quote[] }) {
-  const [sort, setSort] = useState<SortState>({ column: "deadline", dir: "asc" });
-
-  const sortedQuotes = useMemo(() => {
-    const arr = [...quotes];
-    arr.sort((a, b) => {
-      let cmp = 0;
-      switch (sort.column) {
-        case "id":
-          cmp = a.id.localeCompare(b.id);
-          break;
-        case "client":
-          cmp = a.contact.name.localeCompare(b.contact.name, "pl");
-          break;
-        case "projectType":
-          cmp = a.projectType.localeCompare(b.projectType, "pl");
-          break;
-        case "status":
-          cmp = QUOTE_STATUSES.indexOf(a.status) - QUOTE_STATUSES.indexOf(b.status);
-          break;
-        case "value":
-          cmp = (a.value ?? -Infinity) - (b.value ?? -Infinity);
-          break;
-        case "deadline":
-          cmp = a.deadline.localeCompare(b.deadline);
-          break;
-        case "owner":
-          cmp = a.owner.localeCompare(b.owner, "pl");
-          break;
-      }
-      return sort.dir === "asc" ? cmp : -cmp;
-    });
-    return arr;
-  }, [quotes, sort]);
-
-  const toggleSort = (column: SortColumn) => {
-    setSort((s) =>
-      s.column === column
-        ? { column, dir: s.dir === "asc" ? "desc" : "asc" }
-        : { column, dir: "asc" },
-    );
-  };
-
-  return (
-    <div className="quote-list" role="table" aria-label="Lista wycen">
-      <div className="quote-list-header" role="row">
-        <SortHeader label="ID" column="id" sort={sort} onSort={toggleSort} />
-        <SortHeader label="Klient" column="client" sort={sort} onSort={toggleSort} />
-        <SortHeader label="Typ" column="projectType" sort={sort} onSort={toggleSort} />
-        <SortHeader label="Status" column="status" sort={sort} onSort={toggleSort} />
-        <SortHeader
-          label="Wartość"
-          column="value"
-          sort={sort}
-          onSort={toggleSort}
-          align="right"
-        />
-        <SortHeader label="Termin" column="deadline" sort={sort} onSort={toggleSort} />
-        <SortHeader
-          label="Właściciel"
-          column="owner"
-          sort={sort}
-          onSort={toggleSort}
-          align="center"
-        />
-      </div>
-      <div className="quote-list-body">
-        {sortedQuotes.length === 0 ? (
-          <div className="quote-list-empty">Brak wycen pasujących do filtra.</div>
-        ) : (
-          sortedQuotes.map((q) => <QuoteListRow key={q.id} quote={q} />)
-        )}
-      </div>
-    </div>
-  );
-}
-
-function SortHeader({
-  label,
-  column,
-  sort,
-  onSort,
-  align,
-}: {
-  label: string;
-  column: SortColumn;
-  sort: SortState;
-  onSort: (c: SortColumn) => void;
-  align?: "right" | "center";
-}) {
-  const active = sort.column === column;
-  return (
-    <button
-      type="button"
-      role="columnheader"
-      className={`quote-list-header-cell${active ? " is-active" : ""}${
-        align ? ` align-${align}` : ""
-      }`}
-      onClick={() => onSort(column)}
-      aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
-    >
-      <span>{label}</span>
-      <span className="quote-list-header-arrow" aria-hidden>
-        {active ? (sort.dir === "asc" ? "▲" : "▼") : "▾"}
-      </span>
-    </button>
-  );
-}
-
-function QuoteListRow({ quote }: { quote: Quote }) {
-  const router = useRouter();
-  const typeStyle = PROJECT_TYPE_STYLES[quote.projectType];
-  const statusColor = QUOTE_STATUS_COLORS[quote.status];
-  const tone = deadlineTone(quote.deadline);
-  const hasValue = quote.value !== null;
-  const go = () => router.push(`/admin/wyceny/${quote.id}`);
-  return (
-    <div
-      className="quote-list-row"
-      role="row"
-      tabIndex={0}
-      onClick={go}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
-      }}
-    >
-      <div className="quote-list-cell quote-list-cell-id">{quote.id}</div>
-      <div className="quote-list-cell quote-list-cell-client">{quote.contact.name}</div>
-      <div className="quote-list-cell">
-        <span
-          className="kanban-chip kanban-chip-type"
-          style={{
-            background: typeStyle.bg,
-            color: typeStyle.fg,
-            borderColor: typeStyle.border,
-          }}
-        >
-          <span className="kanban-chip-dot" style={{ background: typeStyle.fg }} />
-          {quote.projectType}
-        </span>
-      </div>
-      <div className="quote-list-cell">
-        <span className="quote-list-status" style={{ color: statusColor }}>
-          <span className="quote-list-status-dot" />
-          {quote.status}
-        </span>
-      </div>
-      <div className="quote-list-cell quote-list-cell-value align-right">
+      <div className="kanban-card-client">{quote.contact.name}</div>
+      <div className="kanban-card-footer">
         {hasValue ? (
-          <>
-            <span className="quote-list-value-num">
+          <div className="kanban-card-value">
+            <span className="kanban-card-value-num">
               {quote.value!.toLocaleString("pl-PL", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
               })}
             </span>
-            <span className="quote-list-value-unit">PLN</span>
-          </>
+            <span className="kanban-card-value-unit">PLN</span>
+          </div>
         ) : (
-          <span className="quote-list-value-empty">— brak —</span>
+          <button
+            type="button"
+            className="kanban-card-value-empty"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <span className="kanban-card-value-empty-icon" aria-hidden>
+              <I.plus s={10} sw={2.2} />
+            </span>
+            <span className="kanban-card-value-empty-label">brak kwoty</span>
+          </button>
         )}
-      </div>
-      <div className="quote-list-cell">
         <span className={`kanban-chip kanban-chip-deadline tone-${tone}`}>
           <I.cal s={11} />
           {formatDeadline(quote.deadline)}
         </span>
       </div>
-      <div className="quote-list-cell quote-list-cell-owner align-center">
-        <span
-          className="kanban-card-owner-avatar"
-          title={quote.owner}
-          aria-label={quote.owner}
-        >
-          {ownerInitials(quote.owner)}
-        </span>
-      </div>
-    </div>
+    </>
   );
 }
 
@@ -647,6 +388,7 @@ export default function AdminPage() {
         view={wycenyView}
         onViewChange={setWycenyView}
         onNewQuote={() => router.push("/admin/wyceny/nowa")}
+        onArchive={() => router.push("/admin/archiwum")}
       />
       <main className="fluent-content">
         <WycenyView view={wycenyView} />

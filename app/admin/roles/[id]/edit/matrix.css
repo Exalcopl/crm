@@ -1,0 +1,133 @@
+.matrix-name-input {
+  background: transparent;
+  border: 1px solid transparent;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 4px 6px;
+  border-radius: 6px;
+  width: 100%;
+  max-width: 480px;
+  outline: none;
+}
+
+.matrix-name-input:hover:not(:disabled) {
+  border-color: var(--border-subtle);
+}
+
+.matrix-name-input:focus {
+  border-color: var(--accent-primary);
+  background: var(--bg-surface);
+}
+
+.matrix-name-input:disabled {
+  color: var(--text-secondary);
+}
+
+.matrix-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matrix-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.matrix-table-wrap {
+  overflow-x: auto;
+}
+
+.matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.matrix-table th,
+.matrix-table td {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.matrix-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.matrix-resource-col {
+  text-align: left;
+}
+
+.matrix-resource-cell {
+  background: rgba(255, 255, 255, 0.02);
+  font-weight: 500;
+  border-right: 1px solid var(--border-default);
+  vertical-align: top;
+  padding-top: 14px;
+}
+
+.matrix-action-cell {
+  text-align: left;
+  color: var(--text-secondary);
+}
+
+.matrix-checkbox-cell {
+  width: 80px;
+}
+
+.matrix-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.matrix-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.matrix-check span {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  position: relative;
+  transition: background 100ms ease, border-color 100ms ease;
+}
+
+.matrix-check input:checked + span {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.matrix-check input:checked + span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><path d='m5 12 5 5L20 7'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+}
+
+.matrix-check.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

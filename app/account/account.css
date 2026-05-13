@@ -1,0 +1,125 @@
+.account-content {
+  padding: 28px;
+  max-width: 640px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.account-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.account-info {
+  background: rgba(212, 29, 60, 0.08);
+  border: 1px solid rgba(212, 29, 60, 0.35);
+  color: #ff9eaf;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.account-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 18px 20px 22px;
+}
+
+.account-card h2 {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.account-field > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.account-field input {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+}
+
+.account-field input:focus {
+  border-color: var(--accent-primary);
+}
+
+.account-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.account-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.account-btn-primary {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.account-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.account-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.account-error {
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  color: #ffb4af;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.account-success {
+  background: rgba(74, 222, 128, 0.08);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: #4ade80;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
