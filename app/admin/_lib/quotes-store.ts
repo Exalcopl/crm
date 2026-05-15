@@ -1,7 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { INITIAL_QUOTES, QUOTE_STATUSES, type Quote, type QuoteStatus } from "./quotes";
+import {
+  INITIAL_QUOTES,
+  QUOTE_STATUSES,
+  type ProjectType,
+  type Quote,
+  type QuoteStatus,
+} from "./quotes";
 
 const STORAGE_KEY = "exalco.quotes.v2";
 
@@ -13,11 +19,31 @@ const LEGACY_STATUS_MAP: Record<string, QuoteStatus> = {
 function migrateQuotes(rows: Quote[]): { quotes: Quote[]; changed: boolean } {
   let changed = false;
   const valid = new Set<string>(QUOTE_STATUSES);
-  const quotes = rows.map((q) => {
-    if (valid.has(q.status)) return q;
-    const next = LEGACY_STATUS_MAP[q.status as string] ?? "Do zrobienia";
-    changed = true;
-    return { ...q, status: next };
+  const quotes = rows.map((row) => {
+    const legacy = row as Quote & { owner?: string };
+    let next: Quote = row;
+    if (!valid.has(next.status)) {
+      const mapped = LEGACY_STATUS_MAP[next.status as string] ?? "Do zrobienia";
+      next = { ...next, status: mapped };
+      changed = true;
+    }
+    if (!("ownerId" in next) || next.ownerId === undefined) {
+      const ownerLegacy = legacy.owner?.trim() || next.ownerLegacy;
+      next = { ...next, ownerId: null, ownerLegacy };
+      changed = true;
+    }
+    if ("owner" in next) {
+      const { owner: _drop, ...rest } = next as Quote & { owner?: string };
+      void _drop;
+      next = rest as Quote;
+      changed = true;
+    }
+    if (!Array.isArray(next.projectType)) {
+      const single = next.projectType as unknown as ProjectType | undefined;
+      next = { ...next, projectType: single ? [single] : [] };
+      changed = true;
+    }
+    return next;
   });
   return { quotes, changed };
 }

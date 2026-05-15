@@ -12,6 +12,11 @@ import {
   ownerInitials,
   type Quote,
 } from "../_lib/quotes";
+import {
+  resolveOwnerName,
+  useOwnerName,
+  useOwnerNamesMap,
+} from "../_lib/owner-names";
 
 type SortColumn =
   | "id"
@@ -31,6 +36,7 @@ export function QuoteListView({
   emptyLabel?: string;
 }) {
   const [sort, setSort] = useState<SortState>({ column: "deadline", dir: "asc" });
+  const ownerMap = useOwnerNamesMap();
 
   const sortedQuotes = useMemo(() => {
     const arr = [...quotes];
@@ -44,7 +50,7 @@ export function QuoteListView({
           cmp = a.contact.name.localeCompare(b.contact.name, "pl");
           break;
         case "projectType":
-          cmp = a.projectType.localeCompare(b.projectType, "pl");
+          cmp = a.projectType.join(", ").localeCompare(b.projectType.join(", "), "pl");
           break;
         case "status":
           cmp = QUOTE_STATUSES.indexOf(a.status) - QUOTE_STATUSES.indexOf(b.status);
@@ -56,13 +62,16 @@ export function QuoteListView({
           cmp = a.deadline.localeCompare(b.deadline);
           break;
         case "owner":
-          cmp = a.owner.localeCompare(b.owner, "pl");
+          cmp = resolveOwnerName(a, ownerMap).localeCompare(
+            resolveOwnerName(b, ownerMap),
+            "pl",
+          );
           break;
       }
       return sort.dir === "asc" ? cmp : -cmp;
     });
     return arr;
-  }, [quotes, sort]);
+  }, [quotes, sort, ownerMap]);
 
   const toggleSort = (column: SortColumn) => {
     setSort((s) =>
@@ -88,7 +97,7 @@ export function QuoteListView({
         />
         <SortHeader label="Termin" column="deadline" sort={sort} onSort={toggleSort} />
         <SortHeader
-          label="Właściciel"
+          label="Opiekun"
           column="owner"
           sort={sort}
           onSort={toggleSort}
@@ -140,10 +149,10 @@ function SortHeader({
 
 function QuoteListRow({ quote }: { quote: Quote }) {
   const router = useRouter();
-  const typeStyle = PROJECT_TYPE_STYLES[quote.projectType];
   const statusColor = QUOTE_STATUS_COLORS[quote.status];
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
+  const ownerName = useOwnerName(quote);
   const go = () => router.push(`/admin/wyceny/${quote.id}`);
   return (
     <div
@@ -161,17 +170,25 @@ function QuoteListRow({ quote }: { quote: Quote }) {
       <div className="quote-list-cell quote-list-cell-id">{quote.id}</div>
       <div className="quote-list-cell quote-list-cell-client">{quote.contact.name}</div>
       <div className="quote-list-cell">
-        <span
-          className="kanban-chip kanban-chip-type"
-          style={{
-            background: typeStyle.bg,
-            color: typeStyle.fg,
-            borderColor: typeStyle.border,
-          }}
-        >
-          <span className="kanban-chip-dot" style={{ background: typeStyle.fg }} />
-          {quote.projectType}
-        </span>
+        <div className="quote-list-types">
+          {quote.projectType.map((t) => {
+            const s = PROJECT_TYPE_STYLES[t];
+            return (
+              <span
+                key={t}
+                className="kanban-chip kanban-chip-type"
+                style={{
+                  background: s.bg,
+                  color: s.fg,
+                  borderColor: s.border,
+                }}
+              >
+                <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                {t}
+              </span>
+            );
+          })}
+        </div>
       </div>
       <div className="quote-list-cell">
         <span className="quote-list-status" style={{ color: statusColor }}>
@@ -203,10 +220,10 @@ function QuoteListRow({ quote }: { quote: Quote }) {
       <div className="quote-list-cell quote-list-cell-owner align-center">
         <span
           className="kanban-card-owner-avatar"
-          title={quote.owner}
-          aria-label={quote.owner}
+          title={ownerName}
+          aria-label={ownerName}
         >
-          {ownerInitials(quote.owner)}
+          {ownerInitials(ownerName)}
         </span>
       </div>
     </div>

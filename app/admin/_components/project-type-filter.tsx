@@ -68,7 +68,7 @@ export function ProjectTypeFilterStrip({
 }
 
 export function computeProjectTypeCounts(
-  quotes: { projectType: ProjectType }[],
+  quotes: { projectType: ProjectType[] }[],
 ): Record<ProjectTypeFilter, number> {
   const c: Record<ProjectTypeFilter, number> = {
     Wszystkie: quotes.length,
@@ -80,7 +80,9 @@ export function computeProjectTypeCounts(
     Inne: 0,
   };
   quotes.forEach((q) => {
-    c[q.projectType] += 1;
+    q.projectType.forEach((t) => {
+      c[t] += 1;
+    });
   });
   return c;
 }

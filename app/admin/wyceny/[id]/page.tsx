@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
   PROJECT_TYPE_STYLES,
@@ -16,6 +19,7 @@ import {
 } from "../../_lib/quotes";
 import { setQuotes, useQuotes } from "../../_lib/quotes-store";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
+import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "pliki" | "aktywnosc" | "powiazane";
 
@@ -267,18 +271,20 @@ function QuoteDetailLayout({
   onRestore: () => void;
 }) {
   return (
-    <div className="quote-detail">
-      {archived && <ArchivedBanner onRestore={onRestore} />}
-      <QuoteDetailHeader quote={quote} />
-      <div className="quote-detail-main">
-        {activeTab === "szczegoly" && <TabSzczegoly quote={quote} />}
-        {activeTab === "pozycje" && <TabPozycje quote={quote} />}
-        {activeTab === "pomiary" && <TabPomiary quote={quote} />}
-        {activeTab === "pliki" && <TabPliki />}
-        {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
-        {activeTab === "powiazane" && <TabPowiazane />}
+    <OwnerNamesProvider quotes={[quote]}>
+      <div className="quote-detail">
+        {archived && <ArchivedBanner onRestore={onRestore} />}
+        <QuoteDetailHeader quote={quote} archived={archived} />
+        <div className="quote-detail-main">
+          {activeTab === "szczegoly" && <TabSzczegoly quote={quote} archived={archived} />}
+          {activeTab === "pozycje" && <TabPozycje quote={quote} />}
+          {activeTab === "pomiary" && <TabPomiary quote={quote} />}
+          {activeTab === "pliki" && <TabPliki />}
+          {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
+          {activeTab === "powiazane" && <TabPowiazane />}
+        </div>
       </div>
-    </div>
+    </OwnerNamesProvider>
   );
 }
 
@@ -324,11 +330,11 @@ function deadlineRelative(iso: string): string {
   return `${Math.abs(days)} dni temu`;
 }
 
-function QuoteDetailHeader({ quote }: { quote: Quote }) {
-  const typeStyle = PROJECT_TYPE_STYLES[quote.projectType];
+function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
+  const ownerName = useOwnerName(quote);
 
   return (
     <div className="quote-detail-header">
@@ -336,17 +342,23 @@ function QuoteDetailHeader({ quote }: { quote: Quote }) {
         <div className="quote-detail-header-main">
           <div className="quote-detail-header-idline">
             <span className="quote-detail-id">{quote.id}</span>
-            <span
-              className="kanban-chip kanban-chip-type"
-              style={{
-                background: typeStyle.bg,
-                color: typeStyle.fg,
-                borderColor: typeStyle.border,
-              }}
-            >
-              <span className="kanban-chip-dot" style={{ background: typeStyle.fg }} />
-              {quote.projectType}
-            </span>
+            {quote.projectType.map((t) => {
+              const s = PROJECT_TYPE_STYLES[t];
+              return (
+                <span
+                  key={t}
+                  className="kanban-chip kanban-chip-type"
+                  style={{
+                    background: s.bg,
+                    color: s.fg,
+                    borderColor: s.border,
+                  }}
+                >
+                  <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                  {t}
+                </span>
+              );
+            })}
           </div>
           <div className="quote-detail-client">{quote.contact.name}</div>
         </div>
@@ -374,15 +386,118 @@ function QuoteDetailHeader({ quote }: { quote: Quote }) {
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Przypisany</div>
-            <div className="quote-detail-meta-value quote-detail-meta-owner">
-              <span className="kanban-card-owner-avatar">{ownerInitials(quote.owner)}</span>
-              <span className="quote-detail-meta-num">{quote.owner}</span>
-            </div>
+            <div className="quote-detail-meta-label">Opiekun</div>
+            <OwnerEditor quote={quote} ownerName={ownerName} disabled={archived} />
           </div>
         </div>
       </div>
       <QuoteStatusPipeline currentIndex={statusIndex} />
+    </div>
+  );
+}
+
+function OwnerEditor({
+  quote,
+  ownerName,
+  disabled,
+}: {
+  quote: Quote;
+  ownerName: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  type AssignableUser = { _id: Id<"users">; name: string | null; email: string | null };
+  const assignable =
+    (useQuery(api.users.listAssignable, open ? {} : "skip") as
+      | AssignableUser[]
+      | undefined) ?? [];
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (!wrapperRef.current) return;
+      if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("mousedown", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function assign(userId: Id<"users">) {
+    if (quote.ownerId === userId) {
+      setOpen(false);
+      return;
+    }
+    setQuotes((prev) =>
+      prev.map((q) =>
+        q.id === quote.id
+          ? { ...q, ownerId: userId, ownerLegacy: undefined }
+          : q,
+      ),
+    );
+    setOpen(false);
+  }
+
+  return (
+    <div className="quote-detail-meta-owner-wrap" ref={wrapperRef}>
+      <button
+        type="button"
+        className="quote-detail-meta-value quote-detail-meta-owner quote-detail-meta-owner-trigger"
+        onClick={() => !disabled && setOpen((v) => !v)}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="kanban-card-owner-avatar">{ownerInitials(ownerName)}</span>
+        <span className="quote-detail-meta-num">{ownerName}</span>
+        {!disabled && (
+          <span className="quote-detail-meta-owner-caret" aria-hidden>
+            ▾
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          className="quote-detail-meta-owner-popover"
+          role="listbox"
+          aria-label="Wybierz opiekuna"
+        >
+          {assignable.length === 0 ? (
+            <div className="quote-detail-meta-owner-empty">
+              Brak użytkowników z rolą admin lub sales.
+            </div>
+          ) : (
+            assignable.map((u) => {
+              const label = u.name?.trim() || u.email?.trim() || "—";
+              const active = quote.ownerId === u._id;
+              return (
+                <button
+                  key={u._id as unknown as string}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  className={`quote-detail-meta-owner-option${
+                    active ? " is-active" : ""
+                  }`}
+                  onClick={() => assign(u._id)}
+                >
+                  <span className="kanban-card-owner-avatar">
+                    {ownerInitials(label)}
+                  </span>
+                  <span>{label}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,10 +570,12 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function TabSzczegoly({ quote }: { quote: Quote }) {
+function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) {
   const hasValue = quote.value !== null;
   const netto = hasValue ? quote.value! / 1.23 : null;
   const vat = hasValue ? quote.value! - netto! : null;
+  const ownerName = useOwnerName(quote);
+  void archived;
 
   return (
     <div className="quote-detail-stack-row">
@@ -516,10 +633,37 @@ function TabSzczegoly({ quote }: { quote: Quote }) {
 
       <Section title="Projekt" icon={<I.layers s={14} />}>
         <div className="quote-detail-fields">
-          <Field label="Typ" value={quote.projectType} />
+          <Field
+            label="Typ"
+            value={
+              quote.projectType.length > 0 ? (
+                <div className="quote-detail-types">
+                  {quote.projectType.map((t) => {
+                    const s = PROJECT_TYPE_STYLES[t];
+                    return (
+                      <span
+                        key={t}
+                        className="kanban-chip kanban-chip-type"
+                        style={{
+                          background: s.bg,
+                          color: s.fg,
+                          borderColor: s.border,
+                        }}
+                      >
+                        <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                        {t}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="quote-detail-muted">— brak —</span>
+              )
+            }
+          />
           <Field label="Status" value={quote.status} />
           <Field label="Termin oferty" value={formatDeadline(quote.deadline)} />
-          <Field label="Przypisany" value={quote.owner} />
+          <Field label="Opiekun" value={ownerName} />
           <Field label="Źródło leada" value={<span className="quote-detail-muted">— uzupełnij —</span>} />
           <Field label="Ważność oferty" value={<span className="quote-detail-muted">30 dni (domyślnie)</span>} />
         </div>
@@ -551,7 +695,7 @@ function TabSzczegoly({ quote }: { quote: Quote }) {
         )}
       </Section>
 
-      <OpisUwagiSection author={quote.owner} />
+      <OpisUwagiSection author={ownerName} />
 
       <ZadaniaSection />
     </div>
@@ -578,7 +722,12 @@ function TabPozycje({ quote }: { quote: Quote }) {
               <div className="align-right">Wartość</div>
             </div>
             <div className="quote-detail-positions-row">
-              <div>Konstrukcja {quote.projectType.toLowerCase()}</div>
+              <div>
+                Konstrukcja{" "}
+                {quote.projectType.length > 0
+                  ? quote.projectType.map((t) => t.toLowerCase()).join(" + ")
+                  : "—"}
+              </div>
               <div className="quote-detail-muted">— uzupełnij —</div>
               <div className="quote-detail-muted">— uzupełnij —</div>
               <div className="align-right">1</div>

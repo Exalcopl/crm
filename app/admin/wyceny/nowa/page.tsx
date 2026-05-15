@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
   PROJECT_TYPE_STYLES,
@@ -118,17 +121,9 @@ export default function NowaWycenaPage() {
     [allClients],
   );
 
-  const frequentOwners = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const q of quotes) {
-      const o = q.owner.trim();
-      if (o) counts.set(o, (counts.get(o) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name]) => name);
-  }, [quotes]);
+  type AssignableUser = { _id: Id<"users">; name: string | null; email: string | null };
+  const assignableUsers =
+    (useQuery(api.users.listAssignable, {}) as AssignableUser[] | undefined) ?? [];
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientQuery, setClientQuery] = useState("");
@@ -141,11 +136,19 @@ export default function NowaWycenaPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  const [projectType, setProjectType] = useState<ProjectType>("Zadaszenia");
+  const [projectTypes, setProjectTypes] = useState<ProjectType[]>([
+    "Zadaszenia",
+  ]);
+
+  function toggleProjectType(t: ProjectType) {
+    setProjectTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+    );
+  }
   const [status, setStatus] = useState<QuoteStatus>("Do zrobienia");
   const [valueText, setValueText] = useState("");
   const [deadline, setDeadline] = useState(isoFromOffsetDays(7));
-  const [owner, setOwner] = useState("");
+  const [ownerId, setOwnerId] = useState<Id<"users"> | null>(null);
   const [touched, setTouched] = useState(false);
 
   const searchResults = useMemo<RankedClient[]>(() => {
@@ -203,10 +206,16 @@ export default function NowaWycenaPage() {
   }, [valueText]);
 
   const nameValid = name.trim().length > 0;
-  const ownerValid = owner.trim().length > 0;
+  const ownerValid = ownerId !== null;
   const deadlineValid = /^\d{4}-\d{2}-\d{2}$/.test(deadline);
   const valueValid = parsedValue === null || Number.isFinite(parsedValue);
-  const canSubmit = nameValid && ownerValid && deadlineValid && valueValid;
+  const projectTypesValid = projectTypes.length > 0;
+  const canSubmit =
+    nameValid &&
+    ownerValid &&
+    deadlineValid &&
+    valueValid &&
+    projectTypesValid;
 
   function handleCancel() {
     router.push("/admin");
@@ -226,11 +235,11 @@ export default function NowaWycenaPage() {
     const created: Quote = {
       id,
       contact,
-      projectType,
+      projectType: projectTypes,
       status,
       value: parsedValue === null ? null : (parsedValue as number),
       deadline,
-      owner: owner.trim(),
+      ownerId,
     };
     setQuotes((prev) => [created, ...prev]);
 
@@ -369,12 +378,18 @@ export default function NowaWycenaPage() {
             <FormBox
               title="Typ projektu"
               icon={<I.layers s={14} />}
+              required
               span={8}
+              tag={
+                <span className="quote-new-v2-hint">
+                  można wybrać kilka
+                </span>
+              }
             >
               <div className="quote-new-v2-type-grid">
                 {PROJECT_TYPES.map((t) => {
                   const s = PROJECT_TYPE_STYLES[t];
-                  const active = projectType === t;
+                  const active = projectTypes.includes(t);
                   return (
                     <button
                       type="button"
@@ -389,7 +404,8 @@ export default function NowaWycenaPage() {
                             }
                           : undefined
                       }
-                      onClick={() => setProjectType(t)}
+                      onClick={() => toggleProjectType(t)}
+                      aria-pressed={active}
                     >
                       <span
                         className="quote-new-v2-type-dot"
@@ -405,46 +421,48 @@ export default function NowaWycenaPage() {
                   );
                 })}
               </div>
+              {touched && !projectTypesValid && (
+                <span className="fluent-field-error">
+                  Wybierz co najmniej jeden typ projektu.
+                </span>
+              )}
             </FormBox>
 
             <FormBox
-              title="Właściciel"
+              title="Opiekun"
               icon={<I.user s={14} />}
               required
               span={4}
             >
-              {frequentOwners.length > 0 && (
+              {assignableUsers.length > 0 ? (
                 <div className="quote-new-v2-owner-chips">
-                  {frequentOwners.map((o) => (
-                    <button
-                      key={o}
-                      type="button"
-                      className={`quote-new-v2-owner-chip${
-                        owner.trim() === o ? " is-active" : ""
-                      }`}
-                      onClick={() => setOwner(o)}
-                    >
-                      <span className="kanban-card-owner-avatar">
-                        {ownerInitials(o)}
-                      </span>
-                      <span>{o}</span>
-                    </button>
-                  ))}
+                  {assignableUsers.map((u) => {
+                    const label = u.name?.trim() || u.email?.trim() || "—";
+                    const active = ownerId === u._id;
+                    return (
+                      <button
+                        key={u._id as unknown as string}
+                        type="button"
+                        className={`quote-new-v2-owner-chip${
+                          active ? " is-active" : ""
+                        }`}
+                        onClick={() => setOwnerId(u._id)}
+                      >
+                        <span className="kanban-card-owner-avatar">
+                          {ownerInitials(label)}
+                        </span>
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+              ) : (
+                <span className="fluent-field-hint">
+                  Brak użytkowników z rolą admin lub sales.
+                </span>
               )}
-              <input
-                className="fluent-input"
-                type="text"
-                value={owner}
-                onChange={(e) => setOwner(e.target.value)}
-                placeholder={
-                  frequentOwners.length > 0
-                    ? "lub wpisz inną osobę"
-                    : "np. Adam Borowski"
-                }
-              />
               {touched && !ownerValid && (
-                <span className="fluent-field-error">Podaj właściciela.</span>
+                <span className="fluent-field-error">Wybierz opiekuna.</span>
               )}
             </FormBox>
 

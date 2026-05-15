@@ -8,7 +8,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { getAuthUserId, createAccount } from "@convex-dev/auth/server";
-import { requirePermission, hasPermission } from "./permissions";
+import { hasPermission, requirePermission } from "./permissions";
 import type { Doc, Id } from "./_generated/dataModel";
 
 const PASSWORD_ALPHABET =
@@ -32,7 +32,8 @@ export const list = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "users", "read");
+    const allowed = await hasPermission(ctx, "users", "read");
+    if (!allowed) return [];
 
     const all = await ctx.db.query("users").collect();
     const search = args.search?.trim().toLowerCase();
@@ -70,6 +71,62 @@ export const list = query({
           ? roleById.get(u.roleId as unknown as string) ?? null
           : null,
         createdAt: u._creationTime,
+      }));
+  },
+});
+
+const ASSIGNABLE_ROLE_NAMES = ["admin", "sales"] as const;
+
+export const listAssignable = query({
+  args: {},
+  handler: async (ctx) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) return [];
+
+    const roles = await ctx.db.query("roles").collect();
+    const assignableRoleIds = new Set(
+      roles
+        .filter((r) => (ASSIGNABLE_ROLE_NAMES as readonly string[]).includes(r.name))
+        .map((r) => r._id as unknown as string),
+    );
+    if (assignableRoleIds.size === 0) return [];
+
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => {
+        if ((u.isActive ?? true) === false) return false;
+        if (!u.roleId) return false;
+        return assignableRoleIds.has(u.roleId as unknown as string);
+      })
+      .map((u) => ({
+        _id: u._id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+      }))
+      .sort((a, b) =>
+        (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""),
+      );
+  },
+});
+
+export const getByIds = query({
+  args: { userIds: v.array(v.id("users")) },
+  handler: async (ctx, { userIds }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) return [];
+    if (userIds.length === 0) return [];
+
+    const unique = Array.from(new Set(userIds.map((id) => id as unknown as string)));
+    const users = await Promise.all(
+      unique.map((id) => ctx.db.get(id as unknown as Id<"users">)),
+    );
+    return users
+      .filter((u): u is Doc<"users"> => u !== null)
+      .map((u) => ({
+        _id: u._id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        isActive: u.isActive ?? true,
       }));
   },
 });

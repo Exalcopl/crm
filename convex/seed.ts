@@ -93,6 +93,51 @@ export const _internalFindUserByEmail = internalMutation({
   },
 });
 
+export const promoteSuperAdmin = action({
+  args: { email: v.string() },
+  handler: async (
+    ctx,
+    { email },
+  ): Promise<{
+    userId: Id<"users">;
+    roleId: Id<"roles">;
+    previousRoleId: Id<"roles"> | null;
+  }> => {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized.includes("@")) throw new Error("Niepoprawny e-mail");
+
+    await ctx.runMutation(internal.seed._internalEnsurePermissions, {});
+    const roleResult: { roleId: Id<"roles">; added: number } =
+      await ctx.runMutation(internal.seed._internalEnsureSuperAdminRole, {});
+
+    const userId: Id<"users"> | null = await ctx.runMutation(
+      internal.seed._internalFindUserByEmail,
+      { email: normalized },
+    );
+    if (!userId) {
+      throw new Error(`Nie znaleziono użytkownika o e-mailu ${normalized}`);
+    }
+
+    const previousRoleId: Id<"roles"> | null = await ctx.runMutation(
+      internal.seed._internalSetSuperAdmin,
+      { userId, roleId: roleResult.roleId },
+    );
+
+    return { userId, roleId: roleResult.roleId, previousRoleId };
+  },
+});
+
+export const _internalSetSuperAdmin = internalMutation({
+  args: { userId: v.id("users"), roleId: v.id("roles") },
+  handler: async (ctx, { userId, roleId }) => {
+    const u = await ctx.db.get(userId);
+    if (!u) throw new Error("Użytkownik zniknął w trakcie operacji");
+    const previousRoleId = (u.roleId as Id<"roles"> | undefined) ?? null;
+    await ctx.db.patch(userId, { roleId, isActive: true });
+    return previousRoleId;
+  },
+});
+
 export const seedAdmin = action({
   args: {},
   handler: async (ctx): Promise<{

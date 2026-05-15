@@ -1,3 +1,5 @@
+import type { Id } from "@/convex/_generated/dataModel";
+
 export type QuoteStatus =
   | "Do zrobienia"
   | "Kontakt z klientem"
@@ -26,8 +28,10 @@ export type Quote = {
   value: number | null;
   status: QuoteStatus;
   deadline: string;
-  projectType: ProjectType;
-  owner: string;
+  projectType: ProjectType[];
+  ownerId: Id<"users"> | null;
+  /** Legacy snapshot — wpisy sprzed migracji owner→ownerId. Tylko do odczytu. */
+  ownerLegacy?: string;
   archived?: boolean;
 };
 
@@ -58,18 +62,18 @@ export const PROJECT_TYPE_STYLES: Record<
 };
 
 export const INITIAL_QUOTES: Quote[] = [
-  { id: "WC-2026-0730", contact: { name: "ProBud Inwestycje" }, value: 642800, status: "Do zrobienia", deadline: "2026-05-20", projectType: "Zadaszenia", owner: "Adam Borowski" },
-  { id: "WC-2026-0732", contact: { name: "Lewandowski Development" }, value: null, status: "Do zrobienia", deadline: "2026-05-25", projectType: "Pergola", owner: "Adam Borowski" },
-  { id: "WC-2026-0721", contact: { name: "Vistula Dev." }, value: 384000, status: "Do zrobienia", deadline: "2026-06-02", projectType: "Pergola", owner: "Joanna Krawczyk" },
-  { id: "WC-2026-0729", contact: { name: "Anna Kowalska" }, value: 92400, status: "Kontakt z klientem", deadline: "2026-05-10", projectType: "Stolarka", owner: "Marek Wiśniewski" },
-  { id: "WC-2026-0727", contact: { name: "Studio Architektury MW" }, value: 412000, status: "Kontakt z klientem", deadline: "2026-05-09", projectType: "Ogrodzenie", owner: "Ewa Bielecka" },
-  { id: "WC-2026-0731", contact: { name: "Marwit Sp. z o.o." }, value: 184200, status: "Pomiary i uzgodnienia", deadline: "2026-05-15", projectType: "Osłony okienne", owner: "Joanna Krawczyk" },
-  { id: "WC-2026-0733", contact: { name: "Pawlak & Synowie" }, value: null, status: "Pomiary i uzgodnienia", deadline: "2026-05-14", projectType: "Stolarka", owner: "Ewa Bielecka" },
-  { id: "WC-2026-0728", contact: { name: "Gmina Brzesko" }, value: 218600, status: "Pomiary i uzgodnienia", deadline: "2026-05-12", projectType: "Zadaszenia", owner: "Adam Borowski" },
-  { id: "WC-2026-0725", contact: { name: "Hotel Nadwiślański" }, value: 78400, status: "Pomiary i uzgodnienia", deadline: "2026-05-18", projectType: "Pergola", owner: "Marek Wiśniewski" },
-  { id: "WC-2026-0718", contact: { name: "Bartolini S.A." }, value: 296400, status: "Pomiary i uzgodnienia", deadline: "2026-05-22", projectType: "Stolarka", owner: "Joanna Krawczyk" },
-  { id: "WC-2026-0712", contact: { name: "Nowak Bud Sp.j." }, value: 488200, status: "Zrobione", deadline: "2026-04-28", projectType: "Ogrodzenie", owner: "Ewa Bielecka" },
-  { id: "WC-2026-0705", contact: { name: "Architekci Pracownia 7" }, value: 96400, status: "Zrobione", deadline: "2026-04-22", projectType: "Inne", owner: "Adam Borowski" },
+  { id: "WC-2026-0730", contact: { name: "ProBud Inwestycje" }, value: 642800, status: "Do zrobienia", deadline: "2026-05-20", projectType: ["Zadaszenia"], ownerId: null, ownerLegacy: "Adam Borowski" },
+  { id: "WC-2026-0732", contact: { name: "Lewandowski Development" }, value: null, status: "Do zrobienia", deadline: "2026-05-25", projectType: ["Pergola"], ownerId: null, ownerLegacy: "Adam Borowski" },
+  { id: "WC-2026-0721", contact: { name: "Vistula Dev." }, value: 384000, status: "Do zrobienia", deadline: "2026-06-02", projectType: ["Pergola"], ownerId: null, ownerLegacy: "Joanna Krawczyk" },
+  { id: "WC-2026-0729", contact: { name: "Anna Kowalska" }, value: 92400, status: "Kontakt z klientem", deadline: "2026-05-10", projectType: ["Stolarka"], ownerId: null, ownerLegacy: "Marek Wiśniewski" },
+  { id: "WC-2026-0727", contact: { name: "Studio Architektury MW" }, value: 412000, status: "Kontakt z klientem", deadline: "2026-05-09", projectType: ["Ogrodzenie"], ownerId: null, ownerLegacy: "Ewa Bielecka" },
+  { id: "WC-2026-0731", contact: { name: "Marwit Sp. z o.o." }, value: 184200, status: "Pomiary i uzgodnienia", deadline: "2026-05-15", projectType: ["Osłony okienne"], ownerId: null, ownerLegacy: "Joanna Krawczyk" },
+  { id: "WC-2026-0733", contact: { name: "Pawlak & Synowie" }, value: null, status: "Pomiary i uzgodnienia", deadline: "2026-05-14", projectType: ["Stolarka"], ownerId: null, ownerLegacy: "Ewa Bielecka" },
+  { id: "WC-2026-0728", contact: { name: "Gmina Brzesko" }, value: 218600, status: "Pomiary i uzgodnienia", deadline: "2026-05-12", projectType: ["Zadaszenia"], ownerId: null, ownerLegacy: "Adam Borowski" },
+  { id: "WC-2026-0725", contact: { name: "Hotel Nadwiślański" }, value: 78400, status: "Pomiary i uzgodnienia", deadline: "2026-05-18", projectType: ["Pergola"], ownerId: null, ownerLegacy: "Marek Wiśniewski" },
+  { id: "WC-2026-0718", contact: { name: "Bartolini S.A." }, value: 296400, status: "Pomiary i uzgodnienia", deadline: "2026-05-22", projectType: ["Stolarka"], ownerId: null, ownerLegacy: "Joanna Krawczyk" },
+  { id: "WC-2026-0712", contact: { name: "Nowak Bud Sp.j." }, value: 488200, status: "Zrobione", deadline: "2026-04-28", projectType: ["Ogrodzenie"], ownerId: null, ownerLegacy: "Ewa Bielecka" },
+  { id: "WC-2026-0705", contact: { name: "Architekci Pracownia 7" }, value: 96400, status: "Zrobione", deadline: "2026-04-22", projectType: ["Inne"], ownerId: null, ownerLegacy: "Adam Borowski" },
 ];
 
 const TODAY = new Date("2026-05-11");
@@ -92,14 +96,15 @@ export function deadlineDaysFromToday(iso: string): number {
   return Math.round((d.getTime() - TODAY.getTime()) / 86_400_000);
 }
 
-export function ownerInitials(name: string): string {
-  return name
-    .split(" ")
+export function ownerInitials(name: string | null | undefined): string {
+  if (!name) return "—";
+  const parts = name.trim().split(/\s+/);
+  return parts
     .map((p) => p[0])
     .filter(Boolean)
     .slice(0, 2)
     .join("")
-    .toUpperCase();
+    .toUpperCase() || "—";
 }
 
 export function findQuote(id: string): Quote | undefined {

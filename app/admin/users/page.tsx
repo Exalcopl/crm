@@ -27,7 +27,8 @@ type UserRow = {
 };
 
 export default function UsersPage() {
-  const { has } = usePermissions();
+  const { has, isLoading } = usePermissions();
+  const canRead = has("users", "read");
   const canCreate = has("users", "create");
   const canUpdate = has("users", "update");
 
@@ -41,18 +42,38 @@ export default function UsersPage() {
   const [page, setPage] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
 
-  const stats = useQuery(api.users.stats, {}) ?? null;
-  const allRoles = useQuery(api.roles.list, {}) ?? [];
+  const stats = useQuery(api.users.stats, canRead ? {} : "skip") ?? null;
+  const allRoles = useQuery(api.roles.list, canRead ? {} : "skip") ?? [];
   const allUsers =
-    (useQuery(api.users.list, {
-      search: search.trim() || undefined,
-      roleId:
-        roleFilter !== "all" && roleFilter !== "none"
-          ? (roleFilter as Id<"roles">)
-          : undefined,
-      isActive:
-        activeFilter === "all" ? undefined : activeFilter === "active",
-    }) as UserRow[] | undefined) ?? [];
+    (useQuery(
+      api.users.list,
+      canRead
+        ? {
+            search: search.trim() || undefined,
+            roleId:
+              roleFilter !== "all" && roleFilter !== "none"
+                ? (roleFilter as Id<"roles">)
+                : undefined,
+            isActive:
+              activeFilter === "all" ? undefined : activeFilter === "active",
+          }
+        : "skip",
+    ) as UserRow[] | undefined) ?? [];
+
+  if (!isLoading && !canRead) {
+    return (
+      <main className="users-content">
+        <div className="users-empty-state">
+          <I.lock s={28} />
+          <div className="users-empty-title">Brak dostępu</div>
+          <div className="users-empty-text">
+            Nie masz uprawnienia <code>users:read</code>. Skontaktuj się
+            z administratorem, aby uzyskać dostęp do listy użytkowników.
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const users = useMemo(() => {
     if (roleFilter === "none") return allUsers.filter((u) => !u.roleId);

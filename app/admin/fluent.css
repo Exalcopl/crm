@@ -670,18 +670,45 @@
 .kanban-card-head {
   display: flex;
   align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kanban-card-types {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-bottom: 6px;
+}
+
+.quote-list-types {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.quote-detail-types {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  margin-bottom: 5px;
+  flex-wrap: wrap;
 }
 
 .kanban-card-id {
   font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
   letter-spacing: 0.4px;
-  opacity: 0.7;
-  margin-left: auto;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .kanban-card-client {
@@ -874,13 +901,13 @@
 .quote-list-row {
   display: grid;
   grid-template-columns:
-    minmax(120px, 130px)
-    minmax(180px, 1.4fr)
-    minmax(130px, 150px)
-    minmax(180px, 200px)
-    minmax(120px, 150px)
-    minmax(120px, 140px)
-    72px;
+    minmax(110px, 120px)
+    minmax(160px, 1fr)
+    minmax(200px, 1.8fr)
+    minmax(160px, 180px)
+    minmax(110px, 130px)
+    minmax(110px, 130px)
+    64px;
   align-items: center;
   gap: 14px;
   padding: 0 18px;
@@ -950,7 +977,9 @@
 }
 
 .quote-list-row {
-  height: 56px;
+  min-height: 56px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   transition: background 140ms ease, border-color 140ms ease;
   cursor: pointer;
@@ -1004,7 +1033,7 @@
   text-overflow: ellipsis;
   overflow: hidden;
   display: block;
-  line-height: 56px;
+  line-height: 1.3;
 }
 
 .quote-list-cell-value {
@@ -1198,6 +1227,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .quote-detail-id {
@@ -1285,6 +1315,89 @@
   width: 24px;
   height: 24px;
   font-size: 10px;
+}
+
+.quote-detail-meta-owner-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.quote-detail-meta-owner-trigger {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.quote-detail-meta-owner-trigger:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+  border-color: var(--border-subtle);
+}
+
+.quote-detail-meta-owner-trigger:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.quote-detail-meta-owner-caret {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+.quote-detail-meta-owner-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-elev, #1c1f24);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quote-detail-meta-owner-option {
+  appearance: none;
+  background: transparent;
+  border: none;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.quote-detail-meta-owner-option:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+}
+
+.quote-detail-meta-owner-option.is-active {
+  background: var(--bg-accent-soft, rgba(56, 139, 253, 0.18));
+}
+
+.quote-detail-meta-owner-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-muted, #8b949e);
 }
 
 /* Pipeline indicator */
@@ -2406,6 +2519,11 @@ select.fluent-input {
 .fluent-field-error {
   font-size: var(--fs-micro);
   color: var(--danger);
+}
+
+.fluent-field-hint {
+  font-size: var(--fs-micro);
+  color: var(--text-muted, #8b949e);
 }
 
 .fluent-btn {

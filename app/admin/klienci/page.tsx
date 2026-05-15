@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { I } from "../_lib/icons";
 import { nextClientId, type Client } from "../_lib/clients";
 import { setClients, useClients } from "../_lib/clients-store";
+import { useHydrated } from "../_lib/use-hydrated";
 import { RibbonBtn, RibbonGroup } from "../_components/ribbon";
 
 type ClientDraft = {
@@ -38,7 +39,9 @@ function trimOrUndefined(v: string): string | undefined {
 }
 
 export default function KlienciPage() {
-  const clients = useClients();
+  const hydrated = useHydrated();
+  const allClients = useClients();
+  const clients = hydrated ? allClients : [];
   const [dialog, setDialog] = useState<
     { mode: "create" } | { mode: "edit"; id: string } | null
   >(null);
@@ -96,7 +99,11 @@ export default function KlienciPage() {
         </RibbonGroup>
       </div>
       <main className="fluent-content">
-        {clients.length === 0 ? (
+        {!hydrated ? (
+          <div className="client-empty" aria-busy="true">
+            <div className="client-empty-text">Wczytywanie…</div>
+          </div>
+        ) : clients.length === 0 ? (
           <div className="client-empty">
             <I.users s={28} />
             <div className="client-empty-title">Brak zapisanych klientów</div>

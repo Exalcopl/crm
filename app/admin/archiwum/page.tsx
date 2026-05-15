@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { I } from "../_lib/icons";
 import { useQuotes } from "../_lib/quotes-store";
+import { useHydrated } from "../_lib/use-hydrated";
 import { RibbonBtn, RibbonGroup } from "../_components/ribbon";
 import {
   ProjectTypeFilterStrip,
@@ -11,6 +12,7 @@ import {
   type ProjectTypeFilter,
 } from "../_components/project-type-filter";
 import { QuoteListView } from "../_components/quote-list";
+import { OwnerNamesProvider } from "../_lib/owner-names";
 
 function ArchiwumRibbon({ onBack }: { onBack: () => void }) {
   return (
@@ -31,10 +33,11 @@ function ArchiwumRibbon({ onBack }: { onBack: () => void }) {
 
 export default function ArchiwumPage() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const allQuotes = useQuotes();
   const archived = useMemo(
-    () => allQuotes.filter((q) => q.archived === true),
-    [allQuotes],
+    () => (hydrated ? allQuotes.filter((q) => q.archived === true) : []),
+    [allQuotes, hydrated],
   );
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
@@ -42,22 +45,24 @@ export default function ArchiwumPage() {
 
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return archived;
-    return archived.filter((q) => q.projectType === filter);
+    return archived.filter((q) => q.projectType.includes(filter));
   }, [archived, filter]);
 
   return (
     <>
       <ArchiwumRibbon onBack={() => router.push("/admin")} />
       <main className="fluent-content">
-        <ProjectTypeFilterStrip
-          value={filter}
-          counts={counts}
-          onChange={setFilter}
-        />
-        <QuoteListView
-          quotes={filteredQuotes}
-          emptyLabel="Brak zarchiwizowanych wycen."
-        />
+        <OwnerNamesProvider quotes={archived}>
+          <ProjectTypeFilterStrip
+            value={filter}
+            counts={counts}
+            onChange={setFilter}
+          />
+          <QuoteListView
+            quotes={filteredQuotes}
+            emptyLabel={hydrated ? "Brak zarchiwizowanych wycen." : "Wczytywanie…"}
+          />
+        </OwnerNamesProvider>
       </main>
     </>
   );

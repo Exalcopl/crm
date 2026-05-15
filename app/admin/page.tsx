@@ -33,6 +33,8 @@ import {
   type QuoteStatus,
 } from "./_lib/quotes";
 import { setQuotes, useQuotes } from "./_lib/quotes-store";
+import { useHydrated } from "./_lib/use-hydrated";
+import { OwnerNamesProvider, useOwnerName } from "./_lib/owner-names";
 import { RibbonBtn, RibbonGroup, RibbonToggleGroup } from "./_components/ribbon";
 import {
   ProjectTypeFilterStrip,
@@ -84,10 +86,11 @@ function WycenyRibbon({
 }
 
 function WycenyView({ view }: { view: WycenyViewMode }) {
+  const hydrated = useHydrated();
   const allQuotes = useQuotes();
   const quotes = useMemo(
-    () => allQuotes.filter((q) => !q.archived),
-    [allQuotes],
+    () => (hydrated ? allQuotes.filter((q) => !q.archived) : []),
+    [allQuotes, hydrated],
   );
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
@@ -95,11 +98,11 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
 
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return quotes;
-    return quotes.filter((q) => q.projectType === filter);
+    return quotes.filter((q) => q.projectType.includes(filter));
   }, [quotes, filter]);
 
   return (
-    <>
+    <OwnerNamesProvider quotes={quotes}>
       <ProjectTypeFilterStrip value={filter} counts={counts} onChange={setFilter} />
       {view === "kanban" ? (
         <WycenyKanbanBoard
@@ -110,7 +113,7 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
       ) : (
         <QuoteListView quotes={filteredQuotes} />
       )}
-    </>
+    </OwnerNamesProvider>
   );
 }
 
@@ -302,45 +305,56 @@ function KanbanCardView({ quote, overlay }: { quote: Quote; overlay?: boolean })
 }
 
 function KanbanCardContent({ quote }: { quote: Quote }) {
-  const typeStyle = PROJECT_TYPE_STYLES[quote.projectType];
+  const primaryType = quote.projectType[0];
+  const primaryStyle = primaryType ? PROJECT_TYPE_STYLES[primaryType] : null;
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
+  const ownerName = useOwnerName(quote);
   return (
     <>
       <div
         className="kanban-card-rail"
-        style={{
-          background: hasValue
-            ? `linear-gradient(90deg, ${typeStyle.border}, transparent)`
-            : `repeating-linear-gradient(90deg, ${typeStyle.border} 0 6px, transparent 6px 12px)`,
-          opacity: hasValue ? 0.9 : 0.55,
-        }}
+        style={
+          primaryStyle
+            ? {
+                background: hasValue
+                  ? `linear-gradient(90deg, ${primaryStyle.border}, transparent)`
+                  : `repeating-linear-gradient(90deg, ${primaryStyle.border} 0 6px, transparent 6px 12px)`,
+                opacity: hasValue ? 0.9 : 0.55,
+              }
+            : undefined
+        }
       />
       <div className="kanban-card-head">
-        <span
-          className="kanban-chip kanban-chip-type"
-          style={{
-            background: typeStyle.bg,
-            color: typeStyle.fg,
-            borderColor: typeStyle.border,
-          }}
-        >
-          <span
-            className="kanban-chip-dot"
-            style={{ background: typeStyle.fg }}
-          />
-          {quote.projectType}
-        </span>
         <span className="kanban-card-id">{quote.id}</span>
         <div
           className="kanban-card-owner"
-          title={quote.owner}
-          aria-label={quote.owner}
+          title={ownerName}
+          aria-label={ownerName}
         >
           <span className="kanban-card-owner-avatar">
-            {ownerInitials(quote.owner)}
+            {ownerInitials(ownerName)}
           </span>
         </div>
+      </div>
+      <div className="kanban-card-types">
+        {quote.projectType.map((t) => {
+          const s = PROJECT_TYPE_STYLES[t];
+          return (
+            <span
+              key={t}
+              className="kanban-chip kanban-chip-type"
+              style={{
+                background: s.bg,
+                color: s.fg,
+                borderColor: s.border,
+              }}
+            >
+              <span className="kanban-chip-dot" style={{ background: s.fg }} />
+              {t}
+            </span>
+          );
+        })}
       </div>
       <div className="kanban-card-client">{quote.contact.name}</div>
       <div className="kanban-card-footer">
