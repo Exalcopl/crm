@@ -8,8 +8,10 @@
  * @module
  */
 
+import type * as _lib_phone from "../_lib/phone.js";
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
+import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
@@ -27,8 +29,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "_lib/phone": typeof _lib_phone;
   account: typeof account;
   auth: typeof auth;
+  clients: typeof clients;
   contacts: typeof contacts;
   http: typeof http;
   permissions: typeof permissions;
