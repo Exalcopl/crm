@@ -1,6 +1,6 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
-import type { DataModel } from "./_generated/dataModel";
+import type { DataModel, Id } from "./_generated/dataModel";
 
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
@@ -35,7 +35,7 @@ const PasswordProvider = Password<DataModel>({
       }
 
       const name = (params.name as string | undefined)?.trim();
-      const roleId = (params.roleId as string | undefined);
+      const roleId = (params.roleId as unknown as Id<"roles"> | undefined);
       return {
         email,
         ...(name ? { name } : {}),
