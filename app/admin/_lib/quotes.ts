@@ -1,10 +1,10 @@
 import type { Id } from "@/convex/_generated/dataModel";
 
 export type SharepointInfo = {
-  folderId: string;
-  driveId: string;
-  itemId: string;
   webUrl: string;
+  driveId: string;
+  parentFolderItemId?: string;
+  subfolderItemId?: string;
   status: "pending" | "created" | "failed";
   error?: string;
   attempts: number;
