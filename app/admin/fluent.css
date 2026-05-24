@@ -3403,6 +3403,49 @@ select.fluent-input {
   gap: 4px;
 }
 
+/* Matched client banner ------------------------------------------- */
+
+.quote-new-v2-matched-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(46, 160, 67, 0.1), rgba(46, 160, 67, 0.05));
+  border: 1px solid rgba(46, 160, 67, 0.35);
+}
+
+.quote-new-v2-matched-icon {
+  flex-shrink: 0;
+  color: #2ea043;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quote-new-v2-matched-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.quote-new-v2-matched-title {
+  color: var(--text-primary);
+  font-size: var(--fs-body);
+  font-weight: 500;
+}
+
+.quote-new-v2-matched-title strong {
+  color: #2ea043;
+  font-weight: 600;
+}
+
+.quote-new-v2-matched-text {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
 /* New client form ------------------------------------------- */
 
 .quote-new-v2-newclient {

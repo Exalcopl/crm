@@ -62,8 +62,37 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_status", ["status"]),
 
+  clients: defineTable({
+    name: v.string(),
+    nameNormalized: v.string(),
+    phoneRaw: v.optional(v.string()),
+    phoneNormalized: v.optional(v.string()),
+    email: v.optional(v.string()),
+    street: v.optional(v.string()),
+    postalCity: v.optional(v.string()),
+    createdAt: v.number(),
+    sharepointFolder: v.optional(
+      v.object({
+        itemId: v.string(),
+        driveId: v.string(),
+        webUrl: v.string(),
+        status: v.union(
+          v.literal("pending"),
+          v.literal("created"),
+          v.literal("failed"),
+        ),
+        error: v.optional(v.string()),
+        attempts: v.number(),
+        lastTriedAt: v.number(),
+      }),
+    ),
+  })
+    .index("by_phone_normalized", ["phoneNormalized"])
+    .index("by_name_normalized", ["nameNormalized"]),
+
   quotes: defineTable({
     code: v.string(),
+    clientId: v.optional(v.id("clients")),
     contact: v.object({
       name: v.string(),
       street: v.optional(v.string()),
@@ -94,10 +123,10 @@ export default defineSchema({
     archived: v.optional(v.boolean()),
     sharepoint: v.optional(
       v.object({
-        folderId: v.string(),
-        driveId: v.string(),
-        itemId: v.string(),
         webUrl: v.string(),
+        parentFolderItemId: v.optional(v.string()),
+        subfolderItemId: v.optional(v.string()),
+        driveId: v.string(),
         status: v.union(
           v.literal("pending"),
           v.literal("created"),
@@ -111,7 +140,8 @@ export default defineSchema({
   })
     .index("by_code", ["code"])
     .index("by_status", ["status"])
-    .index("by_archived", ["archived"]),
+    .index("by_archived", ["archived"])
+    .index("by_client", ["clientId"]),
 
   quoteCounters: defineTable({
     year: v.number(),

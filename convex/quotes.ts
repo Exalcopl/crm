@@ -102,18 +102,33 @@ export const create = mutation({
     projectType: v.array(PROJECT_TYPE_VALUE),
     ownerId: v.union(v.id("users"), v.null()),
   },
-  handler: async (ctx, args) => {
+  handler: async (
+    ctx,
+    args: {
+      contact: { name: string; street?: string; postalCity?: string; phone?: string; email?: string };
+      value: number | null;
+      status: string;
+      deadline: string;
+      projectType: string[];
+      ownerId: Id<"users"> | null;
+    },
+  ): Promise<{ _id: Id<"quotes">; code: string }> => {
     const callerId = await getAuthUserId(ctx);
     if (!callerId) throw new Error("Brak autoryzacji");
 
     const code = await generateCode(ctx);
-    const quoteId = await ctx.db.insert("quotes", {
+    const clientId = await ctx.runMutation(internal.clients.getOrCreate, {
+      contact: args.contact,
+    });
+
+    const quoteId: Id<"quotes"> = await ctx.db.insert("quotes", {
       code,
+      clientId,
       contact: args.contact,
       value: args.value,
-      status: args.status,
+      status: args.status as "Do zrobienia" | "Kontakt z klientem" | "Pomiary i uzgodnienia" | "Zrobione",
       deadline: args.deadline,
-      projectType: args.projectType,
+      projectType: args.projectType as ("Zadaszenia" | "Pergola" | "Stolarka" | "Ogrodzenie" | "Osłony okienne" | "Inne")[],
       ownerId: args.ownerId,
       archived: false,
     });
@@ -198,17 +213,17 @@ export const retrySharepoint = mutation({
 export const _attachSharepoint = internalMutation({
   args: {
     quoteId: v.id("quotes"),
-    folderId: v.string(),
+    parentFolderItemId: v.string(),
+    subfolderItemId: v.string(),
     driveId: v.string(),
-    itemId: v.string(),
     webUrl: v.string(),
   },
-  handler: async (ctx, { quoteId, folderId, driveId, itemId, webUrl }) => {
+  handler: async (ctx, { quoteId, parentFolderItemId, subfolderItemId, driveId, webUrl }) => {
     await ctx.db.patch(quoteId, {
       sharepoint: {
-        folderId,
+        parentFolderItemId,
+        subfolderItemId,
         driveId,
-        itemId,
         webUrl,
         status: "created",
         attempts: 1,
@@ -227,10 +242,8 @@ export const _markSharepointFailed = internalMutation({
   handler: async (ctx, { quoteId, error, attempts }) => {
     await ctx.db.patch(quoteId, {
       sharepoint: {
-        folderId: "",
-        driveId: "",
-        itemId: "",
         webUrl: "",
+        driveId: "",
         status: "failed",
         error,
         attempts,
@@ -244,6 +257,20 @@ export const _getInternal = internalQuery({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
     return await ctx.db.get(quoteId);
+  },
+});
+
+export const _getAll = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("quotes").collect();
+  },
+});
+
+export const _clearSharepoint = internalMutation({
+  args: { quoteId: v.id("quotes") },
+  handler: async (ctx, { quoteId }) => {
+    await ctx.db.patch(quoteId, { sharepoint: undefined });
   },
 });
 

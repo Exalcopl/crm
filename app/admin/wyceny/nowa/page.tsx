@@ -137,6 +137,16 @@ export default function NowaWycenaPage() {
   const [deadline, setDeadline] = useState(isoFromOffsetDays(7));
   const [ownerId, setOwnerId] = useState<Id<"users"> | null>(null);
   const [touched, setTouched] = useState(false);
+  const [forceNewClient, setForceNewClient] = useState(false);
+
+  type MatchedClient = { _id: Id<"clients">; name: string } | null;
+  const matchedClient =
+    (useQuery(
+      api.clients.findMatchPublic,
+      !selectedClient && !forceNewClient && (phone.trim() || name.trim())
+        ? { name: name.trim(), phone: phone.trim() || undefined }
+        : "skip",
+    ) as MatchedClient | undefined) ?? null;
 
   const searchResults = useMemo<RankedClient[]>(() => {
     const q = clientQuery.trim().toLowerCase();
@@ -221,6 +231,7 @@ export default function NowaWycenaPage() {
 
     const shouldPersist =
       !selectedClient &&
+      !matchedClient &&
       showNewClientForm &&
       saveNewClient &&
       contact.name.length > 0;
@@ -316,24 +327,43 @@ export default function NowaWycenaPage() {
                   <span className="quote-new-v2-tag is-ok">
                     <I.check s={10} sw={2.6} /> wybrany
                   </span>
+                ) : matchedClient ? (
+                  <span className="quote-new-v2-tag">
+                    <I.search s={10} /> rozpoznano
+                  </span>
                 ) : null
               }
               action={
-                selectedClient || showNewClientForm ? (
+                selectedClient || showNewClientForm || matchedClient ? (
                   <button
                     type="button"
                     className="quote-new-v2-linkbtn"
                     onClick={() => {
                       setShowNewClientForm(false);
                       clearClient();
+                      setForceNewClient(false);
                     }}
                   >
-                    Wybierz innego
+                    {selectedClient || showNewClientForm ? "Wybierz innego" : "Wymuś nowego"}
                   </button>
                 ) : null
               }
             >
-              {selectedClient ? (
+              {matchedClient && !selectedClient && !showNewClientForm && !forceNewClient ? (
+                <div className="quote-new-v2-matched-banner">
+                  <div className="quote-new-v2-matched-icon">
+                    <I.check s={16} sw={2.4} />
+                  </div>
+                  <div className="quote-new-v2-matched-body">
+                    <div className="quote-new-v2-matched-title">
+                      Rozpoznano klienta: <strong>{matchedClient.name}</strong>
+                    </div>
+                    <div className="quote-new-v2-matched-text">
+                      Wycena zostanie dołączona do tego klienta
+                    </div>
+                  </div>
+                </div>
+              ) : selectedClient ? (
                 <SelectedClientCard client={selectedClient} />
               ) : showNewClientForm ? (
                 <NewClientForm

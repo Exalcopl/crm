@@ -85,6 +85,7 @@ export default function QuoteDetailPage({
           onTabChange={setActiveTab}
           onDelete={() => setConfirmDeleteOpen(true)}
           onArchive={toggleArchive}
+          quote={undefined}
           archived={false}
           disabled
         />
@@ -106,6 +107,7 @@ export default function QuoteDetailPage({
           onTabChange={setActiveTab}
           onDelete={() => {}}
           onArchive={() => {}}
+          quote={null}
           archived={false}
           disabled
         />
@@ -130,6 +132,7 @@ export default function QuoteDetailPage({
         onTabChange={setActiveTab}
         onDelete={() => setConfirmDeleteOpen(true)}
         onArchive={toggleArchive}
+        quote={quote}
         archived={isArchived}
       />
       <main className="fluent-content">
@@ -363,6 +366,7 @@ function QuoteDetailRibbon({
   onTabChange,
   onDelete,
   onArchive,
+  quote,
   archived,
   disabled,
 }: {
@@ -371,6 +375,7 @@ function QuoteDetailRibbon({
   onTabChange: (tab: DetailTab) => void;
   onDelete: () => void;
   onArchive: () => void;
+  quote?: Quote | null;
   archived: boolean;
   disabled?: boolean;
 }) {
@@ -392,6 +397,7 @@ function QuoteDetailRibbon({
         ))}
       </RibbonGroup>
       <RibbonGroup label="Operacje">
+        {quote && <SharepointRibbonBtn quote={quote} disabled={disabled} />}
         <RibbonBtn
           icon={archived ? <I.arrowLeft s={22} /> : <I.archive s={22} />}
           label={archived ? "Przywróć" : "Archiwizuj"}
@@ -478,6 +484,74 @@ function deadlineRelative(iso: string): string {
   if (days === -1) return "wczoraj";
   if (days > 0) return `za ${days} dni`;
   return `${Math.abs(days)} dni temu`;
+}
+
+function SharepointRibbonBtn({
+  quote,
+  disabled,
+}: {
+  quote: Quote;
+  disabled?: boolean;
+}) {
+  const retry = useMutation(api.quotes.retrySharepoint);
+  const [retrying, setRetrying] = useState(false);
+  const sp = quote.sharepoint;
+
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      await retry({ id: quote._id });
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  function handleOpen() {
+    if (sp?.status === "created" && sp.webUrl) {
+      window.open(sp.webUrl, "_blank");
+    }
+  }
+
+  if (!sp) {
+    return (
+      <RibbonBtn
+        icon={<I.plus s={22} />}
+        label="Utwórz folder"
+        disabled={disabled || retrying}
+        onClick={handleRetry}
+      />
+    );
+  }
+
+  if (sp.status === "pending") {
+    return (
+      <RibbonBtn
+        icon={<span className="spinner-small" aria-hidden />}
+        label="Tworzenie…"
+        disabled
+      />
+    );
+  }
+
+  if (sp.status === "created") {
+    return (
+      <RibbonBtn
+        icon={<I.link s={22} />}
+        label="Otwórz folder"
+        disabled={disabled}
+        onClick={handleOpen}
+      />
+    );
+  }
+
+  return (
+    <RibbonBtn
+      icon={<I.alert s={22} />}
+      label="Ponów"
+      disabled={disabled || retrying}
+      onClick={handleRetry}
+    />
+  );
 }
 
 function SharepointMeta({ quote }: { quote: Quote }) {

@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -9,20 +9,26 @@ const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [500, 1500, 4500];
 
 function sanitizeFolderName(raw: string): string {
-  // Remove characters forbidden by SharePoint
   let name = raw.replace(/[\\/:*?"<>|#%]/g, "_");
-  // Collapse multiple underscores/spaces
   name = name.replace(/[_\s]+/g, "_");
-  // Remove leading/trailing dots, spaces, underscores
   name = name.replace(/^[.\s_]+|[.\s_]+$/g, "");
-  // Truncate to 200 chars (SharePoint limit is 255, we leave room for prefix)
   if (name.length > 200) name = name.slice(0, 200);
   return name || "klient";
 }
 
-function buildFolderName(code: string, contactName: string): string {
-  const sanitized = sanitizeFolderName(contactName);
-  return `${code}_${sanitized}`;
+function buildClientFolderName(contactName: string): string {
+  return sanitizeFolderName(contactName);
+}
+
+function buildQuoteSubfolderName(
+  createdAt: number,
+  projectTypes: string[],
+  code: string,
+): string {
+  const date = new Date(createdAt);
+  const dateStr = date.toISOString().split("T")[0];
+  const typesStr = projectTypes.join("+");
+  return `${dateStr}_${typesStr}_${code}`;
 }
 
 async function getGraphToken(
@@ -65,18 +71,14 @@ async function ensureFolder(
 
   const base = "https://graph.microsoft.com/v1.0";
 
-  // root:/{parent}/{name} — path-based item lookup
   const checkUrl = encodedPath
     ? `${base}/drives/${driveId}/root:/${encodedPath}/${encodeURIComponent(folderName)}`
     : `${base}/drives/${driveId}/root:/${encodeURIComponent(folderName)}`;
 
-  // root:/{parent}:/children — navigation property of path-addressed item
-  // root/children — navigation property of root item (no path)
   const createUrl = encodedPath
     ? `${base}/drives/${driveId}/root:/${encodedPath}:/children`
     : `${base}/drives/${driveId}/root/children`;
 
-  // First check if folder already exists
   const checkRes = await fetch(checkUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -91,7 +93,6 @@ async function ensureFolder(
     throw new Error(`Graph check failed ${checkRes.status}: ${text}`);
   }
 
-  // Create the folder
   const createRes = await fetch(createUrl, {
     method: "POST",
     headers: {
@@ -106,7 +107,6 @@ async function ensureFolder(
   });
 
   if (createRes.status === 409) {
-    // Concurrent creation race — re-check
     const retryRes = await fetch(checkUrl, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -129,6 +129,74 @@ async function ensureFolder(
   return { id: created.id, webUrl: created.webUrl };
 }
 
+async function deleteFolder(
+  token: string,
+  driveId: string,
+  itemId: string,
+): Promise<void> {
+  const base = "https://graph.microsoft.com/v1.0";
+  const url = `${base}/drives/${driveId}/items/${itemId}`;
+
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text();
+    throw new Error(`Graph delete failed ${res.status}: ${text}`);
+  }
+}
+
+export const deleteOldSharepointFolders = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const driveId = process.env.MS_GRAPH_DRIVE_ID;
+
+    if (!tenantId || !clientId || !clientSecret || !driveId) {
+      console.warn("[sharepoint] Brak env config — pomijam migrację");
+      return;
+    }
+
+    const quotes = await ctx.runQuery(internal.quotes._getAll, {});
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+
+    let deleted = 0;
+    let failed = 0;
+
+    for (const quote of quotes) {
+      if (!quote.sharepoint?.subfolderItemId || quote.sharepoint.status !== "created") {
+        continue;
+      }
+
+      try {
+        await deleteFolder(token, driveId, quote.sharepoint.subfolderItemId);
+        if (quote.sharepoint.parentFolderItemId) {
+          await deleteFolder(token, driveId, quote.sharepoint.parentFolderItemId);
+        }
+        await ctx.runMutation(internal.quotes._clearSharepoint, {
+          quoteId: quote._id,
+        });
+        deleted++;
+        console.log(`[sharepoint] Usunięty folder: ${quote.code}`);
+      } catch (err) {
+        failed++;
+        console.error(
+          `[sharepoint] Błąd usunięcia ${quote.code}:`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    console.log(
+      `[sharepoint] Migracja: usunięto ${deleted}, błędy ${failed}`,
+    );
+  },
+});
+
 export const createFolderForQuote = internalAction({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
@@ -149,6 +217,9 @@ export const createFolderForQuote = internalAction({
       _id: Id<"quotes">;
       code: string;
       contact: { name: string };
+      projectType: string[];
+      clientId?: Id<"clients">;
+      _creationTime: number;
     } | null;
 
     if (!quote) {
@@ -156,7 +227,6 @@ export const createFolderForQuote = internalAction({
       return;
     }
 
-    const folderName = buildFolderName(quote.code, quote.contact.name);
     let lastError = "";
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -166,23 +236,46 @@ export const createFolderForQuote = internalAction({
         }
 
         const token = await getGraphToken(tenantId, clientId, clientSecret);
-        const { id: folderId, webUrl } = await ensureFolder(
+
+        const clientFolderName = buildClientFolderName(quote.contact.name);
+        const { id: clientFolderId, webUrl: clientWebUrl } = await ensureFolder(
           token,
           driveId,
           parentPath,
-          folderName,
+          clientFolderName,
+        );
+
+        if (quote.clientId) {
+          await ctx.runMutation(internal.clients._attachSharepointFolder, {
+            clientId: quote.clientId,
+            itemId: clientFolderId,
+            driveId,
+            webUrl: clientWebUrl,
+          });
+        }
+
+        const quoteFolderName = buildQuoteSubfolderName(
+          quote._creationTime,
+          quote.projectType,
+          quote.code,
+        );
+        const { id: quoteFolderId, webUrl: quoteWebUrl } = await ensureFolder(
+          token,
+          driveId,
+          `${parentPath}/${clientFolderName}`,
+          quoteFolderName,
         );
 
         await ctx.runMutation(internal.quotes._attachSharepoint, {
           quoteId,
-          folderId,
+          parentFolderItemId: clientFolderId,
+          subfolderItemId: quoteFolderId,
           driveId,
-          itemId: folderId,
-          webUrl,
+          webUrl: quoteWebUrl,
         });
 
         console.log(
-          `[sharepoint] Folder utworzony: ${folderName} → ${webUrl} (próba ${attempt})`,
+          `[sharepoint] Folder wyceny: ${quoteFolderName} → ${quoteWebUrl} (próba ${attempt})`,
         );
         return;
       } catch (err) {
