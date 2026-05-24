@@ -480,6 +480,57 @@ function deadlineRelative(iso: string): string {
   return `${Math.abs(days)} dni temu`;
 }
 
+function SharepointMeta({ quote }: { quote: Quote }) {
+  const retry = useMutation(api.quotes.retrySharepoint);
+  const [retrying, setRetrying] = useState(false);
+  const sp = quote.sharepoint;
+
+  async function handleRetry() {
+    setRetrying(true);
+    try {
+      await retry({ id: quote._id });
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  return (
+    <div className="quote-detail-meta-item">
+      <div className="quote-detail-meta-label">SharePoint</div>
+      <div className="quote-detail-meta-value">
+        {!sp ? (
+          <span className="quote-detail-meta-sp-pending">
+            <span className="quote-detail-meta-sp-spinner" aria-hidden />
+            Tworzenie folderu…
+          </span>
+        ) : sp.status === "created" ? (
+          <a
+            href={sp.webUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="quote-detail-meta-sp-link"
+          >
+            <I.link s={13} />
+            Otwórz folder
+          </a>
+        ) : (
+          <span className="quote-detail-meta-sp-failed">
+            <I.alert s={13} />
+            Błąd
+            <button
+              className="quote-detail-meta-sp-retry"
+              onClick={handleRetry}
+              disabled={retrying}
+            >
+              {retrying ? "…" : "Ponów"}
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
@@ -539,6 +590,8 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
             <div className="quote-detail-meta-label">Opiekun</div>
             <OwnerEditor quote={quote} ownerName={ownerName} disabled={archived} />
           </div>
+          <div className="quote-detail-meta-divider" />
+          <SharepointMeta quote={quote} />
         </div>
       </div>
       <QuoteStatusPipeline currentIndex={statusIndex} />

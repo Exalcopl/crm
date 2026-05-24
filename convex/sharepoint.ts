@@ -62,12 +62,21 @@ async function ensureFolder(
   const encodedPath = parentPath
     ? encodeURIComponent(parentPath).replace(/%2F/g, "/")
     : "";
-  const parentRef = encodedPath
-    ? `/drives/${driveId}/root:/${encodedPath}`
-    : `/drives/${driveId}/root`;
+
+  const base = "https://graph.microsoft.com/v1.0";
+
+  // root:/{parent}/{name} — path-based item lookup
+  const checkUrl = encodedPath
+    ? `${base}/drives/${driveId}/root:/${encodedPath}/${encodeURIComponent(folderName)}`
+    : `${base}/drives/${driveId}/root:/${encodeURIComponent(folderName)}`;
+
+  // root:/{parent}:/children — navigation property of path-addressed item
+  // root/children — navigation property of root item (no path)
+  const createUrl = encodedPath
+    ? `${base}/drives/${driveId}/root:/${encodedPath}:/children`
+    : `${base}/drives/${driveId}/root/children`;
 
   // First check if folder already exists
-  const checkUrl = `https://graph.microsoft.com/v1.0${parentRef}:/${encodeURIComponent(folderName)}`;
   const checkRes = await fetch(checkUrl, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -83,7 +92,6 @@ async function ensureFolder(
   }
 
   // Create the folder
-  const createUrl = `https://graph.microsoft.com/v1.0${parentRef}/children`;
   const createRes = await fetch(createUrl, {
     method: "POST",
     headers: {

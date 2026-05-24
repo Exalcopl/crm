@@ -1400,6 +1400,75 @@
   color: var(--text-muted, #8b949e);
 }
 
+/* SharePoint meta tile */
+.quote-detail-meta-sp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent, #58a6ff);
+  text-decoration: none;
+}
+
+.quote-detail-meta-sp-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.quote-detail-meta-sp-pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.quote-detail-meta-sp-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: sp-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes sp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.quote-detail-meta-sp-failed {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #ff8478;
+}
+
+.quote-detail-meta-sp-retry {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--surface-2, #30363d);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+
+.quote-detail-meta-sp-retry:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.quote-detail-meta-sp-retry:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Pipeline indicator */
 .quote-detail-pipeline {
   display: flex;
