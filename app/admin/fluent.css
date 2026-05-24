@@ -2602,6 +2602,23 @@ select.fluent-input {
   font-size: var(--fs-small);
 }
 
+.spinner-small {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  animation: spinner-spin 0.6s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 560px) {
   .fluent-form-grid {
     grid-template-columns: 1fr;

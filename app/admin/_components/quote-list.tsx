@@ -153,7 +153,7 @@ function QuoteListRow({ quote }: { quote: Quote }) {
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const ownerName = useOwnerName(quote);
-  const go = () => router.push(`/admin/wyceny/${quote.id}`);
+  const go = () => router.push(`/admin/wyceny/${quote._id}`);
   return (
     <div
       className="quote-list-row"

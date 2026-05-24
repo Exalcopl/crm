@@ -1,7 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import {
   DndContext,
   DragOverlay,
@@ -32,8 +35,6 @@ import {
   type Quote,
   type QuoteStatus,
 } from "./_lib/quotes";
-import { setQuotes, useQuotes } from "./_lib/quotes-store";
-import { useHydrated } from "./_lib/use-hydrated";
 import { OwnerNamesProvider, useOwnerName } from "./_lib/owner-names";
 import { RibbonBtn, RibbonGroup, RibbonToggleGroup } from "./_components/ribbon";
 import {
@@ -86,29 +87,38 @@ function WycenyRibbon({
 }
 
 function WycenyView({ view }: { view: WycenyViewMode }) {
-  const hydrated = useHydrated();
-  const allQuotes = useQuotes();
-  const quotes = useMemo(
-    () => (hydrated ? allQuotes.filter((q) => !q.archived) : []),
-    [allQuotes, hydrated],
-  );
-  const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
+  const convexQuotes = useQuery(api.quotes.list) ?? [];
+  const setStatusMutation = useMutation(api.quotes.setStatus);
+  const [localQuotes, setLocalQuotes] = useState<Quote[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const counts = useMemo(() => computeProjectTypeCounts(quotes), [quotes]);
+  useEffect(() => {
+    if (!isDragging) setLocalQuotes(convexQuotes as unknown as Quote[]);
+  }, [convexQuotes, isDragging]);
+
+  const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
+  const counts = useMemo(() => computeProjectTypeCounts(localQuotes), [localQuotes]);
 
   const filteredQuotes = useMemo(() => {
-    if (filter === "Wszystkie") return quotes;
-    return quotes.filter((q) => q.projectType.includes(filter));
-  }, [quotes, filter]);
+    if (filter === "Wszystkie") return localQuotes;
+    return localQuotes.filter((q) => q.projectType.includes(filter));
+  }, [localQuotes, filter]);
+
+  function handleStatusChange(id: Id<"quotes">, status: QuoteStatus) {
+    void setStatusMutation({ id, status });
+  }
 
   return (
-    <OwnerNamesProvider quotes={quotes}>
+    <OwnerNamesProvider quotes={localQuotes}>
       <ProjectTypeFilterStrip value={filter} counts={counts} onChange={setFilter} />
       {view === "kanban" ? (
         <WycenyKanbanBoard
-          quotes={quotes}
-          setQuotes={setQuotes}
+          quotes={localQuotes}
+          setQuotes={setLocalQuotes}
           filteredQuotes={filteredQuotes}
+          onStatusChange={handleStatusChange}
+          onDragStart={() => setIsDragging(true)}
+          onDragEnd={() => setIsDragging(false)}
         />
       ) : (
         <QuoteListView quotes={filteredQuotes} />
@@ -121,10 +131,16 @@ function WycenyKanbanBoard({
   quotes,
   setQuotes,
   filteredQuotes,
+  onStatusChange,
+  onDragStart,
+  onDragEnd,
 }: {
   quotes: Quote[];
-  setQuotes: (updater: (prev: Quote[]) => Quote[]) => void;
+  setQuotes: (updater: Quote[] | ((prev: Quote[]) => Quote[])) => void;
   filteredQuotes: Quote[];
+  onStatusChange: (id: Id<"quotes">, status: QuoteStatus) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const dndId = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -153,6 +169,7 @@ function WycenyKanbanBoard({
 
   function handleDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
+    onDragStart();
   }
 
   function handleDragOver(e: DragOverEvent) {
@@ -184,6 +201,7 @@ function WycenyKanbanBoard({
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     setActiveId(null);
+    onDragEnd();
     if (!over) return;
     const activeId = String(active.id);
     const overId = String(over.id);
@@ -191,6 +209,11 @@ function WycenyKanbanBoard({
 
     const container = findContainer(overId);
     if (!container) return;
+
+    const movedQuote = quotes.find((q) => q.id === activeId);
+    if (movedQuote && movedQuote.status !== container) {
+      onStatusChange(movedQuote._id, container);
+    }
 
     setQuotes((prev) => {
       const inContainer = prev.filter((q) => q.status === container);
@@ -212,7 +235,7 @@ function WycenyKanbanBoard({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => { setActiveId(null); onDragEnd(); }}
     >
       <div className="kanban-board">
         {QUOTE_STATUSES.map((status) => (
@@ -282,12 +305,12 @@ function SortableKanbanCard({ quote }: { quote: Quote }) {
       tabIndex={0}
       onClick={() => {
         if (isDragging) return;
-        router.push(`/admin/wyceny/${quote.id}`);
+        router.push(`/admin/wyceny/${quote._id}`);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          router.push(`/admin/wyceny/${quote.id}`);
+          router.push(`/admin/wyceny/${quote._id}`);
         }
       }}
     >

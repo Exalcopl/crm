@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
@@ -13,10 +13,8 @@ import {
   ownerInitials,
   type ContactInfo,
   type ProjectType,
-  type Quote,
   type QuoteStatus,
 } from "../../_lib/quotes";
-import { setQuotes, useQuotes } from "../../_lib/quotes-store";
 import { setClients, useClients } from "../../_lib/clients-store";
 import { nextClientId, type Client } from "../../_lib/clients";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
@@ -38,18 +36,6 @@ const DEADLINE_QUICK: { label: string; days: number }[] = [
   { label: "+30 dni", days: 30 },
 ];
 
-function nextQuoteId(quotes: Quote[]): string {
-  const year = new Date().getFullYear();
-  const prefix = `WC-${year}-`;
-  const used = quotes
-    .map((q) => {
-      const m = /^WC-\d{4}-(\d+)$/.exec(q.id);
-      return m ? parseInt(m[1], 10) : 0;
-    })
-    .filter((n) => n > 0);
-  const next = (used.length > 0 ? Math.max(...used) : 700) + 1;
-  return `${prefix}${String(next).padStart(4, "0")}`;
-}
 
 function isoFromOffsetDays(days: number): string {
   const d = new Date();
@@ -81,7 +67,8 @@ type RankedClient = { client: Client; count: number; saved: boolean };
 
 export default function NowaWycenaPage() {
   const router = useRouter();
-  const quotes = useQuotes();
+  const createQuote = useMutation(api.quotes.create);
+  const convexQuotes = useQuery(api.quotes.list) ?? [];
   const clients = useClients();
 
   const allClients = useMemo<RankedClient[]>(() => {
@@ -89,7 +76,7 @@ export default function NowaWycenaPage() {
     for (const c of clients) {
       map.set(c.name, { client: c, count: 0, saved: true });
     }
-    for (const q of quotes) {
+    for (const q of convexQuotes) {
       const name = q.contact.name.trim();
       if (!name) continue;
       const existing = map.get(name);
@@ -114,7 +101,7 @@ export default function NowaWycenaPage() {
       if (b.count !== a.count) return b.count - a.count;
       return a.client.name.localeCompare(b.client.name);
     });
-  }, [clients, quotes]);
+  }, [clients, convexQuotes]);
 
   const frequentClients = useMemo(
     () => allClients.slice(0, 6),
@@ -221,7 +208,7 @@ export default function NowaWycenaPage() {
     router.push("/admin");
   }
 
-  function submitForm() {
+  async function submitForm() {
     setTouched(true);
     if (!canSubmit) return;
     const contact: ContactInfo = {
@@ -231,17 +218,6 @@ export default function NowaWycenaPage() {
       phone: trimOrUndefined(phone),
       email: trimOrUndefined(email),
     };
-    const id = nextQuoteId(quotes);
-    const created: Quote = {
-      id,
-      contact,
-      projectType: projectTypes,
-      status,
-      value: parsedValue === null ? null : (parsedValue as number),
-      deadline,
-      ownerId,
-    };
-    setQuotes((prev) => [created, ...prev]);
 
     const shouldPersist =
       !selectedClient &&
@@ -264,12 +240,24 @@ export default function NowaWycenaPage() {
       });
     }
 
-    router.push(`/admin/wyceny/${id}`);
+    try {
+      const result = await createQuote({
+        contact,
+        projectType: projectTypes,
+        status,
+        value: parsedValue === null ? null : (parsedValue as number),
+        deadline,
+        ownerId,
+      });
+      router.push(`/admin/wyceny/${result._id}`);
+    } catch (err) {
+      console.error("Błąd zapisu wyceny:", err);
+    }
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    submitForm();
+    void submitForm();
   }
 
   useEffect(() => {

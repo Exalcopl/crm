@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 import {
-  INITIAL_QUOTES,
   QUOTE_STATUSES,
   type ProjectType,
   type Quote,
@@ -51,16 +50,16 @@ function migrateQuotes(rows: Quote[]): { quotes: Quote[]; changed: boolean } {
 type Listener = () => void;
 const listeners = new Set<Listener>();
 
-let memoryState: Quote[] = INITIAL_QUOTES;
+let memoryState: Quote[] = [];
 let hydrated = false;
 
 function loadFromStorage(): Quote[] {
-  if (typeof window === "undefined") return INITIAL_QUOTES;
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return INITIAL_QUOTES;
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return INITIAL_QUOTES;
+    if (!Array.isArray(parsed)) return [];
     const { quotes, changed } = migrateQuotes(parsed as Quote[]);
     if (changed) {
       try {
@@ -71,7 +70,7 @@ function loadFromStorage(): Quote[] {
     }
     return quotes;
   } catch {
-    return INITIAL_QUOTES;
+    return [];
   }
 }
 
@@ -112,7 +111,7 @@ function getSnapshot() {
 }
 
 function getServerSnapshot() {
-  return INITIAL_QUOTES;
+  return [];
 }
 
 export function useQuotes(): Quote[] {

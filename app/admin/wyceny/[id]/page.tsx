@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
@@ -17,7 +17,6 @@ import {
   ownerInitials,
   type Quote,
 } from "../../_lib/quotes";
-import { setQuotes, useQuotes } from "../../_lib/quotes-store";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
 
@@ -38,32 +37,46 @@ export default function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const quotes = useQuotes();
-  const quote = quotes.find((q) => q.id === id);
+  const quote = useQuery(api.quotes.get, { id: id as Id<"quotes"> }) as Quote | null | undefined;
+  const removeQuote = useMutation(api.quotes.remove);
+  const archiveQuote = useMutation(api.quotes.archive);
+  const restoreQuote = useMutation(api.quotes.restore);
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<DetailTab>("szczegoly");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
   const isArchived = quote?.archived === true;
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!quote) return;
-    setQuotes((prev) => prev.filter((q) => q.id !== quote.id));
+    await removeQuote({ id: quote._id });
     setConfirmDeleteOpen(false);
     router.push(isArchived ? "/admin/archiwum" : "/admin");
   }
 
   function toggleArchive() {
     if (!quote) return;
-    const goingToArchive = !isArchived;
-    setQuotes((prev) =>
-      prev.map((q) =>
-        q.id === quote.id ? { ...q, archived: goingToArchive } : q,
-      ),
-    );
+    if (isArchived) {
+      void confirmRestore();
+    } else {
+      setConfirmArchiveOpen(true);
+    }
+  }
+
+  async function confirmArchive() {
+    if (!quote) return;
+    await archiveQuote({ id: quote._id });
+    setConfirmArchiveOpen(false);
     router.push("/admin");
   }
 
-  if (!quote) {
+  async function confirmRestore() {
+    if (!quote) return;
+    await restoreQuote({ id: quote._id });
+    router.push("/admin");
+  }
+
+  if (quote === undefined) {
     return (
       <>
         <QuoteDetailRibbon
@@ -72,6 +85,27 @@ export default function QuoteDetailPage({
           onTabChange={setActiveTab}
           onDelete={() => setConfirmDeleteOpen(true)}
           onArchive={toggleArchive}
+          archived={false}
+          disabled
+        />
+        <main className="fluent-content">
+          <div className="quote-detail-missing">
+            <div className="quote-detail-missing-title">Ładowanie…</div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (quote === null) {
+    return (
+      <>
+        <QuoteDetailRibbon
+          onBack={() => router.push("/admin")}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onDelete={() => {}}
+          onArchive={() => {}}
           archived={false}
           disabled
         />
@@ -111,7 +145,15 @@ export default function QuoteDetailPage({
           quoteId={quote.id}
           clientName={quote.contact.name}
           onCancel={() => setConfirmDeleteOpen(false)}
-          onConfirm={confirmDelete}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
+      {confirmArchiveOpen && (
+        <ConfirmArchiveModal
+          quoteId={quote.id}
+          clientName={quote.contact.name}
+          onCancel={() => setConfirmArchiveOpen(false)}
+          onConfirm={() => void confirmArchive()}
         />
       )}
     </>
@@ -200,6 +242,114 @@ function ConfirmDeleteModal({
           >
             <I.trash s={14} sw={2.2} />
             <span>Tak, usuń</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmArchiveModal({
+  quoteId,
+  clientName,
+  onCancel,
+  onConfirm,
+}: {
+  quoteId: string;
+  clientName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !isLoading) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onCancel, isLoading]);
+
+  function handleConfirm() {
+    setIsLoading(true);
+    setTimeout(() => {
+      onConfirm();
+      setIsLoading(false);
+    }, 300);
+  }
+
+  return (
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Archiwizuj wycenę"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isLoading) onCancel();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-sm">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon">
+              <I.archive s={16} sw={2.2} />
+            </span>
+            <span>Archiwizuj wycenę</span>
+          </div>
+          <button
+            type="button"
+            className="fluent-modal-close"
+            onClick={onCancel}
+            aria-label="Zamknij"
+            disabled={isLoading}
+          >
+            ×
+          </button>
+        </header>
+        <div className="fluent-modal-body">
+          <p className="fluent-modal-text">
+            Na pewno archiwizować wycenę{" "}
+            <strong>{quoteId}</strong>
+            {clientName ? (
+              <>
+                {" "}dla klienta <strong>{clientName}</strong>
+              </>
+            ) : null}
+            ?
+          </p>
+        </div>
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onCancel}
+            autoFocus
+            disabled={isLoading}
+          >
+            Nie
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
+            onClick={handleConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner-small" aria-hidden="true" />
+                <span>Archiwizuję…</span>
+              </>
+            ) : (
+              <>
+                <I.archive s={14} sw={2.2} />
+                <span>Tak, archiwizuj</span>
+              </>
+            )}
           </button>
         </footer>
       </div>
@@ -430,18 +580,14 @@ function OwnerEditor({
     };
   }, [open]);
 
+  const setOwner = useMutation(api.quotes.setOwner);
+
   function assign(userId: Id<"users">) {
     if (quote.ownerId === userId) {
       setOpen(false);
       return;
     }
-    setQuotes((prev) =>
-      prev.map((q) =>
-        q.id === quote.id
-          ? { ...q, ownerId: userId, ownerLegacy: undefined }
-          : q,
-      ),
-    );
+    void setOwner({ id: quote._id, ownerId: userId });
     setOpen(false);
   }
 
@@ -695,7 +841,7 @@ function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) 
         )}
       </Section>
 
-      <OpisUwagiSection author={ownerName} />
+      <OpisUwagiSection quoteId={quote._id} author={ownerName} />
 
       <ZadaniaSection />
     </div>
@@ -838,15 +984,8 @@ function TabPowiazane() {
   );
 }
 
-type QuoteNote = {
-  id: string;
-  text: string;
-  createdAt: string;
-  author: string;
-};
-
-function formatNoteDate(iso: string): string {
-  const d = new Date(iso);
+function formatNoteDate(ts: number): string {
+  const d = new Date(ts);
   return d.toLocaleString("pl-PL", {
     day: "2-digit",
     month: "2-digit",
@@ -856,27 +995,23 @@ function formatNoteDate(iso: string): string {
   });
 }
 
-function OpisUwagiSection({ author }: { author: string }) {
-  const [notes, setNotes] = useState<QuoteNote[]>([]);
+function OpisUwagiSection({
+  quoteId,
+  author,
+}: {
+  quoteId: Id<"quotes">;
+  author: string;
+}) {
+  const notes = useQuery(api.quoteNotes.list, { quoteId }) ?? [];
+  const addNote = useMutation(api.quoteNotes.add);
+  const removeNote = useMutation(api.quoteNotes.remove);
   const [draft, setDraft] = useState("");
 
-  function addNote() {
+  function handleAdd() {
     const text = draft.trim();
     if (!text) return;
-    setNotes((prev) => [
-      ...prev,
-      {
-        id: `n-${Date.now()}`,
-        text,
-        createdAt: new Date().toISOString(),
-        author,
-      },
-    ]);
+    void addNote({ quoteId, text, authorName: author });
     setDraft("");
-  }
-
-  function remove(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
   }
 
   return (
@@ -895,15 +1030,15 @@ function OpisUwagiSection({ author }: { author: string }) {
           </li>
         )}
         {notes.map((n) => (
-          <li key={n.id} className="quote-detail-note-item">
+          <li key={n._id as unknown as string} className="quote-detail-note-item">
             <div className="quote-detail-note-body">
               <div className="quote-detail-note-text">{n.text}</div>
               <div className="quote-detail-note-meta">
                 <span className="quote-detail-note-author">
                   <span className="kanban-card-owner-avatar">
-                    {ownerInitials(n.author)}
+                    {ownerInitials(n.authorName)}
                   </span>
-                  <span>{n.author}</span>
+                  <span>{n.authorName}</span>
                 </span>
                 <span className="quote-detail-note-sep">·</span>
                 <span>{formatNoteDate(n.createdAt)}</span>
@@ -912,7 +1047,7 @@ function OpisUwagiSection({ author }: { author: string }) {
             <button
               type="button"
               className="quote-detail-todo-remove"
-              onClick={() => remove(n.id)}
+              onClick={() => void removeNote({ id: n._id })}
               aria-label="Usuń notatkę"
             >
               <I.trash s={12} />
@@ -925,7 +1060,7 @@ function OpisUwagiSection({ author }: { author: string }) {
         className="quote-detail-todo-add quote-detail-note-add"
         onSubmit={(e) => {
           e.preventDefault();
-          addNote();
+          handleAdd();
         }}
       >
         <span className="quote-detail-todo-add-icon">
@@ -937,7 +1072,7 @@ function OpisUwagiSection({ author }: { author: string }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              addNote();
+              handleAdd();
             }
           }}
           placeholder="Dodaj notatkę… (Cmd/Ctrl+Enter)"

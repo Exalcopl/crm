@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { I } from "../_lib/icons";
-import { useQuotes } from "../_lib/quotes-store";
-import { useHydrated } from "../_lib/use-hydrated";
 import { RibbonBtn, RibbonGroup } from "../_components/ribbon";
 import {
   ProjectTypeFilterStrip,
@@ -13,6 +13,7 @@ import {
 } from "../_components/project-type-filter";
 import { QuoteListView } from "../_components/quote-list";
 import { OwnerNamesProvider } from "../_lib/owner-names";
+import type { Quote } from "../_lib/quotes";
 
 function ArchiwumRibbon({ onBack }: { onBack: () => void }) {
   return (
@@ -33,12 +34,8 @@ function ArchiwumRibbon({ onBack }: { onBack: () => void }) {
 
 export default function ArchiwumPage() {
   const router = useRouter();
-  const hydrated = useHydrated();
-  const allQuotes = useQuotes();
-  const archived = useMemo(
-    () => (hydrated ? allQuotes.filter((q) => q.archived === true) : []),
-    [allQuotes, hydrated],
-  );
+  const archivedRaw = useQuery(api.quotes.listArchived);
+  const archived = (archivedRaw as unknown as Quote[] | undefined) ?? [];
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
   const counts = useMemo(() => computeProjectTypeCounts(archived), [archived]);
@@ -60,7 +57,11 @@ export default function ArchiwumPage() {
           />
           <QuoteListView
             quotes={filteredQuotes}
-            emptyLabel={hydrated ? "Brak zarchiwizowanych wycen." : "Wczytywanie…"}
+            emptyLabel={
+              archivedRaw === undefined
+                ? "Wczytywanie…"
+                : "Brak zarchiwizowanych wycen."
+            }
           />
         </OwnerNamesProvider>
       </main>

@@ -59,4 +59,68 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_status", ["status"]),
+
+  quotes: defineTable({
+    code: v.string(),
+    contact: v.object({
+      name: v.string(),
+      street: v.optional(v.string()),
+      postalCity: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      email: v.optional(v.string()),
+    }),
+    value: v.union(v.number(), v.null()),
+    status: v.union(
+      v.literal("Do zrobienia"),
+      v.literal("Kontakt z klientem"),
+      v.literal("Pomiary i uzgodnienia"),
+      v.literal("Zrobione"),
+    ),
+    deadline: v.string(),
+    projectType: v.array(
+      v.union(
+        v.literal("Zadaszenia"),
+        v.literal("Pergola"),
+        v.literal("Stolarka"),
+        v.literal("Ogrodzenie"),
+        v.literal("Osłony okienne"),
+        v.literal("Inne"),
+      ),
+    ),
+    ownerId: v.union(v.id("users"), v.null()),
+    ownerLegacy: v.optional(v.string()),
+    archived: v.optional(v.boolean()),
+    sharepoint: v.optional(
+      v.object({
+        folderId: v.string(),
+        driveId: v.string(),
+        itemId: v.string(),
+        webUrl: v.string(),
+        status: v.union(
+          v.literal("pending"),
+          v.literal("created"),
+          v.literal("failed"),
+        ),
+        error: v.optional(v.string()),
+        attempts: v.number(),
+        lastTriedAt: v.number(),
+      }),
+    ),
+  })
+    .index("by_code", ["code"])
+    .index("by_status", ["status"])
+    .index("by_archived", ["archived"]),
+
+  quoteCounters: defineTable({
+    year: v.number(),
+    seq: v.number(),
+  }).index("by_year", ["year"]),
+
+  quoteNotes: defineTable({
+    quoteId: v.id("quotes"),
+    text: v.string(),
+    authorId: v.union(v.id("users"), v.null()),
+    authorName: v.string(),
+    createdAt: v.number(),
+  }).index("by_quote", ["quoteId"]),
 });

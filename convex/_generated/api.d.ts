@@ -13,8 +13,11 @@ import type * as auth from "../auth.js";
 import type * as contacts from "../contacts.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
+import type * as quoteNotes from "../quoteNotes.js";
+import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
+import type * as sharepoint from "../sharepoint.js";
 import type * as users from "../users.js";
 
 import type {
@@ -29,8 +32,11 @@ declare const fullApi: ApiFromModules<{
   contacts: typeof contacts;
   http: typeof http;
   permissions: typeof permissions;
+  quoteNotes: typeof quoteNotes;
+  quotes: typeof quotes;
   roles: typeof roles;
   seed: typeof seed;
+  sharepoint: typeof sharepoint;
   users: typeof users;
 }>;
 
