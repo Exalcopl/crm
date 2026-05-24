@@ -1,8 +1,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { internalAction, internalMutation } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { action, internalAction, internalMutation } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const MAX_ATTEMPTS = 3;
@@ -194,6 +194,127 @@ export const deleteOldSharepointFolders = internalAction({
     console.log(
       `[sharepoint] Migracja: usunięto ${deleted}, błędy ${failed}`,
     );
+  },
+});
+
+export const listQuoteFiles = action({
+  args: { quoteId: v.id("quotes") },
+  handler: async (ctx, { quoteId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = (quote as any)?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId) return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) return [];
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph list files ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        lastModifiedDateTime: string;
+        file?: { mimeType: string };
+      }>;
+    };
+
+    return data.value
+      .filter((item) => !!item.file)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        size: item.size,
+        lastModifiedDateTime: item.lastModifiedDateTime,
+        mimeType: item.file?.mimeType ?? "",
+      }));
+  },
+});
+
+export const createUploadSession = action({
+  args: { quoteId: v.id("quotes"), fileName: v.string() },
+  handler: async (ctx, { quoteId, fileName }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = (quote as any)?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId) {
+      throw new Error("Brak folderu SharePoint dla tej wyceny");
+    }
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const encodedName = encodeURIComponent(fileName);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/${encodedName}:/createUploadSession`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          item: { "@microsoft.graph.conflictBehavior": "rename" },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graf upload session ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as { uploadUrl: string };
+    return { uploadUrl: data.uploadUrl };
+  },
+});
+
+export const getFileForPreview = action({
+  args: { quoteId: v.id("quotes"), fileId: v.string() },
+  handler: async (ctx, { quoteId, fileId }): Promise<{ base64: string; contentType: string }> => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = (quote as any)?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${fileId}/content`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!res.ok) throw new Error(`Nie można pobrać pliku (${res.status})`);
+
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > 8 * 1024 * 1024) {
+      throw new Error("Plik jest za duży do podglądu (max 8 MB)");
+    }
+
+    const base64 = Buffer.from(buffer).toString("base64");
+    const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+    return { base64, contentType };
   },
 });
 
