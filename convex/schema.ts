@@ -2,8 +2,27 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
 
+const { users: _authUsers, ...otherAuthTables } = authTables;
+
 export default defineSchema({
-  ...authTables,
+  ...otherAuthTables,
+
+  users: defineTable({
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    image: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+
+    roleId: v.optional(v.id("roles")),
+    isActive: v.optional(v.boolean()),
+    mustChangePassword: v.optional(v.boolean()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"])
+    .index("by_role", ["roleId"]),
 
   roles: defineTable({
     name: v.string(),
