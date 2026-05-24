@@ -25,21 +25,28 @@ function checkAndIncrementRateLimit(email: string) {
 
 const PasswordProvider = Password<DataModel>({
   profile(params) {
-    const email = (params.email as string | undefined)?.trim().toLowerCase();
-    if (!email) throw new Error("Email jest wymagany");
+    try {
+      const email = (params.email as string | undefined)?.trim().toLowerCase();
+      if (!email) throw new Error("Email jest wymagany");
 
-    const flow = params.flow as string | undefined;
-    if (flow === "signIn") {
-      checkAndIncrementRateLimit(email);
+      const flow = params.flow as string | undefined;
+      if (flow === "signIn") {
+        checkAndIncrementRateLimit(email);
+      }
+
+      const name = (params.name as string | undefined)?.trim();
+      const roleId = (params.roleId as string | undefined);
+      return {
+        email,
+        ...(name ? { name } : {}),
+        isActive: true,
+        mustChangePassword: false,
+        ...(roleId ? { roleId } : {}),
+      };
+    } catch (err) {
+      console.error("Password provider profile error:", err);
+      throw err;
     }
-
-    const name = (params.name as string | undefined)?.trim();
-    return {
-      email,
-      ...(name ? { name } : {}),
-      isActive: true,
-      mustChangePassword: false,
-    };
   },
   validatePasswordRequirements(password) {
     if (password.length < 8) {
