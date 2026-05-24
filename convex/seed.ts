@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { action, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { createAccount } from "@convex-dev/auth/server";
+import { createAccount, modifyAccountCredentials } from "@convex-dev/auth/server";
 import { RESOURCES, ACTIONS, SCOPES } from "./permissions";
 import type { Id } from "./_generated/dataModel";
 
@@ -201,5 +201,21 @@ export const seedAdmin = action({
       adminUserId: adminId!,
       adminCreated: created,
     };
+  },
+});
+
+export const resetAdminPassword = action({
+  args: {},
+  handler: async (ctx): Promise<{ ok: boolean }> => {
+    const email = (process.env.SEED_ADMIN_EMAIL ?? "admin@exalco.pl").trim().toLowerCase();
+    const password = process.env.SEED_ADMIN_PASSWORD;
+    if (!password || password.length < 8) {
+      throw new Error("Ustaw SEED_ADMIN_PASSWORD w env Convexa");
+    }
+    await modifyAccountCredentials(ctx, {
+      provider: "password",
+      account: { id: email, secret: password },
+    });
+    return { ok: true };
   },
 });

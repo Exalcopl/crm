@@ -126,6 +126,9 @@ export default defineSchema({
         webUrl: v.string(),
         parentFolderItemId: v.optional(v.string()),
         subfolderItemId: v.optional(v.string()),
+        // legacy fields from old schema
+        folderId: v.optional(v.string()),
+        itemId: v.optional(v.string()),
         driveId: v.string(),
         status: v.union(
           v.literal("pending"),
