@@ -338,3 +338,59 @@ export const _attachSharepointFolder = internalMutation({
     });
   },
 });
+
+export const _getCascadeData = internalQuery({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, { clientId }) => {
+    const client = await ctx.db.get(clientId);
+    if (!client) return null;
+    const quotes = await ctx.db
+      .query("quotes")
+      .withIndex("by_client", (q) => q.eq("clientId", clientId))
+      .collect();
+    return { client, quotes };
+  },
+});
+
+export const _deleteCascade = internalMutation({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, { clientId }) => {
+    const client = await ctx.db.get(clientId);
+    if (!client) return;
+
+    const quotes = await ctx.db
+      .query("quotes")
+      .withIndex("by_client", (q) => q.eq("clientId", clientId))
+      .collect();
+
+    for (const quote of quotes) {
+      const notes = await ctx.db
+        .query("quoteNotes")
+        .withIndex("by_quote", (q) => q.eq("quoteId", quote._id))
+        .collect();
+      await Promise.all(notes.map((n) => ctx.db.delete(n._id)));
+
+      const tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_quote", (q) => q.eq("quoteId", quote._id))
+        .collect();
+      await Promise.all(tasks.map((t) => ctx.db.delete(t._id)));
+
+      const items = await ctx.db
+        .query("quoteItems")
+        .withIndex("by_quote", (q) => q.eq("quoteId", quote._id))
+        .collect();
+      await Promise.all(items.map((it) => ctx.db.delete(it._id)));
+
+      await ctx.db.delete(quote._id);
+    }
+
+    const clientNotes = await ctx.db
+      .query("clientNotes")
+      .withIndex("by_client", (q) => q.eq("clientId", clientId))
+      .collect();
+    await Promise.all(clientNotes.map((n) => ctx.db.delete(n._id)));
+
+    await ctx.db.delete(clientId);
+  },
+});

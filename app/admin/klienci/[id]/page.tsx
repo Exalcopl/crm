@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use } from "react";
-import { useQuery } from "convex/react";
+import { use, useEffect, useState } from "react";
+import { useQuery, useAction } from "convex/react";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
@@ -27,11 +28,42 @@ export default function ClientDetailPage({
     | Doc<"clients">
     | null
     | undefined;
+  const quotes = useQuery(api.quotes.listByClient, { clientId });
+  const deleteClientCascade = useAction(api.sharepoint.deleteClientCascade);
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!client || deleting) return;
+    setDeleting(true);
+    try {
+      const result = await deleteClientCascade({ clientId });
+      toast.success(
+        `Usunięto klienta ${client.name}` +
+          (result.removedQuotes > 0
+            ? ` wraz z ${result.removedQuotes} wycenami`
+            : "") +
+          (result.sharepointDeleted ? " i folderem SharePoint." : "."),
+      );
+      router.push("/admin/klienci");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Nie udało się usunąć klienta",
+      );
+      setDeleting(false);
+      setConfirmDeleteOpen(false);
+    }
+  }
 
   if (client === undefined) {
     return (
       <>
-        <ClientDetailRibbon onBack={() => router.push("/admin/klienci")} />
+        <ClientDetailRibbon
+          onBack={() => router.push("/admin/klienci")}
+          onDelete={() => setConfirmDeleteOpen(true)}
+          disabled
+        />
         <main className="fluent-content">
           <div className="quote-detail-missing">
             <div className="quote-detail-missing-title">Ładowanie…</div>
@@ -44,7 +76,11 @@ export default function ClientDetailPage({
   if (client === null) {
     return (
       <>
-        <ClientDetailRibbon onBack={() => router.push("/admin/klienci")} />
+        <ClientDetailRibbon
+          onBack={() => router.push("/admin/klienci")}
+          onDelete={() => setConfirmDeleteOpen(true)}
+          disabled
+        />
         <main className="fluent-content">
           <div className="quote-detail-missing">
             <div className="quote-detail-missing-title">
@@ -61,7 +97,10 @@ export default function ClientDetailPage({
 
   return (
     <>
-      <ClientDetailRibbon onBack={() => router.push("/admin/klienci")} />
+      <ClientDetailRibbon
+        onBack={() => router.push("/admin/klienci")}
+        onDelete={() => setConfirmDeleteOpen(true)}
+      />
       <main className="fluent-content">
         <div className="client-detail">
           <ClientDetailHeader client={client} />
@@ -74,11 +113,31 @@ export default function ClientDetailPage({
           <ClientFiles client={client} />
         </div>
       </main>
+      {confirmDeleteOpen && (
+        <ConfirmDeleteClientModal
+          clientName={client.name}
+          quotesCount={quotes?.length ?? 0}
+          hasSharepointFolder={!!client.sharepointFolder?.itemId}
+          deleting={deleting}
+          onCancel={() => {
+            if (!deleting) setConfirmDeleteOpen(false);
+          }}
+          onConfirm={() => void handleDelete()}
+        />
+      )}
     </>
   );
 }
 
-function ClientDetailRibbon({ onBack }: { onBack: () => void }) {
+function ClientDetailRibbon({
+  onBack,
+  onDelete,
+  disabled,
+}: {
+  onBack: () => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="fluent-ribbon">
       <RibbonGroup label="Nawigacja">
@@ -88,6 +147,119 @@ function ClientDetailRibbon({ onBack }: { onBack: () => void }) {
           onClick={onBack}
         />
       </RibbonGroup>
+      <RibbonGroup label="System">
+        <RibbonBtn
+          icon={<I.trash s={22} />}
+          label="Usuń klienta"
+          onClick={onDelete}
+          disabled={disabled}
+        />
+      </RibbonGroup>
+    </div>
+  );
+}
+
+function ConfirmDeleteClientModal({
+  clientName,
+  quotesCount,
+  hasSharepointFolder,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  clientName: string;
+  quotesCount: number;
+  hasSharepointFolder: boolean;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !deleting) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onCancel, deleting]);
+
+  return (
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Usuń klienta"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !deleting) onCancel();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-sm">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon fluent-modal-title-icon-danger">
+              <I.trash s={16} sw={2.2} />
+            </span>
+            <span>Usuń klienta</span>
+          </div>
+          <button
+            type="button"
+            className="fluent-modal-close"
+            onClick={onCancel}
+            disabled={deleting}
+            aria-label="Zamknij"
+          >
+            ×
+          </button>
+        </header>
+        <div className="fluent-modal-body">
+          <p className="fluent-modal-text">
+            Czy na pewno chcesz usunąć klienta <strong>{clientName}</strong>?
+          </p>
+          <p className="fluent-modal-text fluent-modal-text-muted">
+            Wraz z klientem zostaną trwale usunięte:
+          </p>
+          <ul className="fluent-modal-text fluent-modal-text-muted" style={{ paddingLeft: 20, margin: 0 }}>
+            <li>
+              {quotesCount > 0
+                ? `${quotesCount} ${quotesCount === 1 ? "wycena" : quotesCount < 5 ? "wyceny" : "wycen"} (wraz z pozycjami, notatkami i zadaniami)`
+                : "brak powiązanych wycen"}
+            </li>
+            <li>notatki klienta</li>
+            <li>
+              {hasSharepointFolder
+                ? "folder klienta na SharePoint razem z podfolderami i plikami"
+                : "brak folderu SharePoint"}
+            </li>
+          </ul>
+          <p className="fluent-modal-text fluent-modal-text-muted" style={{ marginTop: 12 }}>
+            Tej operacji nie można cofnąć.
+          </p>
+        </div>
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onCancel}
+            disabled={deleting}
+            autoFocus
+          >
+            Nie
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-danger"
+            onClick={onConfirm}
+            disabled={deleting}
+          >
+            <I.trash s={14} sw={2.2} />
+            <span>{deleting ? "Usuwam…" : "Tak, usuń"}</span>
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

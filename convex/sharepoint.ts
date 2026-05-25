@@ -491,6 +491,69 @@ export const getClientFileForPreview = action({
   },
 });
 
+export const deleteClientCascade = action({
+  args: { clientId: v.id("clients") },
+  handler: async (
+    ctx,
+    { clientId },
+  ): Promise<{ removedQuotes: number; sharepointDeleted: boolean }> => {
+    const data = await ctx.runQuery(internal.clients._getCascadeData, {
+      clientId,
+    });
+    if (!data) throw new Error("Klient nie istnieje");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientIdEnv = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const driveId = process.env.MS_GRAPH_DRIVE_ID;
+
+    let sharepointDeleted = false;
+
+    if (tenantId && clientIdEnv && clientSecret && driveId) {
+      try {
+        const token = await getGraphToken(tenantId, clientIdEnv, clientSecret);
+
+        for (const quote of data.quotes) {
+          const sp = quote.sharepoint;
+          if (sp?.subfolderItemId) {
+            try {
+              await deleteFolder(token, driveId, sp.subfolderItemId);
+            } catch (err) {
+              console.error(
+                `[sharepoint] Nie usunięto subfolderu wyceny ${quote.code}:`,
+                err instanceof Error ? err.message : String(err),
+              );
+            }
+          }
+        }
+
+        const clientFolderId = data.client.sharepointFolder?.itemId;
+        if (clientFolderId) {
+          await deleteFolder(token, driveId, clientFolderId);
+          sharepointDeleted = true;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[sharepoint] Błąd usuwania folderów klienta ${data.client.name}:`,
+          msg,
+        );
+        throw new Error(
+          `Nie udało się usunąć folderu klienta z SharePoint (${msg}). Klient nie został usunięty z systemu.`,
+        );
+      }
+    } else {
+      console.warn(
+        "[sharepoint] Brak konfiguracji env — usuwam klienta tylko z bazy",
+      );
+    }
+
+    await ctx.runMutation(internal.clients._deleteCascade, { clientId });
+
+    return { removedQuotes: data.quotes.length, sharepointDeleted };
+  },
+});
+
 export const createFolderForQuote = internalAction({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
