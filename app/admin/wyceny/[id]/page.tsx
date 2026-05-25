@@ -23,7 +23,6 @@ import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
 import { InvestmentSection } from "./_components/investment-section";
 import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
 import { TasksKanban } from "./_components/tasks-kanban";
-import { MiniCalendar } from "./_components/mini-calendar";
 import { QuoteItemsEditor } from "./_components/quote-items-editor";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
@@ -448,7 +447,7 @@ function QuoteDetailLayout({
           <>
             <InvestmentSection quote={quote} archived={archived} />
             <OpisUwagiHorizontalSection quote={quote} archived={archived} />
-            <TasksAndCalendarStrip quote={quote} archived={archived} />
+            <TasksKanban quote={quote} archived={archived} />
           </>
         )}
         <div className="quote-detail-main">
@@ -936,25 +935,6 @@ function Section({
         {children}
       </div>
     </section>
-  );
-}
-
-function TasksAndCalendarStrip({
-  quote,
-  archived,
-}: {
-  quote: Quote;
-  archived: boolean;
-}) {
-  return (
-    <div className="quote-detail-tasks-strip">
-      <div className="quote-detail-tasks-strip-main">
-        <TasksKanban quote={quote} archived={archived} />
-      </div>
-      <div className="quote-detail-tasks-strip-side">
-        <MiniCalendar quote={quote} />
-      </div>
-    </div>
   );
 }
 

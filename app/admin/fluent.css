@@ -4542,19 +4542,7 @@ select.fluent-input {
   color: #ff8478;
 }
 
-/* === Strip z zadaniami + kalendarzem === */
-.quote-detail-tasks-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
-  gap: 14px;
-}
-
-@media (max-width: 1100px) {
-  .quote-detail-tasks-strip {
-    grid-template-columns: 1fr;
-  }
-}
-
+/* === Sekcja Zadania (pełna szerokość) === */
 .quote-detail-tasks {
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
@@ -4669,7 +4657,16 @@ select.fluent-input {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: border-color 120ms, transform 80ms;
+  transition: border-color 120ms, transform 80ms, box-shadow 120ms;
+  touch-action: none;
+}
+
+.quote-detail-task-card.is-draggable {
+  cursor: grab;
+}
+
+.quote-detail-task-card.is-draggable:active {
+  cursor: grabbing;
 }
 
 .quote-detail-task-card:hover {
@@ -4769,7 +4766,6 @@ select.fluent-input {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding-left: 18px;
 }
 
 /* Assignee picker */
@@ -4867,6 +4863,43 @@ select.fluent-input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.quote-detail-task-assignee-option-me {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.quote-detail-task-assignee-option-avatar-me {
+  background: var(--accent-soft) !important;
+  color: var(--text-primary) !important;
+}
+
+.quote-detail-task-assignee-option-me-name {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.quote-detail-task-assignee-sep {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 2px;
+}
+
+.quote-detail-task-assignee-option-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
 }
 
 /* Due date picker */
@@ -4986,247 +5019,6 @@ select.fluent-input {
   color: var(--text-primary);
 }
 
-/* === Mini-kalendarz === */
-.quote-detail-calendar {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 14px 14px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.quote-detail-calendar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.quote-detail-calendar-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.quote-detail-calendar-icon {
-  color: var(--text-muted);
-  display: inline-flex;
-}
-
-.quote-detail-calendar-nav {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.quote-detail-calendar-nav-btn {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  width: 22px;
-  height: 22px;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.quote-detail-calendar-nav-btn:hover {
-  background: var(--bg-hover);
-}
-
-.quote-detail-calendar-month {
-  background: transparent;
-  border: 0;
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 0 8px;
-  cursor: pointer;
-  border-radius: 3px;
-}
-
-.quote-detail-calendar-month:hover {
-  background: var(--bg-hover);
-}
-
-.quote-detail-calendar-dow {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-}
-
-.quote-detail-calendar-dow-cell {
-  text-align: center;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  padding: 4px 0;
-}
-
-.quote-detail-calendar-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-}
-
-.quote-detail-calendar-day {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 3px 0 0;
-  cursor: pointer;
-  transition: background 120ms, border-color 120ms;
-}
-
-.quote-detail-calendar-day:hover {
-  background: var(--bg-hover);
-}
-
-.quote-detail-calendar-day.is-other {
-  color: rgba(139, 148, 158, 0.45);
-}
-
-.quote-detail-calendar-day.is-today {
-  border-color: var(--accent-primary);
-  background: var(--accent-soft);
-  color: var(--text-primary);
-  font-weight: 700;
-}
-
-.quote-detail-calendar-day.is-deadline {
-  background: rgba(255, 200, 100, 0.12);
-  color: #ffc864;
-}
-
-.quote-detail-calendar-day.is-deadline.is-today {
-  background: var(--accent-soft);
-  color: var(--text-primary);
-}
-
-.quote-detail-calendar-day.is-selected {
-  border-color: var(--text-secondary);
-}
-
-.quote-detail-calendar-day-num {
-  line-height: 1;
-}
-
-.quote-detail-calendar-day-dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-top: auto;
-  margin-bottom: 3px;
-  height: 5px;
-}
-
-.quote-detail-calendar-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.quote-detail-calendar-dot.is-todo {
-  background: #8b949e;
-}
-
-.quote-detail-calendar-dot.is-in_progress {
-  background: #79c0ff;
-}
-
-.quote-detail-calendar-dot.is-done {
-  background: #3fb950;
-}
-
-.quote-detail-calendar-dot.is-deadline {
-  background: #ffc864;
-  width: 5px;
-  height: 5px;
-}
-
-.quote-detail-calendar-dot-more {
-  font-size: 8px;
-  color: var(--text-muted);
-  line-height: 1;
-}
-
-.quote-detail-calendar-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-default);
-}
-
-.quote-detail-calendar-list-head {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  margin-bottom: 2px;
-}
-
-.quote-detail-calendar-list-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 4px 0;
-}
-
-.quote-detail-calendar-list-item.is-deadline {
-  color: #ffc864;
-  font-weight: 600;
-}
-
-.quote-detail-calendar-list-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.quote-detail-calendar-list-dot.is-todo {
-  background: #8b949e;
-}
-
-.quote-detail-calendar-list-dot.is-in_progress {
-  background: #79c0ff;
-}
-
-.quote-detail-calendar-list-dot.is-done {
-  background: #3fb950;
-}
-
-.quote-detail-calendar-list-dot.is-deadline {
-  background: #ffc864;
-}
-
-.quote-detail-calendar-list-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 /* Stack-row compact (Szczegóły bez Projekt/Opis/Zadania) */
 .quote-detail-stack-row-compact {

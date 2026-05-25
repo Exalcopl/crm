@@ -109,6 +109,28 @@ export const listAssignable = query({
   },
 });
 
+export const listAllAssignable = query({
+  args: {},
+  handler: async (ctx) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) return [];
+
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => (u.isActive ?? true) !== false)
+      .map((u) => ({
+        _id: u._id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        isCurrentUser:
+          (u._id as unknown as string) === (callerId as unknown as string),
+      }))
+      .sort((a, b) =>
+        (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""),
+      );
+  },
+});
+
 export const getByIds = query({
   args: { userIds: v.array(v.id("users")) },
   handler: async (ctx, { userIds }) => {

@@ -66,6 +66,7 @@ type AssignableUser = {
   _id: Id<"users">;
   name: string | null;
   email: string | null;
+  isCurrentUser: boolean;
 };
 
 export function TasksKanban({
@@ -80,7 +81,7 @@ export function TasksKanban({
     () => (tasksRaw ?? []) as TaskDoc[],
     [tasksRaw],
   );
-  const assignees = (useQuery(api.users.listAssignable) ?? []) as AssignableUser[];
+  const assignees = (useQuery(api.users.listAllAssignable) ?? []) as AssignableUser[];
   const setStatus = useMutation(api.tasks.setStatus);
   const [activeTask, setActiveTask] = useState<TaskDoc | null>(null);
 
@@ -258,22 +259,17 @@ function TaskCard({
   const assigneeName = assignee?.name?.trim() || assignee?.email?.trim() || null;
   const tone = dueTone(task.dueDate);
 
+  const draggable = !archived && !isOverlay && !editing;
+
   return (
     <div
       ref={setNodeRef}
-      className={`quote-detail-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}`}
+      className={`quote-detail-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
       style={{ opacity: isDragging && !isOverlay ? 0 : 1 }}
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
     >
       <div className="quote-detail-task-card-top">
-        <button
-          type="button"
-          className="quote-detail-task-card-grip"
-          aria-label="Przeciągnij zadanie"
-          {...attributes}
-          {...listeners}
-        >
-          <I.grip s={12} />
-        </button>
         {editing ? (
           <input
             type="text"
@@ -370,6 +366,12 @@ function AssigneePicker({
     };
   }, [open]);
 
+  const me = assignees.find((u) => u.isCurrentUser) ?? null;
+  const meLabel = me ? me.name?.trim() || me.email?.trim() || "—" : null;
+  const meIsAssigned =
+    me !== null &&
+    (me._id as unknown as string) === (currentId as unknown as string);
+
   return (
     <div className="quote-detail-task-assignee" ref={wrapperRef}>
       <button
@@ -402,6 +404,26 @@ function AssigneePicker({
             <span className="quote-detail-task-assignee-option-avatar">—</span>
             <span>Bez przypisania</span>
           </button>
+          {me && !meIsAssigned && (
+            <button
+              type="button"
+              className="quote-detail-task-assignee-option quote-detail-task-assignee-option-me"
+              onClick={() => {
+                onAssign(me._id);
+                setOpen(false);
+              }}
+              title={meLabel ?? undefined}
+            >
+              <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar quote-detail-task-assignee-option-avatar-me">
+                {ownerInitials(meLabel ?? "—")}
+              </span>
+              <span>Przypisz mnie</span>
+              <span className="quote-detail-task-assignee-option-me-name">
+                ({meLabel})
+              </span>
+            </button>
+          )}
+          <div className="quote-detail-task-assignee-sep" aria-hidden />
           {assignees.map((u) => {
             const label = u.name?.trim() || u.email?.trim() || "—";
             const active =
@@ -421,7 +443,14 @@ function AssigneePicker({
                 <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
                   {ownerInitials(label)}
                 </span>
-                <span>{label}</span>
+                <span>
+                  {label}
+                  {u.isCurrentUser && (
+                    <span className="quote-detail-task-assignee-option-tag">
+                      Ty
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
