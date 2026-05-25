@@ -26,24 +26,65 @@ const CONTACT_VALUE = v.object({
   email: v.optional(v.string()),
 });
 
+const GLOBAL_COUNTER_KEY = 0;
+
+function formatQuoteCode(args: {
+  typeCode: string;
+  createdAt: number;
+  seq: number;
+}): string {
+  const { typeCode, createdAt, seq } = args;
+  const d = new Date(createdAt);
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const seqStr = String(seq).padStart(3, "0");
+  return `${typeCode}-${yy}${mm}${seqStr}${dd}`;
+}
+
+function buildTypeCode(
+  projectTypeNames: string[],
+  codeByName: Map<string, string>,
+): string {
+  const code = projectTypeNames
+    .map((n) => (codeByName.get(n) ?? "").trim().toUpperCase())
+    .filter(Boolean)
+    .join("");
+  return code || "XX";
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generateCode(ctx: { db: any }): Promise<string> {
-  const year = new Date().getFullYear();
+async function generateCode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ctx: { db: any },
+  projectTypeNames: string[],
+  createdAt: number,
+): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allTypes: any[] = await ctx.db.query("projectTypes").collect();
+  const codeByName = new Map<string, string>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    allTypes.map((t: any) => [t.name as string, t.categoryCode as string]),
+  );
+  const typeCode = buildTypeCode(projectTypeNames, codeByName);
+
   const counter = await ctx.db
     .query("quoteCounters")
-    .withIndex("by_year", (q: { eq: (field: string, val: number) => unknown }) => q.eq("year", year))
+    .withIndex("by_year", (q: { eq: (field: string, val: number) => unknown }) =>
+      q.eq("year", GLOBAL_COUNTER_KEY),
+    )
     .first();
 
   let seq: number;
   if (!counter) {
-    seq = 701;
-    await ctx.db.insert("quoteCounters", { year, seq });
+    seq = 1;
+    await ctx.db.insert("quoteCounters", { year: GLOBAL_COUNTER_KEY, seq });
   } else {
     seq = counter.seq + 1;
     await ctx.db.patch(counter._id, { seq });
   }
 
-  return `WC-${year}-${String(seq).padStart(4, "0")}`;
+  return formatQuoteCode({ typeCode, createdAt, seq });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,6 +127,18 @@ export const get = query({
   },
 });
 
+export const getByCode = query({
+  args: { code: v.string() },
+  handler: async (ctx, { code }) => {
+    const doc = await ctx.db
+      .query("quotes")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (!doc) return null;
+    return toClientQuote(doc);
+  },
+});
+
 export const listByClient = query({
   args: { clientId: v.id("clients") },
   handler: async (ctx, { clientId }) => {
@@ -122,7 +175,8 @@ export const create = mutation({
     const callerId = await getAuthUserId(ctx);
     if (!callerId) throw new Error("Brak autoryzacji");
 
-    const code = await generateCode(ctx);
+    const createdAt = Date.now();
+    const code = await generateCode(ctx, args.projectType, createdAt);
     const clientId = await ctx.runMutation(internal.clients.getOrCreate, {
       contact: args.contact,
     });
@@ -323,6 +377,44 @@ export const _clearSharepoint = internalMutation({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
     await ctx.db.patch(quoteId, { sharepoint: undefined });
+  },
+});
+
+export const migrateCodes = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const oldCounters = await ctx.db.query("quoteCounters").collect();
+    for (const c of oldCounters) {
+      await ctx.db.delete(c._id);
+    }
+
+    const allTypes = await ctx.db.query("projectTypes").collect();
+    const codeByName = new Map<string, string>(
+      allTypes.map((t) => [t.name, t.categoryCode]),
+    );
+
+    const quotes = (await ctx.db.query("quotes").collect()).sort(
+      (a, b) => a._creationTime - b._creationTime,
+    );
+
+    let seq = 0;
+    for (const q of quotes) {
+      seq += 1;
+      const typeCode = buildTypeCode(q.projectType, codeByName);
+      const newCode = formatQuoteCode({
+        typeCode,
+        createdAt: q._creationTime,
+        seq,
+      });
+      await ctx.db.patch(q._id, { code: newCode });
+    }
+
+    await ctx.db.insert("quoteCounters", {
+      year: GLOBAL_COUNTER_KEY,
+      seq,
+    });
+
+    return { migrated: quotes.length, finalSeq: seq };
   },
 });
 

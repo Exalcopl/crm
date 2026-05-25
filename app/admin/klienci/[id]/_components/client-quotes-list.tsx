@@ -100,7 +100,7 @@ export function ClientQuotesList({ clientId }: { clientId: Id<"clients"> }) {
             <Link
               key={q._id}
               role="row"
-              href={`/admin/wyceny/${q._id}`}
+              href={`/admin/wyceny/${encodeURIComponent(q.id)}`}
               className={`client-detail-quotes-row${q.archived ? " is-archived" : ""}`}
             >
               <div className="client-detail-quotes-id">{q.id}</div>

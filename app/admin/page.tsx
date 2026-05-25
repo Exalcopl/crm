@@ -307,12 +307,12 @@ function SortableKanbanCard({ quote }: { quote: Quote }) {
       tabIndex={0}
       onClick={() => {
         if (isDragging) return;
-        router.push(`/admin/wyceny/${quote._id}`);
+        router.push(`/admin/wyceny/${encodeURIComponent(quote.id)}`);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          router.push(`/admin/wyceny/${quote._id}`);
+          router.push(`/admin/wyceny/${encodeURIComponent(quote.id)}`);
         }
       }}
     >

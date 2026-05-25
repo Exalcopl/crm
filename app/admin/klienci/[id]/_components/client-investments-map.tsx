@@ -130,7 +130,7 @@ export function ClientInvestmentsMap({
           <ol className="client-detail-map-legend">
             {pins.map((p) => (
               <li key={p.quoteId}>
-                <Link href={`/admin/wyceny/${p.quoteId}`}>
+                <Link href={`/admin/wyceny/${encodeURIComponent(p.code)}`}>
                   <span className="client-detail-map-legend-code">{p.code}</span>
                   <span className="client-detail-map-legend-name">{p.name}</span>
                   {p.address && (

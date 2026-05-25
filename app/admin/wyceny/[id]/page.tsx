@@ -44,7 +44,8 @@ export default function QuoteDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const quote = useQuery(api.quotes.get, { id: id as Id<"quotes"> }) as Quote | null | undefined;
+  const code = decodeURIComponent(id);
+  const quote = useQuery(api.quotes.getByCode, { code }) as Quote | null | undefined;
   const removeQuote = useMutation(api.quotes.remove);
   const archiveQuote = useMutation(api.quotes.archive);
   const restoreQuote = useMutation(api.quotes.restore);
@@ -121,7 +122,7 @@ export default function QuoteDetailPage({
         <main className="fluent-content">
           <div className="quote-detail-missing">
             <div className="quote-detail-missing-title">Nie znaleziono wyceny</div>
-            <div className="quote-detail-missing-id">ID: {id}</div>
+            <div className="quote-detail-missing-id">ID: {code}</div>
             <Link href="/admin" className="quote-detail-missing-link">
               ← Wróć do listy wycen
             </Link>

@@ -236,7 +236,7 @@ export default function NowaWycenaPage() {
         deadline,
         ownerId,
       });
-      router.push(`/admin/wyceny/${result._id}`);
+      router.push(`/admin/wyceny/${encodeURIComponent(result.code)}`);
     } catch (err) {
       console.error("Błąd zapisu wyceny:", err);
     }
