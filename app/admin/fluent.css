@@ -1499,9 +1499,27 @@
   color: #fff;
   position: relative;
   z-index: 1;
+  padding: 0;
+  cursor: default;
   transition:
     background 160ms ease,
-    border-color 160ms ease;
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 100ms ease;
+}
+
+.quote-detail-pipeline-marker.is-clickable {
+  cursor: pointer;
+}
+
+.quote-detail-pipeline-marker.is-clickable:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: scale(1.12);
+}
+
+.quote-detail-pipeline-marker.is-clickable:active {
+  transform: scale(0.96);
 }
 
 .quote-detail-pipeline-dot {

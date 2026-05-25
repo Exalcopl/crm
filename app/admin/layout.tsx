@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { Toaster } from "sonner";
 import { AdministracjaRibbon } from "./_components/administracja-ribbon";
 import { I } from "./_lib/icons";
 import {
@@ -167,6 +168,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <PermissionsProvider>
       <AdminShell>{children}</AdminShell>
+      <Toaster position="bottom-right" richColors theme="dark" />
     </PermissionsProvider>
   );
 }

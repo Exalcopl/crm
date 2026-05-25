@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
@@ -557,10 +558,20 @@ function SharepointRibbonBtn({
 
 function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
+  const setStatusMutation = useMutation(api.quotes.setStatus);
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
   const ownerName = useOwnerName(quote);
+
+  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
+    try {
+      await setStatusMutation({ id: quote._id, status: newStatus });
+      toast.success(`Status zmieniony na „${newStatus}"`);
+    } catch {
+      toast.error("Nie udało się zmienić statusu");
+    }
+  }
 
   return (
     <div className="quote-detail-header">
@@ -617,7 +628,11 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           </div>
         </div>
       </div>
-      <QuoteStatusPipeline currentIndex={statusIndex} />
+      <QuoteStatusPipeline
+        currentIndex={statusIndex}
+        disabled={archived}
+        onStatusChange={handleStatusChange}
+      />
     </div>
   );
 }
@@ -724,23 +739,37 @@ function OwnerEditor({
   );
 }
 
-function QuoteStatusPipeline({ currentIndex }: { currentIndex: number }) {
+function QuoteStatusPipeline({
+  currentIndex,
+  disabled,
+  onStatusChange,
+}: {
+  currentIndex: number;
+  disabled?: boolean;
+  onStatusChange?: (status: typeof QUOTE_STATUSES[number]) => void;
+}) {
   return (
     <div className="quote-detail-pipeline" aria-label="Status pipeline">
       {QUOTE_STATUSES.map((status, idx) => {
         const done = idx < currentIndex;
         const current = idx === currentIndex;
         const color = QUOTE_STATUS_COLORS[status];
+        const clickable = !disabled && !current;
         return (
           <div
             key={status}
-            className={`quote-detail-pipeline-step${current ? " is-current" : ""}${
-              done ? " is-done" : ""
-            }`}
+            className={`quote-detail-pipeline-step${current ? " is-current" : ""}${done ? " is-done" : ""}`}
           >
-            <div className="quote-detail-pipeline-marker" style={current ? { background: color, borderColor: color } : done ? { borderColor: color } : undefined}>
+            <button
+              type="button"
+              disabled={!clickable}
+              onClick={clickable ? () => onStatusChange?.(status) : undefined}
+              className={`quote-detail-pipeline-marker${clickable ? " is-clickable" : ""}`}
+              style={current ? { background: color, borderColor: color } : done ? { borderColor: color } : undefined}
+              title={clickable ? `Ustaw status: ${status}` : undefined}
+            >
               {done ? <I.check s={11} sw={2.4} /> : <span className="quote-detail-pipeline-dot" />}
-            </div>
+            </button>
             <div className="quote-detail-pipeline-label" style={current ? { color } : undefined}>
               {status}
             </div>
