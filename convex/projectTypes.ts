@@ -6,7 +6,24 @@ import { internal } from "./_generated/api";
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("projectTypes").order("asc").collect();
+    const types = await ctx.db.query("projectTypes").order("asc").collect();
+    const allQuestions = await ctx.db.query("projectTypeQuestions").collect();
+    const countByType = new Map<string, number>();
+    for (const q of allQuestions) {
+      const key = q.projectTypeId as unknown as string;
+      countByType.set(key, (countByType.get(key) ?? 0) + 1);
+    }
+    return types.map((t) => ({
+      ...t,
+      questionsCount: countByType.get(t._id as unknown as string) ?? 0,
+    }));
+  },
+});
+
+export const get = query({
+  args: { id: v.id("projectTypes") },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id);
   },
 });
 
@@ -108,6 +125,19 @@ export const remove = mutation({
       throw new Error(
         `Nie można usunąć — typ "${type.name}" jest przypisany do co najmniej jednej wyceny`,
       );
+    }
+
+    const questions = await ctx.db
+      .query("projectTypeQuestions")
+      .withIndex("by_projectType", (q) => q.eq("projectTypeId", id))
+      .collect();
+    for (const q of questions) {
+      const answers = await ctx.db
+        .query("quoteAnswers")
+        .withIndex("by_question", (qa) => qa.eq("questionId", q._id))
+        .collect();
+      for (const a of answers) await ctx.db.delete(a._id);
+      await ctx.db.delete(q._id);
     }
 
     await ctx.db.delete(id);

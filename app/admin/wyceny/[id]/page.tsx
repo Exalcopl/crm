@@ -26,6 +26,7 @@ import { TasksKanban } from "./_components/tasks-kanban";
 import { MiniCalendar } from "./_components/mini-calendar";
 import { QuoteItemsEditor } from "./_components/quote-items-editor";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
+import { HelperQuestionsSection } from "./_components/helper-questions";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "pliki" | "aktywnosc" | "powiazane";
 
@@ -969,6 +970,9 @@ function TabSzczegoly({
   void archived;
   return (
     <div className="quote-detail-stack">
+      <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+        <HelperQuestionsSection quoteId={quote._id} />
+      </Section>
       <Section title="Wartość oferty" icon={<I.pln s={14} />}>
         <QuoteValueSummary
           quoteId={quote._id}

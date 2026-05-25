@@ -99,6 +99,37 @@ export default defineSchema({
     isActive: v.boolean(),
   }).index("by_name", ["name"]),
 
+  projectTypeQuestions: defineTable({
+    projectTypeId: v.id("projectTypes"),
+    text: v.string(),
+    answerType: v.union(
+      v.literal("text"),
+      v.literal("boolean"),
+      v.literal("number"),
+    ),
+    units: v.optional(v.array(v.string())),
+    isRequired: v.boolean(),
+    isActive: v.boolean(),
+    order: v.number(),
+  })
+    .index("by_projectType", ["projectTypeId"])
+    .index("by_projectType_order", ["projectTypeId", "order"]),
+
+  quoteAnswers: defineTable({
+    quoteId: v.id("quotes"),
+    questionId: v.id("projectTypeQuestions"),
+    projectTypeId: v.id("projectTypes"),
+    textValue: v.optional(v.string()),
+    booleanValue: v.optional(v.boolean()),
+    numberValue: v.optional(v.number()),
+    numberUnit: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_quote", ["quoteId"])
+    .index("by_quote_question", ["quoteId", "questionId"])
+    .index("by_quote_projectType", ["quoteId", "projectTypeId"])
+    .index("by_question", ["questionId"]),
+
   quotes: defineTable({
     code: v.string(),
     clientId: v.optional(v.id("clients")),

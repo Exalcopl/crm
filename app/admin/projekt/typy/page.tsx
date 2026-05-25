@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import { hexToTypeStyle } from "../../_lib/quotes";
-import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
+import "../../users/users.css";
 
 const COLOR_PALETTE = [
   "#79c0ff",
@@ -31,6 +32,7 @@ type ProjectTypeDoc = {
   categoryName: string;
   categoryCode: string;
   isActive: boolean;
+  questionsCount: number;
 };
 
 type FormData = {
@@ -130,82 +132,58 @@ function TypeModal({
     form.categoryCode.trim().length > 0;
 
   return (
-    <div
-      className="fluent-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget && !saving) onCancel();
-      }}
-    >
-      <div className="fluent-modal" style={{ maxWidth: 480 }}>
-        <header className="fluent-modal-head">
-          <div className="fluent-modal-title">
-            <span className="fluent-modal-title-icon">
-              <I.layers s={16} />
-            </span>
-            <span>{initial ? "Edytuj typ projektu" : "Nowy typ projektu"}</span>
-          </div>
+    <div className="users-modal-backdrop" onClick={onCancel}>
+      <div
+        className="users-modal"
+        style={{ maxWidth: 480 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="users-modal-head">
+          <h2>{initial ? "Edytuj typ projektu" : "Nowy typ projektu"}</h2>
           <button
             type="button"
-            className="fluent-modal-close"
+            className="icon-btn"
             onClick={onCancel}
             disabled={saving}
             aria-label="Zamknij"
           >
-            ×
+            <I.x s={14} />
           </button>
-        </header>
+        </div>
 
-        <div className="fluent-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {error && (
-            <div
-              style={{
-                background: "rgba(248,81,73,0.15)",
-                border: "1px solid rgba(248,81,73,0.4)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                color: "#f85149",
-                fontSize: 13,
-              }}
-            >
-              {error}
-            </div>
-          )}
+        <div className="users-modal-body">
+          {error && <div className="users-error">{error}</div>}
 
-          <div className="fluent-field">
-            <label className="fluent-label">
+          <label className="users-field">
+            <span>
               Nazwa <span style={{ color: "#f85149" }}>*</span>
-            </label>
+            </span>
             <input
-              className="fluent-input"
               value={form.name}
               onChange={(e) => set("name")(e.target.value)}
               placeholder="np. Zadaszenia"
               disabled={saving}
               autoFocus
             />
-          </div>
+          </label>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 12 }}>
-            <div className="fluent-field">
-              <label className="fluent-label">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 96px", gap: 12 }}>
+            <label className="users-field">
+              <span>
                 Kategoria <span style={{ color: "#f85149" }}>*</span>
-              </label>
+              </span>
               <input
-                className="fluent-input"
                 value={form.categoryName}
                 onChange={(e) => set("categoryName")(e.target.value)}
                 placeholder="np. Zadaszenia"
                 disabled={saving}
               />
-            </div>
-            <div className="fluent-field">
-              <label className="fluent-label">
+            </label>
+            <label className="users-field">
+              <span>
                 Kod <span style={{ color: "#f85149" }}>*</span>
-              </label>
+              </span>
               <input
-                className="fluent-input"
                 value={form.categoryCode}
                 onChange={(e) =>
                   set("categoryCode")(e.target.value.slice(0, 2).toUpperCase())
@@ -215,22 +193,21 @@ function TypeModal({
                 disabled={saving}
                 style={{ textTransform: "uppercase", textAlign: "center", letterSpacing: 2 }}
               />
-            </div>
+            </label>
           </div>
 
-          <div className="fluent-field">
-            <label className="fluent-label">Opis</label>
+          <label className="users-field">
+            <span>Opis</span>
             <input
-              className="fluent-input"
               value={form.description}
               onChange={(e) => set("description")(e.target.value)}
               placeholder="Opcjonalny opis typu projektu"
               disabled={saving}
             />
-          </div>
+          </label>
 
-          <div className="fluent-field">
-            <label className="fluent-label">Kolor</label>
+          <div className="users-field">
+            <span>Kolor</span>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <ColorPicker value={form.color} onChange={set("color")} />
               <span
@@ -262,10 +239,10 @@ function TypeModal({
           </div>
         </div>
 
-        <footer className="fluent-modal-foot">
+        <div className="users-modal-foot">
           <button
             type="button"
-            className="fluent-btn fluent-btn-ghost"
+            className="users-btn users-btn-ghost"
             onClick={onCancel}
             disabled={saving}
           >
@@ -273,13 +250,13 @@ function TypeModal({
           </button>
           <button
             type="button"
-            className="fluent-btn fluent-btn-primary"
+            className="users-btn users-btn-primary"
             onClick={() => onSave(form)}
             disabled={saving || !valid}
           >
             {saving ? "Zapisywanie…" : initial ? "Zapisz zmiany" : "Dodaj typ"}
           </button>
-        </footer>
+        </div>
       </div>
     </div>
   );
@@ -287,10 +264,12 @@ function TypeModal({
 
 function ConfirmDeleteModal({
   typeName,
+  questionsCount,
   onConfirm,
   onCancel,
 }: {
   typeName: string;
+  questionsCount: number;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -308,44 +287,39 @@ function ConfirmDeleteModal({
   }, [onCancel]);
 
   return (
-    <div
-      className="fluent-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      <div className="fluent-modal fluent-modal-sm">
-        <header className="fluent-modal-head">
-          <div className="fluent-modal-title">
-            <span className="fluent-modal-title-icon fluent-modal-title-icon-danger">
-              <I.trash s={16} sw={2.2} />
-            </span>
-            <span>Usuń typ projektu</span>
-          </div>
+    <div className="users-modal-backdrop" onClick={onCancel}>
+      <div className="users-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="users-modal-head">
+          <h2>Usuń typ projektu</h2>
           <button
             type="button"
-            className="fluent-modal-close"
+            className="icon-btn"
             onClick={onCancel}
             aria-label="Zamknij"
           >
-            ×
+            <I.x s={14} />
           </button>
-        </header>
-        <div className="fluent-modal-body">
-          <p className="fluent-modal-text">
-            Czy na pewno chcesz usunąć typ{" "}
-            <strong>{typeName}</strong>?
-          </p>
-          <p className="fluent-modal-text fluent-modal-text-muted">
-            Tej operacji nie można cofnąć.
-          </p>
         </div>
-        <footer className="fluent-modal-foot">
+        <div className="users-modal-body">
+          <p style={{ margin: 0, fontSize: 13, color: "var(--text-primary)" }}>
+            Czy na pewno chcesz usunąć typ <strong>{typeName}</strong>?
+          </p>
+          {questionsCount > 0 && (
+            <p className="users-modal-info">
+              Razem z typem zostan{questionsCount === 1 ? "ie" : "ą"} usunięt
+              {questionsCount === 1 ? "e" : "e"}{" "}
+              <strong>
+                {questionsCount} {questionsCount === 1 ? "pytanie pomocnicze" : "pytań pomocniczych"}
+              </strong>{" "}
+              wraz z odpowiedziami na wycenach.
+            </p>
+          )}
+          <p className="users-modal-info">Tej operacji nie można cofnąć.</p>
+        </div>
+        <div className="users-modal-foot">
           <button
             type="button"
-            className="fluent-btn fluent-btn-ghost"
+            className="users-btn users-btn-ghost"
             onClick={onCancel}
             autoFocus
           >
@@ -353,13 +327,13 @@ function ConfirmDeleteModal({
           </button>
           <button
             type="button"
-            className="fluent-btn fluent-btn-danger"
+            className="users-btn users-btn-ghost"
             onClick={onConfirm}
+            style={{ color: "#ffb4af" }}
           >
-            <I.trash s={14} sw={2.2} />
-            <span>Tak, usuń</span>
+            <I.trash s={14} /> Tak, usuń
           </button>
-        </footer>
+        </div>
       </div>
     </div>
   );
@@ -377,7 +351,7 @@ export default function ProjectTypesPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectTypeDoc | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState("");
-  const [deleteError, setDeleteError] = useState<Record<string, string>>({});
+  const [rowError, setRowError] = useState<Record<string, string>>({});
 
   async function handleCreate(data: FormData) {
     setSaving(true);
@@ -429,223 +403,176 @@ export default function ProjectTypesPage() {
       setDeleteTarget(null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Nieznany błąd";
-      setDeleteError((prev) => ({ ...prev, [t._id]: msg }));
+      setRowError((prev) => ({ ...prev, [t._id]: msg }));
       setDeleteTarget(null);
     }
   }
 
   return (
-    <>
-      <div className="fluent-ribbon">
-        <RibbonGroup label="Typy projektów">
-          <RibbonBtn
-            icon={<I.plus s={22} />}
-            label="Dodaj typ"
-            primary
-            onClick={() => {
-              setModalError("");
-              setShowAddModal(true);
-            }}
-          />
-        </RibbonGroup>
+    <main className="users-content">
+      <div className="users-toolbar">
+        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+          Typy projektów definiują kategorie wycen oraz pytania pomocnicze, które konsultant
+          wypełnia podczas rozmowy z klientem.
+        </div>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          className="users-btn users-btn-primary"
+          onClick={() => {
+            setModalError("");
+            setShowAddModal(true);
+          }}
+        >
+          <I.plus s={14} /> Dodaj typ
+        </button>
       </div>
 
-      <main className="fluent-content">
-        <div style={{ maxWidth: 900 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 12,
-              marginBottom: 20,
-            }}
-          >
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 18,
-                fontWeight: 600,
-                color: "var(--text-primary)",
-              }}
-            >
-              Typy projektów
-            </h1>
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-              {types.length} {types.length === 1 ? "typ" : "typy/ów"}
-            </span>
-          </div>
-
-          {types.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "48px 0",
-                color: "var(--text-muted)",
-                fontSize: 14,
-              }}
-            >
-              Brak typów projektów. Dodaj pierwszy typ klikając{" "}
-              <strong>Dodaj typ</strong>.
-            </div>
-          ) : (
-            <div className="quote-list-wrap">
-              <div
-                className="quote-list-head"
-                style={{ gridTemplateColumns: "36px 180px 140px 48px 1fr 90px 100px" }}
-              >
-                <div className="quote-list-header-cell">Kolor</div>
-                <div className="quote-list-header-cell">Nazwa</div>
-                <div className="quote-list-header-cell">Kategoria</div>
-                <div className="quote-list-header-cell" style={{ textAlign: "center" }}>Kod</div>
-                <div className="quote-list-header-cell">Opis</div>
-                <div className="quote-list-header-cell" style={{ textAlign: "center" }}>Status</div>
-                <div className="quote-list-header-cell" style={{ textAlign: "right" }}>Akcje</div>
-              </div>
-              <div className="quote-list-body">
-                {types.map((t) => {
-                  const style = hexToTypeStyle(t.color);
-                  const errMsg = deleteError[t._id];
-                  return (
-                    <div key={t._id}>
-                      <div
-                        className="quote-list-row"
+      <div className="users-table-wrap">
+        <table className="users-table">
+          <thead>
+            <tr>
+              <th style={{ width: 40 }} aria-label="Kolor" />
+              <th>Nazwa</th>
+              <th>Kategoria</th>
+              <th style={{ width: 60, textAlign: "center" }}>Kod</th>
+              <th>Opis</th>
+              <th style={{ width: 100, textAlign: "center" }}>Pytania</th>
+              <th style={{ width: 110, textAlign: "center" }}>Status</th>
+              <th aria-label="Akcje" />
+            </tr>
+          </thead>
+          <tbody>
+            {types.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="users-empty">
+                  Brak typów. Dodaj pierwszy, klikając <strong>Dodaj typ</strong>.
+                </td>
+              </tr>
+            ) : (
+              types.map((t) => {
+                const style = hexToTypeStyle(t.color);
+                const err = rowError[t._id];
+                return (
+                  <tr key={t._id} style={{ opacity: t.isActive ? 1 : 0.55 }}>
+                    <td>
+                      <span
                         style={{
-                          gridTemplateColumns: "36px 180px 140px 48px 1fr 90px 100px",
-                          opacity: t.isActive ? 1 : 0.5,
+                          display: "inline-block",
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          background: t.color,
+                          border: `2px solid ${style.border}`,
                         }}
-                        role="row"
+                      />
+                    </td>
+                    <td>
+                      <span
+                        className="kanban-chip kanban-chip-type"
+                        style={{
+                          background: style.bg,
+                          color: style.fg,
+                          borderColor: style.border,
+                        }}
                       >
-                        <div className="quote-list-cell">
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 20,
-                              height: 20,
-                              borderRadius: "50%",
-                              background: t.color,
-                              border: `2px solid ${style.border}`,
-                              flexShrink: 0,
-                            }}
-                          />
-                        </div>
-                        <div className="quote-list-cell" style={{ fontWeight: 500 }}>
-                          <span
-                            className="kanban-chip kanban-chip-type"
-                            style={{
-                              background: style.bg,
-                              color: style.fg,
-                              borderColor: style.border,
-                            }}
-                          >
-                            <span
-                              className="kanban-chip-dot"
-                              style={{ background: style.fg }}
-                            />
-                            {t.name}
-                          </span>
-                        </div>
-                        <div className="quote-list-cell" style={{ color: "var(--text-secondary)" }}>
-                          {t.categoryName}
-                        </div>
+                        <span className="kanban-chip-dot" style={{ background: style.fg }} />
+                        {t.name}
+                      </span>
+                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>{t.categoryName}</td>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontFamily: "monospace",
+                        fontSize: 11,
+                        letterSpacing: 1,
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      {t.categoryCode}
+                    </td>
+                    <td style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                      {t.description || "—"}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <Link
+                        href={`/admin/projekt/typy/${t._id}/pytania`}
+                        className="users-btn users-btn-ghost"
+                        style={{ padding: "3px 10px", fontSize: 12 }}
+                      >
+                        {t.questionsCount} <I.edit s={12} />
+                      </Link>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleActive(t._id)}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 10px",
+                          borderRadius: 10,
+                          border: t.isActive
+                            ? "1px solid rgba(63,185,80,0.5)"
+                            : "1px solid rgba(139,148,158,0.4)",
+                          background: t.isActive
+                            ? "rgba(63,185,80,0.15)"
+                            : "rgba(139,148,158,0.1)",
+                          color: t.isActive ? "#56d364" : "#8b949e",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                        }}
+                        title={t.isActive ? "Kliknij, aby dezaktywować" : "Kliknij, aby aktywować"}
+                      >
+                        {t.isActive ? "Aktywny" : "Nieaktywny"}
+                      </button>
+                    </td>
+                    <td className="users-actions">
+                      <button
+                        type="button"
+                        className="users-btn users-btn-ghost"
+                        onClick={() => {
+                          setModalError("");
+                          setEditTarget(t);
+                        }}
+                      >
+                        <I.edit s={14} /> Edytuj typ
+                      </button>
+                      <button
+                        type="button"
+                        className="users-btn users-btn-ghost"
+                        style={{ marginLeft: 6, color: "#ffb4af" }}
+                        onClick={() => {
+                          setRowError((prev) => {
+                            const copy = { ...prev };
+                            delete copy[t._id];
+                            return copy;
+                          });
+                          setDeleteTarget(t);
+                        }}
+                      >
+                        <I.trash s={14} /> Usuń
+                      </button>
+                      {err && (
                         <div
-                          className="quote-list-cell"
                           style={{
-                            textAlign: "center",
-                            fontFamily: "monospace",
+                            marginTop: 6,
                             fontSize: 11,
-                            letterSpacing: 1,
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          {t.categoryCode}
-                        </div>
-                        <div
-                          className="quote-list-cell"
-                          style={{ color: "var(--text-muted)", fontSize: 12 }}
-                        >
-                          {t.description || "—"}
-                        </div>
-                        <div className="quote-list-cell" style={{ textAlign: "center" }}>
-                          <button
-                            type="button"
-                            onClick={() => void handleToggleActive(t._id)}
-                            style={{
-                              fontSize: 11,
-                              padding: "2px 8px",
-                              borderRadius: 10,
-                              border: t.isActive
-                                ? "1px solid rgba(63,185,80,0.5)"
-                                : "1px solid rgba(139,148,158,0.4)",
-                              background: t.isActive
-                                ? "rgba(63,185,80,0.15)"
-                                : "rgba(139,148,158,0.1)",
-                              color: t.isActive ? "#56d364" : "#8b949e",
-                              cursor: "pointer",
-                              fontWeight: 500,
-                            }}
-                            title={t.isActive ? "Kliknij, aby dezaktywować" : "Kliknij, aby aktywować"}
-                          >
-                            {t.isActive ? "Aktywny" : "Nieaktywny"}
-                          </button>
-                        </div>
-                        <div
-                          className="quote-list-cell"
-                          style={{
-                            display: "flex",
-                            gap: 4,
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            title="Edytuj"
-                            onClick={() => {
-                              setModalError("");
-                              setEditTarget(t);
-                            }}
-                          >
-                            <I.edit s={14} sw={2} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            title="Usuń"
-                            onClick={() => {
-                              setDeleteError((prev) => {
-                                const copy = { ...prev };
-                                delete copy[t._id];
-                                return copy;
-                              });
-                              setDeleteTarget(t);
-                            }}
-                            style={{ color: "var(--danger)" }}
-                          >
-                            <I.trash s={14} sw={2} />
-                          </button>
-                        </div>
-                      </div>
-                      {errMsg && (
-                        <div
-                          style={{
-                            padding: "6px 16px",
-                            fontSize: 12,
                             color: "#f85149",
-                            background: "rgba(248,81,73,0.08)",
-                            borderTop: "1px solid rgba(248,81,73,0.2)",
+                            textAlign: "right",
                           }}
                         >
-                          {errMsg}
+                          {err}
                         </div>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {showAddModal && (
         <TypeModal
@@ -669,10 +596,11 @@ export default function ProjectTypesPage() {
       {deleteTarget && (
         <ConfirmDeleteModal
           typeName={deleteTarget.name}
+          questionsCount={deleteTarget.questionsCount}
           onConfirm={() => void handleDelete(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />
       )}
-    </>
+    </main>
   );
 }
