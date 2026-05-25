@@ -33,10 +33,16 @@ const isAdminSection = (p: string) =>
 
 const TABS: TabDef[] = [
   {
+    id: "panel",
+    label: "Panel",
+    href: "/admin/panel",
+    match: (p) => p === "/admin" || p.startsWith("/admin/panel"),
+  },
+  {
     id: "wyceny",
     label: "Wyceny",
-    href: "/admin",
-    match: (p) => p === "/admin" || p.startsWith("/admin/wyceny"),
+    href: "/admin/wyceny",
+    match: (p) => p === "/admin/wyceny" || p.startsWith("/admin/wyceny/"),
     resource: "wyceny",
     action: "read",
   },

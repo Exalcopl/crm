@@ -49,7 +49,7 @@ export default function ArchiwumPage() {
 
   return (
     <>
-      <ArchiwumRibbon onBack={() => router.push("/admin")} />
+      <ArchiwumRibbon onBack={() => router.push("/admin/wyceny")} />
       <main className="fluent-content">
         <OwnerNamesProvider quotes={archived}>
           <ProjectTypeFilterStrip

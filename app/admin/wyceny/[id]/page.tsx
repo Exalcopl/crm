@@ -59,7 +59,7 @@ export default function QuoteDetailPage({
     if (!quote) return;
     await removeQuote({ id: quote._id });
     setConfirmDeleteOpen(false);
-    router.push(isArchived ? "/admin/archiwum" : "/admin");
+    router.push(isArchived ? "/admin/archiwum" : "/admin/wyceny");
   }
 
   function toggleArchive() {
@@ -75,20 +75,20 @@ export default function QuoteDetailPage({
     if (!quote) return;
     await archiveQuote({ id: quote._id });
     setConfirmArchiveOpen(false);
-    router.push("/admin");
+    router.push("/admin/wyceny");
   }
 
   async function confirmRestore() {
     if (!quote) return;
     await restoreQuote({ id: quote._id });
-    router.push("/admin");
+    router.push("/admin/wyceny");
   }
 
   if (quote === undefined) {
     return (
       <>
         <QuoteDetailRibbon
-          onBack={() => router.push("/admin")}
+          onBack={() => router.push("/admin/wyceny")}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onDelete={() => setConfirmDeleteOpen(true)}
@@ -110,7 +110,7 @@ export default function QuoteDetailPage({
     return (
       <>
         <QuoteDetailRibbon
-          onBack={() => router.push("/admin")}
+          onBack={() => router.push("/admin/wyceny")}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onDelete={() => {}}
@@ -123,7 +123,7 @@ export default function QuoteDetailPage({
           <div className="quote-detail-missing">
             <div className="quote-detail-missing-title">Nie znaleziono wyceny</div>
             <div className="quote-detail-missing-id">ID: {code}</div>
-            <Link href="/admin" className="quote-detail-missing-link">
+            <Link href="/admin/wyceny" className="quote-detail-missing-link">
               ← Wróć do listy wycen
             </Link>
           </div>
@@ -135,7 +135,7 @@ export default function QuoteDetailPage({
   return (
     <>
       <QuoteDetailRibbon
-        onBack={() => router.push(isArchived ? "/admin/archiwum" : "/admin")}
+        onBack={() => router.push(isArchived ? "/admin/archiwum" : "/admin/wyceny")}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onDelete={() => setConfirmDeleteOpen(true)}

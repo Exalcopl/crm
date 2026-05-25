@@ -1,0 +1,128 @@
+.panel-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.panel-greeting {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 2px 0;
+}
+
+.panel-greeting-title {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.panel-greeting-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.panel-tasks-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .panel-tasks-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel-col-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 6px 4px;
+  text-align: center;
+  opacity: 0.5;
+}
+
+.panel-task-card {
+  cursor: default;
+}
+
+.panel-task-card-quote {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  align-self: flex-start;
+  transition: border-color 120ms, color 120ms, background 120ms;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.panel-task-card-quote:hover {
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.panel-task-card-quote-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.panel-task-card-quote-sep {
+  opacity: 0.5;
+}
+
+.panel-task-card-quote-client {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 16px;
+  text-align: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-base);
+}
+
+.panel-empty-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.panel-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.panel-empty-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 360px;
+}

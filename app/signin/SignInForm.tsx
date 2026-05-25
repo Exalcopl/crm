@@ -8,7 +8,7 @@ export function SignInForm() {
   const { signIn } = useAuthActions();
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") || "/admin";
+  const callbackUrl = params.get("callbackUrl") || "/admin/panel";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

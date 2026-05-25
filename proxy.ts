@@ -11,7 +11,7 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   const authed = await convexAuth.isAuthenticated();
 
   if (isSignInRoute(request) && authed) {
-    return nextjsMiddlewareRedirect(request, "/admin");
+    return nextjsMiddlewareRedirect(request, "/admin/panel");
   }
   if (!isPublicRoute(request) && !authed) {
     const url = new URL(request.url);

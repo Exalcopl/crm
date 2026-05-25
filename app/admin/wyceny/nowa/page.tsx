@@ -213,7 +213,7 @@ export default function NowaWycenaPage() {
     projectTypesValid;
 
   function handleCancel() {
-    router.push("/admin");
+    router.push("/admin/wyceny");
   }
 
   async function submitForm() {

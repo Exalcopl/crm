@@ -25,6 +25,68 @@ export const list = query({
   },
 });
 
+export const listMine = query({
+  args: {},
+  handler: async (ctx) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) return [];
+
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_assignee", (q) => q.eq("assigneeId", callerId))
+      .collect();
+
+    if (tasks.length === 0) return [];
+
+    const uniqueQuoteIds = Array.from(
+      new Set(tasks.map((t) => t.quoteId as unknown as string)),
+    );
+    const quotes = await Promise.all(
+      uniqueQuoteIds.map((id) =>
+        ctx.db.get(id as unknown as typeof tasks[number]["quoteId"]),
+      ),
+    );
+    const quoteById = new Map<
+      string,
+      { code: string; contactName: string; archived: boolean }
+    >();
+    for (const q of quotes) {
+      if (!q) continue;
+      quoteById.set(q._id as unknown as string, {
+        code: q.code,
+        contactName: q.contact?.name ?? "—",
+        archived: q.archived === true,
+      });
+    }
+
+    const enriched = tasks
+      .map((t) => {
+        const ctx = quoteById.get(t.quoteId as unknown as string);
+        if (!ctx) return null;
+        if (ctx.archived) return null;
+        return {
+          ...t,
+          quote: { code: ctx.code, contactName: ctx.contactName },
+        };
+      })
+      .filter(
+        (
+          v,
+        ): v is (typeof tasks)[number] & {
+          quote: { code: string; contactName: string };
+        } => v !== null,
+      );
+
+    return enriched.sort((a, b) => {
+      if (a.status !== b.status) {
+        const order = { todo: 0, in_progress: 1, done: 2 } as const;
+        return order[a.status] - order[b.status];
+      }
+      return a.order - b.order;
+    });
+  },
+});
+
 export const add = mutation({
   args: {
     quoteId: v.id("quotes"),
