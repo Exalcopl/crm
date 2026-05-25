@@ -445,6 +445,9 @@ function QuoteDetailLayout({
         <QuoteDetailHeader quote={quote} archived={archived} />
         {isSzczegoly && (
           <>
+            <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+              <HelperQuestionsSection quoteId={quote._id} />
+            </Section>
             <InvestmentSection quote={quote} archived={archived} />
             <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             <TasksKanban quote={quote} archived={archived} />
@@ -950,9 +953,6 @@ function TabSzczegoly({
   void archived;
   return (
     <div className="quote-detail-stack">
-      <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-        <HelperQuestionsSection quoteId={quote._id} />
-      </Section>
       <Section title="Wartość oferty" icon={<I.pln s={14} />}>
         <QuoteValueSummary
           quoteId={quote._id}
