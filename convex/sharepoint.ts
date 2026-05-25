@@ -216,6 +216,14 @@ export const listQuoteFiles = action({
       { headers: { Authorization: `Bearer ${token}` } },
     );
 
+    if (res.status === 404) {
+      console.warn(
+        `[sharepoint] Subfolder ${sp.subfolderItemId} wyceny ${quoteId} nie istnieje — czyszczę stan`,
+      );
+      await ctx.runMutation(internal.quotes._clearSharepoint, { quoteId });
+      return [];
+    }
+
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Graph list files ${res.status}: ${text}`);

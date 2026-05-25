@@ -436,16 +436,21 @@ function QuoteDetailLayout({
   onRestore: () => void;
   onTabChange: (tab: DetailTab) => void;
 }) {
+  const isSzczegoly = activeTab === "szczegoly";
   return (
     <OwnerNamesProvider quotes={[quote]}>
       <div className="quote-detail">
         {archived && <ArchivedBanner onRestore={onRestore} />}
         <QuoteDetailHeader quote={quote} archived={archived} />
-        <InvestmentSection quote={quote} archived={archived} />
-        <OpisUwagiHorizontalSection quote={quote} archived={archived} />
-        <TasksAndCalendarStrip quote={quote} archived={archived} />
+        {isSzczegoly && (
+          <>
+            <InvestmentSection quote={quote} archived={archived} />
+            <OpisUwagiHorizontalSection quote={quote} archived={archived} />
+            <TasksAndCalendarStrip quote={quote} archived={archived} />
+          </>
+        )}
         <div className="quote-detail-main">
-          {activeTab === "szczegoly" && (
+          {isSzczegoly && (
             <TabSzczegoly
               quote={quote}
               archived={archived}
