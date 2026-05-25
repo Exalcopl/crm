@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
-  PROJECT_TYPE_STYLES,
+  getProjectTypeStyle,
   QUOTE_STATUSES,
   QUOTE_STATUS_COLORS,
   deadlineDaysFromToday,
@@ -556,6 +556,7 @@ function SharepointRibbonBtn({
 
 
 function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
@@ -568,7 +569,7 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           <div className="quote-detail-header-idline">
             <span className="quote-detail-id">{quote.id}</span>
             {quote.projectType.map((t) => {
-              const s = PROJECT_TYPE_STYLES[t];
+              const s = getProjectTypeStyle(projectTypes, t);
               return (
                 <span
                   key={t}
@@ -792,6 +793,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const hasValue = quote.value !== null;
   const netto = hasValue ? quote.value! / 1.23 : null;
   const vat = hasValue ? quote.value! - netto! : null;
@@ -860,7 +862,7 @@ function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) 
               quote.projectType.length > 0 ? (
                 <div className="quote-detail-types">
                   {quote.projectType.map((t) => {
-                    const s = PROJECT_TYPE_STYLES[t];
+                    const s = getProjectTypeStyle(projectTypes, t);
                     return (
                       <span
                         key={t}

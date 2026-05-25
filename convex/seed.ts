@@ -194,6 +194,8 @@ export const seedAdmin = action({
       roleId: roleResult.roleId,
     });
 
+    await ctx.runMutation(internal.projectTypes.seedProjectTypes, {});
+
     return {
       permissionsCreated: permResult.created,
       superAdminRoleId: roleResult.roleId,

@@ -2,9 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { I } from "../_lib/icons";
 import {
-  PROJECT_TYPE_STYLES,
+  getProjectTypeStyle,
   QUOTE_STATUSES,
   QUOTE_STATUS_COLORS,
   deadlineTone,
@@ -37,6 +39,7 @@ export function QuoteListView({
 }) {
   const [sort, setSort] = useState<SortState>({ column: "deadline", dir: "asc" });
   const ownerMap = useOwnerNamesMap();
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
 
   const sortedQuotes = useMemo(() => {
     const arr = [...quotes];
@@ -108,7 +111,7 @@ export function QuoteListView({
         {sortedQuotes.length === 0 ? (
           <div className="quote-list-empty">{emptyLabel}</div>
         ) : (
-          sortedQuotes.map((q) => <QuoteListRow key={q.id} quote={q} />)
+          sortedQuotes.map((q) => <QuoteListRow key={q.id} quote={q} projectTypes={projectTypes} />)
         )}
       </div>
     </div>
@@ -147,7 +150,13 @@ function SortHeader({
   );
 }
 
-function QuoteListRow({ quote }: { quote: Quote }) {
+function QuoteListRow({
+  quote,
+  projectTypes,
+}: {
+  quote: Quote;
+  projectTypes: Array<{ name: string; color: string }>;
+}) {
   const router = useRouter();
   const statusColor = QUOTE_STATUS_COLORS[quote.status];
   const tone = deadlineTone(quote.deadline);
@@ -172,7 +181,7 @@ function QuoteListRow({ quote }: { quote: Quote }) {
       <div className="quote-list-cell">
         <div className="quote-list-types">
           {quote.projectType.map((t) => {
-            const s = PROJECT_TYPE_STYLES[t];
+            const s = getProjectTypeStyle(projectTypes, t);
             return (
               <span
                 key={t}

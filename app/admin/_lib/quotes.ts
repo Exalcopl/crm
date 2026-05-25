@@ -17,13 +17,7 @@ export type QuoteStatus =
   | "Pomiary i uzgodnienia"
   | "Zrobione";
 
-export type ProjectType =
-  | "Zadaszenia"
-  | "Pergola"
-  | "Stolarka"
-  | "Ogrodzenie"
-  | "Osłony okienne"
-  | "Inne";
+export type ProjectType = string;
 
 export type ContactInfo = {
   name: string;
@@ -63,17 +57,31 @@ export const QUOTE_STATUS_COLORS: Record<QuoteStatus, string> = {
   Zrobione: "#3fb950",
 };
 
-export const PROJECT_TYPE_STYLES: Record<
-  ProjectType,
-  { bg: string; fg: string; border: string }
-> = {
-  Zadaszenia: { bg: "rgba(56, 139, 253, 0.18)", fg: "#79c0ff", border: "rgba(56, 139, 253, 0.55)" },
-  Pergola: { bg: "rgba(63, 185, 80, 0.18)", fg: "#56d364", border: "rgba(63, 185, 80, 0.55)" },
-  Stolarka: { bg: "rgba(255, 166, 87, 0.18)", fg: "#ffa657", border: "rgba(255, 166, 87, 0.55)" },
-  Ogrodzenie: { bg: "rgba(188, 140, 255, 0.18)", fg: "#d2a8ff", border: "rgba(188, 140, 255, 0.55)" },
-  "Osłony okienne": { bg: "rgba(57, 211, 191, 0.18)", fg: "#56d4c1", border: "rgba(57, 211, 191, 0.55)" },
-  Inne: { bg: "rgba(139, 148, 158, 0.16)", fg: "#c9d1d9", border: "rgba(139, 148, 158, 0.5)" },
+const FALLBACK_TYPE_STYLE = {
+  bg: "rgba(139,148,158,0.16)",
+  fg: "#c9d1d9",
+  border: "rgba(139,148,158,0.5)",
 };
+
+export function hexToTypeStyle(hex: string): { bg: string; fg: string; border: string } {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return FALLBACK_TYPE_STYLE;
+  return {
+    bg: `rgba(${r},${g},${b},0.18)`,
+    fg: hex,
+    border: `rgba(${r},${g},${b},0.55)`,
+  };
+}
+
+export function getProjectTypeStyle(
+  types: Array<{ name: string; color: string }>,
+  typeName: string,
+): { bg: string; fg: string; border: string } {
+  const found = types.find((t) => t.name === typeName);
+  return found ? hexToTypeStyle(found.color) : FALLBACK_TYPE_STYLE;
+}
 
 
 const TODAY = new Date("2026-05-11");

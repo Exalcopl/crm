@@ -36,9 +36,11 @@ export default function ArchiwumPage() {
   const router = useRouter();
   const archivedRaw = useQuery(api.quotes.listArchived);
   const archived = (archivedRaw as unknown as Quote[] | undefined) ?? [];
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
-  const counts = useMemo(() => computeProjectTypeCounts(archived), [archived]);
+  const typeNames = useMemo(() => projectTypes.map((t) => t.name), [projectTypes]);
+  const counts = useMemo(() => computeProjectTypeCounts(archived, typeNames), [archived, typeNames]);
 
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return archived;
@@ -51,6 +53,7 @@ export default function ArchiwumPage() {
       <main className="fluent-content">
         <OwnerNamesProvider quotes={archived}>
           <ProjectTypeFilterStrip
+            allTypes={projectTypes}
             value={filter}
             counts={counts}
             onChange={setFilter}

@@ -7,26 +7,16 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
-  PROJECT_TYPE_STYLES,
+  getProjectTypeStyle,
   QUOTE_STATUSES,
   QUOTE_STATUS_COLORS,
   ownerInitials,
   type ContactInfo,
-  type ProjectType,
   type QuoteStatus,
 } from "../../_lib/quotes";
 import { setClients, useClients } from "../../_lib/clients-store";
 import { nextClientId, type Client } from "../../_lib/clients";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
-
-const PROJECT_TYPES: ProjectType[] = [
-  "Zadaszenia",
-  "Pergola",
-  "Stolarka",
-  "Ogrodzenie",
-  "Osłony okienne",
-  "Inne",
-];
 
 const DEADLINE_QUICK: { label: string; days: number }[] = [
   { label: "Dziś", days: 0 },
@@ -69,6 +59,7 @@ export default function NowaWycenaPage() {
   const router = useRouter();
   const createQuote = useMutation(api.quotes.create);
   const convexQuotes = useQuery(api.quotes.list) ?? [];
+  const activeProjectTypes = (useQuery(api.projectTypes.listActive) ?? []) as Array<{ _id: string; name: string; color: string }>;
   const clients = useClients();
 
   const allClients = useMemo<RankedClient[]>(() => {
@@ -123,11 +114,9 @@ export default function NowaWycenaPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
-  const [projectTypes, setProjectTypes] = useState<ProjectType[]>([
-    "Zadaszenia",
-  ]);
+  const [projectTypes, setProjectTypes] = useState<string[]>([]);
 
-  function toggleProjectType(t: ProjectType) {
+  function toggleProjectType(t: string) {
     setProjectTypes((prev) =>
       prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
     );
@@ -405,13 +394,13 @@ export default function NowaWycenaPage() {
               }
             >
               <div className="quote-new-v2-type-grid">
-                {PROJECT_TYPES.map((t) => {
-                  const s = PROJECT_TYPE_STYLES[t];
-                  const active = projectTypes.includes(t);
+                {activeProjectTypes.map((t) => {
+                  const s = getProjectTypeStyle(activeProjectTypes, t.name);
+                  const active = projectTypes.includes(t.name);
                   return (
                     <button
                       type="button"
-                      key={t}
+                      key={t._id}
                       className={`quote-new-v2-type${active ? " is-active" : ""}`}
                       style={
                         active
@@ -422,14 +411,14 @@ export default function NowaWycenaPage() {
                             }
                           : undefined
                       }
-                      onClick={() => toggleProjectType(t)}
+                      onClick={() => toggleProjectType(t.name)}
                       aria-pressed={active}
                     >
                       <span
                         className="quote-new-v2-type-dot"
                         style={{ background: s.fg }}
                       />
-                      <span>{t}</span>
+                      <span>{t.name}</span>
                       {active && (
                         <span className="quote-new-v2-type-check">
                           <I.check s={12} sw={2.6} />

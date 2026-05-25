@@ -26,7 +26,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { I } from "./_lib/icons";
 import {
-  PROJECT_TYPE_STYLES,
+  getProjectTypeStyle,
   QUOTE_STATUSES,
   QUOTE_STATUS_COLORS,
   deadlineTone,
@@ -88,6 +88,7 @@ function WycenyRibbon({
 
 function WycenyView({ view }: { view: WycenyViewMode }) {
   const convexQuotes = useQuery(api.quotes.list) ?? [];
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
   const [localQuotes, setLocalQuotes] = useState<Quote[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -97,7 +98,8 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
   }, [convexQuotes, isDragging]);
 
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
-  const counts = useMemo(() => computeProjectTypeCounts(localQuotes), [localQuotes]);
+  const typeNames = useMemo(() => projectTypes.map((t) => t.name), [projectTypes]);
+  const counts = useMemo(() => computeProjectTypeCounts(localQuotes, typeNames), [localQuotes, typeNames]);
 
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return localQuotes;
@@ -110,7 +112,7 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
 
   return (
     <OwnerNamesProvider quotes={localQuotes}>
-      <ProjectTypeFilterStrip value={filter} counts={counts} onChange={setFilter} />
+      <ProjectTypeFilterStrip allTypes={projectTypes} value={filter} counts={counts} onChange={setFilter} />
       {view === "kanban" ? (
         <WycenyKanbanBoard
           quotes={localQuotes}
@@ -328,8 +330,9 @@ function KanbanCardView({ quote, overlay }: { quote: Quote; overlay?: boolean })
 }
 
 function KanbanCardContent({ quote }: { quote: Quote }) {
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const primaryType = quote.projectType[0];
-  const primaryStyle = primaryType ? PROJECT_TYPE_STYLES[primaryType] : null;
+  const primaryStyle = primaryType ? getProjectTypeStyle(projectTypes, primaryType) : null;
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const ownerName = useOwnerName(quote);
@@ -362,7 +365,7 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
       </div>
       <div className="kanban-card-types">
         {quote.projectType.map((t) => {
-          const s = PROJECT_TYPE_STYLES[t];
+          const s = getProjectTypeStyle(projectTypes, t);
           return (
             <span
               key={t}

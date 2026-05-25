@@ -16,14 +16,7 @@ const STATUS_VALUES = v.union(
   v.literal("Zrobione"),
 );
 
-const PROJECT_TYPE_VALUE = v.union(
-  v.literal("Zadaszenia"),
-  v.literal("Pergola"),
-  v.literal("Stolarka"),
-  v.literal("Ogrodzenie"),
-  v.literal("Osłony okienne"),
-  v.literal("Inne"),
-);
+const PROJECT_TYPE_VALUE = v.string();
 
 const CONTACT_VALUE = v.object({
   name: v.string(),
@@ -128,7 +121,7 @@ export const create = mutation({
       value: args.value,
       status: args.status as "Do zrobienia" | "Kontakt z klientem" | "Pomiary i uzgodnienia" | "Zrobione",
       deadline: args.deadline,
-      projectType: args.projectType as ("Zadaszenia" | "Pergola" | "Stolarka" | "Ogrodzenie" | "Osłony okienne" | "Inne")[],
+      projectType: args.projectType,
       ownerId: args.ownerId,
       archived: false,
     });

@@ -90,6 +90,15 @@ export default defineSchema({
     .index("by_phone_normalized", ["phoneNormalized"])
     .index("by_name_normalized", ["nameNormalized"]),
 
+  projectTypes: defineTable({
+    name: v.string(),
+    color: v.string(),
+    description: v.optional(v.string()),
+    categoryName: v.string(),
+    categoryCode: v.string(),
+    isActive: v.boolean(),
+  }).index("by_name", ["name"]),
+
   quotes: defineTable({
     code: v.string(),
     clientId: v.optional(v.id("clients")),
@@ -108,16 +117,7 @@ export default defineSchema({
       v.literal("Zrobione"),
     ),
     deadline: v.string(),
-    projectType: v.array(
-      v.union(
-        v.literal("Zadaszenia"),
-        v.literal("Pergola"),
-        v.literal("Stolarka"),
-        v.literal("Ogrodzenie"),
-        v.literal("Osłony okienne"),
-        v.literal("Inne"),
-      ),
-    ),
+    projectType: v.array(v.string()),
     ownerId: v.union(v.id("users"), v.null()),
     ownerLegacy: v.optional(v.string()),
     archived: v.optional(v.boolean()),

@@ -16,6 +16,7 @@ export function AdministracjaRibbon() {
 
   const usersActive = pathname.startsWith("/admin/users");
   const rolesActive = pathname.startsWith("/admin/roles");
+  const projectTypesActive = pathname.startsWith("/admin/projekt");
 
   return (
     <div className="fluent-ribbon">
@@ -45,6 +46,21 @@ export function AdministracjaRibbon() {
           )}
         </div>
         <div className="ribbon-group-label">Użytkownicy</div>
+      </div>
+
+      <div className="ribbon-group">
+        <div className="ribbon-group-content">
+          <Link
+            href="/admin/projekt/typy"
+            className={`ribbon-btn ${projectTypesActive ? "active" : ""}`}
+          >
+            <span className="ribbon-icon">
+              <I.layers s={22} />
+            </span>
+            <span className="ribbon-label">Typy projektów</span>
+          </Link>
+        </div>
+        <div className="ribbon-group-label">Projekt</div>
       </div>
     </div>
   );
