@@ -267,22 +267,17 @@ function PanelTaskCard({
     assignee?.name?.trim() || assignee?.email?.trim() || null;
   const tone = dueTone(task.dueDate);
 
+  const draggable = !isOverlay && !editing;
+
   return (
     <div
       ref={setNodeRef}
-      className={`quote-detail-task-card panel-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}`}
+      className={`quote-detail-task-card panel-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
       style={{ opacity: isDragging && !isOverlay ? 0 : 1 }}
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
     >
       <div className="quote-detail-task-card-top">
-        <button
-          type="button"
-          className="quote-detail-task-card-grip"
-          aria-label="Przeciągnij zadanie"
-          {...attributes}
-          {...listeners}
-        >
-          <I.grip s={12} />
-        </button>
         {editing ? (
           <input
             type="text"
@@ -326,8 +321,6 @@ function PanelTaskCard({
         href={`/admin/wyceny/${encodeURIComponent(task.quote.code)}`}
         className="panel-task-card-quote"
         title={`${task.quote.code} · ${task.quote.contactName}`}
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
       >
         <span className="panel-task-card-quote-code">{task.quote.code}</span>
         <span className="panel-task-card-quote-sep">·</span>
