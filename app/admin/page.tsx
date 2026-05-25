@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -91,11 +91,11 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
   const [localQuotes, setLocalQuotes] = useState<Quote[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
-    if (!isDragging) setLocalQuotes(convexQuotes as unknown as Quote[]);
-  }, [convexQuotes, isDragging]);
+    if (!isDraggingRef.current) setLocalQuotes(convexQuotes as unknown as Quote[]);
+  }, [convexQuotes]);
 
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
   const typeNames = useMemo(() => projectTypes.map((t) => t.name), [projectTypes]);
@@ -119,8 +119,8 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
           setQuotes={setLocalQuotes}
           filteredQuotes={filteredQuotes}
           onStatusChange={handleStatusChange}
-          onDragStart={() => setIsDragging(true)}
-          onDragEnd={() => setIsDragging(false)}
+          onDragStart={() => { isDraggingRef.current = true; }}
+          onDragEnd={() => { isDraggingRef.current = false; }}
         />
       ) : (
         <QuoteListView quotes={filteredQuotes} />
