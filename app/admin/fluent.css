@@ -2887,6 +2887,15 @@ select.fluent-input {
   background: var(--bg-hover);
 }
 
+.client-list-row.is-clickable {
+  cursor: pointer;
+}
+
+.client-list-row.is-clickable:focus-visible {
+  outline: 2px solid var(--accent, #2563eb);
+  outline-offset: -2px;
+}
+
 .client-list-cell {
   font-size: var(--fs-body);
   color: var(--text-primary);
@@ -5235,20 +5244,6 @@ select.fluent-input {
   gap: 10px;
 }
 
-/* ==================================================================
-   Lista klientów — link w nazwie
-   ================================================================== */
-
-.client-list-name-link {
-  color: inherit;
-  text-decoration: none;
-  transition: color 120ms;
-}
-
-.client-list-name-link:hover {
-  color: var(--text-accent);
-  text-decoration: underline;
-}
 
 /* ==================================================================
    Klient — clickable strip w nagłówku wyceny

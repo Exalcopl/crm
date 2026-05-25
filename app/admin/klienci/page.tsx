@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -223,15 +224,25 @@ function ClientRow({
   client: Doc<"clients">;
   onEdit: () => void;
 }) {
+  const router = useRouter();
+  const href = `/admin/klienci/${client._id}`;
+  const go = () => router.push(href);
   return (
-    <div className="client-list-row" role="row">
+    <div
+      className="client-list-row is-clickable"
+      role="row"
+      tabIndex={0}
+      onClick={go}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          go();
+        }
+      }}
+    >
       <div className="client-list-cell client-list-cell-name">
-        <Link
-          href={`/admin/klienci/${client._id}`}
-          className="client-list-name-link"
-        >
-          {client.name}
-        </Link>
+        {client.name}
       </div>
       <div className="client-list-cell">
         {client.street ?? <span className="client-list-muted">—</span>}
@@ -245,9 +256,12 @@ function ClientRow({
       <div className="client-list-cell">
         {client.email ?? <span className="client-list-muted">—</span>}
       </div>
-      <div className="client-list-cell client-list-actions align-right">
+      <div
+        className="client-list-cell client-list-actions align-right"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Link
-          href={`/admin/klienci/${client._id}`}
+          href={href}
           className="client-list-action"
           aria-label="Otwórz szczegóły klienta"
           title="Otwórz"
