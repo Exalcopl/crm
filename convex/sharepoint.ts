@@ -340,7 +340,7 @@ export const ensureClientFolder = action({
     const clientIdEnv = process.env.MS_CLIENT_ID;
     const clientSecret = process.env.MS_CLIENT_SECRET;
     const driveId = process.env.MS_GRAPH_DRIVE_ID;
-    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "";
+    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "Klienci";
 
     if (!tenantId || !clientIdEnv || !clientSecret || !driveId) {
       throw new Error("SharePoint nie jest skonfigurowany");
@@ -498,7 +498,7 @@ export const createFolderForQuote = internalAction({
     const clientId = process.env.MS_CLIENT_ID;
     const clientSecret = process.env.MS_CLIENT_SECRET;
     const driveId = process.env.MS_GRAPH_DRIVE_ID;
-    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "";
+    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "Klienci";
 
     if (!tenantId || !clientId || !clientSecret || !driveId) {
       console.warn(
