@@ -4003,3 +4003,1234 @@ select.fluent-input {
 .pdf-drawer-error {
   color: var(--danger);
 }
+
+/* === Hero w nagłówku wyceny === */
+.quote-detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quote-detail-id-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, rgba(212, 29, 60, 0.12), rgba(212, 29, 60, 0.04));
+  border: 1px solid var(--accent-line);
+  border-radius: 10px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, transform 80ms;
+}
+
+.quote-detail-id-pill:hover {
+  background: linear-gradient(180deg, rgba(212, 29, 60, 0.2), rgba(212, 29, 60, 0.08));
+  border-color: rgba(212, 29, 60, 0.7);
+}
+
+.quote-detail-id-pill:active {
+  transform: scale(0.98);
+}
+
+.quote-detail-id-pill.is-copied {
+  background: linear-gradient(180deg, rgba(63, 185, 80, 0.18), rgba(63, 185, 80, 0.06));
+  border-color: rgba(63, 185, 80, 0.6);
+}
+
+.quote-detail-id-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.quote-detail-id-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.quote-detail-id-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.quote-detail-id-pill:hover .quote-detail-id-icon {
+  color: var(--text-secondary);
+}
+
+.quote-detail-id-pill.is-copied .quote-detail-id-icon {
+  color: #3fb950;
+}
+
+.quote-detail-hero-types {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Subtelny pasek klienta */
+.quote-detail-client-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  max-width: 100%;
+}
+
+.quote-detail-client-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3a4252, #1f2937);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.quote-detail-client-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.quote-detail-client-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.quote-detail-client-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.quote-detail-client-link,
+.quote-detail-client-addr {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 120ms;
+}
+
+.quote-detail-client-link:hover {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
+/* === Sekcja inwestycji === */
+.quote-detail-investment {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.quote-detail-investment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quote-detail-investment-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.quote-detail-investment-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.quote-detail-investment-subtitle {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.quote-detail-investment-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.quote-detail-investment-save,
+.quote-detail-investment-cancel {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.quote-detail-investment-save {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.quote-detail-investment-save:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.quote-detail-investment-save:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.quote-detail-investment-cancel:hover {
+  background: var(--bg-hover);
+}
+
+.quote-detail-investment-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.quote-detail-investment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quote-detail-investment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.quote-detail-investment-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.quote-detail-investment-input,
+.quote-detail-investment-textarea {
+  width: 100%;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 13px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 120ms, background 120ms;
+}
+
+.quote-detail-investment-textarea {
+  resize: vertical;
+  min-height: 60px;
+  font-family: inherit;
+}
+
+.quote-detail-investment-input:focus,
+.quote-detail-investment-textarea:focus {
+  border-color: var(--accent-primary);
+  background: var(--bg-surface);
+}
+
+.quote-detail-investment-input:disabled,
+.quote-detail-investment-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.quote-detail-investment-coords {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.quote-detail-investment-mapwrap {
+  min-height: 280px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  position: relative;
+}
+
+.quote-detail-investment-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+}
+
+.quote-detail-investment-map > div {
+  height: 100% !important;
+  min-height: 280px;
+}
+
+.quote-detail-investment-map-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: rgba(13, 17, 23, 0.7);
+  pointer-events: none;
+  padding: 12px;
+}
+
+.quote-detail-investment-noapi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 100%;
+  min-height: 240px;
+  gap: 8px;
+  color: var(--text-muted);
+  padding: 18px;
+}
+
+.quote-detail-investment-noapi-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.quote-detail-investment-noapi-text {
+  font-size: 11px;
+  line-height: 1.5;
+  max-width: 280px;
+}
+
+.quote-detail-investment-noapi code {
+  background: var(--bg-base);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--text-secondary);
+}
+
+/* === Opis / Uwagi (poziom) === */
+.quote-detail-notes-strip {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quote-detail-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quote-detail-notes-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quote-detail-notes-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.quote-detail-notes-count {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.quote-detail-notes-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px 8px 6px 12px;
+}
+
+.quote-detail-notes-add:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.quote-detail-notes-add-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.quote-detail-notes-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 6px 0;
+}
+
+.quote-detail-notes-input::placeholder {
+  color: var(--text-muted);
+}
+
+.quote-detail-notes-submit {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--accent-primary);
+  background: var(--accent-primary);
+  color: #fff;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.quote-detail-notes-submit:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.quote-detail-notes-submit:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.quote-detail-notes-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 16px;
+  text-align: center;
+  border: 1px dashed var(--border-subtle);
+  border-radius: 8px;
+}
+
+.quote-detail-notes-track {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.quote-detail-notes-track::-webkit-scrollbar {
+  height: 6px;
+}
+
+.quote-detail-notes-track::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+.quote-detail-note-card {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.quote-detail-note-card-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.quote-detail-note-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.quote-detail-note-card-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.quote-detail-note-card-avatar {
+  width: 18px !important;
+  height: 18px !important;
+  font-size: 9px !important;
+}
+
+.quote-detail-note-card-date {
+  margin-left: auto;
+}
+
+.quote-detail-note-card-remove {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.quote-detail-note-card-remove:hover {
+  background: var(--bg-hover);
+  color: #ff8478;
+}
+
+/* === Strip z zadaniami + kalendarzem === */
+.quote-detail-tasks-strip {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .quote-detail-tasks-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quote-detail-tasks {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.quote-detail-tasks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quote-detail-tasks-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quote-detail-tasks-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.quote-detail-tasks-count {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.quote-detail-tasks-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .quote-detail-tasks-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quote-detail-tasks-col {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 8px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 180px;
+  transition: border-color 120ms, background 120ms;
+}
+
+.quote-detail-tasks-col.is-over {
+  border-color: var(--col-accent, var(--accent-primary));
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.quote-detail-tasks-col-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 2px;
+}
+
+.quote-detail-tasks-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--col-accent, var(--text-muted));
+}
+
+.quote-detail-tasks-col-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.quote-detail-tasks-col-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 0 6px;
+  border-radius: 999px;
+}
+
+.quote-detail-tasks-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 60px;
+}
+
+/* Karta zadania */
+.quote-detail-task-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 120ms, transform 80ms;
+}
+
+.quote-detail-task-card:hover {
+  border-color: var(--border-default);
+}
+
+.quote-detail-task-card.is-dragging {
+  opacity: 0;
+}
+
+.quote-detail-task-card.is-overlay {
+  border-color: var(--accent-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  cursor: grabbing;
+}
+
+.quote-detail-task-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.quote-detail-task-card-grip {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 2px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.quote-detail-task-card-grip:hover {
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+}
+
+.quote-detail-task-card-grip:active {
+  cursor: grabbing;
+}
+
+.quote-detail-task-card-title {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 0;
+  cursor: text;
+  font: inherit;
+  font-size: 13px;
+}
+
+.quote-detail-task-card-title:hover:not(:disabled) {
+  color: #fff;
+}
+
+.quote-detail-task-card-title-input {
+  flex: 1;
+  background: var(--bg-base);
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 3px 6px;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+}
+
+.quote-detail-task-card-remove {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 120ms, color 120ms, background 120ms;
+}
+
+.quote-detail-task-card:hover .quote-detail-task-card-remove {
+  opacity: 1;
+}
+
+.quote-detail-task-card-remove:hover {
+  background: var(--bg-hover);
+  color: #ff8478;
+}
+
+.quote-detail-task-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-left: 18px;
+}
+
+/* Assignee picker */
+.quote-detail-task-assignee {
+  position: relative;
+}
+
+.quote-detail-task-assignee-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+}
+
+.quote-detail-task-assignee-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.quote-detail-task-assignee-avatar {
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 9px !important;
+  border: 2px solid var(--bg-surface);
+}
+
+.quote-detail-task-assignee-empty {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px dashed var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quote-detail-task-assignee-btn:hover:not(:disabled) .quote-detail-task-assignee-empty {
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
+}
+
+.quote-detail-task-assignee-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 200px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.quote-detail-task-assignee-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.quote-detail-task-assignee-option:hover {
+  background: var(--bg-hover);
+}
+
+.quote-detail-task-assignee-option.is-active {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.quote-detail-task-assignee-option-avatar {
+  width: 20px !important;
+  height: 20px !important;
+  font-size: 9px !important;
+  background: var(--bg-base);
+  color: var(--text-muted);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Due date picker */
+.quote-detail-task-due {
+  position: relative;
+}
+
+.quote-detail-task-due-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.quote-detail-task-due-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.quote-detail-task-due-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.quote-detail-task-due-btn.tone-overdue {
+  border-color: rgba(255, 132, 120, 0.4);
+  color: #ff8478;
+  background: rgba(255, 132, 120, 0.08);
+}
+
+.quote-detail-task-due-btn.tone-soon {
+  border-color: rgba(255, 200, 100, 0.4);
+  color: #ffc864;
+  background: rgba(255, 200, 100, 0.08);
+}
+
+.quote-detail-task-due-btn.tone-ok {
+  color: var(--text-secondary);
+}
+
+.quote-detail-task-due-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quote-detail-task-due-input {
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  color-scheme: dark;
+}
+
+.quote-detail-task-due-clear {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.quote-detail-task-due-clear:hover {
+  background: var(--bg-hover);
+  color: #ff8478;
+}
+
+/* Dodawanie zadania w kolumnie */
+.quote-detail-tasks-add {
+  display: flex;
+  margin-top: 4px;
+}
+
+.quote-detail-tasks-add-input {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 8px;
+  outline: 0;
+  transition: border-color 120ms, background 120ms;
+}
+
+.quote-detail-tasks-add-input:hover {
+  border-color: var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.quote-detail-tasks-add-input:focus {
+  border-color: var(--accent-primary);
+  border-style: solid;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+
+/* === Mini-kalendarz === */
+.quote-detail-calendar {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 14px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quote-detail-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quote-detail-calendar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.quote-detail-calendar-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+}
+
+.quote-detail-calendar-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.quote-detail-calendar-nav-btn {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quote-detail-calendar-nav-btn:hover {
+  background: var(--bg-hover);
+}
+
+.quote-detail-calendar-month {
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.quote-detail-calendar-month:hover {
+  background: var(--bg-hover);
+}
+
+.quote-detail-calendar-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.quote-detail-calendar-dow-cell {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 4px 0;
+}
+
+.quote-detail-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.quote-detail-calendar-day {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 0 0;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.quote-detail-calendar-day:hover {
+  background: var(--bg-hover);
+}
+
+.quote-detail-calendar-day.is-other {
+  color: rgba(139, 148, 158, 0.45);
+}
+
+.quote-detail-calendar-day.is-today {
+  border-color: var(--accent-primary);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.quote-detail-calendar-day.is-deadline {
+  background: rgba(255, 200, 100, 0.12);
+  color: #ffc864;
+}
+
+.quote-detail-calendar-day.is-deadline.is-today {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+.quote-detail-calendar-day.is-selected {
+  border-color: var(--text-secondary);
+}
+
+.quote-detail-calendar-day-num {
+  line-height: 1;
+}
+
+.quote-detail-calendar-day-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  margin-bottom: 3px;
+  height: 5px;
+}
+
+.quote-detail-calendar-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.quote-detail-calendar-dot.is-todo {
+  background: #8b949e;
+}
+
+.quote-detail-calendar-dot.is-in_progress {
+  background: #79c0ff;
+}
+
+.quote-detail-calendar-dot.is-done {
+  background: #3fb950;
+}
+
+.quote-detail-calendar-dot.is-deadline {
+  background: #ffc864;
+  width: 5px;
+  height: 5px;
+}
+
+.quote-detail-calendar-dot-more {
+  font-size: 8px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.quote-detail-calendar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-default);
+}
+
+.quote-detail-calendar-list-head {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.quote-detail-calendar-list-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.quote-detail-calendar-list-item.is-deadline {
+  color: #ffc864;
+  font-weight: 600;
+}
+
+.quote-detail-calendar-list-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.quote-detail-calendar-list-dot.is-todo {
+  background: #8b949e;
+}
+
+.quote-detail-calendar-list-dot.is-in_progress {
+  background: #79c0ff;
+}
+
+.quote-detail-calendar-list-dot.is-done {
+  background: #3fb950;
+}
+
+.quote-detail-calendar-list-dot.is-deadline {
+  background: #ffc864;
+}
+
+.quote-detail-calendar-list-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stack-row compact (Szczegóły bez Projekt/Opis/Zadania) */
+.quote-detail-stack-row-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+@media (max-width: 900px) {
+  .quote-detail-stack-row-compact {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Override starych reguł hero — używamy teraz quote-detail-hero / id-pill */
+.quote-detail-header-main {
+  gap: 10px;
+}

@@ -298,4 +298,33 @@ export const I = {
       <path d="M6 6l12 12M18 6 6 18" />
     </Icon>
   ),
+  pin: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="M12 22s7-7.6 7-13a7 7 0 0 0-14 0c0 5.4 7 13 7 13Z" />
+      <circle cx="12" cy="9" r="2.5" />
+    </Icon>
+  ),
+  map: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Z" />
+      <path d="M9 3v15M15 6v15" />
+    </Icon>
+  ),
+  grip: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <circle cx="9" cy="6" r="1" fill="currentColor" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" />
+      <circle cx="9" cy="18" r="1" fill="currentColor" />
+      <circle cx="15" cy="6" r="1" fill="currentColor" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" />
+      <circle cx="15" cy="18" r="1" fill="currentColor" />
+    </Icon>
+  ),
+  userPlus: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <circle cx="10" cy="8" r="4" />
+      <path d="M2 21c0-4 4-7 8-7s8 3 8 7" />
+      <path d="M19 8v6M16 11h6" />
+    </Icon>
+  ),
 };

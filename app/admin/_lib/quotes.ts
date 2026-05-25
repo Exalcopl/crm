@@ -27,11 +27,21 @@ export type ContactInfo = {
   email?: string;
 };
 
+export type InvestmentInfo = {
+  name?: string;
+  address?: string;
+  placeId?: string;
+  lat?: number;
+  lng?: number;
+  notes?: string;
+};
+
 export type Quote = {
   _id: Id<"quotes">;
   /** Kod wyświetlany, np. WC-2026-0730 */
   id: string;
   contact: ContactInfo;
+  investment?: InvestmentInfo;
   value: number | null;
   status: QuoteStatus;
   deadline: string;

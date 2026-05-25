@@ -21,6 +21,7 @@ import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
 import type * as sharepoint from "../sharepoint.js";
+import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   roles: typeof roles;
   seed: typeof seed;
   sharepoint: typeof sharepoint;
+  tasks: typeof tasks;
   users: typeof users;
 }>;
 

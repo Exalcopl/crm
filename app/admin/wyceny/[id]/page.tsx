@@ -20,6 +20,10 @@ import {
 } from "../../_lib/quotes";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
+import { InvestmentSection } from "./_components/investment-section";
+import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
+import { TasksKanban } from "./_components/tasks-kanban";
+import { MiniCalendar } from "./_components/mini-calendar";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "pliki" | "aktywnosc" | "powiazane";
 
@@ -432,6 +436,9 @@ function QuoteDetailLayout({
       <div className="quote-detail">
         {archived && <ArchivedBanner onRestore={onRestore} />}
         <QuoteDetailHeader quote={quote} archived={archived} />
+        <InvestmentSection quote={quote} archived={archived} />
+        <OpisUwagiHorizontalSection quote={quote} archived={archived} />
+        <TasksAndCalendarStrip quote={quote} archived={archived} />
         <div className="quote-detail-main">
           {activeTab === "szczegoly" && <TabSzczegoly quote={quote} archived={archived} />}
           {activeTab === "pozycje" && <TabPozycje quote={quote} />}
@@ -563,6 +570,7 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   const hasValue = quote.value !== null;
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
   const ownerName = useOwnerName(quote);
+  const [idCopied, setIdCopied] = useState(false);
 
   async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
     try {
@@ -573,31 +581,56 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
     }
   }
 
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(quote.id);
+      setIdCopied(true);
+      toast.success(`Skopiowano: ${quote.id}`);
+      setTimeout(() => setIdCopied(false), 1400);
+    } catch {
+      toast.error("Nie udało się skopiować");
+    }
+  }
+
   return (
     <div className="quote-detail-header">
       <div className="quote-detail-header-row">
         <div className="quote-detail-header-main">
-          <div className="quote-detail-header-idline">
-            <span className="quote-detail-id">{quote.id}</span>
-            {quote.projectType.map((t) => {
-              const s = getProjectTypeStyle(projectTypes, t);
-              return (
-                <span
-                  key={t}
-                  className="kanban-chip kanban-chip-type"
-                  style={{
-                    background: s.bg,
-                    color: s.fg,
-                    borderColor: s.border,
-                  }}
-                >
-                  <span className="kanban-chip-dot" style={{ background: s.fg }} />
-                  {t}
-                </span>
-              );
-            })}
+          <div className="quote-detail-hero">
+            <button
+              type="button"
+              className={`quote-detail-id-pill${idCopied ? " is-copied" : ""}`}
+              onClick={() => void copyId()}
+              title="Kliknij, aby skopiować ID"
+              aria-label={`Skopiuj ID wyceny ${quote.id}`}
+            >
+              <span className="quote-detail-id-label">ID wyceny</span>
+              <span className="quote-detail-id-value">{quote.id}</span>
+              <span className="quote-detail-id-icon" aria-hidden>
+                {idCopied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}
+              </span>
+            </button>
+            <div className="quote-detail-hero-types">
+              {quote.projectType.map((t) => {
+                const s = getProjectTypeStyle(projectTypes, t);
+                return (
+                  <span
+                    key={t}
+                    className="kanban-chip kanban-chip-type"
+                    style={{
+                      background: s.bg,
+                      color: s.fg,
+                      borderColor: s.border,
+                    }}
+                  >
+                    <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                    {t}
+                  </span>
+                );
+              })}
+            </div>
           </div>
-          <div className="quote-detail-client">{quote.contact.name}</div>
+          <ClientContactStrip contact={quote.contact} />
         </div>
         <div className="quote-detail-header-meta">
           <div className="quote-detail-meta-item">
@@ -633,6 +666,47 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
         disabled={archived}
         onStatusChange={handleStatusChange}
       />
+    </div>
+  );
+}
+
+function ClientContactStrip({ contact }: { contact: Quote["contact"] }) {
+  const initials = ownerInitials(contact.name);
+  const address = [contact.street, contact.postalCity].filter(Boolean).join(", ");
+  return (
+    <div className="quote-detail-client-strip">
+      <span className="quote-detail-client-avatar" aria-hidden>
+        {initials}
+      </span>
+      <div className="quote-detail-client-info">
+        <div className="quote-detail-client-name">{contact.name}</div>
+        <div className="quote-detail-client-meta">
+          {contact.phone ? (
+            <a
+              href={`tel:${contact.phone.replace(/\s+/g, "")}`}
+              className="quote-detail-client-link"
+            >
+              <I.phone s={11} />
+              <span>{contact.phone}</span>
+            </a>
+          ) : null}
+          {contact.email ? (
+            <a
+              href={`mailto:${contact.email}`}
+              className="quote-detail-client-link"
+            >
+              <I.mail s={11} />
+              <span>{contact.email}</span>
+            </a>
+          ) : null}
+          {address ? (
+            <span className="quote-detail-client-addr">
+              <I.pin s={11} />
+              <span>{address}</span>
+            </span>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -821,16 +895,33 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function TasksAndCalendarStrip({
+  quote,
+  archived,
+}: {
+  quote: Quote;
+  archived: boolean;
+}) {
+  return (
+    <div className="quote-detail-tasks-strip">
+      <div className="quote-detail-tasks-strip-main">
+        <TasksKanban quote={quote} archived={archived} />
+      </div>
+      <div className="quote-detail-tasks-strip-side">
+        <MiniCalendar quote={quote} />
+      </div>
+    </div>
+  );
+}
+
 function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) {
-  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const hasValue = quote.value !== null;
   const netto = hasValue ? quote.value! / 1.23 : null;
   const vat = hasValue ? quote.value! - netto! : null;
-  const ownerName = useOwnerName(quote);
   void archived;
 
   return (
-    <div className="quote-detail-stack-row">
+    <div className="quote-detail-stack-row quote-detail-stack-row-compact">
       <Section title="Dane kontaktowe" icon={<I.user s={14} />}>
         <div className="quote-detail-fields">
           <Field label="Nazwa / firma" value={quote.contact.name} />
@@ -883,44 +974,6 @@ function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) 
         </div>
       </Section>
 
-      <Section title="Projekt" icon={<I.layers s={14} />}>
-        <div className="quote-detail-fields">
-          <Field
-            label="Typ"
-            value={
-              quote.projectType.length > 0 ? (
-                <div className="quote-detail-types">
-                  {quote.projectType.map((t) => {
-                    const s = getProjectTypeStyle(projectTypes, t);
-                    return (
-                      <span
-                        key={t}
-                        className="kanban-chip kanban-chip-type"
-                        style={{
-                          background: s.bg,
-                          color: s.fg,
-                          borderColor: s.border,
-                        }}
-                      >
-                        <span className="kanban-chip-dot" style={{ background: s.fg }} />
-                        {t}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : (
-                <span className="quote-detail-muted">— brak —</span>
-              )
-            }
-          />
-          <Field label="Status" value={quote.status} />
-          <Field label="Termin oferty" value={formatDeadline(quote.deadline)} />
-          <Field label="Opiekun" value={ownerName} />
-          <Field label="Źródło leada" value={<span className="quote-detail-muted">— uzupełnij —</span>} />
-          <Field label="Ważność oferty" value={<span className="quote-detail-muted">30 dni (domyślnie)</span>} />
-        </div>
-      </Section>
-
       <Section title="Wartość" icon={<I.pln s={14} />}>
         {hasValue ? (
           <div className="quote-detail-money">
@@ -946,10 +999,6 @@ function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) 
           </div>
         )}
       </Section>
-
-      <OpisUwagiSection quoteId={quote._id} author={ownerName} />
-
-      <ZadaniaSection />
     </div>
   );
 }
@@ -1387,217 +1436,3 @@ function TabPowiazane() {
   );
 }
 
-function formatNoteDate(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function OpisUwagiSection({
-  quoteId,
-  author,
-}: {
-  quoteId: Id<"quotes">;
-  author: string;
-}) {
-  const notes = useQuery(api.quoteNotes.list, { quoteId }) ?? [];
-  const addNote = useMutation(api.quoteNotes.add);
-  const removeNote = useMutation(api.quoteNotes.remove);
-  const [draft, setDraft] = useState("");
-
-  function handleAdd() {
-    const text = draft.trim();
-    if (!text) return;
-    void addNote({ quoteId, text, authorName: author });
-    setDraft("");
-  }
-
-  return (
-    <Section
-      title="Opis/Uwagi"
-      icon={<I.doc s={14} />}
-      action={
-        <span className="quote-detail-todo-count">{notes.length}</span>
-      }
-      bodyClassName="quote-detail-todo-body"
-    >
-      <ul className="quote-detail-notes-list">
-        {notes.length === 0 && (
-          <li className="quote-detail-todo-empty">
-            Brak notatek — dodaj pierwszą poniżej.
-          </li>
-        )}
-        {notes.map((n) => (
-          <li key={n._id as unknown as string} className="quote-detail-note-item">
-            <div className="quote-detail-note-body">
-              <div className="quote-detail-note-text">{n.text}</div>
-              <div className="quote-detail-note-meta">
-                <span className="quote-detail-note-author">
-                  <span className="kanban-card-owner-avatar">
-                    {ownerInitials(n.authorName)}
-                  </span>
-                  <span>{n.authorName}</span>
-                </span>
-                <span className="quote-detail-note-sep">·</span>
-                <span>{formatNoteDate(n.createdAt)}</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="quote-detail-todo-remove"
-              onClick={() => void removeNote({ id: n._id })}
-              aria-label="Usuń notatkę"
-            >
-              <I.trash s={12} />
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <form
-        className="quote-detail-todo-add quote-detail-note-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleAdd();
-        }}
-      >
-        <span className="quote-detail-todo-add-icon">
-          <I.plus s={14} />
-        </span>
-        <textarea
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-              e.preventDefault();
-              handleAdd();
-            }
-          }}
-          placeholder="Dodaj notatkę… (Cmd/Ctrl+Enter)"
-          className="quote-detail-todo-input quote-detail-note-input"
-          rows={2}
-        />
-        <button
-          type="submit"
-          className="quote-detail-todo-submit"
-          disabled={!draft.trim()}
-        >
-          Dodaj
-        </button>
-      </form>
-    </Section>
-  );
-}
-
-type QuoteTask = { id: string; title: string; done: boolean };
-
-function ZadaniaSection() {
-  const [tasks, setTasks] = useState<QuoteTask[]>([
-    { id: "t1", title: "Skontaktuj się z klientem", done: false },
-    { id: "t2", title: "Przygotuj wstępną wycenę", done: false },
-  ]);
-  const [draft, setDraft] = useState("");
-
-  const remaining = tasks.filter((t) => !t.done).length;
-
-  function addTask() {
-    const title = draft.trim();
-    if (!title) return;
-    setTasks((prev) => [
-      ...prev,
-      { id: `t-${Date.now()}`, title, done: false },
-    ]);
-    setDraft("");
-  }
-
-  function toggle(id: string) {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
-    );
-  }
-
-  function remove(id: string) {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }
-
-  return (
-    <Section
-      title="Zadania"
-      icon={<I.check s={14} />}
-      action={
-        <span className="quote-detail-todo-count">
-          {remaining} / {tasks.length}
-        </span>
-      }
-      bodyClassName="quote-detail-todo-body"
-    >
-      <ul className="quote-detail-todo-list">
-        {tasks.length === 0 && (
-          <li className="quote-detail-todo-empty">
-            Brak zadań — dodaj pierwsze poniżej.
-          </li>
-        )}
-        {tasks.map((t) => (
-          <li
-            key={t.id}
-            className={`quote-detail-todo-item${t.done ? " is-done" : ""}`}
-          >
-            <button
-              type="button"
-              className="quote-detail-todo-row"
-              onClick={() => toggle(t.id)}
-              aria-label={
-                t.done ? "Oznacz jako niewykonane" : "Oznacz jako wykonane"
-              }
-              aria-pressed={t.done}
-            >
-              <span className="quote-detail-todo-check" aria-hidden="true">
-                {t.done && <I.check s={12} sw={2.6} />}
-              </span>
-              <span className="quote-detail-todo-text">{t.title}</span>
-            </button>
-            <button
-              type="button"
-              className="quote-detail-todo-remove"
-              onClick={() => remove(t.id)}
-              aria-label="Usuń zadanie"
-            >
-              <I.trash s={12} />
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <form
-        className="quote-detail-todo-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          addTask();
-        }}
-      >
-        <span className="quote-detail-todo-add-icon">
-          <I.plus s={14} />
-        </span>
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Dodaj zadanie…"
-          className="quote-detail-todo-input"
-        />
-        <button
-          type="submit"
-          className="quote-detail-todo-submit"
-          disabled={!draft.trim()}
-        >
-          Dodaj
-        </button>
-      </form>
-    </Section>
-  );
-}

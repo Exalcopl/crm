@@ -109,6 +109,16 @@ export default defineSchema({
       phone: v.optional(v.string()),
       email: v.optional(v.string()),
     }),
+    investment: v.optional(
+      v.object({
+        name: v.optional(v.string()),
+        address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+        notes: v.optional(v.string()),
+      }),
+    ),
     value: v.union(v.number(), v.null()),
     status: v.union(
       v.literal("Do zrobienia"),
@@ -158,4 +168,24 @@ export default defineSchema({
     authorName: v.string(),
     createdAt: v.number(),
   }).index("by_quote", ["quoteId"]),
+
+  tasks: defineTable({
+    quoteId: v.id("quotes"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(
+      v.literal("todo"),
+      v.literal("in_progress"),
+      v.literal("done"),
+    ),
+    assigneeId: v.union(v.id("users"), v.null()),
+    dueDate: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.union(v.id("users"), v.null()),
+    completedAt: v.optional(v.number()),
+    order: v.number(),
+  })
+    .index("by_quote", ["quoteId"])
+    .index("by_quote_status", ["quoteId", "status"])
+    .index("by_assignee", ["assigneeId"]),
 });

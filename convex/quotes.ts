@@ -158,6 +158,42 @@ export const setOwner = mutation({
   },
 });
 
+export const setInvestment = mutation({
+  args: {
+    id: v.id("quotes"),
+    investment: v.union(
+      v.object({
+        name: v.optional(v.string()),
+        address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+        notes: v.optional(v.string()),
+      }),
+      v.null(),
+    ),
+  },
+  handler: async (ctx, { id, investment }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+    if (investment === null) {
+      await ctx.db.patch(id, { investment: undefined });
+      return;
+    }
+    const trim = (s?: string) => (s?.trim() ? s.trim() : undefined);
+    await ctx.db.patch(id, {
+      investment: {
+        name: trim(investment.name),
+        address: trim(investment.address),
+        placeId: trim(investment.placeId),
+        lat: investment.lat,
+        lng: investment.lng,
+        notes: trim(investment.notes),
+      },
+    });
+  },
+});
+
 export const archive = mutation({
   args: { id: v.id("quotes") },
   handler: async (ctx, { id }) => {
@@ -186,6 +222,11 @@ export const remove = mutation({
       .withIndex("by_quote", (q) => q.eq("quoteId", id))
       .collect();
     await Promise.all(notes.map((n) => ctx.db.delete(n._id)));
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_quote", (q) => q.eq("quoteId", id))
+      .collect();
+    await Promise.all(tasks.map((t) => ctx.db.delete(t._id)));
     await ctx.db.delete(id);
   },
 });
