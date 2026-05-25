@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useEffect, useRef, useState } from "react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -26,14 +26,14 @@ import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteItemsEditor } from "./_components/quote-items-editor";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
+import { QuoteFiles } from "./_components/quote-files";
 
-type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "pliki" | "aktywnosc" | "powiazane";
+type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
 const TABS: { id: DetailTab; label: string; icon: React.ReactNode }[] = [
   { id: "szczegoly", label: "Szczegóły", icon: <I.doc s={22} /> },
   { id: "pozycje", label: "Pozycje", icon: <I.box s={22} /> },
   { id: "pomiary", label: "Pomiary", icon: <I.ruler s={22} /> },
-  { id: "pliki", label: "Pliki", icon: <I.paperclip s={22} /> },
   { id: "aktywnosc", label: "Aktywność", icon: <I.clock s={22} /> },
   { id: "powiazane", label: "Powiązane", icon: <I.link s={22} /> },
 ];
@@ -451,6 +451,7 @@ function QuoteDetailLayout({
             <InvestmentSection quote={quote} archived={archived} />
             <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             <TasksKanban quote={quote} archived={archived} />
+            <QuoteFiles quote={quote} archived={archived} />
           </>
         )}
         <div className="quote-detail-main">
@@ -465,7 +466,6 @@ function QuoteDetailLayout({
             <TabPozycje quote={quote} archived={archived} />
           )}
           {activeTab === "pomiary" && <TabPomiary quote={quote} />}
-          {activeTab === "pliki" && <TabPliki quote={quote} />}
           {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
           {activeTab === "powiazane" && <TabPowiazane />}
         </div>
@@ -992,318 +992,6 @@ function TabPomiary({ quote }: { quote: Quote }) {
   );
 }
 
-type SpFile = {
-  id: string;
-  name: string;
-  size: number;
-  lastModifiedDateTime: string;
-  mimeType: string;
-};
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatFileDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pl-PL", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function base64ToBlob(base64: string, mimeType: string): Blob {
-  const bytes = atob(base64);
-  const arr = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  return new Blob([arr], { type: mimeType });
-}
-
-function TabPliki({ quote }: { quote: Quote }) {
-  const [files, setFiles] = useState<SpFile[]>([]);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState<{ fileId: string; fileName: string } | null>(null);
-  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
-  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const listFiles = useAction(api.sharepoint.listQuoteFiles);
-  const createSession = useAction(api.sharepoint.createUploadSession);
-  const getFileContent = useAction(api.sharepoint.getFileForPreview);
-
-  const hasFolder =
-    quote.sharepoint?.status === "created" && !!quote.sharepoint.subfolderItemId;
-
-  async function loadFiles() {
-    if (!hasFolder) return;
-    setIsLoadingFiles(true);
-    try {
-      const result = await listFiles({ quoteId: quote._id });
-      setFiles(result);
-    } catch {
-      // silent — spróbuj ponownie ręcznie
-    } finally {
-      setIsLoadingFiles(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!hasFolder) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadFiles();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote._id, hasFolder]);
-
-  useEffect(() => {
-    return () => {
-      if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-    };
-  }, [pdfBlobUrl]);
-
-  async function handleUpload(file: File) {
-    if (isUploading) return;
-    setIsUploading(true);
-    try {
-      const { uploadUrl } = await createSession({ quoteId: quote._id, fileName: file.name });
-      const headers: Record<string, string> = { "Content-Length": String(file.size) };
-      if (file.size > 0) {
-        headers["Content-Range"] = `bytes 0-${file.size - 1}/${file.size}`;
-      }
-      const res = await fetch(uploadUrl, { method: "PUT", headers, body: file });
-      if (!res.ok && res.status !== 201) throw new Error(`Upload ${res.status}`);
-      await loadFiles();
-    } catch (e) {
-      console.error("[upload]", e);
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    setIsDragging(true);
-  }
-
-  function handleDragLeave(e: React.DragEvent) {
-    e.preventDefault();
-    setIsDragging(false);
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) void handleUpload(file);
-  }
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) void handleUpload(file);
-    e.target.value = "";
-  }
-
-  async function openPdfPreview(file: SpFile) {
-    setPdfPreview({ fileId: file.id, fileName: file.name });
-    setPdfBlobUrl(null);
-    setIsLoadingPdf(true);
-    setPdfError(null);
-    try {
-      const { base64, contentType } = await getFileContent({ quoteId: quote._id, fileId: file.id });
-      const blob = base64ToBlob(base64, contentType);
-      setPdfBlobUrl(URL.createObjectURL(blob));
-    } catch (e) {
-      setPdfError(e instanceof Error ? e.message : "Błąd podglądu");
-    } finally {
-      setIsLoadingPdf(false);
-    }
-  }
-
-  async function downloadFile(file: SpFile) {
-    try {
-      const { base64, contentType } = await getFileContent({ quoteId: quote._id, fileId: file.id });
-      const blob = base64ToBlob(base64, contentType);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("[download]", e);
-    }
-  }
-
-  function closePdfPreview() {
-    if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
-    setPdfPreview(null);
-    setPdfBlobUrl(null);
-    setPdfError(null);
-  }
-
-  if (!hasFolder) {
-    return (
-      <div className="quote-detail-stack">
-        <Section title="Pliki i załączniki" icon={<I.paperclip s={14} />}>
-          <div className="quote-detail-files-no-folder">
-            <I.paperclip s={20} />
-            <div className="quote-detail-files-no-folder-title">Brak folderu SharePoint</div>
-            <div className="quote-detail-files-no-folder-hint">
-              Utwórz folder SharePoint dla tej wyceny (zakładka Szczegóły), aby zarządzać plikami.
-            </div>
-          </div>
-        </Section>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="quote-detail-stack">
-        <Section
-          title="Pliki i załączniki"
-          icon={<I.paperclip s={14} />}
-          action={
-            <button
-              className="quote-detail-files-refresh"
-              onClick={() => void loadFiles()}
-              disabled={isLoadingFiles}
-              title="Odśwież"
-            >
-              <I.refresh s={14} />
-            </button>
-          }
-        >
-          {isLoadingFiles && files.length === 0 && (
-            <div className="quote-detail-files-empty">Ładowanie plików…</div>
-          )}
-
-          {!isLoadingFiles && files.length === 0 && (
-            <div className="quote-detail-files-empty">Folder jest pusty</div>
-          )}
-
-          {files.length > 0 && (
-            <table className="quote-detail-files-table">
-              <thead>
-                <tr>
-                  <th>Nazwa</th>
-                  <th>Rozmiar</th>
-                  <th>Data modyfikacji</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {files.map((file) => {
-                  const isPdf =
-                    file.mimeType === "application/pdf" ||
-                    file.name.toLowerCase().endsWith(".pdf");
-                  return (
-                    <tr key={file.id} className="quote-detail-files-row">
-                      <td className="quote-detail-files-name">
-                        {isPdf ? (
-                          <button
-                            className="quote-detail-files-name-btn"
-                            onClick={() => void openPdfPreview(file)}
-                          >
-                            <I.doc s={13} />
-                            <span>{file.name}</span>
-                          </button>
-                        ) : (
-                          <span className="quote-detail-files-name-text">
-                            <I.doc s={13} />
-                            <span>{file.name}</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="quote-detail-files-size">{formatFileSize(file.size)}</td>
-                      <td className="quote-detail-files-date">
-                        {formatFileDate(file.lastModifiedDateTime)}
-                      </td>
-                      <td className="quote-detail-files-actions">
-                        <button
-                          className="quote-detail-files-action-btn"
-                          onClick={() => void downloadFile(file)}
-                          title="Pobierz"
-                        >
-                          <I.download s={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-
-          <div
-            className={`quote-detail-dropzone${isDragging ? " active" : ""}${isUploading ? " uploading" : ""}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-            style={{ cursor: isUploading ? "default" : "pointer" }}
-          >
-            {isUploading ? (
-              <>
-                <I.refresh s={20} />
-                <div className="quote-detail-dropzone-title">Wysyłanie…</div>
-              </>
-            ) : (
-              <>
-                <I.download s={20} />
-                <div className="quote-detail-dropzone-title">
-                  {isDragging ? "Upuść plik tutaj" : "Przeciągnij pliki tutaj"}
-                </div>
-                <div className="quote-detail-dropzone-text">
-                  Lub kliknij, aby wybrać plik z dysku
-                </div>
-              </>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              style={{ display: "none" }}
-              onChange={handleInputChange}
-            />
-          </div>
-        </Section>
-      </div>
-
-      {pdfPreview && (
-        <>
-          <div className="pdf-drawer-overlay" onClick={closePdfPreview} />
-          <div className="pdf-drawer">
-            <div className="pdf-drawer-header">
-              <span className="pdf-drawer-filename">{pdfPreview.fileName}</span>
-              <button className="pdf-drawer-close" onClick={closePdfPreview}>
-                <I.x s={16} />
-              </button>
-            </div>
-            <div className="pdf-drawer-body">
-              {isLoadingPdf && (
-                <div className="pdf-drawer-state">Ładowanie podglądu…</div>
-              )}
-              {pdfError && (
-                <div className="pdf-drawer-state pdf-drawer-error">{pdfError}</div>
-              )}
-              {pdfBlobUrl && (
-                <iframe
-                  src={pdfBlobUrl}
-                  className="pdf-drawer-iframe"
-                  title={pdfPreview.fileName}
-                />
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </>
-  );
-}
 
 function TabAktywnosc({ quote }: { quote: Quote }) {
   const events = [

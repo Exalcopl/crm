@@ -162,6 +162,9 @@ export default defineSchema({
     ownerId: v.union(v.id("users"), v.null()),
     ownerLegacy: v.optional(v.string()),
     archived: v.optional(v.boolean()),
+    source: v.optional(v.union(v.literal("admin"), v.literal("public"))),
+    publicUploadToken: v.optional(v.string()),
+    publicUploadTokenExpiresAt: v.optional(v.number()),
     sharepoint: v.optional(
       v.object({
         webUrl: v.string(),
@@ -230,6 +233,13 @@ export default defineSchema({
     lineTotal: v.number(),
     order: v.number(),
   }).index("by_quote", ["quoteId"]),
+
+  publicSubmissionAttempts: defineTable({
+    ip: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_ip_createdAt", ["ip", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 
   clientNotes: defineTable({
     clientId: v.id("clients"),

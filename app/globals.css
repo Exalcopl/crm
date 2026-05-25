@@ -128,3 +128,163 @@
     @apply font-sans;
   }
 }
+
+/* FilePicker — współdzielony picker plików (admin + public) */
+.fp-root {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fp-dropzone {
+  border: 1.5px dashed color-mix(in oklab, currentColor 30%, transparent);
+  border-radius: 10px;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: color-mix(in oklab, currentColor 2%, transparent);
+}
+
+.fp-dropzone:hover:not(.is-disabled) {
+  border-color: color-mix(in oklab, currentColor 55%, transparent);
+  background: color-mix(in oklab, currentColor 4%, transparent);
+}
+
+.fp-dropzone.is-dragging {
+  border-color: color-mix(in oklab, currentColor 70%, transparent);
+  background: color-mix(in oklab, currentColor 7%, transparent);
+}
+
+.fp-dropzone.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fp-dropzone-public {
+  padding: 36px 24px;
+}
+
+.fp-dropzone-icon {
+  opacity: 0.65;
+}
+
+.fp-dropzone-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.fp-dropzone-hint {
+  font-size: 12px;
+  opacity: 0.65;
+  text-align: center;
+}
+
+.fp-errors {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px;
+  background: color-mix(in oklab, oklch(0.7 0.15 25) 14%, transparent);
+  border: 1px solid color-mix(in oklab, oklch(0.7 0.15 25) 30%, transparent);
+  border-radius: 8px;
+  color: oklch(0.55 0.18 25);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.fp-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid color-mix(in oklab, currentColor 14%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, currentColor 2%, transparent);
+}
+
+.fp-item-thumb {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  background: color-mix(in oklab, currentColor 8%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.fp-item-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fp-item-ext {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.fp-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.fp-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fp-item-meta {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.fp-item-remove {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in oklab, currentColor 10%, transparent);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.fp-item-remove:hover {
+  background: color-mix(in oklab, oklch(0.7 0.15 25) 25%, transparent);
+  color: oklch(0.55 0.18 25);
+  opacity: 1;
+}
+
+.fp-item-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}

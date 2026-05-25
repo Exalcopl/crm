@@ -2,10 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
+import { FilePicker } from "@/app/_components/file-picker";
 import {
   getProjectTypeStyle,
   QUOTE_STATUSES,
@@ -67,7 +68,9 @@ type RankedClient = { client: Client; count: number; saved: boolean };
 
 export default function NowaWycenaPage() {
   const router = useRouter();
+  const convex = useConvex();
   const createQuote = useMutation(api.quotes.create);
+  const createUploadSession = useAction(api.sharepoint.createUploadSession);
   const convexQuotes = useQuery(api.quotes.list) ?? [];
   const activeProjectTypes = (useQuery(api.projectTypes.listActive) ?? []) as Array<{ _id: string; name: string; color: string }>;
   const convexClients = (useQuery(api.clients.list) ?? []) as Doc<"clients">[];
@@ -136,6 +139,13 @@ export default function NowaWycenaPage() {
   const [ownerId, setOwnerId] = useState<Id<"users"> | null>(null);
   const [touched, setTouched] = useState(false);
   const [forceNewClient, setForceNewClient] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [submitStatus, setSubmitStatus] = useState<
+    | { kind: "idle" }
+    | { kind: "creating" }
+    | { kind: "waitingFolder" }
+    | { kind: "uploading"; done: number; total: number }
+  >({ kind: "idle" });
 
   type MatchedClient = { _id: Id<"clients">; name: string } | null;
   const matchedClient =
@@ -216,9 +226,43 @@ export default function NowaWycenaPage() {
     router.push("/admin/wyceny");
   }
 
+  async function waitForSharepointFolder(quoteId: Id<"quotes">) {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const q = await convex.query(api.quotes.get, { id: quoteId });
+      if (q?.sharepoint?.status === "created") return true;
+      if (q?.sharepoint?.status === "failed") return false;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return false;
+  }
+
+  async function uploadOne(quoteId: Id<"quotes">, file: File) {
+    const { uploadUrl } = await createUploadSession({
+      quoteId,
+      fileName: file.name,
+    });
+    const headers: Record<string, string> = {
+      "Content-Length": String(file.size),
+    };
+    if (file.size > 0) {
+      headers["Content-Range"] = `bytes 0-${file.size - 1}/${file.size}`;
+    }
+    const res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers,
+      body: file,
+    });
+    if (!res.ok && res.status !== 201) {
+      throw new Error(`Upload ${res.status}`);
+    }
+  }
+
   async function submitForm() {
     setTouched(true);
     if (!canSubmit) return;
+    if (submitStatus.kind !== "idle") return;
+
     const contact: ContactInfo = {
       name: name.trim(),
       street: trimOrUndefined(street),
@@ -228,6 +272,7 @@ export default function NowaWycenaPage() {
     };
 
     try {
+      setSubmitStatus({ kind: "creating" });
       const result = await createQuote({
         contact,
         projectType: projectTypes,
@@ -236,9 +281,40 @@ export default function NowaWycenaPage() {
         deadline,
         ownerId,
       });
+
+      if (pendingFiles.length > 0) {
+        setSubmitStatus({ kind: "waitingFolder" });
+        const ready = await waitForSharepointFolder(result._id);
+        if (ready) {
+          setSubmitStatus({
+            kind: "uploading",
+            done: 0,
+            total: pendingFiles.length,
+          });
+          for (let i = 0; i < pendingFiles.length; i++) {
+            try {
+              await uploadOne(result._id, pendingFiles[i]);
+            } catch (e) {
+              console.error("[upload]", e);
+            }
+            setSubmitStatus({
+              kind: "uploading",
+              done: i + 1,
+              total: pendingFiles.length,
+            });
+          }
+        } else {
+          // Folder się nie utworzył — przejdź dalej, pliki można dodać w widoku szczegółów
+          console.warn(
+            "Folder SharePoint nie był gotowy w 30s — pliki nie zostały wgrane",
+          );
+        }
+      }
+
       router.push(`/admin/wyceny/${encodeURIComponent(result.code)}`);
     } catch (err) {
       console.error("Błąd zapisu wyceny:", err);
+      setSubmitStatus({ kind: "idle" });
     }
   }
 
@@ -269,9 +345,19 @@ export default function NowaWycenaPage() {
         <RibbonGroup label="Akcje">
           <RibbonBtn
             icon={<I.save s={22} sw={2.2} />}
-            label="Zapisz"
+            label={
+              submitStatus.kind === "creating"
+                ? "Zapisywanie…"
+                : submitStatus.kind === "waitingFolder"
+                  ? "Przygotowuję folder…"
+                  : submitStatus.kind === "uploading"
+                    ? `Wysyłam ${submitStatus.done}/${submitStatus.total}`
+                    : "Zapisz"
+            }
             primary
-            disabled={touched && !canSubmit}
+            disabled={
+              submitStatus.kind !== "idle" || (touched && !canSubmit)
+            }
             onClick={submitForm}
           />
         </RibbonGroup>
@@ -556,6 +642,29 @@ export default function NowaWycenaPage() {
               {touched && !valueValid && (
                 <span className="fluent-field-error">
                   Podaj liczbę nieujemną.
+                </span>
+              )}
+            </FormBox>
+
+            <FormBox
+              title="Pliki projektowe i zdjęcia"
+              icon={<I.paperclip s={14} />}
+              span={12}
+              tag={<span className="quote-new-v2-hint">opcjonalnie</span>}
+            >
+              <FilePicker
+                files={pendingFiles}
+                onChange={setPendingFiles}
+                disabled={submitStatus.kind !== "idle"}
+              />
+              {submitStatus.kind === "waitingFolder" && (
+                <span className="fluent-field-hint">
+                  Tworzymy folder na SharePoint, zaraz wgramy pliki…
+                </span>
+              )}
+              {submitStatus.kind === "uploading" && (
+                <span className="fluent-field-hint">
+                  Wysyłanie plików: {submitStatus.done} / {submitStatus.total}
                 </span>
               )}
             </FormBox>

@@ -7,6 +7,7 @@ import {
   query,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { normalizePhone } from "./_lib/phone";
 import type { Id } from "./_generated/dataModel";
 
 const STATUS_VALUES = v.union(
@@ -191,6 +192,7 @@ export const create = mutation({
       projectType: args.projectType,
       ownerId: args.ownerId,
       archived: false,
+      source: "admin",
     });
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
@@ -198,6 +200,256 @@ export const create = mutation({
     });
 
     return { _id: quoteId, code };
+  },
+});
+
+const PUBLIC_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1h
+const PUBLIC_RATE_LIMIT_MAX = 3;
+const PUBLIC_UPLOAD_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function generateUploadToken(): string {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function fingerprintFor(phone: string | undefined, email: string | undefined): string {
+  const p = normalizePhone(phone);
+  if (p) return `p:${p}`;
+  const e = (email ?? "").trim().toLowerCase();
+  if (e) return `e:${e}`;
+  return "anon";
+}
+
+const PUBLIC_ANSWER_VALUE = v.object({
+  questionId: v.id("projectTypeQuestions"),
+  textValue: v.optional(v.string()),
+  booleanValue: v.optional(v.boolean()),
+  numberValue: v.optional(v.number()),
+  numberUnit: v.optional(v.string()),
+});
+
+export const createPublic = mutation({
+  args: {
+    contact: CONTACT_VALUE,
+    projectType: v.array(PROJECT_TYPE_VALUE),
+    investment: v.optional(
+      v.object({
+        address: v.optional(v.string()),
+        notes: v.optional(v.string()),
+      }),
+    ),
+    deadline: v.optional(v.string()),
+    description: v.optional(v.string()),
+    answers: v.array(PUBLIC_ANSWER_VALUE),
+    // honeypot — niewidoczne pole; jeśli wypełnione → bot
+    website: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ code: string; quoteId: Id<"quotes">; uploadToken: string }> => {
+    // honeypot — udajemy sukces żeby nie informować bota
+    if (args.website && args.website.trim().length > 0) {
+      return {
+        code: "WC-0000-000",
+        quoteId: "honeypot" as unknown as Id<"quotes">,
+        uploadToken: "blocked",
+      };
+    }
+
+    const contactName = args.contact.name.trim();
+    if (!contactName) throw new Error("Podaj nazwę lub firmę");
+
+    const phone = args.contact.phone?.trim() || undefined;
+    const email = args.contact.email?.trim() || undefined;
+    if (!phone && !email) {
+      throw new Error("Podaj telefon lub e-mail");
+    }
+
+    if (args.projectType.length === 0) {
+      throw new Error("Wybierz przynajmniej jeden typ projektu");
+    }
+
+    // rate-limit po fingerprint (telefon / email)
+    const fp = fingerprintFor(phone, email);
+    const since = Date.now() - PUBLIC_RATE_LIMIT_WINDOW_MS;
+    const recent = await ctx.db
+      .query("publicSubmissionAttempts")
+      .withIndex("by_ip_createdAt", (q) => q.eq("ip", fp).gte("createdAt", since))
+      .collect();
+    if (recent.length >= PUBLIC_RATE_LIMIT_MAX) {
+      throw new Error(
+        "Otrzymaliśmy już Twoje zapytanie. Spróbuj ponownie za godzinę lub zadzwoń do nas.",
+      );
+    }
+    await ctx.db.insert("publicSubmissionAttempts", {
+      ip: fp,
+      createdAt: Date.now(),
+    });
+
+    // Walidacja pytań pomocniczych (isRequired)
+    const allTypes = await ctx.db.query("projectTypes").collect();
+    const typesByName = new Map(allTypes.map((t) => [t.name, t]));
+    const requestedTypeIds = new Set<string>();
+    for (const name of args.projectType) {
+      const t = typesByName.get(name);
+      if (!t) throw new Error(`Nieznany typ projektu: ${name}`);
+      if (!t.isActive) throw new Error(`Typ projektu "${name}" jest nieaktywny`);
+      requestedTypeIds.add(t._id as unknown as string);
+    }
+
+    const answeredQuestionIds = new Set(
+      args.answers.map((a) => a.questionId as unknown as string),
+    );
+
+    for (const typeIdStr of requestedTypeIds) {
+      const typeId = typeIdStr as unknown as Id<"projectTypes">;
+      const questions = await ctx.db
+        .query("projectTypeQuestions")
+        .withIndex("by_projectType", (q) => q.eq("projectTypeId", typeId))
+        .collect();
+      for (const q of questions) {
+        if (!q.isActive || !q.isRequired) continue;
+        if (!answeredQuestionIds.has(q._id as unknown as string)) {
+          throw new Error(`Brakuje odpowiedzi na pytanie: "${q.text}"`);
+        }
+      }
+    }
+
+    const contact = {
+      name: contactName,
+      street: args.contact.street?.trim() || undefined,
+      postalCity: args.contact.postalCity?.trim() || undefined,
+      phone,
+      email,
+    };
+
+    const createdAt = Date.now();
+    const code = await generateCode(ctx, args.projectType, createdAt);
+    const clientId = await ctx.runMutation(internal.clients.getOrCreate, {
+      contact,
+    });
+
+    const deadline =
+      args.deadline && /^\d{4}-\d{2}-\d{2}$/.test(args.deadline)
+        ? args.deadline
+        : (() => {
+            const d = new Date();
+            d.setDate(d.getDate() + 14);
+            return d.toISOString().slice(0, 10);
+          })();
+
+    const uploadToken = generateUploadToken();
+
+    const quoteId: Id<"quotes"> = await ctx.db.insert("quotes", {
+      code,
+      clientId,
+      contact,
+      value: null,
+      status: "Do zrobienia",
+      deadline,
+      projectType: args.projectType,
+      ownerId: null,
+      archived: false,
+      source: "public",
+      publicUploadToken: uploadToken,
+      publicUploadTokenExpiresAt: createdAt + PUBLIC_UPLOAD_TOKEN_TTL_MS,
+      investment: args.investment
+        ? {
+            address: args.investment.address?.trim() || undefined,
+            notes: args.investment.notes?.trim() || undefined,
+          }
+        : undefined,
+    });
+
+    // Pytania pomocnicze
+    for (const a of args.answers) {
+      const question = await ctx.db.get(a.questionId);
+      if (!question) continue;
+      if (!requestedTypeIds.has(question.projectTypeId as unknown as string)) continue;
+      const isEmpty =
+        a.textValue === undefined &&
+        a.booleanValue === undefined &&
+        a.numberValue === undefined;
+      if (isEmpty) continue;
+      await ctx.db.insert("quoteAnswers", {
+        quoteId,
+        questionId: a.questionId,
+        projectTypeId: question.projectTypeId,
+        textValue: question.answerType === "text" ? a.textValue : undefined,
+        booleanValue:
+          question.answerType === "boolean" ? a.booleanValue : undefined,
+        numberValue:
+          question.answerType === "number" ? a.numberValue : undefined,
+        numberUnit:
+          question.answerType === "number" ? a.numberUnit : undefined,
+        updatedAt: createdAt,
+      });
+    }
+
+    // Notatka z opisem od klienta
+    const description = args.description?.trim();
+    if (description) {
+      await ctx.db.insert("quoteNotes", {
+        quoteId,
+        text: description,
+        authorId: null,
+        authorName: contactName,
+        createdAt,
+      });
+    }
+
+    await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
+      quoteId,
+    });
+
+    return { code, quoteId, uploadToken };
+  },
+});
+
+export const getPublicStatus = query({
+  args: { quoteId: v.id("quotes"), token: v.string() },
+  handler: async (
+    ctx,
+    { quoteId, token },
+  ): Promise<{
+    code: string;
+    sharepointStatus: "pending" | "created" | "failed" | null;
+  } | null> => {
+    const quote = await ctx.db.get(quoteId);
+    if (!quote) return null;
+    if (!quote.publicUploadToken || quote.publicUploadToken !== token) {
+      return null;
+    }
+    if (
+      quote.publicUploadTokenExpiresAt &&
+      quote.publicUploadTokenExpiresAt < Date.now()
+    ) {
+      return null;
+    }
+    return {
+      code: quote.code,
+      sharepointStatus: quote.sharepoint?.status ?? null,
+    };
+  },
+});
+
+export const _getForPublicUpload = internalQuery({
+  args: { quoteId: v.id("quotes"), token: v.string() },
+  handler: async (ctx, { quoteId, token }) => {
+    const quote = await ctx.db.get(quoteId);
+    if (!quote) return null;
+    if (!quote.publicUploadToken || quote.publicUploadToken !== token) {
+      return null;
+    }
+    if (
+      quote.publicUploadTokenExpiresAt &&
+      quote.publicUploadTokenExpiresAt < Date.now()
+    ) {
+      return null;
+    }
+    return quote;
   },
 });
 

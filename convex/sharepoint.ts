@@ -250,6 +250,91 @@ export const listQuoteFiles = action({
   },
 });
 
+const PUBLIC_ALLOWED_EXTENSIONS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "pdf",
+  "dwg",
+  "dxf",
+];
+
+const PUBLIC_MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+
+function getFileExtension(name: string): string {
+  const idx = name.lastIndexOf(".");
+  if (idx < 0) return "";
+  return name.slice(idx + 1).toLowerCase();
+}
+
+export const createPublicUploadSession = action({
+  args: {
+    quoteId: v.id("quotes"),
+    token: v.string(),
+    fileName: v.string(),
+    fileSize: v.number(),
+  },
+  handler: async (
+    ctx,
+    { quoteId, token, fileName, fileSize },
+  ): Promise<{ uploadUrl: string }> => {
+    if (fileSize > PUBLIC_MAX_FILE_BYTES) {
+      throw new Error("Plik jest za duży (max 20 MB)");
+    }
+    const ext = getFileExtension(fileName);
+    if (!PUBLIC_ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new Error(
+        `Nieobsługiwany typ pliku (.${ext || "?"}). Dozwolone: ${PUBLIC_ALLOWED_EXTENSIONS.join(", ")}`,
+      );
+    }
+
+    const quote = await ctx.runQuery(internal.quotes._getForPublicUpload, {
+      quoteId,
+      token,
+    });
+    if (!quote) {
+      throw new Error("Sesja uploadu wygasła lub jest nieprawidłowa");
+    }
+    const sp = quote.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId || sp.status !== "created") {
+      throw new Error("Folder dla wyceny nie jest jeszcze gotowy");
+    }
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token2 = await getGraphToken(tenantId, clientId, clientSecret);
+    const encodedName = encodeURIComponent(fileName);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/${encodedName}:/createUploadSession`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token2}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          item: { "@microsoft.graph.conflictBehavior": "rename" },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph public upload session ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as { uploadUrl: string };
+    return { uploadUrl: data.uploadUrl };
+  },
+});
+
 export const createUploadSession = action({
   args: { quoteId: v.id("quotes"), fileName: v.string() },
   handler: async (ctx, { quoteId, fileName }) => {
