@@ -21,14 +21,13 @@ function buildClientFolderName(contactName: string): string {
 }
 
 function buildQuoteSubfolderName(
-  createdAt: number,
-  projectTypes: string[],
   code: string,
+  createdAt: number,
+  clientName: string,
 ): string {
   const date = new Date(createdAt);
   const dateStr = date.toISOString().split("T")[0];
-  const typesStr = projectTypes.join("+");
-  return `${dateStr}_${typesStr}_${code}`;
+  return `${code}_${dateStr}_${sanitizeFolderName(clientName)}`;
 }
 
 async function getGraphToken(
@@ -582,7 +581,6 @@ export const createFolderForQuote = internalAction({
       _id: Id<"quotes">;
       code: string;
       contact: { name: string };
-      projectType: string[];
       clientId?: Id<"clients">;
       _creationTime: number;
     } | null;
@@ -620,9 +618,9 @@ export const createFolderForQuote = internalAction({
         }
 
         const quoteFolderName = buildQuoteSubfolderName(
-          quote._creationTime,
-          quote.projectType,
           quote.code,
+          quote._creationTime,
+          quote.contact.name,
         );
         const { id: quoteFolderId, webUrl: quoteWebUrl } = await ensureFolder(
           token,
