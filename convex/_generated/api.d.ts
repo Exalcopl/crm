@@ -11,11 +11,13 @@
 import type * as _lib_phone from "../_lib/phone.js";
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
+import type * as clientNotes from "../clientNotes.js";
 import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
 import type * as projectTypes from "../projectTypes.js";
+import type * as quoteItems from "../quoteItems.js";
 import type * as quoteNotes from "../quoteNotes.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
@@ -34,11 +36,13 @@ declare const fullApi: ApiFromModules<{
   "_lib/phone": typeof _lib_phone;
   account: typeof account;
   auth: typeof auth;
+  clientNotes: typeof clientNotes;
   clients: typeof clients;
   contacts: typeof contacts;
   http: typeof http;
   permissions: typeof permissions;
   projectTypes: typeof projectTypes;
+  quoteItems: typeof quoteItems;
   quoteNotes: typeof quoteNotes;
   quotes: typeof quotes;
   roles: typeof roles;

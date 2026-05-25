@@ -1,7 +1,7 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction, internalMutation } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -201,7 +201,7 @@ export const listQuoteFiles = action({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
     const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
-    const sp = (quote as any)?.sharepoint;
+    const sp = quote?.sharepoint;
     if (!sp?.subfolderItemId || !sp?.driveId) return [];
 
     const tenantId = process.env.MS_TENANT_ID;
@@ -247,7 +247,7 @@ export const createUploadSession = action({
   args: { quoteId: v.id("quotes"), fileName: v.string() },
   handler: async (ctx, { quoteId, fileName }) => {
     const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
-    const sp = (quote as any)?.sharepoint;
+    const sp = quote?.sharepoint;
     if (!sp?.subfolderItemId || !sp?.driveId) {
       throw new Error("Brak folderu SharePoint dla tej wyceny");
     }
@@ -289,7 +289,7 @@ export const getFileForPreview = action({
   args: { quoteId: v.id("quotes"), fileId: v.string() },
   handler: async (ctx, { quoteId, fileId }): Promise<{ base64: string; contentType: string }> => {
     const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
-    const sp = (quote as any)?.sharepoint;
+    const sp = quote?.sharepoint;
     if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
 
     const tenantId = process.env.MS_TENANT_ID;
@@ -314,6 +314,179 @@ export const getFileForPreview = action({
 
     const base64 = Buffer.from(buffer).toString("base64");
     const contentType = res.headers.get("content-type") ?? "application/octet-stream";
+    return { base64, contentType };
+  },
+});
+
+export const ensureClientFolder = action({
+  args: { clientId: v.id("clients") },
+  handler: async (
+    ctx,
+    { clientId },
+  ): Promise<{ webUrl: string; itemId: string; driveId: string } | null> => {
+    const client = await ctx.runQuery(api.clients.get, { id: clientId });
+    if (!client) throw new Error("Klient nie istnieje");
+
+    const existing = client.sharepointFolder;
+    if (existing?.status === "created" && existing.itemId && existing.driveId) {
+      return {
+        webUrl: existing.webUrl,
+        itemId: existing.itemId,
+        driveId: existing.driveId,
+      };
+    }
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientIdEnv = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const driveId = process.env.MS_GRAPH_DRIVE_ID;
+    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "";
+
+    if (!tenantId || !clientIdEnv || !clientSecret || !driveId) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientIdEnv, clientSecret);
+    const folderName = sanitizeFolderName(client.name);
+    const { id, webUrl } = await ensureFolder(
+      token,
+      driveId,
+      parentPath,
+      folderName,
+    );
+
+    await ctx.runMutation(internal.clients._attachSharepointFolder, {
+      clientId,
+      itemId: id,
+      driveId,
+      webUrl,
+    });
+
+    return { webUrl, itemId: id, driveId };
+  },
+});
+
+export const listClientFiles = action({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, { clientId }) => {
+    const client = await ctx.runQuery(api.clients.get, { id: clientId });
+    const sp = client?.sharepointFolder;
+    if (!sp?.itemId || !sp?.driveId) return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientIdEnv = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientIdEnv || !clientSecret) return [];
+
+    const token = await getGraphToken(tenantId, clientIdEnv, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.itemId}/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file,folder`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph list client files ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        lastModifiedDateTime: string;
+        file?: { mimeType: string };
+        folder?: { childCount: number };
+      }>;
+    };
+
+    return data.value.map((item) => ({
+      id: item.id,
+      name: item.name,
+      size: item.size,
+      lastModifiedDateTime: item.lastModifiedDateTime,
+      mimeType: item.file?.mimeType ?? "",
+      isFolder: !!item.folder,
+    }));
+  },
+});
+
+export const createClientUploadSession = action({
+  args: { clientId: v.id("clients"), fileName: v.string() },
+  handler: async (ctx, { clientId, fileName }) => {
+    const client = await ctx.runQuery(api.clients.get, { id: clientId });
+    const sp = client?.sharepointFolder;
+    if (!sp?.itemId || !sp?.driveId) {
+      throw new Error("Brak folderu SharePoint dla tego klienta");
+    }
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientIdEnv = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientIdEnv || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientIdEnv, clientSecret);
+    const encodedName = encodeURIComponent(fileName);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.itemId}:/${encodedName}:/createUploadSession`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          item: { "@microsoft.graph.conflictBehavior": "rename" },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph client upload session ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as { uploadUrl: string };
+    return { uploadUrl: data.uploadUrl };
+  },
+});
+
+export const getClientFileForPreview = action({
+  args: { clientId: v.id("clients"), fileId: v.string() },
+  handler: async (
+    ctx,
+    { clientId, fileId },
+  ): Promise<{ base64: string; contentType: string }> => {
+    const client = await ctx.runQuery(api.clients.get, { id: clientId });
+    const sp = client?.sharepointFolder;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientIdEnv = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientIdEnv || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientIdEnv, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${fileId}/content`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (!res.ok) throw new Error(`Nie można pobrać pliku (${res.status})`);
+
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > 8 * 1024 * 1024) {
+      throw new Error("Plik jest za duży do podglądu (max 8 MB)");
+    }
+
+    const base64 = Buffer.from(buffer).toString("base64");
+    const contentType =
+      res.headers.get("content-type") ?? "application/octet-stream";
     return { base64, contentType };
   },
 });

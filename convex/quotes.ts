@@ -86,6 +86,19 @@ export const get = query({
   },
 });
 
+export const listByClient = query({
+  args: { clientId: v.id("clients") },
+  handler: async (ctx, { clientId }) => {
+    const docs = await ctx.db
+      .query("quotes")
+      .withIndex("by_client", (q) => q.eq("clientId", clientId))
+      .collect();
+    return docs
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map(toClientQuote);
+  },
+});
+
 export const create = mutation({
   args: {
     contact: CONTACT_VALUE,
@@ -227,6 +240,11 @@ export const remove = mutation({
       .withIndex("by_quote", (q) => q.eq("quoteId", id))
       .collect();
     await Promise.all(tasks.map((t) => ctx.db.delete(t._id)));
+    const items = await ctx.db
+      .query("quoteItems")
+      .withIndex("by_quote", (q) => q.eq("quoteId", id))
+      .collect();
+    await Promise.all(items.map((it) => ctx.db.delete(it._id)));
     await ctx.db.delete(id);
   },
 });

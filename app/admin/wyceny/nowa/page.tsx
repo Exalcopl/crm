@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
   getProjectTypeStyle,
@@ -14,9 +14,19 @@ import {
   type ContactInfo,
   type QuoteStatus,
 } from "../../_lib/quotes";
-import { setClients, useClients } from "../../_lib/clients-store";
-import { nextClientId, type Client } from "../../_lib/clients";
+import type { Client } from "../../_lib/clients";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
+
+function clientFromDoc(c: Doc<"clients">): Client {
+  return {
+    id: c._id,
+    name: c.name,
+    street: c.street,
+    postalCity: c.postalCity,
+    phone: c.phoneRaw,
+    email: c.email,
+  };
+}
 
 const DEADLINE_QUICK: { label: string; days: number }[] = [
   { label: "Dziś", days: 0 },
@@ -60,12 +70,12 @@ export default function NowaWycenaPage() {
   const createQuote = useMutation(api.quotes.create);
   const convexQuotes = useQuery(api.quotes.list) ?? [];
   const activeProjectTypes = (useQuery(api.projectTypes.listActive) ?? []) as Array<{ _id: string; name: string; color: string }>;
-  const clients = useClients();
+  const convexClients = (useQuery(api.clients.list) ?? []) as Doc<"clients">[];
 
   const allClients = useMemo<RankedClient[]>(() => {
     const map = new Map<string, RankedClient>();
-    for (const c of clients) {
-      map.set(c.name, { client: c, count: 0, saved: true });
+    for (const c of convexClients) {
+      map.set(c.name, { client: clientFromDoc(c), count: 0, saved: true });
     }
     for (const q of convexQuotes) {
       const name = q.contact.name.trim();
@@ -92,7 +102,7 @@ export default function NowaWycenaPage() {
       if (b.count !== a.count) return b.count - a.count;
       return a.client.name.localeCompare(b.client.name);
     });
-  }, [clients, convexQuotes]);
+  }, [convexClients, convexQuotes]);
 
   const frequentClients = useMemo(
     () => allClients.slice(0, 6),
@@ -106,7 +116,6 @@ export default function NowaWycenaPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientQuery, setClientQuery] = useState("");
   const [showNewClientForm, setShowNewClientForm] = useState(false);
-  const [saveNewClient, setSaveNewClient] = useState(true);
 
   const [name, setName] = useState("");
   const [street, setStreet] = useState("");
@@ -217,28 +226,6 @@ export default function NowaWycenaPage() {
       phone: trimOrUndefined(phone),
       email: trimOrUndefined(email),
     };
-
-    const shouldPersist =
-      !selectedClient &&
-      !matchedClient &&
-      showNewClientForm &&
-      saveNewClient &&
-      contact.name.length > 0;
-
-    if (shouldPersist) {
-      setClients((prev) => {
-        if (prev.some((c) => c.name === contact.name)) return prev;
-        const newClient: Client = {
-          id: nextClientId(prev),
-          name: contact.name,
-          street: contact.street,
-          postalCity: contact.postalCity,
-          phone: contact.phone,
-          email: contact.email,
-        };
-        return [newClient, ...prev];
-      });
-    }
 
     try {
       const result = await createQuote({
@@ -361,14 +348,12 @@ export default function NowaWycenaPage() {
                   postalCity={postalCity}
                   phone={phone}
                   email={email}
-                  save={saveNewClient}
                   nameError={touched && !nameValid}
                   onName={setName}
                   onStreet={setStreet}
                   onPostalCity={setPostalCity}
                   onPhone={setPhone}
                   onEmail={setEmail}
-                  onSaveToggle={setSaveNewClient}
                 />
               ) : (
                 <ClientPicker
@@ -806,28 +791,24 @@ function NewClientForm({
   postalCity,
   phone,
   email,
-  save,
   nameError,
   onName,
   onStreet,
   onPostalCity,
   onPhone,
   onEmail,
-  onSaveToggle,
 }: {
   name: string;
   street: string;
   postalCity: string;
   phone: string;
   email: string;
-  save: boolean;
   nameError: boolean;
   onName: (v: string) => void;
   onStreet: (v: string) => void;
   onPostalCity: (v: string) => void;
   onPhone: (v: string) => void;
   onEmail: (v: string) => void;
-  onSaveToggle: (v: boolean) => void;
 }) {
   return (
     <div className="quote-new-v2-newclient">
@@ -891,14 +872,6 @@ function NewClientForm({
           />
         </label>
       </div>
-      <label className="quote-new-v2-savetoggle">
-        <input
-          type="checkbox"
-          checked={save}
-          onChange={(e) => onSaveToggle(e.target.checked)}
-        />
-        <span>Zapisz w bazie klientów po utworzeniu wyceny</span>
-      </label>
     </div>
   );
 }

@@ -24,6 +24,8 @@ import { InvestmentSection } from "./_components/investment-section";
 import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
 import { TasksKanban } from "./_components/tasks-kanban";
 import { MiniCalendar } from "./_components/mini-calendar";
+import { QuoteItemsEditor } from "./_components/quote-items-editor";
+import { QuoteValueSummary } from "./_components/quote-value-summary";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "pliki" | "aktywnosc" | "powiazane";
 
@@ -146,6 +148,7 @@ export default function QuoteDetailPage({
           activeTab={activeTab}
           archived={isArchived}
           onRestore={toggleArchive}
+          onTabChange={setActiveTab}
         />
       </main>
       {confirmDeleteOpen && (
@@ -425,11 +428,13 @@ function QuoteDetailLayout({
   activeTab,
   archived,
   onRestore,
+  onTabChange,
 }: {
   quote: Quote;
   activeTab: DetailTab;
   archived: boolean;
   onRestore: () => void;
+  onTabChange: (tab: DetailTab) => void;
 }) {
   return (
     <OwnerNamesProvider quotes={[quote]}>
@@ -440,8 +445,16 @@ function QuoteDetailLayout({
         <OpisUwagiHorizontalSection quote={quote} archived={archived} />
         <TasksAndCalendarStrip quote={quote} archived={archived} />
         <div className="quote-detail-main">
-          {activeTab === "szczegoly" && <TabSzczegoly quote={quote} archived={archived} />}
-          {activeTab === "pozycje" && <TabPozycje quote={quote} />}
+          {activeTab === "szczegoly" && (
+            <TabSzczegoly
+              quote={quote}
+              archived={archived}
+              onOpenPozycje={() => onTabChange("pozycje")}
+            />
+          )}
+          {activeTab === "pozycje" && (
+            <TabPozycje quote={quote} archived={archived} />
+          )}
           {activeTab === "pomiary" && <TabPomiary quote={quote} />}
           {activeTab === "pliki" && <TabPliki quote={quote} />}
           {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
@@ -630,7 +643,7 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
               })}
             </div>
           </div>
-          <ClientContactStrip contact={quote.contact} />
+          <ClientContactStrip quote={quote} />
         </div>
         <div className="quote-detail-header-meta">
           <div className="quote-detail-meta-item">
@@ -670,34 +683,67 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   );
 }
 
-function ClientContactStrip({ contact }: { contact: Quote["contact"] }) {
+function ClientContactStrip({ quote }: { quote: Quote }) {
+  const router = useRouter();
+  const ensureLink = useMutation(api.clients.ensureLinkedToQuote);
+  const [linking, setLinking] = useState(false);
+  const contact = quote.contact;
   const initials = ownerInitials(contact.name);
-  const address = [contact.street, contact.postalCity].filter(Boolean).join(", ");
+  const address = [contact.street, contact.postalCity]
+    .filter(Boolean)
+    .join(", ");
+
+  async function openClient() {
+    if (linking) return;
+    if ((quote as Quote & { clientId?: Id<"clients"> }).clientId) {
+      router.push(
+        `/admin/klienci/${(quote as Quote & { clientId?: Id<"clients"> }).clientId}`,
+      );
+      return;
+    }
+    setLinking(true);
+    try {
+      const clientId = await ensureLink({ quoteId: quote._id });
+      router.push(`/admin/klienci/${clientId}`);
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "Nie udało się otworzyć klienta",
+      );
+    } finally {
+      setLinking(false);
+    }
+  }
+
   return (
-    <div className="quote-detail-client-strip">
+    <button
+      type="button"
+      className="quote-detail-client-strip is-clickable"
+      onClick={() => void openClient()}
+      title="Otwórz szczegóły klienta"
+      disabled={linking}
+    >
       <span className="quote-detail-client-avatar" aria-hidden>
         {initials}
       </span>
-      <div className="quote-detail-client-info">
-        <div className="quote-detail-client-name">{contact.name}</div>
-        <div className="quote-detail-client-meta">
+      <span className="quote-detail-client-info">
+        <span className="quote-detail-client-name">
+          {contact.name}
+          <span className="quote-detail-client-arrow" aria-hidden>
+            <I.arrow s={11} sw={2} />
+          </span>
+        </span>
+        <span className="quote-detail-client-meta">
           {contact.phone ? (
-            <a
-              href={`tel:${contact.phone.replace(/\s+/g, "")}`}
-              className="quote-detail-client-link"
-            >
+            <span className="quote-detail-client-link">
               <I.phone s={11} />
               <span>{contact.phone}</span>
-            </a>
+            </span>
           ) : null}
           {contact.email ? (
-            <a
-              href={`mailto:${contact.email}`}
-              className="quote-detail-client-link"
-            >
+            <span className="quote-detail-client-link">
               <I.mail s={11} />
               <span>{contact.email}</span>
-            </a>
+            </span>
           ) : null}
           {address ? (
             <span className="quote-detail-client-addr">
@@ -705,9 +751,9 @@ function ClientContactStrip({ contact }: { contact: Quote["contact"] }) {
               <span>{address}</span>
             </span>
           ) : null}
-        </div>
-      </div>
-    </div>
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -886,15 +932,6 @@ function Section({
   );
 }
 
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="quote-detail-field">
-      <div className="quote-detail-field-label">{label}</div>
-      <div className="quote-detail-field-value">{value}</div>
-    </div>
-  );
-}
-
 function TasksAndCalendarStrip({
   quote,
   archived,
@@ -914,140 +951,34 @@ function TasksAndCalendarStrip({
   );
 }
 
-function TabSzczegoly({ quote, archived }: { quote: Quote; archived: boolean }) {
-  const hasValue = quote.value !== null;
-  const netto = hasValue ? quote.value! / 1.23 : null;
-  const vat = hasValue ? quote.value! - netto! : null;
+function TabSzczegoly({
+  quote,
+  archived,
+  onOpenPozycje,
+}: {
+  quote: Quote;
+  archived: boolean;
+  onOpenPozycje: () => void;
+}) {
   void archived;
-
   return (
-    <div className="quote-detail-stack-row quote-detail-stack-row-compact">
-      <Section title="Dane kontaktowe" icon={<I.user s={14} />}>
-        <div className="quote-detail-fields">
-          <Field label="Nazwa / firma" value={quote.contact.name} />
-          <Field
-            label="Ulica"
-            value={
-              quote.contact.street ? (
-                quote.contact.street
-              ) : (
-                <span className="quote-detail-muted">— uzupełnij —</span>
-              )
-            }
-          />
-          <Field
-            label="Kod, miasto"
-            value={
-              quote.contact.postalCity ? (
-                quote.contact.postalCity
-              ) : (
-                <span className="quote-detail-muted">— uzupełnij —</span>
-              )
-            }
-          />
-          <Field
-            label="Telefon"
-            value={
-              <span className="quote-detail-inline">
-                <I.phone s={12} />
-                {quote.contact.phone ? (
-                  <span>{quote.contact.phone}</span>
-                ) : (
-                  <span className="quote-detail-muted">— uzupełnij —</span>
-                )}
-              </span>
-            }
-          />
-          <Field
-            label="E-mail"
-            value={
-              <span className="quote-detail-inline">
-                <I.mail s={12} />
-                {quote.contact.email ? (
-                  <span>{quote.contact.email}</span>
-                ) : (
-                  <span className="quote-detail-muted">— uzupełnij —</span>
-                )}
-              </span>
-            }
-          />
-        </div>
-      </Section>
-
-      <Section title="Wartość" icon={<I.pln s={14} />}>
-        {hasValue ? (
-          <div className="quote-detail-money">
-            <div className="quote-detail-money-row">
-              <span>Netto</span>
-              <span className="quote-detail-money-num">{formatPLN(netto!)} <em>PLN</em></span>
-            </div>
-            <div className="quote-detail-money-row">
-              <span>VAT 23%</span>
-              <span className="quote-detail-money-num">{formatPLN(vat!)} <em>PLN</em></span>
-            </div>
-            <div className="quote-detail-money-row is-total">
-              <span>Brutto</span>
-              <span className="quote-detail-money-num">{formatPLN(quote.value!)} <em>PLN</em></span>
-            </div>
-          </div>
-        ) : (
-          <div className="quote-detail-empty">
-            <div className="quote-detail-empty-title">Brak wyceny</div>
-            <div className="quote-detail-empty-text">
-              Dodaj pozycje, aby wyliczyć wartość oferty.
-            </div>
-          </div>
-        )}
+    <div className="quote-detail-stack">
+      <Section title="Wartość oferty" icon={<I.pln s={14} />}>
+        <QuoteValueSummary
+          quoteId={quote._id}
+          value={quote.value}
+          onOpenPozycje={onOpenPozycje}
+        />
       </Section>
     </div>
   );
 }
 
-function TabPozycje({ quote }: { quote: Quote }) {
-  const hasValue = quote.value !== null;
+function TabPozycje({ quote, archived }: { quote: Quote; archived: boolean }) {
   return (
     <div className="quote-detail-stack">
-      <Section
-        title="Pozycje oferty"
-        icon={<I.box s={14} />}
-        action={<span className="quote-detail-pill">Wkrótce — wersja edytowalna</span>}
-      >
-        {hasValue ? (
-          <div className="quote-detail-positions">
-            <div className="quote-detail-positions-head">
-              <div>Nazwa</div>
-              <div>Wymiary</div>
-              <div>Materiał / kolor</div>
-              <div className="align-right">Ilość</div>
-              <div className="align-right">Cena jedn.</div>
-              <div className="align-right">Wartość</div>
-            </div>
-            <div className="quote-detail-positions-row">
-              <div>
-                Konstrukcja{" "}
-                {quote.projectType.length > 0
-                  ? quote.projectType.map((t) => t.toLowerCase()).join(" + ")
-                  : "—"}
-              </div>
-              <div className="quote-detail-muted">— uzupełnij —</div>
-              <div className="quote-detail-muted">— uzupełnij —</div>
-              <div className="align-right">1</div>
-              <div className="align-right quote-detail-muted">—</div>
-              <div className="align-right">{formatPLN(quote.value!)}</div>
-            </div>
-            <div className="quote-detail-positions-foot">
-              <span>Razem</span>
-              <span>{formatPLN(quote.value!)} <em>PLN</em></span>
-            </div>
-          </div>
-        ) : (
-          <div className="quote-detail-empty">
-            <div className="quote-detail-empty-title">Brak pozycji</div>
-            <div className="quote-detail-empty-text">
-              Edycja pozycji zostanie dodana w następnej iteracji.
-            </div>
-          </div>
-        )}
+      <Section title="Pozycje oferty" icon={<I.box s={14} />}>
+        <QuoteItemsEditor quoteId={quote._id} disabled={archived} />
       </Section>
     </div>
   );
@@ -1133,6 +1064,7 @@ function TabPliki({ quote }: { quote: Quote }) {
 
   useEffect(() => {
     if (!hasFolder) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quote._id, hasFolder]);
@@ -1141,7 +1073,6 @@ function TabPliki({ quote }: { quote: Quote }) {
     return () => {
       if (pdfBlobUrl) URL.revokeObjectURL(pdfBlobUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfBlobUrl]);
 
   async function handleUpload(file: File) {

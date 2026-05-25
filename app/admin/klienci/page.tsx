@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../_lib/icons";
-import { nextClientId, type Client } from "../_lib/clients";
-import { setClients, useClients } from "../_lib/clients-store";
-import { useHydrated } from "../_lib/use-hydrated";
 import { RibbonBtn, RibbonGroup } from "../_components/ribbon";
+
+const LEGACY_STORAGE_KEY = "exalco.clients.v1";
 
 type ClientDraft = {
   name: string;
@@ -23,12 +26,12 @@ const EMPTY_DRAFT: ClientDraft = {
   email: "",
 };
 
-function toDraft(c: Client): ClientDraft {
+function toDraft(c: Doc<"clients">): ClientDraft {
   return {
     name: c.name,
     street: c.street ?? "",
     postalCity: c.postalCity ?? "",
-    phone: c.phone ?? "",
+    phone: c.phoneRaw ?? "",
     email: c.email ?? "",
   };
 }
@@ -38,53 +41,106 @@ function trimOrUndefined(v: string): string | undefined {
   return t.length > 0 ? t : undefined;
 }
 
-export default function KlienciPage() {
-  const hydrated = useHydrated();
-  const allClients = useClients();
-  const clients = hydrated ? allClients : [];
-  const [dialog, setDialog] = useState<
-    { mode: "create" } | { mode: "edit"; id: string } | null
-  >(null);
+type LegacyClient = {
+  name?: string;
+  street?: string;
+  postalCity?: string;
+  phone?: string;
+  email?: string;
+};
 
-  function handleCreate(draft: ClientDraft) {
-    const id = nextClientId(clients);
-    const created: Client = {
+function readLegacy(): LegacyClient[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as LegacyClient[];
+  } catch {
+    return [];
+  }
+}
+
+export default function KlienciPage() {
+  const clients = useQuery(api.clients.list) as
+    | Doc<"clients">[]
+    | undefined;
+  const update = useMutation(api.clients.update);
+  const migrate = useMutation(api.clients.migrateFromLocal);
+
+  const [dialog, setDialog] = useState<
+    | { mode: "create" }
+    | { mode: "edit"; id: Id<"clients"> }
+    | null
+  >(null);
+  const migratedRef = useRef(false);
+
+  useEffect(() => {
+    if (migratedRef.current) return;
+    if (clients === undefined) return;
+    const legacy = readLegacy();
+    if (legacy.length === 0) {
+      migratedRef.current = true;
+      return;
+    }
+    migratedRef.current = true;
+    const items = legacy
+      .filter((c) => typeof c.name === "string" && c.name.trim().length > 0)
+      .map((c) => ({
+        name: c.name!.trim(),
+        street: trimOrUndefined(c.street ?? ""),
+        postalCity: trimOrUndefined(c.postalCity ?? ""),
+        phone: trimOrUndefined(c.phone ?? ""),
+        email: trimOrUndefined(c.email ?? ""),
+      }));
+    if (items.length === 0) return;
+    void migrate({ items })
+      .then(() => {
+        try {
+          window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+        } catch {}
+      })
+      .catch(() => {
+        // jeśli się nie udało, zostaw localStorage do następnej próby
+        migratedRef.current = false;
+      });
+  }, [clients, migrate]);
+
+  async function handleCreate(draft: ClientDraft) {
+    await migrate({
+      items: [
+        {
+          name: draft.name.trim(),
+          street: trimOrUndefined(draft.street),
+          postalCity: trimOrUndefined(draft.postalCity),
+          phone: trimOrUndefined(draft.phone),
+          email: trimOrUndefined(draft.email),
+        },
+      ],
+    });
+    setDialog(null);
+  }
+
+  async function handleUpdate(id: Id<"clients">, draft: ClientDraft) {
+    await update({
       id,
       name: draft.name.trim(),
-      street: trimOrUndefined(draft.street),
-      postalCity: trimOrUndefined(draft.postalCity),
-      phone: trimOrUndefined(draft.phone),
-      email: trimOrUndefined(draft.email),
-    };
-    setClients((prev) => [created, ...prev]);
+      street: draft.street.trim() ? draft.street.trim() : null,
+      postalCity: draft.postalCity.trim() ? draft.postalCity.trim() : null,
+      phone: draft.phone.trim() ? draft.phone.trim() : null,
+      email: draft.email.trim() ? draft.email.trim() : null,
+    });
     setDialog(null);
-  }
-
-  function handleUpdate(id: string, draft: ClientDraft) {
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              name: draft.name.trim(),
-              street: trimOrUndefined(draft.street),
-              postalCity: trimOrUndefined(draft.postalCity),
-              phone: trimOrUndefined(draft.phone),
-              email: trimOrUndefined(draft.email),
-            }
-          : c,
-      ),
-    );
-    setDialog(null);
-  }
-
-  function handleDelete(id: string) {
-    if (!window.confirm("Usunąć tego klienta?")) return;
-    setClients((prev) => prev.filter((c) => c.id !== id));
   }
 
   const editing =
-    dialog?.mode === "edit" ? clients.find((c) => c.id === dialog.id) : null;
+    dialog?.mode === "edit"
+      ? clients?.find((c) => c._id === dialog.id) ?? null
+      : null;
+
+  const loading = clients === undefined;
+  const empty = clients !== undefined && clients.length === 0;
 
   return (
     <>
@@ -99,11 +155,11 @@ export default function KlienciPage() {
         </RibbonGroup>
       </div>
       <main className="fluent-content">
-        {!hydrated ? (
+        {loading ? (
           <div className="client-empty" aria-busy="true">
             <div className="client-empty-text">Wczytywanie…</div>
           </div>
-        ) : clients.length === 0 ? (
+        ) : empty ? (
           <div className="client-empty">
             <I.users s={28} />
             <div className="client-empty-title">Brak zapisanych klientów</div>
@@ -133,12 +189,11 @@ export default function KlienciPage() {
               </div>
             </div>
             <div className="client-list-body">
-              {clients.map((c) => (
+              {clients!.map((c) => (
                 <ClientRow
-                  key={c.id}
+                  key={c._id}
                   client={c}
-                  onEdit={() => setDialog({ mode: "edit", id: c.id })}
-                  onDelete={() => handleDelete(c.id)}
+                  onEdit={() => setDialog({ mode: "edit", id: c._id })}
                 />
               ))}
             </div>
@@ -152,8 +207,8 @@ export default function KlienciPage() {
           onClose={() => setDialog(null)}
           onSubmit={(draft) =>
             dialog.mode === "create"
-              ? handleCreate(draft)
-              : handleUpdate(dialog.id, draft)
+              ? void handleCreate(draft)
+              : void handleUpdate(dialog.id, draft)
           }
         />
       )}
@@ -164,15 +219,20 @@ export default function KlienciPage() {
 function ClientRow({
   client,
   onEdit,
-  onDelete,
 }: {
-  client: Client;
+  client: Doc<"clients">;
   onEdit: () => void;
-  onDelete: () => void;
 }) {
   return (
     <div className="client-list-row" role="row">
-      <div className="client-list-cell client-list-cell-name">{client.name}</div>
+      <div className="client-list-cell client-list-cell-name">
+        <Link
+          href={`/admin/klienci/${client._id}`}
+          className="client-list-name-link"
+        >
+          {client.name}
+        </Link>
+      </div>
       <div className="client-list-cell">
         {client.street ?? <span className="client-list-muted">—</span>}
       </div>
@@ -180,12 +240,20 @@ function ClientRow({
         {client.postalCity ?? <span className="client-list-muted">—</span>}
       </div>
       <div className="client-list-cell">
-        {client.phone ?? <span className="client-list-muted">—</span>}
+        {client.phoneRaw ?? <span className="client-list-muted">—</span>}
       </div>
       <div className="client-list-cell">
         {client.email ?? <span className="client-list-muted">—</span>}
       </div>
       <div className="client-list-cell client-list-actions align-right">
+        <Link
+          href={`/admin/klienci/${client._id}`}
+          className="client-list-action"
+          aria-label="Otwórz szczegóły klienta"
+          title="Otwórz"
+        >
+          <I.arrow s={14} />
+        </Link>
         <button
           type="button"
           className="client-list-action"
@@ -194,15 +262,6 @@ function ClientRow({
           title="Edytuj"
         >
           <I.edit s={14} />
-        </button>
-        <button
-          type="button"
-          className="client-list-action is-danger"
-          onClick={onDelete}
-          aria-label="Usuń klienta"
-          title="Usuń"
-        >
-          <I.trash s={14} />
         </button>
       </div>
     </div>
