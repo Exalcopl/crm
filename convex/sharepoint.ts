@@ -807,7 +807,12 @@ Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej stru
   },
   "zakres_oferty": {
     "zawiera": ["lista zakresów np. konstrukcje, szkło, montaż, obróbki, malowanie — lub null"],
-    "systemy_aluminiowe": "nazwa systemu/systemów aluminiowych lub null",
+    "systemy_aluminiowe": [
+      {
+        "producent": "nazwa producenta lub null",
+        "system": "nazwa/kod systemu lub null"
+      }
+    ],
     "ilosc_pozycji": liczba_lub_null,
     "ilosc_konstrukcji": liczba_lub_null,
     "calkowita_powierzchnia_m2": liczba_lub_null,

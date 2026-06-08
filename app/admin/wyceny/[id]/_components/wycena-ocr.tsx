@@ -31,7 +31,7 @@ type OcrStatyka = {
 };
 type OcrZakresOferty = {
   zawiera?: string[] | null;
-  systemy_aluminiowe?: string | null;
+  systemy_aluminiowe?: Array<{ producent?: string | null; system?: string | null }> | null;
   ilosc_pozycji?: number | null;
   ilosc_konstrukcji?: number | null;
   calkowita_powierzchnia_m2?: number | null;
@@ -204,10 +204,17 @@ function OcrResultView({ data }: { data: OcrJson }) {
                 <span className="ocr-view-val">{zakres_oferty.zawiera.join(", ")}</span>
               </div>
             )}
-            {zakres_oferty.systemy_aluminiowe && (
-              <div className="ocr-view-field">
+            {zakres_oferty.systemy_aluminiowe && zakres_oferty.systemy_aluminiowe.length > 0 && (
+              <div className="ocr-view-field" style={{ alignItems: "flex-start" }}>
                 <span className="ocr-view-key">Systemy</span>
-                <Val v={zakres_oferty.systemy_aluminiowe} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {zakres_oferty.systemy_aluminiowe.map((s, i) => (
+                    <div key={i} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                      {s.system && <span className="ocr-view-val">{s.system}</span>}
+                      {s.producent && <span className="ocr-view-val-null">{s.producent}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 16px", marginTop: 4 }}>
