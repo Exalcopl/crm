@@ -223,17 +223,6 @@ export default defineSchema({
     .index("by_quote_status", ["quoteId", "status"])
     .index("by_assignee", ["assigneeId"]),
 
-  quoteItems: defineTable({
-    quoteId: v.id("quotes"),
-    name: v.string(),
-    dimensions: v.optional(v.string()),
-    material: v.optional(v.string()),
-    qty: v.number(),
-    unitPrice: v.number(),
-    lineTotal: v.number(),
-    order: v.number(),
-  }).index("by_quote", ["quoteId"]),
-
   publicSubmissionAttempts: defineTable({
     ip: v.string(),
     createdAt: v.number(),

@@ -19,7 +19,6 @@ import type * as permissions from "../permissions.js";
 import type * as projectTypeQuestions from "../projectTypeQuestions.js";
 import type * as projectTypes from "../projectTypes.js";
 import type * as quoteAnswers from "../quoteAnswers.js";
-import type * as quoteItems from "../quoteItems.js";
 import type * as quoteNotes from "../quoteNotes.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
@@ -46,7 +45,6 @@ declare const fullApi: ApiFromModules<{
   projectTypeQuestions: typeof projectTypeQuestions;
   projectTypes: typeof projectTypes;
   quoteAnswers: typeof quoteAnswers;
-  quoteItems: typeof quoteItems;
   quoteNotes: typeof quoteNotes;
   quotes: typeof quotes;
   roles: typeof roles;

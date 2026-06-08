@@ -23,7 +23,6 @@ import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
 import { InvestmentSection } from "./_components/investment-section";
 import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
 import { TasksKanban } from "./_components/tasks-kanban";
-import { QuoteItemsEditor } from "./_components/quote-items-editor";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFiles } from "./_components/quote-files";
@@ -32,7 +31,7 @@ type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane"
 
 const TABS: { id: DetailTab; label: string; icon: React.ReactNode }[] = [
   { id: "szczegoly", label: "Szczegóły", icon: <I.doc s={22} /> },
-  { id: "pozycje", label: "Pozycje", icon: <I.box s={22} /> },
+  { id: "pozycje", label: "Wycena", icon: <I.box s={22} /> },
   { id: "pomiary", label: "Pomiary", icon: <I.ruler s={22} /> },
   { id: "aktywnosc", label: "Aktywność", icon: <I.clock s={22} /> },
   { id: "powiazane", label: "Powiązane", icon: <I.link s={22} /> },
@@ -455,16 +454,8 @@ function QuoteDetailLayout({
           </>
         )}
         <div className="quote-detail-main">
-          {isSzczegoly && (
-            <TabSzczegoly
-              quote={quote}
-              archived={archived}
-              onOpenPozycje={() => onTabChange("pozycje")}
-            />
-          )}
-          {activeTab === "pozycje" && (
-            <TabPozycje quote={quote} archived={archived} />
-          )}
+          {isSzczegoly && <TabSzczegoly quote={quote} archived={archived} />}
+          {activeTab === "pozycje" && <TabPozycje quote={quote} />}
           {activeTab === "pomiary" && <TabPomiary quote={quote} />}
           {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
           {activeTab === "powiazane" && <TabPowiazane />}
@@ -944,32 +935,28 @@ function Section({
 function TabSzczegoly({
   quote,
   archived,
-  onOpenPozycje,
 }: {
   quote: Quote;
   archived: boolean;
-  onOpenPozycje: () => void;
 }) {
   void archived;
   return (
     <div className="quote-detail-stack">
       <Section title="Wartość oferty" icon={<I.pln s={14} />}>
-        <QuoteValueSummary
-          quoteId={quote._id}
-          value={quote.value}
-          onOpenPozycje={onOpenPozycje}
-        />
+        <QuoteValueSummary quoteId={quote._id} value={quote.value} />
       </Section>
     </div>
   );
 }
 
-function TabPozycje({ quote, archived }: { quote: Quote; archived: boolean }) {
+function TabPozycje({ quote }: { quote: Quote }) {
   return (
     <div className="quote-detail-stack">
-      <Section title="Pozycje oferty" icon={<I.box s={14} />}>
-        <QuoteItemsEditor quoteId={quote._id} disabled={archived} />
-      </Section>
+      <div className="quote-detail-empty">
+        <div className="quote-detail-empty-text">
+          Ta sekcja nie jest dostępna.
+        </div>
+      </div>
     </div>
   );
 }
