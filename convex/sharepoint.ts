@@ -785,9 +785,10 @@ export const runOcrForFile = action({
               },
               {
                 type: "text",
-                text: `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij strukturalne dane.
+                text: `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij WSZYSTKIE dostępne dane.
 
-Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej strukturze:
+Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej strukturze. Pola których nie znajdziesz ustaw na null. Nie pomijaj żadnych danych z dokumentu — wszystko co nie pasuje do standardowych pól umieść w "dodatkowe".
+
 {
   "dokument": {
     "numer": "numer dokumentu lub null",
@@ -803,6 +804,24 @@ Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej stru
     "nazwa": "nazwa odbiorcy lub null",
     "nip": "NIP lub null",
     "adres": "adres lub null"
+  },
+  "zakres_oferty": {
+    "zawiera": ["lista zakresów np. konstrukcje, szkło, montaż, obróbki, malowanie — lub null"],
+    "systemy_aluminiowe": "nazwa systemu/systemów aluminiowych lub null",
+    "ilosc_pozycji": liczba_lub_null,
+    "ilosc_konstrukcji": liczba_lub_null,
+    "calkowita_powierzchnia_m2": liczba_lub_null,
+    "calkowity_obwod_m": liczba_lub_null,
+    "kolor_profili": "kolor profili lub null",
+    "kolor_okuc": "kolor okuć lub null",
+    "szyby_rodzaje": ["lista rodzajów szyb lub null"],
+    "statyka": {
+      "norma": "norma lub null",
+      "strefa": "strefa lub null",
+      "teren": "teren lub null",
+      "budynek_z": "wysokość budynku lub null",
+      "pk": "obciążenie pk lub null"
+    }
   },
   "pozycje": [
     {
@@ -820,8 +839,11 @@ Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej stru
     "brutto": wartość_liczbowa_lub_null,
     "waluta": "PLN"
   },
-  "uwagi": "dodatkowe uwagi lub null"
-}`,
+  "uwagi": "dodatkowe uwagi lub null",
+  "dodatkowe": {}
+}
+
+Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieściły się w powyższych polach (np. warunki płatności, terminy realizacji, gwarancja, certyfikaty, warunki handlowe itp.).`,
               },
             ],
           },

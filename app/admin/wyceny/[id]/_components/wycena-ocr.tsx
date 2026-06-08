@@ -22,13 +22,34 @@ type OcrPodsumowanie = {
   brutto?: number | null;
   waluta?: string | null;
 };
+type OcrStatyka = {
+  norma?: string | null;
+  strefa?: string | null;
+  teren?: string | null;
+  budynek_z?: string | null;
+  pk?: string | null;
+};
+type OcrZakresOferty = {
+  zawiera?: string[] | null;
+  systemy_aluminiowe?: string | null;
+  ilosc_pozycji?: number | null;
+  ilosc_konstrukcji?: number | null;
+  calkowita_powierzchnia_m2?: number | null;
+  calkowity_obwod_m?: number | null;
+  kolor_profili?: string | null;
+  kolor_okuc?: string | null;
+  szyby_rodzaje?: string[] | null;
+  statyka?: OcrStatyka | null;
+};
 type OcrJson = {
   dokument?: OcrDokument;
   dostawca?: OcrStrona;
   odbiorca?: OcrStrona;
+  zakres_oferty?: OcrZakresOferty | null;
   pozycje?: OcrPozycja[];
   podsumowanie?: OcrPodsumowanie;
   uwagi?: string | null;
+  dodatkowe?: Record<string, unknown> | null;
   raw?: string;
 };
 
@@ -49,7 +70,7 @@ function OcrResultView({ data }: { data: OcrJson }) {
     );
   }
 
-  const { dokument, dostawca, odbiorca, pozycje, podsumowanie, uwagi } = data;
+  const { dokument, dostawca, odbiorca, zakres_oferty, pozycje, podsumowanie, uwagi, dodatkowe } = data;
   const waluta = podsumowanie?.waluta;
 
   return (
@@ -173,10 +194,135 @@ function OcrResultView({ data }: { data: OcrJson }) {
         </div>
       )}
 
+      {zakres_oferty && Object.values(zakres_oferty).some((v) => v != null) && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Zakres oferty</div>
+          <div className="ocr-view-card" style={{ gap: 5 }}>
+            {zakres_oferty.zawiera && zakres_oferty.zawiera.length > 0 && (
+              <div className="ocr-view-field">
+                <span className="ocr-view-key">Zawiera</span>
+                <span className="ocr-view-val">{zakres_oferty.zawiera.join(", ")}</span>
+              </div>
+            )}
+            {zakres_oferty.systemy_aluminiowe && (
+              <div className="ocr-view-field">
+                <span className="ocr-view-key">Systemy</span>
+                <Val v={zakres_oferty.systemy_aluminiowe} />
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 16px", marginTop: 4 }}>
+              {zakres_oferty.ilosc_pozycji != null && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Poz.</span>
+                  <Val v={zakres_oferty.ilosc_pozycji} />
+                </div>
+              )}
+              {zakres_oferty.ilosc_konstrukcji != null && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Konstr.</span>
+                  <Val v={zakres_oferty.ilosc_konstrukcji} />
+                </div>
+              )}
+              {zakres_oferty.calkowita_powierzchnia_m2 != null && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Pow. m²</span>
+                  <Val v={zakres_oferty.calkowita_powierzchnia_m2} />
+                </div>
+              )}
+              {zakres_oferty.calkowity_obwod_m != null && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Obwód m</span>
+                  <Val v={zakres_oferty.calkowity_obwod_m} />
+                </div>
+              )}
+              {zakres_oferty.kolor_profili && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Kolor profili</span>
+                  <Val v={zakres_oferty.kolor_profili} />
+                </div>
+              )}
+              {zakres_oferty.kolor_okuc && (
+                <div className="ocr-view-doc-field">
+                  <span className="ocr-view-key">Kolor okuć</span>
+                  <Val v={zakres_oferty.kolor_okuc} />
+                </div>
+              )}
+            </div>
+            {zakres_oferty.szyby_rodzaje && zakres_oferty.szyby_rodzaje.length > 0 && (
+              <div className="ocr-view-field" style={{ marginTop: 4 }}>
+                <span className="ocr-view-key">Szyby</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  {zakres_oferty.szyby_rodzaje.map((s, i) => (
+                    <span key={i} className="ocr-view-val">{s}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {zakres_oferty.statyka && Object.values(zakres_oferty.statyka).some((v) => v != null) && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border-subtle)" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Statyka</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 16px" }}>
+                  {zakres_oferty.statyka.norma && (
+                    <div className="ocr-view-doc-field" style={{ gridColumn: "span 3" }}>
+                      <span className="ocr-view-key">Norma</span>
+                      <Val v={zakres_oferty.statyka.norma} />
+                    </div>
+                  )}
+                  {zakres_oferty.statyka.strefa && (
+                    <div className="ocr-view-doc-field">
+                      <span className="ocr-view-key">Strefa</span>
+                      <Val v={zakres_oferty.statyka.strefa} />
+                    </div>
+                  )}
+                  {zakres_oferty.statyka.teren && (
+                    <div className="ocr-view-doc-field">
+                      <span className="ocr-view-key">Teren</span>
+                      <Val v={zakres_oferty.statyka.teren} />
+                    </div>
+                  )}
+                  {zakres_oferty.statyka.budynek_z && (
+                    <div className="ocr-view-doc-field">
+                      <span className="ocr-view-key">Wys. bud.</span>
+                      <Val v={zakres_oferty.statyka.budynek_z} />
+                    </div>
+                  )}
+                  {zakres_oferty.statyka.pk && (
+                    <div className="ocr-view-doc-field">
+                      <span className="ocr-view-key">pk</span>
+                      <Val v={zakres_oferty.statyka.pk} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {uwagi && (
         <div className="ocr-view-section">
           <div className="ocr-view-section-title">Uwagi</div>
           <div className="ocr-view-notes">{uwagi}</div>
+        </div>
+      )}
+
+      {dodatkowe && Object.keys(dodatkowe).length > 0 && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Pozostałe dane</div>
+          <div className="ocr-view-card" style={{ gap: 4 }}>
+            {Object.entries(dodatkowe).map(([key, val]) => (
+              <div key={key} className="ocr-view-field">
+                <span className="ocr-view-key" style={{ minWidth: 120 }}>{key.replace(/_/g, " ")}</span>
+                <span className="ocr-view-val">
+                  {Array.isArray(val)
+                    ? val.join(", ")
+                    : typeof val === "object" && val !== null
+                      ? <pre className="ocr-result-pre" style={{ margin: 0, fontSize: 10 }}>{JSON.stringify(val, null, 2)}</pre>
+                      : String(val ?? "—")}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
