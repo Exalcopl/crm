@@ -675,6 +675,190 @@ export const deleteClientCascade = action({
   },
 });
 
+export const listWycenaSubfolderFiles = action({
+  args: { quoteId: v.id("quotes") },
+  handler: async (ctx, { quoteId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId || sp.status !== "created") return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) return [];
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Wycena:/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (res.status === 404) return [];
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph list Wycena files ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        lastModifiedDateTime: string;
+        file?: { mimeType: string };
+      }>;
+    };
+
+    return data.value
+      .filter((item) => !!item.file && item.name.toLowerCase().endsWith(".pdf"))
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        size: item.size,
+        lastModifiedDateTime: item.lastModifiedDateTime,
+        mimeType: item.file?.mimeType ?? "application/pdf",
+      }));
+  },
+});
+
+export const runOcrForFile = action({
+  args: {
+    quoteId: v.id("quotes"),
+    fileItemId: v.string(),
+    fileName: v.string(),
+  },
+  handler: async (ctx, { quoteId, fileItemId, fileName }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint dla tej wyceny");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+    if (!anthropicKey) {
+      throw new Error("Brak klucza ANTHROPIC_API_KEY w konfiguracji Convex");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const fileRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${fileItemId}/content`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!fileRes.ok) {
+      throw new Error(`Nie można pobrać pliku z SharePoint (${fileRes.status})`);
+    }
+
+    const buffer = await fileRes.arrayBuffer();
+    if (buffer.byteLength > 10 * 1024 * 1024) {
+      throw new Error("Plik jest za duży do OCR (max 10 MB)");
+    }
+    const base64 = Buffer.from(buffer).toString("base64");
+
+    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: {
+                  type: "base64",
+                  media_type: "application/pdf",
+                  data: base64,
+                },
+              },
+              {
+                type: "text",
+                text: `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij strukturalne dane.
+
+Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej strukturze:
+{
+  "dokument": {
+    "numer": "numer dokumentu lub null",
+    "data": "data dokumentu lub null",
+    "tytul": "tytuł/nazwa dokumentu lub null"
+  },
+  "dostawca": {
+    "nazwa": "nazwa firmy/dostawcy lub null",
+    "nip": "NIP lub null",
+    "adres": "adres lub null"
+  },
+  "odbiorca": {
+    "nazwa": "nazwa odbiorcy lub null",
+    "nip": "NIP lub null",
+    "adres": "adres lub null"
+  },
+  "pozycje": [
+    {
+      "lp": 1,
+      "opis": "opis pozycji",
+      "ilosc": "ilość lub null",
+      "jednostka": "jednostka miary lub null",
+      "cena_netto": wartość_liczbowa_lub_null,
+      "wartosc_netto": wartość_liczbowa_lub_null
+    }
+  ],
+  "podsumowanie": {
+    "netto": wartość_liczbowa_lub_null,
+    "vat": wartość_liczbowa_lub_null,
+    "brutto": wartość_liczbowa_lub_null,
+    "waluta": "PLN"
+  },
+  "uwagi": "dodatkowe uwagi lub null"
+}`,
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!anthropicRes.ok) {
+      const text = await anthropicRes.text();
+      throw new Error(`Błąd API Claude (${anthropicRes.status}): ${text.slice(0, 200)}`);
+    }
+
+    const anthropicData = (await anthropicRes.json()) as {
+      content: Array<{ type: string; text: string }>;
+    };
+
+    const rawText =
+      anthropicData.content.find((c) => c.type === "text")?.text ?? "";
+
+    let ocrJson: unknown;
+    try {
+      ocrJson = JSON.parse(rawText);
+    } catch {
+      ocrJson = { raw: rawText };
+    }
+
+    await ctx.runMutation(internal.quoteOcr._saveResult, {
+      quoteId,
+      fileItemId,
+      fileName,
+      ocrJson,
+    });
+
+    return ocrJson;
+  },
+});
+
 const QUOTE_SUBFOLDERS = ["Wycena", "Produkcja", "Załącznik", "Zamówienia", "Dokumentacja", "Umowy"];
 
 async function createQuoteSubfolders(

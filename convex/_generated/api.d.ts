@@ -20,6 +20,7 @@ import type * as projectTypeQuestions from "../projectTypeQuestions.js";
 import type * as projectTypes from "../projectTypes.js";
 import type * as quoteAnswers from "../quoteAnswers.js";
 import type * as quoteNotes from "../quoteNotes.js";
+import type * as quoteOcr from "../quoteOcr.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   projectTypes: typeof projectTypes;
   quoteAnswers: typeof quoteAnswers;
   quoteNotes: typeof quoteNotes;
+  quoteOcr: typeof quoteOcr;
   quotes: typeof quotes;
   roles: typeof roles;
   seed: typeof seed;

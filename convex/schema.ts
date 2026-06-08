@@ -237,4 +237,14 @@ export default defineSchema({
     authorName: v.string(),
     createdAt: v.number(),
   }).index("by_client", ["clientId"]),
+
+  quoteOcrResults: defineTable({
+    quoteId: v.id("quotes"),
+    fileItemId: v.string(),
+    fileName: v.string(),
+    ocrJson: v.any(),
+    processedAt: v.number(),
+  })
+    .index("by_quote", ["quoteId"])
+    .index("by_quote_file", ["quoteId", "fileItemId"]),
 });

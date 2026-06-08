@@ -26,6 +26,7 @@ import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFiles } from "./_components/quote-files";
+import { WycenaOcrSection } from "./_components/wycena-ocr";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
@@ -950,15 +951,7 @@ function TabSzczegoly({
 }
 
 function TabPozycje({ quote }: { quote: Quote }) {
-  return (
-    <div className="quote-detail-stack">
-      <div className="quote-detail-empty">
-        <div className="quote-detail-empty-text">
-          Ta sekcja nie jest dostępna.
-        </div>
-      </div>
-    </div>
-  );
+  return <WycenaOcrSection quote={quote} />;
 }
 
 function TabPomiary({ quote }: { quote: Quote }) {
