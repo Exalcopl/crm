@@ -552,6 +552,9 @@ export const remove = mutation({
       .collect();
     await Promise.all(items.map((it) => ctx.db.delete(it._id)));
     await ctx.db.delete(id);
+    await ctx.scheduler.runAfter(0, internal.sharepoint.deleteQuoteFolders, {
+      quoteId: id,
+    });
   },
 });
 

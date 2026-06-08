@@ -147,6 +147,35 @@ async function deleteFolder(
   }
 }
 
+export const deleteQuoteFolders = internalAction({
+  args: { quoteId: v.id("quotes") },
+  handler: async (ctx, { quoteId }) => {
+    const quote = await ctx.runQuery(internal.quotes._getInternal, { quoteId });
+    if (!quote?.sharepoint?.subfolderItemId) return;
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const driveId = process.env.MS_GRAPH_DRIVE_ID;
+
+    if (!tenantId || !clientId || !clientSecret || !driveId) {
+      console.warn("[sharepoint] Brak env config — pomijam usuwanie folderów wyceny");
+      return;
+    }
+
+    try {
+      const token = await getGraphToken(tenantId, clientId, clientSecret);
+      await deleteFolder(token, driveId, quote.sharepoint.subfolderItemId);
+      console.log(`[sharepoint] Usunięty folder wyceny: ${quote.code}`);
+    } catch (err) {
+      console.error(
+        `[sharepoint] Błąd usunięcia folderu wyceny ${quote.code}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  },
+});
+
 export const deleteOldSharepointFolders = internalAction({
   args: {},
   handler: async (ctx) => {
@@ -646,6 +675,19 @@ export const deleteClientCascade = action({
   },
 });
 
+const QUOTE_SUBFOLDERS = ["Wycena", "Produkcja", "Załącznik", "Zamówienia", "Dokumentacja", "Umowy"];
+
+async function createQuoteSubfolders(
+  token: string,
+  driveId: string,
+  parentPath: string,
+  quoteFolderName: string,
+): Promise<void> {
+  for (const folderName of QUOTE_SUBFOLDERS) {
+    await ensureFolder(token, driveId, `${parentPath}/${quoteFolderName}`, folderName);
+  }
+}
+
 export const createFolderForQuote = internalAction({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
@@ -708,6 +750,13 @@ export const createFolderForQuote = internalAction({
           quote.contact.name,
         );
         const { id: quoteFolderId, webUrl: quoteWebUrl } = await ensureFolder(
+          token,
+          driveId,
+          `${parentPath}/${clientFolderName}`,
+          quoteFolderName,
+        );
+
+        await createQuoteSubfolders(
           token,
           driveId,
           `${parentPath}/${clientFolderName}`,
