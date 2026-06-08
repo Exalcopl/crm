@@ -6,6 +6,183 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "@/app/admin/_lib/icons";
 
+type OcrDokument = { numer?: string | null; data?: string | null; tytul?: string | null };
+type OcrStrona = { nazwa?: string | null; nip?: string | null; adres?: string | null };
+type OcrPozycja = {
+  lp?: number | null;
+  opis?: string | null;
+  ilosc?: string | number | null;
+  jednostka?: string | null;
+  cena_netto?: number | null;
+  wartosc_netto?: number | null;
+};
+type OcrPodsumowanie = {
+  netto?: number | null;
+  vat?: number | null;
+  brutto?: number | null;
+  waluta?: string | null;
+};
+type OcrJson = {
+  dokument?: OcrDokument;
+  dostawca?: OcrStrona;
+  odbiorca?: OcrStrona;
+  pozycje?: OcrPozycja[];
+  podsumowanie?: OcrPodsumowanie;
+  uwagi?: string | null;
+  raw?: string;
+};
+
+function formatCurrency(val: number | null | undefined, waluta?: string | null) {
+  if (val == null) return <span className="ocr-view-val-null">—</span>;
+  return `${val.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${waluta ?? "PLN"}`;
+}
+
+function Val({ v }: { v: string | number | null | undefined }) {
+  if (v == null || v === "") return <span className="ocr-view-val-null">—</span>;
+  return <span className="ocr-view-val">{String(v)}</span>;
+}
+
+function OcrResultView({ data }: { data: OcrJson }) {
+  if (data.raw) {
+    return (
+      <pre className="ocr-result-pre">{data.raw}</pre>
+    );
+  }
+
+  const { dokument, dostawca, odbiorca, pozycje, podsumowanie, uwagi } = data;
+  const waluta = podsumowanie?.waluta;
+
+  return (
+    <div className="ocr-view">
+      {dokument && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Dokument</div>
+          <div className="ocr-view-doc-fields">
+            {dokument.numer != null && (
+              <div className="ocr-view-doc-field">
+                <span className="ocr-view-key">Numer</span>
+                <Val v={dokument.numer} />
+              </div>
+            )}
+            {dokument.data != null && (
+              <div className="ocr-view-doc-field">
+                <span className="ocr-view-key">Data</span>
+                <Val v={dokument.data} />
+              </div>
+            )}
+            {dokument.tytul != null && (
+              <div className="ocr-view-doc-field">
+                <span className="ocr-view-key">Tytuł</span>
+                <Val v={dokument.tytul} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {(dostawca ?? odbiorca) && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Strony</div>
+          <div className="ocr-view-grid-2">
+            {dostawca && (
+              <div className="ocr-view-card">
+                <div className="ocr-view-card-title">Dostawca</div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">Nazwa</span>
+                  <Val v={dostawca.nazwa} />
+                </div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">NIP</span>
+                  <Val v={dostawca.nip} />
+                </div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">Adres</span>
+                  <Val v={dostawca.adres} />
+                </div>
+              </div>
+            )}
+            {odbiorca && (
+              <div className="ocr-view-card">
+                <div className="ocr-view-card-title">Odbiorca</div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">Nazwa</span>
+                  <Val v={odbiorca.nazwa} />
+                </div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">NIP</span>
+                  <Val v={odbiorca.nip} />
+                </div>
+                <div className="ocr-view-field">
+                  <span className="ocr-view-key">Adres</span>
+                  <Val v={odbiorca.adres} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {pozycje && pozycje.length > 0 && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Pozycje ({pozycje.length})</div>
+          <table className="ocr-view-table">
+            <thead>
+              <tr>
+                <th style={{ width: 28 }}>Lp.</th>
+                <th>Opis</th>
+                <th className="num" style={{ width: 60 }}>Ilość</th>
+                <th style={{ width: 40 }}>Jm.</th>
+                <th className="num" style={{ width: 90 }}>Cena netto</th>
+                <th className="num" style={{ width: 90 }}>Wart. netto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pozycje.map((p, i) => (
+                <tr key={i}>
+                  <td>{p.lp ?? i + 1}</td>
+                  <td>{p.opis ?? <span className="ocr-view-val-null">—</span>}</td>
+                  <td className="num">{p.ilosc ?? <span className="ocr-view-val-null">—</span>}</td>
+                  <td>{p.jednostka ?? <span className="ocr-view-val-null">—</span>}</td>
+                  <td className="num">{formatCurrency(p.cena_netto, waluta)}</td>
+                  <td className="num">{formatCurrency(p.wartosc_netto, waluta)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {podsumowanie && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Podsumowanie</div>
+          <div className="ocr-view-summary">
+            <div className="ocr-view-summary-row">
+              <span className="ocr-view-summary-label">Netto</span>
+              <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.netto, waluta)}</span>
+            </div>
+            <div className="ocr-view-summary-row">
+              <span className="ocr-view-summary-label">VAT</span>
+              <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.vat, waluta)}</span>
+            </div>
+            <hr className="ocr-view-summary-divider" />
+            <div className="ocr-view-summary-row brutto">
+              <span className="ocr-view-summary-label">Brutto</span>
+              <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.brutto, waluta)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uwagi && (
+        <div className="ocr-view-section">
+          <div className="ocr-view-section-title">Uwagi</div>
+          <div className="ocr-view-notes">{uwagi}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Quote = {
   _id: Id<"quotes">;
   sharepoint?: {
@@ -258,9 +435,7 @@ export function WycenaOcrSection({ quote }: { quote: Quote }) {
                             <I.trash s={12} />
                           </button>
                         </div>
-                        <pre className="ocr-result-pre">
-                          {JSON.stringify(result.ocrJson, null, 2)}
-                        </pre>
+                        <OcrResultView data={result.ocrJson as OcrJson} />
                       </div>
                     )}
                   </div>
