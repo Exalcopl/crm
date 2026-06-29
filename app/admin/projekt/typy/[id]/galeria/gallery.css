@@ -1,0 +1,140 @@
+/* ---- Gallery grid ---- */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+/* ---- Gallery card ---- */
+.gallery-card {
+  position: relative;
+  background: var(--surface-primary, #161b22);
+  border: 1px solid var(--border-primary, #30363d);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.15s ease;
+}
+
+.gallery-card:hover {
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.3);
+}
+
+.gallery-card-overlay {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+  transform: rotate(2deg);
+  cursor: grabbing;
+}
+
+/* ---- Drag handle ---- */
+.gallery-card-handle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #c9d1d9;
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  backdrop-filter: blur(4px);
+}
+
+.gallery-card:hover .gallery-card-handle {
+  opacity: 1;
+}
+
+.gallery-card-handle:active {
+  cursor: grabbing;
+}
+
+/* ---- Image ---- */
+.gallery-card-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gallery-card-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #484f58);
+  font-size: 12px;
+}
+
+/* ---- Footer ---- */
+.gallery-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border-primary, #30363d);
+}
+
+.gallery-card-name {
+  font-size: 11px;
+  color: var(--text-secondary, #8b949e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.gallery-card-delete {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #8b949e;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  padding: 0;
+}
+
+.gallery-card-delete:hover {
+  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+}
+
+/* ---- Empty state ---- */
+.gallery-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+/* ---- Upload progress ---- */
+.gallery-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(88, 166, 255, 0.12);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.gallery-progress-bar {
+  height: 100%;
+  border-radius: 2px;
+  background: #58a6ff;
+  transition: width 0.3s ease;
+}

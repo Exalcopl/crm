@@ -247,4 +247,15 @@ export default defineSchema({
   })
     .index("by_quote", ["quoteId"])
     .index("by_quote_file", ["quoteId", "fileItemId"]),
+
+  projectTypeGalleryImages: defineTable({
+    projectTypeId: v.id("projectTypes"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    contentType: v.string(),
+    order: v.number(),
+    uploadedAt: v.number(),
+  })
+    .index("by_projectType", ["projectTypeId"])
+    .index("by_projectType_order", ["projectTypeId", "order"]),
 });
