@@ -440,16 +440,18 @@ function QuoteDetailLayout({
         <QuoteDetailHeader quote={quote} archived={archived} />
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
-            <div className="quote-widget-item quote-widget-span-1">
-              <TasksKanban quote={quote} archived={archived} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="quote-widget-item">
+                <TasksKanban quote={quote} archived={archived} />
+              </div>
+              <div className="quote-widget-item">
+                <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                  <HelperQuestionsSection quoteId={quote._id} />
+                </Section>
+              </div>
             </div>
             <div className="quote-widget-item quote-widget-span-1">
               <QuoteFileBrowser quote={quote} archived={archived} />
-            </div>
-            <div className="quote-widget-item quote-widget-span-1">
-              <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-                <HelperQuestionsSection quoteId={quote._id} />
-              </Section>
             </div>
           </div>
         ) : (
@@ -652,6 +654,7 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
                 {idCopied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}
               </span>
             </button>
+            <ClientContactStrip quote={quote} />
             <button
               type="button"
               className="quote-detail-investment-trigger"
@@ -686,7 +689,6 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
               })}
             </div>
           </div>
-          <ClientContactStrip quote={quote} />
         </div>
         <div className="quote-detail-header-meta">
           <div className="quote-detail-meta-item">

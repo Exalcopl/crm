@@ -317,21 +317,20 @@ export function HelperQuestionsSection({
                   <div
                     key={q._id}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "minmax(0, 1fr) minmax(220px, 320px)",
-                      gap: 14,
-                      alignItems: "start",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
                     }}
                   >
                     <div
                       style={{
                         display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                        paddingTop: 4,
+                        alignItems: "center",
+                        gap: 8,
+                        flexWrap: "wrap",
                       }}
                     >
-                      <div style={{ fontSize: 13, color: "var(--text-primary)" }}>
+                      <div style={{ fontSize: 13, color: "var(--text-primary)", flex: 1, minWidth: 0 }}>
                         {q.text}
                       </div>
                       {q.isRequired && empty && (
@@ -342,6 +341,7 @@ export function HelperQuestionsSection({
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 4,
+                            whiteSpace: "nowrap",
                           }}
                         >
                           ⚠ wymagane
