@@ -236,6 +236,7 @@ export const createFromLead = internalMutation({
     contact: CONTACT_VALUE,
     projectType: v.string(),
     description: v.optional(v.string()),
+    configuration: v.optional(v.any()),
   },
   handler: async (
     ctx,
@@ -306,6 +307,7 @@ export const createFromLead = internalMutation({
       ownerId: null,
       archived: false,
       source: "public",
+      configuration: args.configuration ?? undefined,
       publicUploadToken: uploadToken,
       publicUploadTokenExpiresAt: createdAt + PUBLIC_UPLOAD_TOKEN_TTL_MS,
     });
@@ -324,6 +326,19 @@ export const createFromLead = internalMutation({
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
       quoteId,
+    });
+
+    // Log do aktywności
+    await ctx.db.insert("quoteActivity", {
+      quoteId,
+      type: "quote_created",
+      title: "Wycena utworzona z konfiguratora",
+      detail: args.configuration
+        ? `Typ: ${args.projectType}`
+        : undefined,
+      authorId: null,
+      authorName: contactName,
+      createdAt,
     });
 
     return { code, quoteId, uploadToken };
@@ -812,5 +827,30 @@ export const seedInitialQuotes = internalMutation({
     await ctx.db.insert("quoteCounters", { year, seq: 733 });
 
     return { skipped: false, count };
+  },
+});
+
+export const updateConfiguration = mutation({
+  args: {
+    id: v.id("quotes"),
+    configuration: v.any(),
+    changeDetail: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, configuration, changeDetail }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(id, { configuration });
+
+    const user = await ctx.db.get(callerId);
+    await ctx.db.insert("quoteActivity", {
+      quoteId: id,
+      type: "configuration_updated",
+      title: "Konfiguracja zaktualizowana",
+      detail: changeDetail,
+      authorId: callerId,
+      authorName: user?.name ?? user?.email ?? "Handlowiec",
+      createdAt: Date.now(),
+    });
   },
 });

@@ -184,7 +184,7 @@ http.route({
     }
 
     // Parse request body
-    let body: { name?: string; phone?: string; email?: string; description?: string };
+    let body: { name?: string; phone?: string; email?: string; description?: string; configuration?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -213,6 +213,7 @@ http.route({
           contact: { name, phone, email },
           projectType,
           description: body.description?.trim() || undefined,
+          configuration: body.configuration ?? undefined,
         },
       );
 

@@ -51,6 +51,8 @@ export type Quote = {
   ownerLegacy?: string;
   archived?: boolean;
   sharepoint?: SharepointInfo;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  configuration?: any;
 };
 
 export const QUOTE_STATUSES: QuoteStatus[] = [

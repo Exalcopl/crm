@@ -163,6 +163,7 @@ export default defineSchema({
     ownerLegacy: v.optional(v.string()),
     archived: v.optional(v.boolean()),
     source: v.optional(v.union(v.literal("admin"), v.literal("public"))),
+    configuration: v.optional(v.any()),
     publicUploadToken: v.optional(v.string()),
     publicUploadTokenExpiresAt: v.optional(v.number()),
     sharepoint: v.optional(
@@ -247,6 +248,18 @@ export default defineSchema({
   })
     .index("by_quote", ["quoteId"])
     .index("by_quote_file", ["quoteId", "fileItemId"]),
+
+  quoteActivity: defineTable({
+    quoteId: v.id("quotes"),
+    type: v.string(),
+    title: v.string(),
+    detail: v.optional(v.string()),
+    authorId: v.union(v.id("users"), v.null()),
+    authorName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_quote", ["quoteId"])
+    .index("by_quote_created", ["quoteId", "createdAt"]),
 
   projectTypeGalleryImages: defineTable({
     projectTypeId: v.id("projectTypes"),

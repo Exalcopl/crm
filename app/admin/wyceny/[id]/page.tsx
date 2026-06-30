@@ -26,6 +26,7 @@ import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFileBrowser } from "./_components/quote-file-browser";
 import { WycenaOcrSection } from "./_components/wycena-ocr";
+import { QuoteConfiguration } from "./_components/quote-configuration";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
@@ -450,6 +451,15 @@ function QuoteDetailLayout({
                 </Section>
               </div>
             </div>
+            {quote.configuration && (quote.projectType.includes("Pergola") || quote.projectType.includes("Zadaszenia")) && (
+              <div className="quote-widget-item quote-widget-span-2">
+                <QuoteConfiguration
+                  quoteId={quote._id}
+                  configuration={quote.configuration}
+                  archived={archived}
+                />
+              </div>
+            )}
             <div className="quote-widget-item quote-widget-span-1">
               <QuoteFileBrowser quote={quote} archived={archived} />
             </div>
@@ -1172,39 +1182,46 @@ function TabPomiary({ quote }: { quote: Quote }) {
 }
 
 
+function activityIcon(type: string) {
+  switch (type) {
+    case "quote_created": return <I.plus s={12} />;
+    case "configuration_updated": return <I.doc s={12} />;
+    default: return <I.refresh s={12} />;
+  }
+}
+
+function formatActivityDate(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric" })
+    + " " + d.toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
+}
+
 function TabAktywnosc({ quote }: { quote: Quote }) {
-  const events = [
-    {
-      icon: <I.refresh s={12} />,
-      title: `Status zmieniony na „${quote.status}"`,
-      meta: "Adam Borowski · 2026-05-09 14:22",
-    },
-    {
-      icon: <I.mail s={12} />,
-      title: "Wysłano zapytanie do klienta",
-      meta: "Joanna Krawczyk · 2026-05-08 11:05",
-    },
-    {
-      icon: <I.plus s={12} />,
-      title: "Wycena utworzona",
-      meta: "Leszek Sakowski · 2026-05-07 09:30",
-    },
-  ];
+  const events = useQuery(api.quoteActivity.list, { quoteId: quote._id }) ?? [];
 
   return (
     <div className="quote-detail-stack">
       <Section title="Aktywność" icon={<I.clock s={14} />}>
-        <div className="quote-detail-activity">
-          {events.map((e, i) => (
-            <div key={i} className="quote-detail-activity-item">
-              <div className="quote-detail-activity-icon">{e.icon}</div>
-              <div className="quote-detail-activity-body">
-                <div className="quote-detail-activity-title">{e.title}</div>
-                <div className="quote-detail-activity-meta">{e.meta}</div>
+        {events.length === 0 ? (
+          <div className="quote-detail-empty">
+            <div className="quote-detail-empty-text">Brak zarejestrowanych zdarzeń.</div>
+          </div>
+        ) : (
+          <div className="quote-detail-activity">
+            {events.map((e) => (
+              <div key={e._id} className="quote-detail-activity-item">
+                <div className="quote-detail-activity-icon">{activityIcon(e.type)}</div>
+                <div className="quote-detail-activity-body">
+                  <div className="quote-detail-activity-title">{e.title}</div>
+                  <div className="quote-detail-activity-meta">
+                    {e.authorName} · {formatActivityDate(e.createdAt)}
+                    {e.detail && <span style={{ marginLeft: 4, color: "var(--text-muted)" }}>— {e.detail}</span>}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Section>
     </div>
   );
