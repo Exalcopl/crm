@@ -50,12 +50,14 @@ function isDirty(a: FormState, b: FormState): boolean {
   );
 }
 
-export function InvestmentSection({
+export function InvestmentModal({
   quote,
   archived,
+  onClose,
 }: {
   quote: Quote;
   archived: boolean;
+  onClose: () => void;
 }) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
   const setInvestment = useMutation(api.quotes.setInvestment);
@@ -66,6 +68,19 @@ export function InvestmentSection({
   const dirty = isDirty(form, initial);
   const hasCoords =
     typeof form.lat === "number" && typeof form.lng === "number";
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !saving) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose, saving]);
 
   async function save() {
     setSaving(true);
@@ -82,15 +97,12 @@ export function InvestmentSection({
         },
       });
       toast.success("Zapisano lokalizację inwestycji");
+      onClose();
     } catch {
       toast.error("Nie udało się zapisać");
     } finally {
       setSaving(false);
     }
-  }
-
-  function reset() {
-    setForm(toForm(quote.investment));
   }
 
   function handlePlaceSelected(p: {
@@ -113,138 +125,153 @@ export function InvestmentSection({
   }
 
   return (
-    <section className="quote-detail-investment">
-      <header className="quote-detail-investment-head">
-        <div className="quote-detail-investment-title">
-          <span className="quote-detail-investment-icon">
-            <I.pin s={14} sw={2} />
-          </span>
-          <span>Lokalizacja inwestycji</span>
-          {form.name ? (
-            <span className="quote-detail-investment-subtitle">
-              · {form.name}
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Lokalizacja inwestycji"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !saving) onClose();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-md">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon">
+              <I.pin s={16} sw={2.2} />
             </span>
-          ) : null}
-        </div>
-        <div className="quote-detail-investment-actions">
-          {dirty && (
-            <button
-              type="button"
-              className="quote-detail-investment-cancel"
-              onClick={reset}
-              disabled={saving || archived}
-            >
-              Anuluj
-            </button>
-          )}
+            <span>Lokalizacja inwestycji</span>
+          </div>
           <button
             type="button"
-            className="quote-detail-investment-save"
+            className="fluent-modal-close"
+            onClick={onClose}
+            aria-label="Zamknij"
+            disabled={saving}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="fluent-modal-body">
+          <div className="quote-detail-investment-modal-grid">
+            <div className="quote-detail-investment-form">
+              <label className="quote-detail-investment-field">
+                <span className="quote-detail-investment-label">
+                  Nazwa inwestycji
+                </span>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, name: e.target.value }))
+                  }
+                  placeholder="np. Dom Kowalski – Wilanów"
+                  disabled={archived}
+                  className="quote-detail-investment-input"
+                />
+              </label>
+
+              <label className="quote-detail-investment-field">
+                <span className="quote-detail-investment-label">Adres</span>
+                {apiKey ? (
+                  <APIProvider apiKey={apiKey}>
+                    <AddressAutocompleteInput
+                      value={form.address}
+                      disabled={archived}
+                      onChangeText={(text) =>
+                        setForm((p) => ({
+                          ...p,
+                          address: text,
+                          placeId: undefined,
+                        }))
+                      }
+                      onSelect={handlePlaceSelected}
+                    />
+                  </APIProvider>
+                ) : (
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, address: e.target.value }))
+                    }
+                    placeholder="Wpisz adres inwestycji"
+                    disabled={archived}
+                    className="quote-detail-investment-input"
+                  />
+                )}
+                {hasCoords && (
+                  <span className="quote-detail-investment-coords">
+                    {form.lat?.toFixed(5)}, {form.lng?.toFixed(5)}
+                  </span>
+                )}
+              </label>
+
+              <label className="quote-detail-investment-field">
+                <span className="quote-detail-investment-label">
+                  Notatka do lokalizacji
+                </span>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, notes: e.target.value }))
+                  }
+                  placeholder="np. wjazd od tyłu posesji, kod do bramy 1234"
+                  disabled={archived}
+                  rows={3}
+                  className="quote-detail-investment-textarea"
+                />
+              </label>
+            </div>
+
+            <div className="quote-detail-investment-mapwrap">
+              {apiKey ? (
+                <APIProvider apiKey={apiKey}>
+                  <InvestmentMap
+                    lat={form.lat}
+                    lng={form.lng}
+                    disabled={archived}
+                    onPinDrag={handlePinDrag}
+                  />
+                </APIProvider>
+              ) : (
+                <div className="quote-detail-investment-noapi">
+                  <I.map s={28} />
+                  <div className="quote-detail-investment-noapi-title">
+                    Mapa niedostępna
+                  </div>
+                  <div className="quote-detail-investment-noapi-text">
+                    Ustaw <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> w{" "}
+                    <code>.env.local</code>, aby włączyć podgląd i autouzupełnianie
+                    adresu.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
             onClick={() => void save()}
             disabled={!dirty || saving || archived}
           >
-            {saving ? "Zapisywanie…" : dirty ? "Zapisz zmiany" : "Zapisano"}
+            {saving ? "Zapisywanie…" : "Zapisz zmiany"}
           </button>
-        </div>
-      </header>
-
-      <div className="quote-detail-investment-grid">
-        <div className="quote-detail-investment-form">
-          <label className="quote-detail-investment-field">
-            <span className="quote-detail-investment-label">
-              Nazwa inwestycji
-            </span>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, name: e.target.value }))
-              }
-              placeholder="np. Dom Kowalski – Wilanów"
-              disabled={archived}
-              className="quote-detail-investment-input"
-            />
-          </label>
-
-          <label className="quote-detail-investment-field">
-            <span className="quote-detail-investment-label">Adres</span>
-            {apiKey ? (
-              <APIProvider apiKey={apiKey}>
-                <AddressAutocompleteInput
-                  value={form.address}
-                  disabled={archived}
-                  onChangeText={(text) =>
-                    setForm((p) => ({
-                      ...p,
-                      address: text,
-                      placeId: undefined,
-                    }))
-                  }
-                  onSelect={handlePlaceSelected}
-                />
-              </APIProvider>
-            ) : (
-              <input
-                type="text"
-                value={form.address}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, address: e.target.value }))
-                }
-                placeholder="Wpisz adres inwestycji"
-                disabled={archived}
-                className="quote-detail-investment-input"
-              />
-            )}
-            {hasCoords && (
-              <span className="quote-detail-investment-coords">
-                {form.lat?.toFixed(5)}, {form.lng?.toFixed(5)}
-              </span>
-            )}
-          </label>
-
-          <label className="quote-detail-investment-field">
-            <span className="quote-detail-investment-label">
-              Notatka do lokalizacji
-            </span>
-            <textarea
-              value={form.notes}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, notes: e.target.value }))
-              }
-              placeholder="np. wjazd od tyłu posesji, kod do bramy 1234"
-              disabled={archived}
-              rows={3}
-              className="quote-detail-investment-textarea"
-            />
-          </label>
-        </div>
-
-        <div className="quote-detail-investment-mapwrap">
-          {apiKey ? (
-            <APIProvider apiKey={apiKey}>
-              <InvestmentMap
-                lat={form.lat}
-                lng={form.lng}
-                disabled={archived}
-                onPinDrag={handlePinDrag}
-              />
-            </APIProvider>
-          ) : (
-            <div className="quote-detail-investment-noapi">
-              <I.map s={28} />
-              <div className="quote-detail-investment-noapi-title">
-                Mapa niedostępna
-              </div>
-              <div className="quote-detail-investment-noapi-text">
-                Ustaw <code>NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> w{" "}
-                <code>.env.local</code>, aby włączyć podgląd i autouzupełnianie
-                adresu.
-              </div>
-            </div>
-          )}
-        </div>
+        </footer>
       </div>
-    </section>
+    </div>
   );
 }
 

@@ -20,7 +20,7 @@ import {
 } from "../../_lib/quotes";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
-import { InvestmentSection } from "./_components/investment-section";
+import { InvestmentModal } from "./_components/investment-section";
 import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
 import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
@@ -448,7 +448,6 @@ function QuoteDetailLayout({
             <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
               <HelperQuestionsSection quoteId={quote._id} />
             </Section>
-            <InvestmentSection quote={quote} archived={archived} />
             <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             <TasksKanban quote={quote} archived={archived} />
             <QuoteFiles quote={quote} archived={archived} />
@@ -585,6 +584,13 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
   const ownerName = useOwnerName(quote);
   const [idCopied, setIdCopied] = useState(false);
+  const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
+
+  const investmentLabel = quote.investment?.name
+    ? quote.investment.name
+    : quote.investment?.address
+      ? quote.investment.address
+      : "Ustaw lokalizację";
 
   async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
     try {
@@ -622,6 +628,20 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
               <span className="quote-detail-id-value">{quote.id}</span>
               <span className="quote-detail-id-icon" aria-hidden>
                 {idCopied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}
+              </span>
+            </button>
+            <button
+              type="button"
+              className="quote-detail-investment-trigger"
+              onClick={() => setIsInvestmentOpen(true)}
+              title="Pokaż lokalizację inwestycji"
+              aria-label="Lokalizacja inwestycji"
+            >
+              <span className="quote-detail-investment-trigger-icon">
+                <I.pin s={14} sw={2} />
+              </span>
+              <span className="quote-detail-investment-trigger-value">
+                {investmentLabel}
               </span>
             </button>
             <div className="quote-detail-hero-types">
@@ -680,6 +700,13 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
         disabled={archived}
         onStatusChange={handleStatusChange}
       />
+      {isInvestmentOpen && (
+        <InvestmentModal
+          quote={quote}
+          archived={archived}
+          onClose={() => setIsInvestmentOpen(false)}
+        />
+      )}
     </div>
   );
 }

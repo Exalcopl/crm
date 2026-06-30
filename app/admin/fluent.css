@@ -4368,6 +4368,57 @@ select.fluent-input {
   color: var(--text-secondary);
 }
 
+/* === Trigger lokalizacji w nagłówku === */
+.quote-detail-investment-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: linear-gradient(180deg, rgba(47, 128, 237, 0.08), rgba(47, 128, 237, 0.03));
+  border: 1px solid rgba(47, 128, 237, 0.25);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  height: 32px;
+  transition: background 120ms, border-color 120ms, transform 80ms;
+}
+
+.quote-detail-investment-trigger:hover {
+  background: linear-gradient(180deg, rgba(47, 128, 237, 0.15), rgba(47, 128, 237, 0.06));
+  border-color: rgba(47, 128, 237, 0.5);
+}
+
+.quote-detail-investment-trigger:active {
+  transform: scale(0.98);
+}
+
+.quote-detail-investment-trigger-icon {
+  color: #2f80ed;
+  display: inline-flex;
+  align-items: center;
+}
+
+.quote-detail-investment-trigger-value {
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+/* === Modal lokalizacji (jednokolumnowy) === */
+.fluent-modal-md {
+  width: min(500px, 100%) !important;
+}
+
+.quote-detail-investment-modal-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* === Opis / Uwagi (poziom) === */
 .quote-detail-notes-strip {
   background: var(--bg-surface);
