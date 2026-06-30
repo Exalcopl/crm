@@ -442,24 +442,38 @@ function QuoteDetailLayout({
     <OwnerNamesProvider quotes={[quote]}>
       <div className="quote-detail">
         {archived && <ArchivedBanner onRestore={onRestore} />}
-        <QuoteDetailHeader quote={quote} archived={archived} />
-        {isSzczegoly && (
-          <>
-            <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-              <HelperQuestionsSection quoteId={quote._id} />
-            </Section>
-            <OpisUwagiHorizontalSection quote={quote} archived={archived} />
-            <TasksKanban quote={quote} archived={archived} />
-            <QuoteFiles quote={quote} archived={archived} />
-          </>
+        {!isSzczegoly && <QuoteDetailHeader quote={quote} archived={archived} />}
+        {isSzczegoly ? (
+          <div className="quote-detail-grid-3col">
+            {/* Kolumna 1 */}
+            <div className="quote-detail-grid-col">
+              <QuoteInfoCard quote={quote} archived={archived} />
+              <QuoteFiles quote={quote} archived={archived} />
+            </div>
+
+            {/* Kolumna 2 */}
+            <div className="quote-detail-grid-col">
+              <QuoteMetaCard quote={quote} archived={archived} />
+              <TasksKanban quote={quote} archived={archived} />
+              <OpisUwagiHorizontalSection quote={quote} archived={archived} />
+            </div>
+
+            {/* Kolumna 3 */}
+            <div className="quote-detail-grid-col">
+              <QuoteStatusCard quote={quote} archived={archived} />
+              <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                <HelperQuestionsSection quoteId={quote._id} />
+              </Section>
+            </div>
+          </div>
+        ) : (
+          <div className="quote-detail-main">
+            {activeTab === "pozycje" && <TabPozycje quote={quote} />}
+            {activeTab === "pomiary" && <TabPomiary quote={quote} />}
+            {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
+            {activeTab === "powiazane" && <TabPowiazane />}
+          </div>
         )}
-        <div className="quote-detail-main">
-          {isSzczegoly && <TabSzczegoly quote={quote} archived={archived} />}
-          {activeTab === "pozycje" && <TabPozycje quote={quote} />}
-          {activeTab === "pomiary" && <TabPomiary quote={quote} />}
-          {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
-          {activeTab === "powiazane" && <TabPowiazane />}
-        </div>
       </div>
     </OwnerNamesProvider>
   );
@@ -928,6 +942,202 @@ function QuoteStatusPipeline({
         );
       })}
     </div>
+  );
+}
+
+function QuoteStatusPipelineVertical({
+  currentIndex,
+  disabled,
+  onStatusChange,
+}: {
+  currentIndex: number;
+  disabled?: boolean;
+  onStatusChange?: (status: typeof QUOTE_STATUSES[number]) => void;
+}) {
+  return (
+    <div className="quote-detail-pipeline-vertical" aria-label="Pionowy status pipeline">
+      {QUOTE_STATUSES.map((status, idx) => {
+        const done = idx < currentIndex;
+        const current = idx === currentIndex;
+        const color = QUOTE_STATUS_COLORS[status];
+        const clickable = !disabled && !current;
+        return (
+          <div
+            key={status}
+            className={`quote-detail-pipeline-vertical-step${current ? " is-current" : ""}${done ? " is-done" : ""}`}
+          >
+            <div className="quote-detail-pipeline-vertical-left">
+              <button
+                type="button"
+                disabled={!clickable}
+                onClick={clickable ? () => onStatusChange?.(status) : undefined}
+                className={`quote-detail-pipeline-marker${clickable ? " is-clickable" : ""}`}
+                style={current ? { background: color, borderColor: color } : done ? { borderColor: color } : undefined}
+                title={clickable ? `Ustaw status: ${status}` : undefined}
+              >
+                {done ? <I.check s={11} sw={2.4} /> : <span className="quote-detail-pipeline-dot" />}
+              </button>
+              {idx < QUOTE_STATUSES.length - 1 && (
+                <div className={`quote-detail-pipeline-vertical-bar${idx < currentIndex ? " is-done" : ""}`} />
+              )}
+            </div>
+            <div className="quote-detail-pipeline-vertical-label" style={current ? { color } : undefined}>
+              {status}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function QuoteInfoCard({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
+  const [idCopied, setIdCopied] = useState(false);
+  const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
+
+  const investmentLabel = quote.investment?.name
+    ? quote.investment.name
+    : quote.investment?.address
+      ? quote.investment.address
+      : "Ustaw lokalizację";
+
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(quote.id);
+      setIdCopied(true);
+      toast.success(`Skopiowano: ${quote.id}`);
+      setTimeout(() => setIdCopied(false), 1400);
+    } catch {
+      toast.error("Nie udało się skopiować");
+    }
+  }
+
+  return (
+    <Section title="Informacje podstawowe" icon={<I.doc s={14} />}>
+      <div className="quote-detail-info-card-body" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div className="quote-detail-hero" style={{ marginBottom: "4px" }}>
+          <button
+            type="button"
+            className={`quote-detail-id-pill${idCopied ? " is-copied" : ""}`}
+            onClick={() => void copyId()}
+            title="Kliknij, aby skopiować ID"
+            aria-label={`Skopiuj ID wyceny ${quote.id}`}
+          >
+            <span className="quote-detail-id-label">ID</span>
+            <span className="quote-detail-id-value" style={{ fontSize: "16px" }}>{quote.id}</span>
+            <span className="quote-detail-id-icon" aria-hidden>
+              {idCopied ? <I.check s={12} sw={2.4} /> : <I.doc s={12} />}
+            </span>
+          </button>
+          <button
+            type="button"
+            className="quote-detail-investment-trigger"
+            onClick={() => setIsInvestmentOpen(true)}
+            title="Pokaż lokalizację inwestycji"
+            aria-label="Lokalizacja inwestycji"
+          >
+            <span className="quote-detail-investment-trigger-icon">
+              <I.pin s={12} sw={2} />
+            </span>
+            <span className="quote-detail-investment-trigger-value" style={{ fontSize: "11px" }}>
+              {investmentLabel}
+            </span>
+          </button>
+        </div>
+        <div className="quote-detail-hero-types" style={{ marginBottom: "4px" }}>
+          {quote.projectType.map((t) => {
+            const s = getProjectTypeStyle(projectTypes, t);
+            return (
+              <span
+                key={t}
+                className="kanban-chip kanban-chip-type"
+                style={{
+                  background: s.bg,
+                  color: s.fg,
+                  borderColor: s.border,
+                }}
+              >
+                <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                {t}
+              </span>
+            );
+          })}
+        </div>
+        <ClientContactStrip quote={quote} />
+      </div>
+
+      {isInvestmentOpen && (
+        <InvestmentModal
+          quote={quote}
+          archived={archived}
+          onClose={() => setIsInvestmentOpen(false)}
+        />
+      )}
+    </Section>
+  );
+}
+
+function QuoteMetaCard({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const tone = deadlineTone(quote.deadline);
+  const hasValue = quote.value !== null;
+  const ownerName = useOwnerName(quote);
+
+  return (
+    <Section title="Parametry wyceny" icon={<I.pln s={14} />}>
+      <div className="quote-detail-grid-meta-card" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        <div className="quote-detail-meta-item">
+          <div className="quote-detail-meta-label">Wartość</div>
+          <div className="quote-detail-meta-value" style={{ borderBottom: "none", paddingBottom: 0 }}>
+            {hasValue ? (
+              <>
+                <span className="quote-detail-meta-num">{formatPLN(quote.value!)}</span>
+                <span className="quote-detail-meta-unit">PLN</span>
+              </>
+            ) : (
+              <span className="quote-detail-meta-empty">— brak —</span>
+            )}
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid var(--border-subtle)" }} />
+        <div className="quote-detail-meta-item">
+          <div className="quote-detail-meta-label">Termin</div>
+          <div className={`quote-detail-meta-value tone-${tone}`} style={{ borderBottom: "none", paddingBottom: 0 }}>
+            <span className="quote-detail-meta-num">{formatDeadline(quote.deadline)}</span>
+            <span className="quote-detail-meta-unit" style={{ marginLeft: "4px" }}>{deadlineRelative(quote.deadline)}</span>
+          </div>
+        </div>
+        <div style={{ borderTop: "1px solid var(--border-subtle)" }} />
+        <div className="quote-detail-meta-item">
+          <div className="quote-detail-meta-label">Opiekun</div>
+          <OwnerEditor quote={quote} ownerName={ownerName} disabled={archived} />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function QuoteStatusCard({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const setStatusMutation = useMutation(api.quotes.setStatus);
+  const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
+
+  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
+    try {
+      await setStatusMutation({ id: quote._id, status: newStatus });
+      toast.success(`Status zmieniony na „${newStatus}"`);
+    } catch {
+      toast.error("Nie udało się zmienić statusu");
+    }
+  }
+
+  return (
+    <Section title="Status wyceny" icon={<I.clock s={14} />}>
+      <QuoteStatusPipelineVertical
+        currentIndex={statusIndex}
+        disabled={archived}
+        onStatusChange={handleStatusChange}
+      />
+    </Section>
   );
 }
 
