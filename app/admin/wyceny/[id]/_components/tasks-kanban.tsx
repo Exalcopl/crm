@@ -1,17 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  useDroppable,
-  useDraggable,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -22,11 +11,11 @@ import { I } from "@/app/admin/_lib/icons";
 type TaskDoc = Doc<"tasks">;
 type TaskStatus = TaskDoc["status"];
 
-const COLUMNS: { id: TaskStatus; label: string; accent: string }[] = [
-  { id: "todo", label: "TODO", accent: "#8b949e" },
-  { id: "in_progress", label: "IN PROGRESS", accent: "#79c0ff" },
-  { id: "done", label: "DONE", accent: "#3fb950" },
-];
+const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
+  todo: "in_progress",
+  in_progress: "done",
+  done: "todo",
+};
 
 const TODAY = new Date("2026-05-25");
 
@@ -77,102 +66,135 @@ export function TasksKanban({
   archived: boolean;
 }) {
   const tasksRaw = useQuery(api.tasks.list, { quoteId: quote._id });
-  const tasks = useMemo(
-    () => (tasksRaw ?? []) as TaskDoc[],
-    [tasksRaw],
-  );
+  const tasks = useMemo(() => (tasksRaw ?? []) as TaskDoc[], [tasksRaw]);
   const assignees = (useQuery(api.users.listAllAssignable) ?? []) as AssignableUser[];
   const setStatus = useMutation(api.tasks.setStatus);
-  const [activeTask, setActiveTask] = useState<TaskDoc | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
-
-  const byColumn = useMemo(() => {
-    const map: Record<TaskStatus, TaskDoc[]> = {
-      todo: [],
-      in_progress: [],
-      done: [],
-    };
-    for (const t of tasks) map[t.status].push(t);
-    return map;
+  const sorted = useMemo(() => {
+    const order: Record<TaskStatus, number> = { todo: 0, in_progress: 1, done: 2 };
+    return [...tasks].sort((a, b) => order[a.status] - order[b.status]);
   }, [tasks]);
 
-  function handleDragStart(e: DragStartEvent) {
-    const id = e.active.id as string;
-    setActiveTask(tasks.find((t) => (t._id as unknown as string) === id) ?? null);
-  }
-
-  function handleDragEnd(e: DragEndEvent) {
-    setActiveTask(null);
-    if (!e.over) return;
-    const taskId = e.active.id as Id<"tasks">;
-    const newStatus = e.over.id as TaskStatus;
-    const task = tasks.find((t) => (t._id as unknown as string) === (taskId as unknown as string));
-    if (!task || task.status === newStatus) return;
-    void setStatus({ id: taskId, status: newStatus });
-  }
-
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="quote-detail-tasks">
-        <header className="quote-detail-tasks-head">
-          <div className="quote-detail-tasks-title">
-            <span className="quote-detail-tasks-icon">
-              <I.check s={14} sw={2.2} />
-            </span>
-            <span>Zadania</span>
-            <span className="quote-detail-tasks-count">{tasks.length}</span>
-          </div>
-        </header>
-
-        <div className="quote-detail-tasks-board">
-          {COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              col={col}
-              tasks={byColumn[col.id]}
-              quoteId={quote._id}
-              assignees={assignees}
-              archived={archived}
-            />
-          ))}
+    <div className="quote-detail-tasks">
+      <header className="quote-detail-tasks-head">
+        <div className="quote-detail-tasks-title">
+          <span className="quote-detail-tasks-icon"><I.check s={14} sw={2.2} /></span>
+          <span>Zadania</span>
+          <span className="quote-detail-tasks-count">{tasks.length}</span>
         </div>
-      </div>
+      </header>
 
-      <DragOverlay>
-        {activeTask ? (
-          <TaskCard
-            task={activeTask}
+      <div className="quote-detail-todo-list">
+        {sorted.map((task) => (
+          <TodoRow
+            key={task._id as unknown as string}
+            task={task}
             assignees={assignees}
-            archived
-            isOverlay
+            archived={archived}
+            onCycleStatus={() =>
+              void setStatus({ id: task._id, status: STATUS_CYCLE[task.status] })
+            }
           />
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+        ))}
+        {!archived && <AddTaskRow quoteId={quote._id} />}
+      </div>
+    </div>
   );
 }
 
-function KanbanColumn({
-  col,
-  tasks,
-  quoteId,
+function TodoRow({
+  task,
   assignees,
   archived,
+  onCycleStatus,
 }: {
-  col: { id: TaskStatus; label: string; accent: string };
-  tasks: TaskDoc[];
-  quoteId: Id<"quotes">;
+  task: TaskDoc;
   assignees: AssignableUser[];
   archived: boolean;
+  onCycleStatus: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const updateTask = useMutation(api.tasks.update);
+  const removeTask = useMutation(api.tasks.remove);
+  const assignTask = useMutation(api.tasks.assign);
+  const [editing, setEditing] = useState(false);
+  const tone = dueTone(task.dueDate);
+
+  const assignee = assignees.find(
+    (a) => (a._id as unknown as string) === (task.assigneeId as unknown as string),
+  );
+  const assigneeName = assignee?.name?.trim() || assignee?.email?.trim() || null;
+
+  return (
+    <div className={`quote-detail-todo-row${task.status === "done" ? " is-done" : ""}${task.status === "in_progress" ? " is-progress" : ""}`}>
+      <button
+        type="button"
+        className={`quote-detail-todo-status status-${task.status}`}
+        onClick={onCycleStatus}
+        disabled={archived}
+        title={task.status === "todo" ? "Zacznij" : task.status === "in_progress" ? "Ukończ" : "Cofnij"}
+      >
+        {task.status === "done" && <I.check s={10} sw={2.5} />}
+        {task.status === "in_progress" && <span className="todo-status-dot" />}
+      </button>
+
+      {editing ? (
+        <input
+          type="text"
+          defaultValue={task.title}
+          autoFocus
+          className="quote-detail-todo-title-input"
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            setEditing(false);
+            if (v && v !== task.title) void updateTask({ id: task._id, title: v });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") setEditing(false);
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="quote-detail-todo-title"
+          onClick={() => !archived && setEditing(true)}
+          disabled={archived}
+        >
+          {task.title}
+        </button>
+      )}
+
+      <div className="quote-detail-todo-meta">
+        <AssigneePicker
+          assignees={assignees}
+          currentId={task.assigneeId}
+          currentName={assigneeName}
+          disabled={archived}
+          onAssign={(userId) => void assignTask({ id: task._id, assigneeId: userId })}
+        />
+        <DueDatePicker
+          dueDate={task.dueDate}
+          tone={tone}
+          disabled={archived}
+          onChange={(d) => void updateTask({ id: task._id, dueDate: d ?? null })}
+        />
+        {!archived && (
+          <button
+            type="button"
+            className="quote-detail-todo-remove"
+            onClick={() => void removeTask({ id: task._id })}
+            aria-label="Usuń zadanie"
+          >
+            <I.trash s={11} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddTaskRow({ quoteId }: { quoteId: Id<"quotes"> }) {
   const addTask = useMutation(api.tasks.add);
   const [draft, setDraft] = useState("");
   const [adding, setAdding] = useState(false);
@@ -183,7 +205,7 @@ function KanbanColumn({
     if (!title) return;
     setAdding(true);
     try {
-      await addTask({ quoteId, title, status: col.id });
+      await addTask({ quoteId, title, status: "todo" });
       setDraft("");
     } finally {
       setAdding(false);
@@ -191,145 +213,17 @@ function KanbanColumn({
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`quote-detail-tasks-col${isOver ? " is-over" : ""}`}
-      style={{ "--col-accent": col.accent } as React.CSSProperties}
-    >
-      <div className="quote-detail-tasks-col-head">
-        <span className="quote-detail-tasks-col-dot" />
-        <span className="quote-detail-tasks-col-label">{col.label}</span>
-        <span className="quote-detail-tasks-col-count">{tasks.length}</span>
-      </div>
-
-      <div className="quote-detail-tasks-col-body">
-        {tasks.map((t) => (
-          <TaskCard
-            key={t._id as unknown as string}
-            task={t}
-            assignees={assignees}
-            archived={archived}
-          />
-        ))}
-
-        {!archived && (
-          <form
-            className="quote-detail-tasks-add"
-            onSubmit={(e) => void submit(e)}
-          >
-            <input
-              type="text"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="+ Dodaj zadanie"
-              disabled={adding}
-              className="quote-detail-tasks-add-input"
-            />
-          </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function TaskCard({
-  task,
-  assignees,
-  archived,
-  isOverlay,
-}: {
-  task: TaskDoc;
-  assignees: AssignableUser[];
-  archived: boolean;
-  isOverlay?: boolean;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: task._id as unknown as string,
-    disabled: archived || isOverlay,
-  });
-
-  const updateTask = useMutation(api.tasks.update);
-  const removeTask = useMutation(api.tasks.remove);
-  const assignTask = useMutation(api.tasks.assign);
-  const [editing, setEditing] = useState(false);
-
-  const assignee = assignees.find(
-    (a) => (a._id as unknown as string) === (task.assigneeId as unknown as string),
-  );
-  const assigneeName = assignee?.name?.trim() || assignee?.email?.trim() || null;
-  const tone = dueTone(task.dueDate);
-
-  const draggable = !archived && !isOverlay && !editing;
-
-  return (
-    <div
-      ref={setNodeRef}
-      className={`quote-detail-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
-      style={{ opacity: isDragging && !isOverlay ? 0 : 1 }}
-      {...(draggable ? attributes : {})}
-      {...(draggable ? listeners : {})}
-    >
-      <div className="quote-detail-task-card-top">
-        {editing ? (
-          <input
-            type="text"
-            defaultValue={task.title}
-            autoFocus
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              setEditing(false);
-              if (v && v !== task.title) {
-                void updateTask({ id: task._id, title: v });
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") setEditing(false);
-            }}
-            className="quote-detail-task-card-title-input"
-          />
-        ) : (
-          <button
-            type="button"
-            className="quote-detail-task-card-title"
-            onClick={() => !archived && setEditing(true)}
-            disabled={archived}
-          >
-            {task.title}
-          </button>
-        )}
-        {!archived && !isOverlay && (
-          <button
-            type="button"
-            className="quote-detail-task-card-remove"
-            onClick={() => void removeTask({ id: task._id })}
-            aria-label="Usuń zadanie"
-          >
-            <I.trash s={11} />
-          </button>
-        )}
-      </div>
-
-      <div className="quote-detail-task-card-foot">
-        <AssigneePicker
-          assignees={assignees}
-          currentId={task.assigneeId}
-          currentName={assigneeName}
-          disabled={archived || isOverlay}
-          onAssign={(userId) =>
-            void assignTask({ id: task._id, assigneeId: userId })
-          }
-        />
-        <DueDatePicker
-          dueDate={task.dueDate}
-          tone={tone}
-          disabled={archived || isOverlay}
-          onChange={(d) =>
-            void updateTask({ id: task._id, dueDate: d ?? null })
-          }
-        />
-      </div>
-    </div>
+    <form className="quote-detail-todo-add" onSubmit={(e) => void submit(e)}>
+      <span className="quote-detail-todo-add-icon"><I.plus s={11} sw={2} /></span>
+      <input
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Dodaj zadanie..."
+        disabled={adding}
+        className="quote-detail-todo-add-input"
+      />
+    </form>
   );
 }
 
@@ -352,8 +246,7 @@ function AssigneePicker({
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
-      if (!wrapperRef.current) return;
-      if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -396,10 +289,7 @@ function AssigneePicker({
           <button
             type="button"
             className={`quote-detail-task-assignee-option${currentId === null ? " is-active" : ""}`}
-            onClick={() => {
-              onAssign(null);
-              setOpen(false);
-            }}
+            onClick={() => { onAssign(null); setOpen(false); }}
           >
             <span className="quote-detail-task-assignee-option-avatar">—</span>
             <span>Bez przypisania</span>
@@ -408,26 +298,20 @@ function AssigneePicker({
             <button
               type="button"
               className="quote-detail-task-assignee-option quote-detail-task-assignee-option-me"
-              onClick={() => {
-                onAssign(me._id);
-                setOpen(false);
-              }}
+              onClick={() => { onAssign(me._id); setOpen(false); }}
               title={meLabel ?? undefined}
             >
               <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar quote-detail-task-assignee-option-avatar-me">
                 {ownerInitials(meLabel ?? "—")}
               </span>
               <span>Przypisz mnie</span>
-              <span className="quote-detail-task-assignee-option-me-name">
-                ({meLabel})
-              </span>
+              <span className="quote-detail-task-assignee-option-me-name">({meLabel})</span>
             </button>
           )}
           <div className="quote-detail-task-assignee-sep" aria-hidden />
           {assignees.map((u) => {
             const label = u.name?.trim() || u.email?.trim() || "—";
-            const active =
-              (u._id as unknown as string) === (currentId as unknown as string);
+            const active = (u._id as unknown as string) === (currentId as unknown as string);
             return (
               <button
                 key={u._id as unknown as string}
@@ -435,10 +319,7 @@ function AssigneePicker({
                 role="option"
                 aria-selected={active}
                 className={`quote-detail-task-assignee-option${active ? " is-active" : ""}`}
-                onClick={() => {
-                  onAssign(u._id);
-                  setOpen(false);
-                }}
+                onClick={() => { onAssign(u._id); setOpen(false); }}
               >
                 <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
                   {ownerInitials(label)}
@@ -446,9 +327,7 @@ function AssigneePicker({
                 <span>
                   {label}
                   {u.isCurrentUser && (
-                    <span className="quote-detail-task-assignee-option-tag">
-                      Ty
-                    </span>
+                    <span className="quote-detail-task-assignee-option-tag">Ty</span>
                   )}
                 </span>
               </button>
@@ -477,8 +356,7 @@ function DueDatePicker({
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
-      if (!wrapperRef.current) return;
-      if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
     }
     window.addEventListener("mousedown", onClick);
     return () => window.removeEventListener("mousedown", onClick);
@@ -500,20 +378,14 @@ function DueDatePicker({
           <input
             type="date"
             defaultValue={dueDate ?? ""}
-            onChange={(e) => {
-              onChange(e.target.value || null);
-              setOpen(false);
-            }}
+            onChange={(e) => { onChange(e.target.value || null); setOpen(false); }}
             className="quote-detail-task-due-input"
           />
           {dueDate && (
             <button
               type="button"
               className="quote-detail-task-due-clear"
-              onClick={() => {
-                onChange(null);
-                setOpen(false);
-              }}
+              onClick={() => { onChange(null); setOpen(false); }}
             >
               Wyczyść
             </button>

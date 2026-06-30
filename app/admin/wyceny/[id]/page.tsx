@@ -442,23 +442,17 @@ function QuoteDetailLayout({
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
             <div className="quote-widget-item quote-widget-span-1">
-              <QuoteInfoCard quote={quote} archived={archived} />
+              <TasksKanban quote={quote} archived={archived} />
             </div>
             <div className="quote-widget-item quote-widget-span-1">
-              <QuoteMetaCard quote={quote} archived={archived} />
+              <QuoteFileBrowser quote={quote} archived={archived} />
             </div>
             <div className="quote-widget-item quote-widget-span-1">
               <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
                 <HelperQuestionsSection quoteId={quote._id} />
               </Section>
             </div>
-            <div className="quote-widget-item quote-widget-span-1">
-              <QuoteFileBrowser quote={quote} archived={archived} />
-            </div>
-            <div className="quote-widget-item quote-widget-span-2">
-              <TasksKanban quote={quote} archived={archived} />
-            </div>
-            <div className="quote-widget-item quote-widget-span-3">
+            <div className="quote-widget-item quote-widget-span-4">
               <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             </div>
           </div>

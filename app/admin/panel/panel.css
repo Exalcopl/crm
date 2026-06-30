@@ -38,6 +38,179 @@
   }
 }
 
+/* Kanban kolumny — styl globalnego kanbana */
+.quote-detail-tasks-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-surface);
+  border-radius: 8px;
+  padding: 12px;
+  min-height: 260px;
+  position: relative;
+  border-top: 3px solid var(--col-accent, var(--accent-primary));
+  transition: background 150ms;
+}
+
+.quote-detail-tasks-col.is-over {
+  background: color-mix(in srgb, var(--col-accent, var(--accent-primary)) 6%, var(--bg-surface));
+}
+
+.quote-detail-tasks-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.quote-detail-tasks-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--col-accent, var(--text-muted));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--col-accent, var(--text-muted)) 22%, transparent);
+  flex-shrink: 0;
+}
+
+.quote-detail-tasks-col-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.quote-detail-tasks-col-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  padding: 0 6px;
+  border-radius: 999px;
+}
+
+.quote-detail-tasks-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  border-radius: 6px;
+  min-height: 40px;
+  transition: background 150ms;
+}
+
+/* Kanban karty — styl globalnego kanbana */
+.quote-detail-task-card {
+  position: relative;
+  padding: 9px 10px 8px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, 0.035), transparent 55%),
+    linear-gradient(180deg, rgba(31, 41, 55, 0.55) 0%, rgba(13, 17, 23, 0.85) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 180ms ease, box-shadow 220ms ease, transform 180ms ease;
+  touch-action: none;
+  user-select: none;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.quote-detail-task-card.is-draggable {
+  cursor: grab;
+}
+
+.quote-detail-task-card.is-draggable:active {
+  cursor: grabbing;
+}
+
+.quote-detail-task-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(212, 29, 60, 0.18), 0 0 0 1px rgba(212, 29, 60, 0.18);
+  transform: translateY(-2px);
+}
+
+.quote-detail-task-card.is-dragging {
+  opacity: 0.35;
+  border-color: var(--accent-line);
+  box-shadow: none;
+}
+
+.quote-detail-task-card.is-overlay {
+  cursor: grabbing;
+  border-color: rgba(212, 29, 60, 0.55);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(212, 29, 60, 0.35);
+  transform: rotate(1.5deg) scale(1.02);
+}
+
+.quote-detail-task-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.quote-detail-task-card-title {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 0;
+  cursor: text;
+  font: inherit;
+}
+
+.quote-detail-task-card-title:hover:not(:disabled) {
+  color: #fff;
+}
+
+.quote-detail-task-card-title-input {
+  flex: 1;
+  background: var(--bg-base);
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 3px 6px;
+  outline: 0;
+  font: inherit;
+}
+
+.quote-detail-task-card-remove {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 120ms, color 120ms, background 120ms;
+}
+
+.quote-detail-task-card:hover .quote-detail-task-card-remove {
+  opacity: 1;
+}
+
+.quote-detail-task-card-remove:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ff8478;
+}
+
+.quote-detail-task-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .panel-col-empty {
   font-size: 11px;
   color: var(--text-muted);
