@@ -128,6 +128,59 @@ async function ensureFolder(
   return { id: created.id, webUrl: created.webUrl };
 }
 
+async function ensureSubfolderById(
+  token: string,
+  driveId: string,
+  parentItemId: string,
+  folderName: string,
+): Promise<{ id: string }> {
+  const base = "https://graph.microsoft.com/v1.0";
+  const checkUrl = `${base}/drives/${driveId}/items/${parentItemId}:/${encodeURIComponent(folderName)}`;
+
+  const checkRes = await fetch(checkUrl, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (checkRes.ok) {
+    const existing = (await checkRes.json()) as { id: string };
+    return { id: existing.id };
+  }
+  if (checkRes.status !== 404) {
+    const text = await checkRes.text();
+    throw new Error(`Graph subfolder check failed ${checkRes.status}: ${text}`);
+  }
+
+  const createRes = await fetch(
+    `${base}/drives/${driveId}/items/${parentItemId}/children`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: folderName,
+        folder: {},
+        "@microsoft.graph.conflictBehavior": "fail",
+      }),
+    },
+  );
+  if (createRes.status === 409) {
+    const retryRes = await fetch(checkUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (retryRes.ok) {
+      const existing = (await retryRes.json()) as { id: string };
+      return { id: existing.id };
+    }
+  }
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    throw new Error(`Graph subfolder create failed ${createRes.status}: ${text}`);
+  }
+  const created = (await createRes.json()) as { id: string };
+  return { id: created.id };
+}
+
 async function deleteFolder(
   token: string,
   driveId: string,
@@ -339,9 +392,17 @@ export const createPublicUploadSession = action({
     }
 
     const token2 = await getGraphToken(tenantId, clientId, clientSecret);
+
+    const attachmentFolder = await ensureSubfolderById(
+      token2,
+      sp.driveId,
+      sp.subfolderItemId,
+      "Załącznik",
+    );
+
     const encodedName = encodeURIComponent(fileName);
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/${encodedName}:/createUploadSession`,
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${attachmentFolder.id}:/${encodedName}:/createUploadSession`,
       {
         method: "POST",
         headers: {

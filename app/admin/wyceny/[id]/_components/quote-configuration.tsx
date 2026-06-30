@@ -171,15 +171,15 @@ function AddonRow({ name, checked, editing, onChange }: {
           type="checkbox"
           checked={checked}
           onChange={(e) => onChange?.(e.target.checked)}
-          style={{ accentColor: "#DD3333", width: 14, height: 14 }}
+          style={{ accentColor: "#22A06B", width: 14, height: 14 }}
         />
       ) : (
         <span style={{
           width: 16, height: 16, borderRadius: 4, display: "inline-flex",
           alignItems: "center", justifyContent: "center", fontSize: 10,
-          background: checked ? "#DD3333" : "var(--bg-overlay)",
+          background: checked ? "#22A06B" : "var(--bg-overlay)",
           color: checked ? "#fff" : "var(--text-muted)",
-          border: `1px solid ${checked ? "#DD3333" : "var(--border-subtle)"}`,
+          border: `1px solid ${checked ? "#22A06B" : "var(--border-subtle)"}`,
           flexShrink: 0,
         }}>
           {checked ? "✓" : ""}

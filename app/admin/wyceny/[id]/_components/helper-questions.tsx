@@ -48,21 +48,20 @@ function AnswerInput({
 }) {
   if (question.answerType === "text") {
     return (
-      <textarea
+      <input
+        type="text"
         value={answer?.textValue ?? ""}
         onChange={(e) => onChange({ ...answer, textValue: e.target.value })}
         placeholder="Wpisz odpowiedź…"
-        rows={2}
         style={{
-          width: "100%",
+          width: 220,
           background: "var(--bg-base)",
           border: "1px solid var(--border-subtle)",
           color: "var(--text-primary)",
           borderRadius: 6,
-          padding: "6px 10px",
+          padding: "5px 10px",
           fontSize: 13,
           outline: "none",
-          resize: "vertical",
           fontFamily: "inherit",
         }}
       />
@@ -318,29 +317,20 @@ export function HelperQuestionsSection({
                     key={q._id}
                     style={{
                       display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      flexWrap: "wrap",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ fontSize: 13, color: "var(--text-primary)", flex: 1, minWidth: 0 }}>
-                        {q.text}
-                      </div>
+                    <div style={{ fontSize: 13, color: "var(--text-primary)", flex: 1, minWidth: 120 }}>
+                      {q.text}
                       {q.isRequired && empty && (
                         <span
                           style={{
+                            marginLeft: 6,
                             fontSize: 11,
                             color: "#fbbf24",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
                             whiteSpace: "nowrap",
                           }}
                         >
