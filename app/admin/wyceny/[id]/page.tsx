@@ -460,7 +460,6 @@ function QuoteDetailLayout({
 
             {/* Kolumna 3 */}
             <div className="quote-detail-grid-col">
-              <QuoteStatusCard quote={quote} archived={archived} />
               <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
                 <HelperQuestionsSection quoteId={quote._id} />
               </Section>
@@ -905,13 +904,15 @@ function QuoteStatusPipeline({
   currentIndex,
   disabled,
   onStatusChange,
+  isCompact,
 }: {
   currentIndex: number;
   disabled?: boolean;
   onStatusChange?: (status: typeof QUOTE_STATUSES[number]) => void;
+  isCompact?: boolean;
 }) {
   return (
-    <div className="quote-detail-pipeline" aria-label="Status pipeline">
+    <div className={`quote-detail-pipeline${isCompact ? " is-compact" : ""}`} aria-label="Status pipeline">
       {QUOTE_STATUSES.map((status, idx) => {
         const done = idx < currentIndex;
         const current = idx === currentIndex;
@@ -930,7 +931,7 @@ function QuoteStatusPipeline({
               style={current ? { background: color, borderColor: color } : done ? { borderColor: color } : undefined}
               title={clickable ? `Ustaw status: ${status}` : undefined}
             >
-              {done ? <I.check s={11} sw={2.4} /> : <span className="quote-detail-pipeline-dot" />}
+              {done ? <I.check s={isCompact ? 8 : 11} sw={2.4} /> : <span className="quote-detail-pipeline-dot" />}
             </button>
             <div className="quote-detail-pipeline-label" style={current ? { color } : undefined}>
               {status}
@@ -945,54 +946,10 @@ function QuoteStatusPipeline({
   );
 }
 
-function QuoteStatusPipelineVertical({
-  currentIndex,
-  disabled,
-  onStatusChange,
-}: {
-  currentIndex: number;
-  disabled?: boolean;
-  onStatusChange?: (status: typeof QUOTE_STATUSES[number]) => void;
-}) {
-  return (
-    <div className="quote-detail-pipeline-vertical" aria-label="Pionowy status pipeline">
-      {QUOTE_STATUSES.map((status, idx) => {
-        const done = idx < currentIndex;
-        const current = idx === currentIndex;
-        const color = QUOTE_STATUS_COLORS[status];
-        const clickable = !disabled && !current;
-        return (
-          <div
-            key={status}
-            className={`quote-detail-pipeline-vertical-step${current ? " is-current" : ""}${done ? " is-done" : ""}`}
-          >
-            <div className="quote-detail-pipeline-vertical-left">
-              <button
-                type="button"
-                disabled={!clickable}
-                onClick={clickable ? () => onStatusChange?.(status) : undefined}
-                className={`quote-detail-pipeline-marker${clickable ? " is-clickable" : ""}`}
-                style={current ? { background: color, borderColor: color } : done ? { borderColor: color } : undefined}
-                title={clickable ? `Ustaw status: ${status}` : undefined}
-              >
-                {done ? <I.check s={11} sw={2.4} /> : <span className="quote-detail-pipeline-dot" />}
-              </button>
-              {idx < QUOTE_STATUSES.length - 1 && (
-                <div className={`quote-detail-pipeline-vertical-bar${idx < currentIndex ? " is-done" : ""}`} />
-              )}
-            </div>
-            <div className="quote-detail-pipeline-vertical-label" style={current ? { color } : undefined}>
-              {status}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function QuoteInfoCard({ quote, archived }: { quote: Quote; archived: boolean }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
+  const setStatusMutation = useMutation(api.quotes.setStatus);
+  const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
   const [idCopied, setIdCopied] = useState(false);
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
 
@@ -1010,6 +967,15 @@ function QuoteInfoCard({ quote, archived }: { quote: Quote; archived: boolean })
       setTimeout(() => setIdCopied(false), 1400);
     } catch {
       toast.error("Nie udało się skopiować");
+    }
+  }
+
+  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
+    try {
+      await setStatusMutation({ id: quote._id, status: newStatus });
+      toast.success(`Status zmieniony na „${newStatus}"`);
+    } catch {
+      toast.error("Nie udało się zmienić statusu");
     }
   }
 
@@ -1065,6 +1031,14 @@ function QuoteInfoCard({ quote, archived }: { quote: Quote; archived: boolean })
           })}
         </div>
         <ClientContactStrip quote={quote} />
+
+        <div style={{ borderTop: "1px solid var(--border-subtle)", marginTop: "4px", paddingTop: "12px" }} />
+        <QuoteStatusPipeline
+          currentIndex={statusIndex}
+          disabled={archived}
+          onStatusChange={handleStatusChange}
+          isCompact={true}
+        />
       </div>
 
       {isInvestmentOpen && (
@@ -1113,30 +1087,6 @@ function QuoteMetaCard({ quote, archived }: { quote: Quote; archived: boolean })
           <OwnerEditor quote={quote} ownerName={ownerName} disabled={archived} />
         </div>
       </div>
-    </Section>
-  );
-}
-
-function QuoteStatusCard({ quote, archived }: { quote: Quote; archived: boolean }) {
-  const setStatusMutation = useMutation(api.quotes.setStatus);
-  const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
-
-  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
-    try {
-      await setStatusMutation({ id: quote._id, status: newStatus });
-      toast.success(`Status zmieniony na „${newStatus}"`);
-    } catch {
-      toast.error("Nie udało się zmienić statusu");
-    }
-  }
-
-  return (
-    <Section title="Status wyceny" icon={<I.clock s={14} />}>
-      <QuoteStatusPipelineVertical
-        currentIndex={statusIndex}
-        disabled={archived}
-        onStatusChange={handleStatusChange}
-      />
     </Section>
   );
 }
