@@ -6844,3 +6844,395 @@ select.fluent-input {
   border: 1px solid var(--border-subtle);
   white-space: pre-wrap;
 }
+
+/* ─── Konfiguratory — nowa wycena ────────────────────────────────────────── */
+
+/* Badge "konfigurator" na kafelku typu projektu */
+.cfg-type-badge {
+  margin-left: auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+/* Subsection label (nagłówek wewnątrz FormBox) */
+.cfg-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-subsection + .cfg-subsection {
+  margin-top: 12px;
+}
+
+.cfg-subsection-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cfg-subsection-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Chips — wybór opcji */
+.cfg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cfg-chip {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.cfg-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cfg-chip.is-active {
+  background: var(--accent-soft);
+  color: var(--text-accent);
+  border-color: var(--accent-line);
+}
+
+/* Wymiary */
+.cfg-dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cfg-dim {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 80px;
+}
+
+.cfg-dim-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cfg-dim-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cfg-dim-input {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cfg-dim-unit {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+/* Kolory */
+.cfg-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cfg-color-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-color-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.cfg-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cfg-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: border-color 100ms ease, background 100ms ease;
+  width: 58px;
+}
+
+.cfg-swatch:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-subtle);
+}
+
+.cfg-swatch.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.cfg-swatch-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,0,0,.12);
+  flex-shrink: 0;
+}
+
+.cfg-swatch-name {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+  word-break: break-word;
+  max-width: 52px;
+}
+
+.cfg-swatch.is-active .cfg-swatch-name {
+  color: var(--text-accent);
+}
+
+/* Oświetlenie */
+.cfg-lighting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-lighting-item {
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.cfg-lighting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-base);
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background 100ms ease, color 100ms ease;
+  text-align: left;
+}
+
+.cfg-lighting-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cfg-lighting-toggle.is-active {
+  background: var(--accent-soft);
+  color: var(--text-accent);
+}
+
+.cfg-lighting-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+
+.cfg-lighting-toggle.is-active .cfg-lighting-check {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.cfg-lighting-subopts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-titlebar);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cfg-lighting-subopt {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease, border-color 100ms ease;
+}
+
+.cfg-lighting-subopt:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.cfg-lighting-subopt.is-active {
+  background: var(--accent-soft);
+  color: var(--text-accent);
+  border-color: var(--accent-line);
+}
+
+/* Zabudowy boczne */
+.cfg-enclosures {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cfg-enclosure-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Dodatki */
+.cfg-addons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-addon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 100ms ease, border-color 100ms ease;
+  text-align: left;
+}
+
+.cfg-addon:hover {
+  background: var(--bg-hover);
+}
+
+.cfg-addon.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.cfg-addon-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--bg-base);
+}
+
+.cfg-addon.is-active .cfg-addon-check {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.cfg-addon-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cfg-addon-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cfg-addon.is-active .cfg-addon-name {
+  color: var(--text-accent);
+}
+
+.cfg-addon-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cfg-addon-price {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cfg-addon.is-active .cfg-addon-price {
+  color: var(--text-accent);
+}
+
+/* Opis (Stolarka) */
+.cfg-textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+
+.cfg-textarea:focus {
+  border-color: var(--accent-line);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}

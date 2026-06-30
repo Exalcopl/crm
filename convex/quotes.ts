@@ -161,6 +161,7 @@ export const create = mutation({
     deadline: v.string(),
     projectType: v.array(PROJECT_TYPE_VALUE),
     ownerId: v.union(v.id("users"), v.null()),
+    configuration: v.optional(v.any()),
   },
   handler: async (
     ctx,
@@ -171,6 +172,7 @@ export const create = mutation({
       deadline: string;
       projectType: string[];
       ownerId: Id<"users"> | null;
+      configuration?: unknown;
     },
   ): Promise<{ _id: Id<"quotes">; code: string }> => {
     const callerId = await getAuthUserId(ctx);
@@ -193,6 +195,7 @@ export const create = mutation({
       ownerId: args.ownerId,
       archived: false,
       source: "admin",
+      configuration: args.configuration ?? undefined,
     });
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
