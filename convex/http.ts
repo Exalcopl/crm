@@ -86,6 +86,61 @@ http.route({
   }),
 });
 
+// POST /api/lead/upload-session — create public upload session
+http.route({
+  path: "/api/lead/upload-session",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const json = (obj: Record<string, unknown>, status: number) =>
+      new Response(JSON.stringify(obj), {
+        status,
+        headers: { "Content-Type": "application/json", ...leadCorsHeaders },
+      });
+
+    // API key validation
+    const apiKey = process.env.WEBSITE_API_KEY;
+    if (!apiKey) {
+      return json({ success: false, error: "Server misconfigured" }, 500);
+    }
+
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+    if (!token || token !== apiKey) {
+      return json({ success: false, error: "Unauthorized" }, 401);
+    }
+
+    let body: { quoteId?: string; token?: string; fileName?: string; fileSize?: number };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ success: false, error: "Invalid JSON body" }, 400);
+    }
+
+    const { quoteId, token: uploadToken, fileName, fileSize } = body;
+    if (!quoteId || !uploadToken || !fileName || fileSize === undefined) {
+      return json({ success: false, error: "Brakujące wymagane pola" }, 400);
+    }
+
+    try {
+      const result = await ctx.runAction(
+        internal.sharepoint.createPublicUploadSession,
+        {
+          quoteId: quoteId as any,
+          token: uploadToken,
+          fileName,
+          fileSize,
+        }
+      );
+      return json({ success: true, uploadUrl: result.uploadUrl }, 200);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Błąd serwera";
+      return json({ success: false, error: message }, 400);
+    }
+  }),
+});
+
 // POST /api/lead/{slug} — create quote from website form
 http.route({
   pathPrefix: "/api/lead/",
@@ -129,7 +184,7 @@ http.route({
     }
 
     // Parse request body
-    let body: { name?: string; phone?: string; email?: string };
+    let body: { name?: string; phone?: string; email?: string; description?: string };
     try {
       body = await request.json();
     } catch {
@@ -157,11 +212,18 @@ http.route({
         {
           contact: { name, phone, email },
           projectType,
+          description: body.description?.trim() || undefined,
+          answers: [],
         },
       );
 
       return json(
-        { success: true, code: result.code, quoteId: result.quoteId },
+        {
+          success: true,
+          code: result.code,
+          quoteId: result.quoteId,
+          uploadToken: result.uploadToken,
+        },
         201,
       );
     } catch (err) {
