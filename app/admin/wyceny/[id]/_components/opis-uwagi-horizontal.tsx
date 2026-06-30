@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Quote } from "@/app/admin/_lib/quotes";
 import { ownerInitials } from "@/app/admin/_lib/quotes";
-import { useOwnerName } from "@/app/admin/_lib/owner-names";
 import { I } from "@/app/admin/_lib/icons";
 
 function formatNoteDate(ts: number): string {
@@ -21,23 +19,11 @@ function formatNoteDate(ts: number): string {
 
 export function OpisUwagiHorizontalSection({
   quote,
-  archived,
 }: {
   quote: Quote;
   archived: boolean;
 }) {
-  const author = useOwnerName(quote);
   const notes = useQuery(api.quoteNotes.list, { quoteId: quote._id }) ?? [];
-  const addNote = useMutation(api.quoteNotes.add);
-  const removeNote = useMutation(api.quoteNotes.remove);
-  const [draft, setDraft] = useState("");
-
-  async function handleAdd() {
-    const text = draft.trim();
-    if (!text) return;
-    await addNote({ quoteId: quote._id, text, authorName: author });
-    setDraft("");
-  }
 
   return (
     <section className="quote-detail-notes-strip">
@@ -51,36 +37,9 @@ export function OpisUwagiHorizontalSection({
         </div>
       </header>
 
-      <form
-        className="quote-detail-notes-add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void handleAdd();
-        }}
-      >
-        <span className="quote-detail-notes-add-icon">
-          <I.plus s={14} />
-        </span>
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Dodaj notatkę, opis lub uwagę… (Enter, aby dodać)"
-          disabled={archived}
-          className="quote-detail-notes-input"
-        />
-        <button
-          type="submit"
-          disabled={!draft.trim() || archived}
-          className="quote-detail-notes-submit"
-        >
-          Dodaj
-        </button>
-      </form>
-
       {notes.length === 0 ? (
         <div className="quote-detail-notes-empty">
-          Brak notatek. Dodaj pierwszą uwagę powyżej.
+          Klient nie podał opisu ani uwag.
         </div>
       ) : (
         <div className="quote-detail-notes-track" role="list">
@@ -103,16 +62,6 @@ export function OpisUwagiHorizontalSection({
                 <span className="quote-detail-note-card-date">
                   {formatNoteDate(n.createdAt)}
                 </span>
-                {!archived && (
-                  <button
-                    type="button"
-                    className="quote-detail-note-card-remove"
-                    onClick={() => void removeNote({ id: n._id })}
-                    aria-label="Usuń notatkę"
-                  >
-                    <I.trash s={11} />
-                  </button>
-                )}
               </footer>
             </article>
           ))}

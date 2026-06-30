@@ -21,7 +21,6 @@ import {
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
 import { InvestmentModal } from "./_components/investment-section";
-import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal";
 import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
@@ -452,9 +451,6 @@ function QuoteDetailLayout({
                 <HelperQuestionsSection quoteId={quote._id} />
               </Section>
             </div>
-            <div className="quote-widget-item quote-widget-span-4">
-              <OpisUwagiHorizontalSection quote={quote} archived={archived} />
-            </div>
           </div>
         ) : (
           <div className="quote-detail-main">
@@ -580,6 +576,28 @@ function SharepointRibbonBtn({
 }
 
 
+function QuoteClientNoteBanner({ quote }: { quote: Quote }) {
+  const notes = useQuery(api.quoteNotes.list, { quoteId: quote._id }) ?? [];
+  const clientNotes = notes.filter((n) => n.authorId === null);
+  if (clientNotes.length === 0) return null;
+
+  return (
+    <div className="quote-client-note-banner">
+      <span className="quote-client-note-banner-icon" aria-hidden>
+        <I.doc s={13} sw={2} />
+      </span>
+      <div className="quote-client-note-banner-body">
+        <span className="quote-client-note-banner-label">Notatka od klienta</span>
+        {clientNotes.map((n) => (
+          <p key={n._id as unknown as string} className="quote-client-note-banner-text">
+            {n.text}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
@@ -699,6 +717,7 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           </div>
         </div>
       </div>
+      <QuoteClientNoteBanner quote={quote} />
       <QuoteStatusPipeline
         currentIndex={statusIndex}
         disabled={archived}

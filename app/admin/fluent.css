@@ -1639,6 +1639,48 @@
   cursor: default;
 }
 
+/* Client note banner (above pipeline) */
+.quote-client-note-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.quote-client-note-banner-icon {
+  color: #b45309;
+  display: inline-flex;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.quote-client-note-banner-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quote-client-note-banner-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.quote-client-note-banner-text {
+  font-size: 13px;
+  color: #78350f;
+  line-height: 1.55;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 /* Pipeline indicator */
 .quote-detail-pipeline {
   display: flex;
