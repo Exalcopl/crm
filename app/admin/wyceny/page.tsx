@@ -146,6 +146,7 @@ function WycenyKanbanBoard({
 }) {
   const dndId = useId();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const originalStatusRef = useRef<QuoteStatus | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -170,8 +171,13 @@ function WycenyKanbanBoard({
   };
 
   function handleDragStart(e: DragStartEvent) {
-    setActiveId(String(e.active.id));
+    const actId = String(e.active.id);
+    setActiveId(actId);
     onDragStart();
+    const found = quotes.find((q) => q.id === actId);
+    if (found) {
+      originalStatusRef.current = found.status;
+    }
   }
 
   function handleDragOver(e: DragOverEvent) {
@@ -204,18 +210,29 @@ function WycenyKanbanBoard({
     const { active, over } = e;
     setActiveId(null);
     onDragEnd();
-    if (!over) return;
+    if (!over) {
+      originalStatusRef.current = null;
+      return;
+    }
     const activeId = String(active.id);
     const overId = String(over.id);
-    if (activeId === overId) return;
+    if (activeId === overId) {
+      originalStatusRef.current = null;
+      return;
+    }
 
     const container = findContainer(overId);
-    if (!container) return;
+    if (!container) {
+      originalStatusRef.current = null;
+      return;
+    }
 
     const movedQuote = quotes.find((q) => q.id === activeId);
-    if (movedQuote && movedQuote.status !== container) {
+    const originalStatus = originalStatusRef.current;
+    if (movedQuote && originalStatus && originalStatus !== container) {
       onStatusChange(movedQuote._id, container);
     }
+    originalStatusRef.current = null;
 
     setQuotes((prev) => {
       const inContainer = prev.filter((q) => q.status === container);
@@ -237,7 +254,7 @@ function WycenyKanbanBoard({
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => { setActiveId(null); onDragEnd(); }}
+      onDragCancel={() => { setActiveId(null); onDragEnd(); originalStatusRef.current = null; }}
     >
       <div className="kanban-board">
         {QUOTE_STATUSES.map((status) => (
