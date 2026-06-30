@@ -62,4 +62,113 @@ http.route({
   }),
 });
 
+/* ── Lead API (website → CRM integration) ──────────────────────── */
+
+const leadCorsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
+
+const LEAD_SLUG_TO_PROJECT_TYPE: Record<string, string> = {
+  pergola: "Pergola",
+  zadaszenia: "Zadaszenia",
+  stolarka: "Stolarka aluminiowa",
+};
+
+// CORS preflight for lead endpoints
+http.route({
+  pathPrefix: "/api/lead/",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: leadCorsHeaders });
+  }),
+});
+
+// POST /api/lead/{slug} — create quote from website form
+http.route({
+  pathPrefix: "/api/lead/",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const json = (obj: Record<string, unknown>, status: number) =>
+      new Response(JSON.stringify(obj), {
+        status,
+        headers: { "Content-Type": "application/json", ...leadCorsHeaders },
+      });
+
+    // API key validation
+    const apiKey = process.env.WEBSITE_API_KEY;
+    if (!apiKey) {
+      return json({ success: false, error: "Server misconfigured" }, 500);
+    }
+
+    const authHeader = request.headers.get("Authorization") ?? "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.slice(7).trim()
+      : "";
+    if (!token || token !== apiKey) {
+      return json({ success: false, error: "Unauthorized" }, 401);
+    }
+
+    // Resolve project type from URL slug
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    // pathParts = ["api", "lead", "<slug>"]
+    const slug = (pathParts[2] ?? "").toLowerCase();
+    const projectType = LEAD_SLUG_TO_PROJECT_TYPE[slug];
+
+    if (!projectType) {
+      return json(
+        {
+          success: false,
+          error: `Unknown endpoint. Valid: ${Object.keys(LEAD_SLUG_TO_PROJECT_TYPE).map((s) => `/api/lead/${s}`).join(", ")}`,
+        },
+        404,
+      );
+    }
+
+    // Parse request body
+    let body: { name?: string; phone?: string; email?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ success: false, error: "Invalid JSON body" }, 400);
+    }
+
+    const name = (body.name ?? "").trim();
+    if (!name) {
+      return json({ success: false, error: "Pole 'name' jest wymagane" }, 400);
+    }
+
+    const phone = (body.phone ?? "").trim() || undefined;
+    const email = (body.email ?? "").trim() || undefined;
+    if (!phone && !email) {
+      return json(
+        { success: false, error: "Podaj 'phone' lub 'email'" },
+        400,
+      );
+    }
+
+    // Create the lead
+    try {
+      const result = await ctx.runMutation(
+        internal.quotes.createFromLead,
+        {
+          contact: { name, phone, email },
+          projectType,
+        },
+      );
+
+      return json(
+        { success: true, code: result.code, quoteId: result.quoteId },
+        201,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Internal error";
+      return json({ success: false, error: message }, 400);
+    }
+  }),
+});
+
 export default http;

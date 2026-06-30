@@ -229,6 +229,88 @@ const PUBLIC_ANSWER_VALUE = v.object({
   numberUnit: v.optional(v.string()),
 });
 
+/* ── Lead API (website integration) ────────────────────────────── */
+
+export const createFromLead = internalMutation({
+  args: {
+    contact: CONTACT_VALUE,
+    projectType: v.string(),
+  },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ code: string; quoteId: Id<"quotes"> }> => {
+    const contactName = args.contact.name.trim();
+    if (!contactName) throw new Error("Podaj nazwę lub firmę");
+
+    const phone = args.contact.phone?.trim() || undefined;
+    const email = args.contact.email?.trim() || undefined;
+    if (!phone && !email) {
+      throw new Error("Podaj telefon lub e-mail");
+    }
+
+    // Walidacja typu projektu
+    const allTypes = await ctx.db.query("projectTypes").collect();
+    const typeDoc = allTypes.find(
+      (t) => t.name === args.projectType && t.isActive,
+    );
+    if (!typeDoc) {
+      throw new Error(`Nieznany lub nieaktywny typ projektu: ${args.projectType}`);
+    }
+
+    // Rate limiting
+    const fp = fingerprintFor(phone, email);
+    const since = Date.now() - PUBLIC_RATE_LIMIT_WINDOW_MS;
+    const recent = await ctx.db
+      .query("publicSubmissionAttempts")
+      .withIndex("by_ip_createdAt", (q) => q.eq("ip", fp).gte("createdAt", since))
+      .collect();
+    if (recent.length >= PUBLIC_RATE_LIMIT_MAX) {
+      throw new Error(
+        "Otrzymaliśmy już Twoje zapytanie. Spróbuj ponownie za godzinę lub zadzwoń do nas.",
+      );
+    }
+    await ctx.db.insert("publicSubmissionAttempts", {
+      ip: fp,
+      createdAt: Date.now(),
+    });
+
+    // Klient — deduplikacja
+    const contact = { name: contactName, phone, email };
+    const clientId = await ctx.runMutation(internal.clients.getOrCreate, {
+      contact,
+    });
+
+    // Wycena
+    const createdAt = Date.now();
+    const projectTypeArr = [args.projectType];
+    const code = await generateCode(ctx, projectTypeArr, createdAt);
+
+    const deadlineDate = new Date();
+    deadlineDate.setDate(deadlineDate.getDate() + 14);
+    const deadline = deadlineDate.toISOString().slice(0, 10);
+
+    const quoteId: Id<"quotes"> = await ctx.db.insert("quotes", {
+      code,
+      clientId,
+      contact,
+      value: null,
+      status: "Do zrobienia",
+      deadline,
+      projectType: projectTypeArr,
+      ownerId: null,
+      archived: false,
+      source: "public",
+    });
+
+    await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
+      quoteId,
+    });
+
+    return { code, quoteId };
+  },
+});
+
 export const createPublic = mutation({
   args: {
     contact: CONTACT_VALUE,
