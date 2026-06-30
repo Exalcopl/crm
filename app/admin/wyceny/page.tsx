@@ -210,37 +210,36 @@ function WycenyKanbanBoard({
     const { active, over } = e;
     setActiveId(null);
     onDragEnd();
-    if (!over) {
-      originalStatusRef.current = null;
-      return;
-    }
+
+    const originalStatus = originalStatusRef.current;
+    originalStatusRef.current = null;
+
+    if (!over) return;
+
     const activeId = String(active.id);
     const overId = String(over.id);
-    if (activeId === overId) {
-      originalStatusRef.current = null;
-      return;
-    }
 
+    // When overId === activeId dnd-kit sometimes reports the card as its own
+    // drop target after handleDragOver already moved it to the new column in
+    // local state. findContainer(activeId) then returns the already-updated
+    // status, so we can still detect a column change and call the mutation.
     const container = findContainer(overId);
-    if (!container) {
-      originalStatusRef.current = null;
-      return;
-    }
+    if (!container) return;
 
     const movedQuote = quotes.find((q) => q.id === activeId);
-    const originalStatus = originalStatusRef.current;
     if (movedQuote && originalStatus && originalStatus !== container) {
       onStatusChange(movedQuote._id, container);
     }
-    originalStatusRef.current = null;
+
+    // Early-out AFTER the mutation so same-card drops skip only the reorder.
+    if (activeId === overId) return;
 
     setQuotes((prev) => {
       const inContainer = prev.filter((q) => q.status === container);
       const others = prev.filter((q) => q.status !== container);
       const oldIndex = inContainer.findIndex((q) => q.id === activeId);
       const newIndex = inContainer.findIndex((q) => q.id === overId);
-      if (oldIndex === -1) return prev;
-      if (newIndex === -1) return prev;
+      if (oldIndex === -1 || newIndex === -1) return prev;
       const reordered = arrayMove(inContainer, oldIndex, newIndex);
       return [...others, ...reordered];
     });
