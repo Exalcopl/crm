@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Toaster } from "sonner";
 import { AdministracjaRibbon } from "./_components/administracja-ribbon";
+import { CalendarPanel } from "./_components/calendar-panel";
 import { I } from "./_lib/icons";
 import {
   PermissionGate,
@@ -174,6 +175,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <PermissionsProvider>
       <AdminShell>{children}</AdminShell>
+      <CalendarPanel />
       <Toaster position="bottom-right" richColors theme="dark" />
     </PermissionsProvider>
   );
