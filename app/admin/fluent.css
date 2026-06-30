@@ -1618,10 +1618,7 @@
   font-size: 8.5px;
   margin-top: 4px;
   letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 44px;
+  color: var(--text-secondary);
 }
 
 .quote-detail-pipeline.is-compact .quote-detail-pipeline-bar {
