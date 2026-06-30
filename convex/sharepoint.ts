@@ -886,6 +886,179 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
   },
 });
 
+export const listFolderContents = action({
+  args: { quoteId: v.id("quotes"), folderId: v.optional(v.string()) },
+  handler: async (ctx, { quoteId, folderId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId) return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) return [];
+
+    const targetId = folderId ?? sp.subfolderItemId;
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${targetId}/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file,folder`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (res.status === 404) return [];
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph list folder ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        lastModifiedDateTime: string;
+        file?: { mimeType: string };
+        folder?: { childCount: number };
+      }>;
+    };
+
+    const items = data.value.map((item) => ({
+      id: item.id,
+      name: item.name,
+      isFolder: !!item.folder,
+      size: item.size ?? 0,
+      lastModifiedDateTime: item.lastModifiedDateTime ?? "",
+      mimeType: item.file?.mimeType ?? "",
+      childCount: item.folder?.childCount ?? 0,
+    }));
+
+    items.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      return a.name.localeCompare(b.name, "pl");
+    });
+
+    return items;
+  },
+});
+
+export const createSharepointSubfolder = action({
+  args: { quoteId: v.id("quotes"), parentItemId: v.string(), name: v.string() },
+  handler: async (ctx, { quoteId, parentItemId, name }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const cleanName = sanitizeFolderName(name);
+    if (!cleanName) throw new Error("Nieprawidłowa nazwa folderu");
+
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${parentItemId}/children`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: cleanName,
+          folder: {},
+          "@microsoft.graph.conflictBehavior": "rename",
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph create folder ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      id: string;
+      name: string;
+      lastModifiedDateTime: string;
+    };
+
+    return {
+      id: data.id,
+      name: data.name,
+      isFolder: true as const,
+      size: 0,
+      lastModifiedDateTime: data.lastModifiedDateTime ?? new Date().toISOString(),
+      mimeType: "",
+      childCount: 0,
+    };
+  },
+});
+
+export const deleteSharepointItem = action({
+  args: { quoteId: v.id("quotes"), itemId: v.string() },
+  handler: async (ctx, { quoteId, itemId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    await deleteFolder(token, sp.driveId, itemId);
+  },
+});
+
+export const createUploadSessionInFolder = action({
+  args: { quoteId: v.id("quotes"), parentItemId: v.string(), fileName: v.string() },
+  handler: async (ctx, { quoteId, parentItemId, fileName }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const encodedName = encodeURIComponent(fileName);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${parentItemId}:/${encodedName}:/createUploadSession`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          item: { "@microsoft.graph.conflictBehavior": "rename" },
+        }),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph upload session ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as { uploadUrl: string };
+    return { uploadUrl: data.uploadUrl };
+  },
+});
+
 const QUOTE_SUBFOLDERS = ["Wycena", "Produkcja", "Załącznik", "Zamówienia", "Dokumentacja", "Umowy"];
 
 async function createQuoteSubfolders(

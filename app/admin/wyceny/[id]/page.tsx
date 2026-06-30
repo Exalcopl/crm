@@ -40,7 +40,7 @@ import { OpisUwagiHorizontalSection } from "./_components/opis-uwagi-horizontal"
 import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
-import { QuoteFiles } from "./_components/quote-files";
+import { QuoteFileBrowser } from "./_components/quote-file-browser";
 import { WycenaOcrSection } from "./_components/wycena-ocr";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
@@ -533,7 +533,7 @@ function QuoteDetailLayout({
                   if (item.id === "info") {
                     child = <QuoteInfoCard quote={quote} archived={archived} />;
                   } else if (item.id === "files") {
-                    child = <QuoteFiles quote={quote} archived={archived} />;
+                    child = <QuoteFileBrowser quote={quote} archived={archived} />;
                   } else if (item.id === "notes") {
                     child = <OpisUwagiHorizontalSection quote={quote} archived={archived} />;
                   } else if (item.id === "meta") {
