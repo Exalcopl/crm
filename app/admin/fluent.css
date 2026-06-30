@@ -1138,6 +1138,132 @@
   }
 }
 
+/* === Konfigurowalny Układ Widgetów === */
+.quote-detail-grid-customizable {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.quote-widget-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.quote-widget-item:hover {
+  border-color: var(--border-default);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.quote-widget-span-1 {
+  grid-column: span 1;
+}
+
+.quote-widget-span-2 {
+  grid-column: span 2;
+}
+
+.quote-widget-span-3 {
+  grid-column: span 3;
+}
+
+.quote-widget-handle-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-titlebar);
+  border-bottom: 1px solid var(--border-subtle);
+  user-select: none;
+}
+
+.quote-widget-drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  transition: background 120ms, color 120ms;
+}
+
+.quote-widget-drag-handle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.quote-widget-drag-handle:active {
+  cursor: grabbing;
+}
+
+.quote-widget-resizers {
+  display: flex;
+  gap: 4px;
+}
+
+.quote-widget-resize-btn {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-base);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+
+.quote-widget-resize-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.quote-widget-resize-btn.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text-accent);
+}
+
+.quote-widget-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Override padding/margin if nested inside widget */
+.quote-widget-content > .quote-detail-section {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+@media (max-width: 1200px) {
+  .quote-detail-grid-customizable {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .quote-widget-span-3 {
+    grid-column: span 2 !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .quote-detail-grid-customizable {
+    grid-template-columns: 1fr !important;
+  }
+  .quote-widget-span-2,
+  .quote-widget-span-3 {
+    grid-column: span 1 !important;
+  }
+}
+
 .quote-detail-archived-banner {
   position: relative;
   display: flex;
