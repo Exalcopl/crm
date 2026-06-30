@@ -235,11 +235,12 @@ export const createFromLead = internalMutation({
   args: {
     contact: CONTACT_VALUE,
     projectType: v.string(),
+    description: v.optional(v.string()),
   },
   handler: async (
     ctx,
     args,
-  ): Promise<{ code: string; quoteId: Id<"quotes"> }> => {
+  ): Promise<{ code: string; quoteId: Id<"quotes">; uploadToken: string }> => {
     const contactName = args.contact.name.trim();
     if (!contactName) throw new Error("Podaj nazwę lub firmę");
 
@@ -292,6 +293,8 @@ export const createFromLead = internalMutation({
     deadlineDate.setDate(deadlineDate.getDate() + 14);
     const deadline = deadlineDate.toISOString().slice(0, 10);
 
+    const uploadToken = generateUploadToken();
+
     const quoteId: Id<"quotes"> = await ctx.db.insert("quotes", {
       code,
       clientId,
@@ -303,13 +306,27 @@ export const createFromLead = internalMutation({
       ownerId: null,
       archived: false,
       source: "public",
+      publicUploadToken: uploadToken,
+      publicUploadTokenExpiresAt: createdAt + PUBLIC_UPLOAD_TOKEN_TTL_MS,
     });
+
+    // Notatka z opisem od klienta
+    const description = args.description?.trim();
+    if (description) {
+      await ctx.db.insert("quoteNotes", {
+        quoteId,
+        text: description,
+        authorId: null,
+        authorName: contactName,
+        createdAt,
+      });
+    }
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
       quoteId,
     });
 
-    return { code, quoteId };
+    return { code, quoteId, uploadToken };
   },
 });
 

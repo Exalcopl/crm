@@ -213,7 +213,6 @@ http.route({
           contact: { name, phone, email },
           projectType,
           description: body.description?.trim() || undefined,
-          answers: [],
         },
       );
 
