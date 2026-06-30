@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { auth } from "./auth";
 
 const http = httpRouter();
@@ -125,7 +125,7 @@ http.route({
 
     try {
       const result = await ctx.runAction(
-        internal.sharepoint.createPublicUploadSession,
+        api.sharepoint.createPublicUploadSession,
         {
           quoteId: quoteId as any,
           token: uploadToken,
