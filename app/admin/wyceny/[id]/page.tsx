@@ -9,21 +9,6 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
 import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  arrayMove,
-  SortableContext,
-  rectSortingStrategy,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
   getProjectTypeStyle,
   QUOTE_STATUSES,
   QUOTE_STATUS_COLORS,
@@ -164,7 +149,6 @@ export default function QuoteDetailPage({
           activeTab={activeTab}
           archived={isArchived}
           onRestore={toggleArchive}
-          onTabChange={setActiveTab}
         />
       </main>
       {confirmDeleteOpen && (
@@ -439,129 +423,45 @@ function QuoteDetailRibbon({
   );
 }
 
-const LOCAL_STORAGE_KEY = "exalco-quote-detail-widgets-v1";
-
-type WidgetId = "info" | "files" | "notes" | "meta" | "tasks" | "questions";
-
-type WidgetItem = {
-  id: WidgetId;
-  w: 1 | 2 | 3;
-};
-
-const DEFAULT_WIDGETS: WidgetItem[] = [
-  { id: "info", w: 1 },
-  { id: "meta", w: 1 },
-  { id: "questions", w: 1 },
-  { id: "files", w: 1 },
-  { id: "tasks", w: 2 },
-  { id: "notes", w: 3 },
-];
-
 function QuoteDetailLayout({
   quote,
   activeTab,
   archived,
   onRestore,
-  onTabChange,
 }: {
   quote: Quote;
   activeTab: DetailTab;
   archived: boolean;
   onRestore: () => void;
-  onTabChange: (tab: DetailTab) => void;
 }) {
-  const isSzczegoly = activeTab === "szczegoly";
-  const [widgets, setWidgets] = useState<WidgetItem[]>(DEFAULT_WIDGETS);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        setWidgets(JSON.parse(saved));
-      }
-    } catch {
-      // fallback
-    }
-  }, []);
-
-  function saveWidgets(newWidgets: WidgetItem[]) {
-    setWidgets(newWidgets);
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newWidgets));
-    } catch {
-      // fallback
-    }
-  }
-
-  function handleResize(id: WidgetId, newWidth: 1 | 2 | 3) {
-    const next = widgets.map((w) => (w.id === id ? { ...w, w: newWidth } : w));
-    saveWidgets(next);
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = widgets.findIndex((w) => w.id === active.id);
-      const newIndex = widgets.findIndex((w) => w.id === over.id);
-      const next = arrayMove(widgets, oldIndex, newIndex);
-      saveWidgets(next);
-    }
-  }
-
   return (
     <OwnerNamesProvider quotes={[quote]}>
       <div className="quote-detail">
         {archived && <ArchivedBanner onRestore={onRestore} />}
-        {!isSzczegoly && <QuoteDetailHeader quote={quote} archived={archived} />}
-        {isSzczegoly ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={widgets.map((w) => w.id)}
-              strategy={rectSortingStrategy}
-            >
-              <div className="quote-detail-grid-customizable">
-                {widgets.map((item) => {
-                  let child: React.ReactNode = null;
-                  if (item.id === "info") {
-                    child = <QuoteInfoCard quote={quote} archived={archived} />;
-                  } else if (item.id === "files") {
-                    child = <QuoteFileBrowser quote={quote} archived={archived} />;
-                  } else if (item.id === "notes") {
-                    child = <OpisUwagiHorizontalSection quote={quote} archived={archived} />;
-                  } else if (item.id === "meta") {
-                    child = <QuoteMetaCard quote={quote} archived={archived} />;
-                  } else if (item.id === "tasks") {
-                    child = <TasksKanban quote={quote} archived={archived} />;
-                  } else if (item.id === "questions") {
-                    child = (
-                      <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-                        <HelperQuestionsSection quoteId={quote._id} />
-                      </Section>
-                    );
-                  }
-
-                  return (
-                    <SortableWidget
-                      key={item.id}
-                      id={item.id}
-                      w={item.w}
-                      onResize={(newW) => handleResize(item.id, newW)}
-                    >
-                      {child}
-                    </SortableWidget>
-                  );
-                })}
-              </div>
-            </SortableContext>
-          </DndContext>
+        <QuoteDetailHeader quote={quote} archived={archived} />
+        {activeTab === "szczegoly" ? (
+          <div className="quote-detail-grid-customizable">
+            <div className="quote-widget-item quote-widget-span-1">
+              <QuoteInfoCard quote={quote} archived={archived} />
+            </div>
+            <div className="quote-widget-item quote-widget-span-1">
+              <QuoteMetaCard quote={quote} archived={archived} />
+            </div>
+            <div className="quote-widget-item quote-widget-span-1">
+              <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                <HelperQuestionsSection quoteId={quote._id} />
+              </Section>
+            </div>
+            <div className="quote-widget-item quote-widget-span-1">
+              <QuoteFileBrowser quote={quote} archived={archived} />
+            </div>
+            <div className="quote-widget-item quote-widget-span-2">
+              <TasksKanban quote={quote} archived={archived} />
+            </div>
+            <div className="quote-widget-item quote-widget-span-3">
+              <OpisUwagiHorizontalSection quote={quote} archived={archived} />
+            </div>
+          </div>
         ) : (
           <div className="quote-detail-main">
             {activeTab === "pozycje" && <TabPozycje quote={quote} />}
@@ -572,83 +472,6 @@ function QuoteDetailLayout({
         )}
       </div>
     </OwnerNamesProvider>
-  );
-}
-
-function SortableWidget({
-  id,
-  w,
-  onResize,
-  children,
-}: {
-  id: WidgetId;
-  w: 1 | 2 | 3;
-  onResize: (newWidth: 1 | 2 | 3) => void;
-  children: React.ReactNode;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.6 : 1,
-    zIndex: isDragging ? 2 : 1,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`quote-widget-item quote-widget-span-${w}`}
-    >
-      <div className="quote-widget-handle-bar">
-        <button
-          type="button"
-          className="quote-widget-drag-handle"
-          {...attributes}
-          {...listeners}
-          title="Przeciągnij, aby zmienić kolejność"
-        >
-          <I.grip s={14} />
-        </button>
-        <div className="quote-widget-resizers">
-          <button
-            type="button"
-            className={`quote-widget-resize-btn${w === 1 ? " is-active" : ""}`}
-            onClick={() => onResize(1)}
-            title="Szerokość: 1/3"
-          >
-            1/3
-          </button>
-          <button
-            type="button"
-            className={`quote-widget-resize-btn${w === 2 ? " is-active" : ""}`}
-            onClick={() => onResize(2)}
-            title="Szerokość: 2/3"
-          >
-            2/3
-          </button>
-          <button
-            type="button"
-            className={`quote-widget-resize-btn${w === 3 ? " is-active" : ""}`}
-            onClick={() => onResize(3)}
-            title="Szerokość: 3/3"
-          >
-            3/3
-          </button>
-        </div>
-      </div>
-      <div className="quote-widget-content">
-        {children}
-      </div>
-    </div>
   );
 }
 
