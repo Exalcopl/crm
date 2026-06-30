@@ -449,13 +449,13 @@ function QuoteDetailLayout({
             <div className="quote-detail-grid-col">
               <QuoteInfoCard quote={quote} archived={archived} />
               <QuoteFiles quote={quote} archived={archived} />
+              <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             </div>
 
             {/* Kolumna 2 */}
             <div className="quote-detail-grid-col">
               <QuoteMetaCard quote={quote} archived={archived} />
               <TasksKanban quote={quote} archived={archived} />
-              <OpisUwagiHorizontalSection quote={quote} archived={archived} />
             </div>
 
             {/* Kolumna 3 */}
