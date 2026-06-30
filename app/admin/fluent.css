@@ -31,7 +31,8 @@
   --fs-small: 12px;
   --fs-micro: 11px;
 
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--bg-base);
@@ -454,12 +455,16 @@
 }
 
 /* === Content area === */
+.fluent-shell > main,
 .fluent-content {
-  padding: 16px;
-  background: var(--bg-base);
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.fluent-content {
+  padding: 16px;
+  background: var(--bg-base);
 }
 
 /* === Kanban filter strip === */
