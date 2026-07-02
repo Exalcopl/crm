@@ -27,7 +27,7 @@ type ZadaszeniaConfig = {
   dach: string;
   kolorKonstrukcji: string;
   oswietlenie: Record<string, string | null>;
-  zabudowyBoczne: { typ: string | null; wariant: string | null };
+  zabudowyBoczne: { typ: string; wariant: string | null }[] | { typ: string | null; wariant: string | null };
   dodatki: string[];
 };
 
@@ -293,11 +293,27 @@ function PergolaView({ editing, draft, setDraft }: {
 
 // ─── Zadaszenia display / edit ────────────────────────────────────────────────
 
+function normalizeZabudowyList(val: unknown): { typ: string; wariant: string | null }[] {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val.filter(Boolean).map((item: { typ?: unknown; wariant?: unknown }) => ({
+      typ: String(item.typ ?? ""),
+      wariant: item.wariant ? String(item.wariant) : null,
+    }));
+  }
+  if (typeof val === "object" && val !== null && "typ" in val) {
+    const obj = val as { typ?: unknown; wariant?: unknown };
+    return [{ typ: String(obj.typ ?? ""), wariant: obj.wariant ? String(obj.wariant) : null }];
+  }
+  return [];
+}
+
 function ZadaszeniaView({ editing, draft, setDraft }: {
   editing: boolean;
   draft: ZadaszeniaConfig;
   setDraft: (d: ZadaszeniaConfig) => void;
 }) {
+  const zabudowyList = normalizeZabudowyList(draft.zabudowyBoczne);
   const wymDisplay =
     `${draft.wymiary.szerokosc} × ${draft.wymiary.wysieg} cm, ` +
     `wys. ${draft.wymiary.wysokoscWyzsza}/${draft.wymiary.wysokoscNizsza} cm`;
@@ -351,16 +367,72 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
       })}
 
       <SectionLabel>Zabudowy boczne</SectionLabel>
-      <Row label="Typ" value={draft.zabudowyBoczne.typ ?? ""} editing={editing}>
-        <SelectInput value={draft.zabudowyBoczne.typ} options={ZABUDOWY_TYPY}
-          onChange={(v) => setDraft({ ...draft, zabudowyBoczne: { typ: v, wariant: null } })} />
-      </Row>
-      <Row label="Wariant" value={draft.zabudowyBoczne.wariant ?? ""} editing={editing}>
-        <SelectInput
-          value={draft.zabudowyBoczne.wariant}
-          options={draft.zabudowyBoczne.typ ? (ZABUDOWY_WARIANTY[draft.zabudowyBoczne.typ] ?? []) : []}
-          onChange={(v) => setDraft({ ...draft, zabudowyBoczne: { ...draft.zabudowyBoczne, wariant: v } })} />
-      </Row>
+      {editing ? (
+        <div style={{ padding: "8px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 4 }}>Typy:</span>
+            {ZABUDOWY_TYPY.map((t) => {
+              const exists = zabudowyList.some((z) => z.typ === t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    let next: { typ: string; wariant: string | null }[];
+                    if (exists) {
+                      next = zabudowyList.filter((z) => z.typ !== t);
+                    } else {
+                      next = [...zabudowyList, { typ: t, wariant: null }];
+                    }
+                    setDraft({ ...draft, zabudowyBoczne: next });
+                  }}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: exists ? "1px solid #22A06B" : "1px solid var(--border-subtle)",
+                    background: exists ? "#22A06B" : "var(--bg-base)",
+                    color: exists ? "#fff" : "var(--text-primary)",
+                    fontSize: 12,
+                    cursor: "pointer",
+                    fontWeight: exists ? 600 : 400
+                  }}
+                >
+                  {t}
+                </button>
+              );
+            })}
+          </div>
+          {zabudowyList.map((item) => {
+            const warianty = ZABUDOWY_WARIANTY[item.typ] ?? [];
+            if (warianty.length === 0) return null;
+            return (
+              <Row key={item.typ} label={`Wariant – ${item.typ}`} value={item.wariant ?? ""} editing={true}>
+                <SelectInput
+                  value={item.wariant}
+                  options={warianty}
+                  onChange={(v) => {
+                    const next = zabudowyList.map((z) => z.typ === item.typ ? { ...z, wariant: v } : z);
+                    setDraft({ ...draft, zabudowyBoczne: next });
+                  }}
+                />
+              </Row>
+            );
+          })}
+        </div>
+      ) : (
+        zabudowyList.length === 0 ? (
+          <Row label="Typy" value="Brak" editing={false} />
+        ) : (
+          zabudowyList.map((item, idx) => (
+            <Row
+              key={idx}
+              label={zabudowyList.length === 1 ? "Zabudowa" : `Zabudowa ${idx + 1}`}
+              value={item.wariant ? `${item.typ} (${item.wariant})` : item.typ}
+              editing={false}
+            />
+          ))
+        )
+      )}
 
       <SectionLabel>Dodatki</SectionLabel>
       {DODATKI_ZADASZENIA.map((name) => {

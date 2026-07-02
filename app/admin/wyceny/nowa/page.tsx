@@ -104,8 +104,7 @@ type ZadaszeniaConfig = {
   dachId: string;
   structureColor: string;
   lighting: Record<string, string>;
-  enclosureTypeId: string | null;
-  enclosureVariantId: string | null;
+  enclosures: { typeId: string; variantId: string | null }[];
   addons: string[];
 };
 
@@ -132,8 +131,7 @@ const DEFAULT_ZADASZENIA: ZadaszeniaConfig = {
   dachId: CRM_ZADASZENIA_ROOF_TYPES[0].id,
   structureColor: CRM_COLORS[0].id,
   lighting: {},
-  enclosureTypeId: null,
-  enclosureVariantId: null,
+  enclosures: [],
   addons: [],
 };
 
@@ -184,8 +182,6 @@ function buildZadaszeniaConfiguration(z: ZadaszeniaConfig): unknown {
   const rodzaj = CRM_ZADASZENIA_TYPES.find(r => r.id === z.rodzajId);
   const dach = CRM_ZADASZENIA_ROOF_TYPES.find(d => d.id === z.dachId);
   const structureColor = CRM_COLORS.find(c => c.id === z.structureColor);
-  const enclosureType = CRM_SIDE_ENCLOSURES.find(e => e.id === z.enclosureTypeId);
-  const enclosureVariant = enclosureType?.variants.find(v => v.id === z.enclosureVariantId);
   return {
     type: "zadaszenia",
     rodzajZadaszenia: rodzaj?.name ?? z.rodzajId,
@@ -199,10 +195,14 @@ function buildZadaszeniaConfiguration(z: ZadaszeniaConfig): unknown {
         return [type.id, subName];
       })
     ),
-    zabudowyBoczne: {
-      typ: enclosureType?.name ?? null,
-      wariant: enclosureVariant?.name ?? null,
-    },
+    zabudowyBoczne: (z.enclosures || []).map(enc => {
+      const enclosureType = CRM_SIDE_ENCLOSURES.find(e => e.id === enc.typeId);
+      const enclosureVariant = enclosureType?.variants.find(v => v.id === enc.variantId);
+      return {
+        typ: enclosureType?.name ?? enc.typeId,
+        wariant: enclosureVariant?.name ?? null,
+      };
+    }),
     dodatki: CRM_ZADASZENIA_ADDONS.filter(a => z.addons.includes(a.id)).map(a => a.name),
   };
 }
@@ -819,12 +819,10 @@ export default function NowaWycenaPage() {
               </FormBox>
 
               <FormBox title="Zabudowy boczne" icon={<I.glass s={14} />} span={6} tag={<span className="quote-new-v2-hint">opcjonalnie</span>}>
-                <CfgEnclosures
+                <CfgEnclosuresMulti
                   enclosures={CRM_SIDE_ENCLOSURES}
-                  typeId={zadaszenia.enclosureTypeId}
-                  variantId={zadaszenia.enclosureVariantId}
-                  onType={(v) => setZadaszenia(z => ({ ...z, enclosureTypeId: v, enclosureVariantId: null }))}
-                  onVariant={(v) => setZadaszenia(z => ({ ...z, enclosureVariantId: v }))}
+                  selected={zadaszenia.enclosures}
+                  onChange={(v) => setZadaszenia(z => ({ ...z, enclosures: v }))}
                 />
               </FormBox>
 
@@ -1483,6 +1481,68 @@ function CfgEnclosures({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CfgEnclosuresMulti({
+  enclosures, selected, onChange,
+}: {
+  enclosures: { id: string; name: string; variants: { id: string; name: string }[] }[];
+  selected: { typeId: string; variantId: string | null }[];
+  onChange: (v: { typeId: string; variantId: string | null }[]) => void;
+}) {
+  function toggleType(typeId: string) {
+    const exists = selected.some((s) => s.typeId === typeId);
+    if (exists) {
+      onChange(selected.filter((s) => s.typeId !== typeId));
+    } else {
+      onChange([...selected, { typeId, variantId: null }]);
+    }
+  }
+
+  function setVariant(typeId: string, variantId: string | null) {
+    onChange(selected.map((s) => s.typeId === typeId ? { ...s, variantId } : s));
+  }
+
+  return (
+    <div className="cfg-enclosures">
+      <div className="cfg-chips">
+        {enclosures.map((e) => {
+          const isSelected = selected.some((s) => s.typeId === e.id);
+          return (
+            <button
+              key={e.id}
+              type="button"
+              className={`cfg-chip${isSelected ? " is-active" : ""}`}
+              onClick={() => toggleType(e.id)}
+            >
+              {e.name}
+            </button>
+          );
+        })}
+      </div>
+      {selected.map((s) => {
+        const encType = enclosures.find((e) => e.id === s.typeId);
+        if (!encType || encType.variants.length === 0) return null;
+        return (
+          <div key={s.typeId} className="cfg-enclosure-variants" style={{ marginTop: "12px" }}>
+            <div className="cfg-subsection-label">Wariant – {encType.name}</div>
+            <div className="cfg-chips">
+              {encType.variants.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={`cfg-chip${s.variantId === v.id ? " is-active" : ""}`}
+                  onClick={() => setVariant(s.typeId, s.variantId === v.id ? null : v.id)}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
