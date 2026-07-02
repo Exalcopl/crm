@@ -267,6 +267,34 @@ export default function NowaWycenaPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
 
+  const [clientType, setClientType] = useState<"individual" | "business">("individual");
+  const [nip, setNip] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [nipLoading, setNipLoading] = useState(false);
+  const [nipError, setNipError] = useState<string | null>(null);
+
+  const fetchNipData = useAction(api.clients.fetchNipData);
+
+  async function handleFetchNip() {
+    const cleanNip = nip.replace(/\D/g, "");
+    if (cleanNip.length !== 10) {
+      setNipError("NIP musi mieć 10 cyfr");
+      return;
+    }
+    setNipLoading(true);
+    setNipError(null);
+    try {
+      const data = await fetchNipData({ nip: cleanNip });
+      setName(data.name || "");
+      setStreet(data.street || "");
+      setPostalCity(data.postalCity || "");
+    } catch (err: any) {
+      setNipError(err.message || "Błąd pobierania");
+    } finally {
+      setNipLoading(false);
+    }
+  }
+
   // ─── Typ projektu ────────────────────────────────────────────────────────────
   const [projectType, setProjectType] = useState<string | null>(null);
 
@@ -320,6 +348,10 @@ export default function NowaWycenaPage() {
     setPostalCity(c.postalCity ?? "");
     setPhone(c.phone ?? "");
     setEmail(c.email ?? "");
+    setClientType(c.type ?? "individual");
+    setNip(c.nip ?? "");
+    setContactPerson(c.contactPerson ?? "");
+    setNipError(null);
   }
 
   function clearClient() {
@@ -329,6 +361,10 @@ export default function NowaWycenaPage() {
     setPostalCity("");
     setPhone("");
     setEmail("");
+    setClientType("individual");
+    setNip("");
+    setContactPerson("");
+    setNipError(null);
   }
 
   function startNewClient(initialName?: string) {
@@ -339,6 +375,10 @@ export default function NowaWycenaPage() {
     setPostalCity("");
     setPhone("");
     setEmail("");
+    setClientType("individual");
+    setNip("");
+    setContactPerson("");
+    setNipError(null);
   }
 
   const parsedValue = useMemo(() => {
@@ -355,7 +395,8 @@ export default function NowaWycenaPage() {
   const deadlineValid = /^\d{4}-\d{2}-\d{2}$/.test(deadline);
   const valueValid = parsedValue === null || Number.isFinite(parsedValue);
   const projectTypeValid = projectType !== null;
-  const canSubmit = nameValid && ownerValid && deadlineValid && valueValid && projectTypeValid;
+  const nipValid = clientType === "individual" || nip.replace(/\D/g, "").length === 10;
+  const canSubmit = nameValid && ownerValid && deadlineValid && valueValid && projectTypeValid && nipValid;
 
   function handleCancel() {
     router.push("/admin/wyceny");
@@ -404,6 +445,9 @@ export default function NowaWycenaPage() {
       postalCity: trimOrUndefined(postalCity),
       phone: trimOrUndefined(phone),
       email: trimOrUndefined(email),
+      clientType,
+      nip: clientType === "business" ? nip.trim() : undefined,
+      contactPerson: clientType === "business" ? contactPerson.trim() : undefined,
     };
 
     try {
@@ -526,6 +570,10 @@ export default function NowaWycenaPage() {
                 <NewClientForm
                   name={name} street={street} postalCity={postalCity} phone={phone} email={email}
                   nameError={touched && !nameValid}
+                  clientType={clientType} onClientType={setClientType}
+                  nip={nip} onNip={setNip}
+                  contactPerson={contactPerson} onContactPerson={setContactPerson}
+                  nipError={nipError} nipLoading={nipLoading} onFetchNip={handleFetchNip}
                   onName={setName} onStreet={setStreet} onPostalCity={setPostalCity} onPhone={setPhone} onEmail={setEmail}
                 />
               ) : (
@@ -990,21 +1038,121 @@ function ClientPicker({
 
 function NewClientForm({
   name, street, postalCity, phone, email, nameError,
+  clientType, onClientType, nip, onNip, contactPerson, onContactPerson,
+  nipError, nipLoading, onFetchNip,
   onName, onStreet, onPostalCity, onPhone, onEmail,
 }: {
   name: string; street: string; postalCity: string; phone: string; email: string;
   nameError: boolean;
+  clientType: "individual" | "business";
+  onClientType: (v: "individual" | "business") => void;
+  nip: string;
+  onNip: (v: string) => void;
+  contactPerson: string;
+  onContactPerson: (v: string) => void;
+  nipError: string | null;
+  nipLoading: boolean;
+  onFetchNip: () => void;
   onName: (v: string) => void; onStreet: (v: string) => void; onPostalCity: (v: string) => void;
   onPhone: (v: string) => void; onEmail: (v: string) => void;
 }) {
+  const isBusiness = clientType === "business";
+  const nipValid = clientType === "individual" || nip.replace(/\D/g, "").length === 10;
+
   return (
     <div className="quote-new-v2-newclient">
+      <div style={{ marginBottom: "16px" }}>
+        <span className="fluent-field-label" style={{ display: "block", marginBottom: "6px" }}>Typ klienta</span>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            className={`fluent-btn ${clientType === "individual" ? "fluent-btn-primary" : "fluent-btn-ghost"}`}
+            onClick={() => {
+              onClientType("individual");
+              onName("");
+              onStreet("");
+              onPostalCity("");
+              onNip("");
+            }}
+            style={{ padding: "6px 14px", fontSize: "13px" }}
+          >
+            Osoba prywatna
+          </button>
+          <button
+            type="button"
+            className={`fluent-btn ${clientType === "business" ? "fluent-btn-primary" : "fluent-btn-ghost"}`}
+            onClick={() => {
+              onClientType("business");
+              onName("");
+              onStreet("");
+              onPostalCity("");
+              onNip("");
+            }}
+            style={{ padding: "6px 14px", fontSize: "13px" }}
+          >
+            Firma
+          </button>
+        </div>
+      </div>
+
       <div className="quote-new-v2-newclient-grid">
+        {isBusiness && (
+          <label className="fluent-field fluent-field-full">
+            <span className="fluent-field-label">NIP <span className="fluent-field-required">*</span></span>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                className="fluent-input"
+                type="text"
+                value={nip}
+                onChange={(e) => onNip(e.target.value)}
+                placeholder="np. 1234567890"
+                maxLength={15}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                className="fluent-btn"
+                onClick={onFetchNip}
+                disabled={nip.replace(/\D/g, "").length !== 10 || nipLoading}
+                style={{ whiteSpace: "nowrap", padding: "0 12px", border: "1px solid var(--border)" }}
+              >
+                {nipLoading ? "Pobieranie..." : "Pobierz dane"}
+              </button>
+            </div>
+            {nipError && <span className="fluent-field-error" style={{ display: "block", marginTop: "4px" }}>{nipError}</span>}
+            {!nipValid && <span className="fluent-field-error" style={{ display: "block", marginTop: "4px" }}>Podaj poprawny 10-cyfrowy NIP.</span>}
+          </label>
+        )}
+
         <label className="fluent-field fluent-field-full">
-          <span className="fluent-field-label">Nazwa / firma <span className="fluent-field-required">*</span></span>
-          <input className="fluent-input" type="text" value={name} onChange={(e) => onName(e.target.value)} placeholder="np. ProBud Inwestycje" autoFocus />
+          <span className="fluent-field-label">
+            {isBusiness ? "Nazwa firmy" : "Nazwa / imię i nazwisko"}{" "}
+            <span className="fluent-field-required">*</span>
+          </span>
+          <input
+            className="fluent-input"
+            type="text"
+            value={name}
+            onChange={(e) => onName(e.target.value)}
+            placeholder={isBusiness ? "np. ProBud Inwestycje" : "np. Jan Kowalski"}
+            autoFocus
+          />
           {nameError && <span className="fluent-field-error">Podaj nazwę lub firmę.</span>}
         </label>
+
+        {isBusiness && (
+          <label className="fluent-field fluent-field-full">
+            <span className="fluent-field-label">Osoba kontaktowa</span>
+            <input
+              className="fluent-input"
+              type="text"
+              value={contactPerson}
+              onChange={(e) => onContactPerson(e.target.value)}
+              placeholder="np. Jan Kowalski"
+            />
+          </label>
+        )}
+
         <label className="fluent-field">
           <span className="fluent-field-label">Ulica</span>
           <input className="fluent-input" type="text" value={street} onChange={(e) => onStreet(e.target.value)} placeholder="np. ul. Kwiatowa 12" />

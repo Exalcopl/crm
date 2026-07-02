@@ -25,6 +25,9 @@ export type ContactInfo = {
   postalCity?: string;
   phone?: string;
   email?: string;
+  clientType?: "individual" | "business";
+  nip?: string;
+  contactPerson?: string;
 };
 
 export type InvestmentInfo = {
