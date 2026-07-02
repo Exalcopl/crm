@@ -5066,9 +5066,9 @@ select.fluent-input {
 
 .quote-detail-task-assignee-popover {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 0;
-  z-index: 20;
+  z-index: 1000;
   min-width: 200px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -5202,9 +5202,9 @@ select.fluent-input {
 
 .quote-detail-task-due-popover {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   right: 0;
-  z-index: 20;
+  z-index: 1000;
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
