@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useAction, useConvex } from "convex/react";
+import { APIProvider, useMapsLibrary } from "@vis.gl/react-google-maps";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
@@ -309,6 +310,15 @@ export default function NowaWycenaPage() {
   const [deadline, setDeadline] = useState(isoFromOffsetDays(7));
   const [ownerId, setOwnerId] = useState<Id<"users"> | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  
+  // ─── Lokalizacja inwestycji ──────────────────────────────────────────────────
+  const [investmentAddress, setInvestmentAddress] = useState("");
+  const [investmentPlaceId, setInvestmentPlaceId] = useState<string | undefined>(undefined);
+  const [investmentLat, setInvestmentLat] = useState<number | undefined>(undefined);
+  const [investmentLng, setInvestmentLng] = useState<number | undefined>(undefined);
+  const [investmentNotes, setInvestmentNotes] = useState("");
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
   const [touched, setTouched] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     | { kind: "idle" }
@@ -365,6 +375,11 @@ export default function NowaWycenaPage() {
     setNip("");
     setContactPerson("");
     setNipError(null);
+    setInvestmentAddress("");
+    setInvestmentPlaceId(undefined);
+    setInvestmentLat(undefined);
+    setInvestmentLng(undefined);
+    setInvestmentNotes("");
   }
 
   function startNewClient(initialName?: string) {
@@ -379,6 +394,11 @@ export default function NowaWycenaPage() {
     setNip("");
     setContactPerson("");
     setNipError(null);
+    setInvestmentAddress("");
+    setInvestmentPlaceId(undefined);
+    setInvestmentLat(undefined);
+    setInvestmentLng(undefined);
+    setInvestmentNotes("");
   }
 
   const parsedValue = useMemo(() => {
@@ -460,6 +480,15 @@ export default function NowaWycenaPage() {
         deadline,
         ownerId,
         configuration: buildConfiguration(),
+        investment: investmentAddress.trim()
+          ? {
+              address: investmentAddress.trim(),
+              placeId: investmentPlaceId,
+              lat: investmentLat,
+              lng: investmentLng,
+              notes: investmentNotes.trim() || undefined,
+            }
+          : undefined,
       });
 
       if (pendingFiles.length > 0) {
@@ -872,6 +901,62 @@ export default function NowaWycenaPage() {
               </div>
               {touched && !valueValid && (
                 <span className="fluent-field-error">Podaj liczbę nieujemną.</span>
+              )}
+            </FormBox>
+
+            {/* ─── Lokalizacja inwestycji ──────────────────────────────────── */}
+            <FormBox title="Lokalizacja inwestycji" icon={<I.pin s={14} />} span={12} tag={<span className="quote-new-v2-hint">opcjonalnie</span>}>
+              {apiKey ? (
+                <APIProvider apiKey={apiKey}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <label className="fluent-field fluent-field-full">
+                      <span className="fluent-field-label">Wpisz adres (autouzupełnianie Google Maps)</span>
+                      <AdminAddressAutocompleteInput
+                        value={investmentAddress}
+                        onChangeText={setInvestmentAddress}
+                        onSelect={(p) => {
+                          setInvestmentAddress(p.address);
+                          setInvestmentPlaceId(p.placeId);
+                          setInvestmentLat(p.lat);
+                          setInvestmentLng(p.lng);
+                        }}
+                      />
+                    </label>
+                    <label className="fluent-field fluent-field-full">
+                      <span className="fluent-field-label">Notatki do lokalizacji</span>
+                      <textarea
+                        className="cfg-textarea"
+                        value={investmentNotes}
+                        onChange={(e) => setInvestmentNotes(e.target.value)}
+                        placeholder="np. wjazd od ulicy Polnej, kod do bramy 1234..."
+                        rows={2}
+                      />
+                    </label>
+                  </div>
+                </APIProvider>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <label className="fluent-field fluent-field-full">
+                    <span className="fluent-field-label">Adres inwestycji</span>
+                    <input
+                      className="fluent-input"
+                      type="text"
+                      value={investmentAddress}
+                      onChange={(e) => setInvestmentAddress(e.target.value)}
+                      placeholder="np. ul. Słoneczna 5, Kraków"
+                    />
+                  </label>
+                  <label className="fluent-field fluent-field-full">
+                    <span className="fluent-field-label">Notatki do lokalizacji</span>
+                    <textarea
+                      className="cfg-textarea"
+                      value={investmentNotes}
+                      onChange={(e) => setInvestmentNotes(e.target.value)}
+                      placeholder="np. wjazd od ulicy Polnej, kod do bramy 1234..."
+                      rows={2}
+                    />
+                  </label>
+                </div>
               )}
             </FormBox>
 
@@ -1412,5 +1497,56 @@ function CfgAddons({
         );
       })}
     </div>
+  );
+}
+
+function AdminAddressAutocompleteInput({
+  value,
+  onChangeText,
+  onSelect,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSelect: (p: {
+    address: string;
+    placeId?: string;
+    lat?: number;
+    lng?: number;
+  }) => void;
+}) {
+  const places = useMapsLibrary("places");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+    const ac = new places.Autocomplete(inputRef.current, {
+      fields: ["place_id", "formatted_address", "geometry", "name"],
+      types: ["geocode"],
+    });
+    const listener = ac.addListener("place_changed", () => {
+      const place = ac.getPlace();
+      const loc = place.geometry?.location;
+      onSelect({
+        address: place.formatted_address || place.name || "",
+        placeId: place.place_id,
+        lat: loc?.lat(),
+        lng: loc?.lng(),
+      });
+    });
+    return () => {
+      listener.remove();
+    };
+  }, [places, onSelect]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChangeText(e.target.value)}
+      placeholder="Wpisz adres inwestycji, np. Słoneczna 5, Kraków"
+      className="fluent-input"
+      autoComplete="off"
+    />
   );
 }

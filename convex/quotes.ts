@@ -165,6 +165,15 @@ export const create = mutation({
     projectType: v.array(PROJECT_TYPE_VALUE),
     ownerId: v.union(v.id("users"), v.null()),
     configuration: v.optional(v.any()),
+    investment: v.optional(
+      v.object({
+        address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+        notes: v.optional(v.string()),
+      }),
+    ),
   },
   handler: async (
     ctx,
@@ -176,6 +185,13 @@ export const create = mutation({
       projectType: string[];
       ownerId: Id<"users"> | null;
       configuration?: unknown;
+      investment?: {
+        address?: string;
+        placeId?: string;
+        lat?: number;
+        lng?: number;
+        notes?: string;
+      };
     },
   ): Promise<{ _id: Id<"quotes">; code: string }> => {
     const callerId = await getAuthUserId(ctx);
@@ -199,6 +215,15 @@ export const create = mutation({
       archived: false,
       source: "admin",
       configuration: args.configuration ?? undefined,
+      investment: args.investment
+        ? {
+            address: args.investment.address?.trim() || undefined,
+            placeId: args.investment.placeId,
+            lat: args.investment.lat,
+            lng: args.investment.lng,
+            notes: args.investment.notes?.trim() || undefined,
+          }
+        : undefined,
     });
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
