@@ -319,6 +319,8 @@ export default function NowaWycenaPage() {
   const [investmentNotes, setInvestmentNotes] = useState("");
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
+  const [customLabel, setCustomLabel] = useState("");
+
   const [touched, setTouched] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     | { kind: "idle" }
@@ -362,6 +364,7 @@ export default function NowaWycenaPage() {
     setNip(c.nip ?? "");
     setContactPerson(c.contactPerson ?? "");
     setNipError(null);
+    setCustomLabel("");
   }
 
   function clearClient() {
@@ -380,6 +383,7 @@ export default function NowaWycenaPage() {
     setInvestmentLat(undefined);
     setInvestmentLng(undefined);
     setInvestmentNotes("");
+    setCustomLabel("");
   }
 
   function startNewClient(initialName?: string) {
@@ -399,6 +403,7 @@ export default function NowaWycenaPage() {
     setInvestmentLat(undefined);
     setInvestmentLng(undefined);
     setInvestmentNotes("");
+    setCustomLabel("");
   }
 
   const parsedValue = useMemo(() => {
@@ -480,6 +485,7 @@ export default function NowaWycenaPage() {
         deadline,
         ownerId,
         configuration: buildConfiguration(),
+        customLabel: customLabel.trim() || undefined,
         investment: investmentAddress.trim()
           ? {
               address: investmentAddress.trim(),
@@ -612,6 +618,22 @@ export default function NowaWycenaPage() {
                   onPick={(rc) => applyClient(rc.client)}
                   onCreateNew={() => startNewClient(clientQuery.trim())}
                 />
+              )}
+              {((selectedClient && selectedClient.type === "business") || (showNewClientForm && clientType === "business")) && (
+                <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px dashed var(--border-subtle)" }}>
+                  <label className="fluent-field fluent-field-full">
+                    <span className="fluent-field-label" style={{ fontWeight: 600 }}>Tekst własny (wyróżnik B2B, np. inwestycja)</span>
+                    <input
+                      className="fluent-input"
+                      type="text"
+                      value={customLabel}
+                      onChange={(e) => setCustomLabel(e.target.value)}
+                      placeholder="np. Inwestycja przy ul. Polnej / Budynek B"
+                      style={{ borderLeft: "3px solid var(--accent-primary)" }}
+                    />
+                    <span className="fluent-field-hint">Ten tekst będzie widoczny na tablicy Kanban oraz w szczegółach obok ID wyceny.</span>
+                  </label>
+                </div>
               )}
             </FormBox>
 

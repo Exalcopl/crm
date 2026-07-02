@@ -174,6 +174,7 @@ export const create = mutation({
         notes: v.optional(v.string()),
       }),
     ),
+    customLabel: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -192,6 +193,7 @@ export const create = mutation({
         lng?: number;
         notes?: string;
       };
+      customLabel?: string;
     },
   ): Promise<{ _id: Id<"quotes">; code: string }> => {
     const callerId = await getAuthUserId(ctx);
@@ -215,6 +217,7 @@ export const create = mutation({
       archived: false,
       source: "admin",
       configuration: args.configuration ?? undefined,
+      customLabel: args.customLabel,
       investment: args.investment
         ? {
             address: args.investment.address?.trim() || undefined,
@@ -888,6 +891,196 @@ export const updateConfiguration = mutation({
       type: "configuration_updated",
       title: "Konfiguracja zaktualizowana",
       detail: changeDetail,
+      authorId: callerId,
+      authorName: user?.name ?? user?.email ?? "Handlowiec",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const resetCounterToMax = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ previousSeq: number; newSeq: number }> => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    const quotes = await ctx.db.query("quotes").collect();
+
+    let maxSeq = 0;
+    for (const q of quotes) {
+      if (q.archived) continue;
+      if (!q.code) continue;
+      const parts = q.code.split("-");
+      if (parts.length < 2) continue;
+      const numPart = parts[parts.length - 1];
+      if (numPart.length >= 7) {
+        const seqStr = numPart.slice(4, -2);
+        const seqNum = parseInt(seqStr, 10);
+        if (!isNaN(seqNum) && seqNum > maxSeq) {
+          maxSeq = seqNum;
+        }
+      }
+    }
+
+    const counter = await ctx.db
+      .query("quoteCounters")
+      .withIndex("by_year", (q: any) => q.eq("year", GLOBAL_COUNTER_KEY))
+      .first();
+
+    const previousSeq = counter ? counter.seq : 0;
+
+    if (!counter) {
+      await ctx.db.insert("quoteCounters", { year: GLOBAL_COUNTER_KEY, seq: maxSeq });
+    } else {
+      await ctx.db.patch(counter._id, { seq: maxSeq });
+    }
+
+    return { previousSeq, newSeq: maxSeq };
+  },
+});
+
+export const resetCounterToMaxInternal = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ previousSeq: number; newSeq: number }> => {
+    const quotes = await ctx.db.query("quotes").collect();
+
+    let maxSeq = 0;
+    for (const q of quotes) {
+      if (q.archived) continue;
+      if (!q.code) continue;
+      const parts = q.code.split("-");
+      if (parts.length < 2) continue;
+      const numPart = parts[parts.length - 1];
+      if (numPart.length >= 7) {
+        const seqStr = numPart.slice(4, -2);
+        const seqNum = parseInt(seqStr, 10);
+        if (!isNaN(seqNum) && seqNum > maxSeq) {
+          maxSeq = seqNum;
+        }
+      }
+    }
+
+    const counter = await ctx.db
+      .query("quoteCounters")
+      .withIndex("by_year", (q: any) => q.eq("year", GLOBAL_COUNTER_KEY))
+      .first();
+
+    const previousSeq = counter ? counter.seq : 0;
+
+    if (!counter) {
+      await ctx.db.insert("quoteCounters", { year: GLOBAL_COUNTER_KEY, seq: maxSeq });
+    } else {
+      await ctx.db.patch(counter._id, { seq: maxSeq });
+    }
+
+    return { previousSeq, newSeq: maxSeq };
+  },
+});
+
+export const resequenceActiveQuotes = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ count: number }> => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    const quotes = await ctx.db.query("quotes").collect();
+    const activeQuotes = quotes.filter((q: any) => !q.archived);
+
+    activeQuotes.sort((a: any, b: any) => a._creationTime - b._creationTime);
+
+    const allTypes = await ctx.db.query("projectTypes").collect();
+    const codeByName = new Map<string, string>(
+      allTypes.map((t: any) => [t.name as string, t.categoryCode as string]),
+    );
+
+    let seq = 1;
+    for (const q of activeQuotes) {
+      const typeCode = buildTypeCode(q.projectType, codeByName);
+      const newCode = formatQuoteCode({
+        typeCode,
+        createdAt: q._creationTime,
+        seq,
+      });
+
+      await ctx.db.patch(q._id, { code: newCode });
+      seq++;
+    }
+
+    const maxSeq = activeQuotes.length;
+    const counter = await ctx.db
+      .query("quoteCounters")
+      .withIndex("by_year", (q: any) => q.eq("year", GLOBAL_COUNTER_KEY))
+      .first();
+
+    if (!counter) {
+      await ctx.db.insert("quoteCounters", { year: GLOBAL_COUNTER_KEY, seq: maxSeq });
+    } else {
+      await ctx.db.patch(counter._id, { seq: maxSeq });
+    }
+
+    return { count: maxSeq };
+  },
+});
+
+export const resequenceActiveQuotesInternal = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ count: number }> => {
+    const quotes = await ctx.db.query("quotes").collect();
+    const activeQuotes = quotes.filter((q: any) => !q.archived);
+
+    activeQuotes.sort((a: any, b: any) => a._creationTime - b._creationTime);
+
+    const allTypes = await ctx.db.query("projectTypes").collect();
+    const codeByName = new Map<string, string>(
+      allTypes.map((t: any) => [t.name as string, t.categoryCode as string]),
+    );
+
+    let seq = 1;
+    for (const q of activeQuotes) {
+      const typeCode = buildTypeCode(q.projectType, codeByName);
+      const newCode = formatQuoteCode({
+        typeCode,
+        createdAt: q._creationTime,
+        seq,
+      });
+
+      await ctx.db.patch(q._id, { code: newCode });
+      seq++;
+    }
+
+    const maxSeq = activeQuotes.length;
+    const counter = await ctx.db
+      .query("quoteCounters")
+      .withIndex("by_year", (q: any) => q.eq("year", GLOBAL_COUNTER_KEY))
+      .first();
+
+    if (!counter) {
+      await ctx.db.insert("quoteCounters", { year: GLOBAL_COUNTER_KEY, seq: maxSeq });
+    } else {
+      await ctx.db.patch(counter._id, { seq: maxSeq });
+    }
+
+    return { count: maxSeq };
+  },
+});
+
+export const updateCustomLabel = mutation({
+  args: {
+    id: v.id("quotes"),
+    customLabel: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, customLabel }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(id, { customLabel: customLabel?.trim() || undefined });
+
+    const user = await ctx.db.get(callerId);
+    await ctx.db.insert("quoteActivity", {
+      quoteId: id,
+      type: "custom_label_updated",
+      title: "Tekst własny zaktualizowana",
+      detail: customLabel?.trim() || "Wyczyszczono tekst własny",
       authorId: callerId,
       authorName: user?.name ?? user?.email ?? "Handlowiec",
       createdAt: Date.now(),

@@ -619,6 +619,19 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   const ownerName = useOwnerName(quote);
   const [idCopied, setIdCopied] = useState(false);
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [tempLabel, setTempLabel] = useState("");
+  const updateLabel = useMutation(api.quotes.updateCustomLabel);
+
+  async function handleSaveLabel() {
+    try {
+      await updateLabel({ id: quote._id, customLabel: tempLabel.trim() || undefined });
+      toast.success("Zaktualizowano wyróżnik B2B");
+      setIsEditingLabel(false);
+    } catch {
+      toast.error("Błąd zapisu");
+    }
+  }
 
   const investmentLabel = quote.investment?.name
     ? quote.investment.name
@@ -699,6 +712,91 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
               })}
             </div>
           </div>
+          {quote.contact.clientType === "business" && (
+            <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {isEditingLabel ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSaveLabel();
+                  }}
+                  style={{ display: "flex", gap: "6px", alignItems: "center" }}
+                >
+                  <input
+                    type="text"
+                    value={tempLabel}
+                    onChange={(e) => setTempLabel(e.target.value)}
+                    placeholder="Wpisz wyróżnik B2B (np. inwestycję)..."
+                    className="fluent-input"
+                    style={{ padding: "4px 10px", fontSize: "12px", width: "260px", borderLeft: "3px solid var(--accent-primary)" }}
+                    autoFocus
+                  />
+                  <button type="submit" className="fluent-btn fluent-btn-primary" style={{ padding: "4px 10px", fontSize: "12px" }}>
+                    Zapisz
+                  </button>
+                  <button
+                    type="button"
+                    className="fluent-btn fluent-btn-ghost"
+                    onClick={() => setIsEditingLabel(false)}
+                    style={{ padding: "4px 10px", fontSize: "12px" }}
+                  >
+                    Anuluj
+                  </button>
+                </form>
+              ) : (
+                <>
+                  {quote.customLabel ? (
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "bold",
+                        textTransform: "uppercase",
+                        color: "var(--accent-primary)",
+                        background: "var(--accent-soft)",
+                        border: "1px solid var(--accent-line)",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.15)"
+                      }}
+                    >
+                      🏷️ Wyróżnik B2B: <strong>{quote.customLabel}</strong>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                      Brak wyróżnika B2B (tekstu własnego)
+                    </span>
+                  )}
+                  {!archived && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempLabel(quote.customLabel || "");
+                        setIsEditingLabel(true);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        cursor: "pointer",
+                        fontSize: "11px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "2px 6px"
+                      }}
+                      title="Edytuj wyróżnik B2B"
+                    >
+                      <I.wrench s={11} />
+                      <span>{quote.customLabel ? "Edytuj" : "Dodaj wyróżnik"}</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div className="quote-detail-header-meta">
           <div className="quote-detail-meta-item">

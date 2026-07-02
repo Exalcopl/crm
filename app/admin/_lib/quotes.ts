@@ -43,6 +43,7 @@ export type Quote = {
   _id: Id<"quotes">;
   /** Kod wyświetlany, np. WC-2026-0730 */
   id: string;
+  customLabel?: string;
   contact: ContactInfo;
   investment?: InvestmentInfo;
   value: number | null;

@@ -367,8 +367,30 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
             : undefined
         }
       />
-      <div className="kanban-card-head">
+      <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
         <span className="kanban-card-id">{quote.id}</span>
+        {quote.customLabel && (
+          <span
+            style={{
+              fontSize: "9px",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+              color: "var(--accent-primary)",
+              background: "var(--accent-soft)",
+              border: "1px solid var(--accent-line)",
+              padding: "1px 6px",
+              borderRadius: "4px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "120px",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+            }}
+            title={quote.customLabel}
+          >
+            🏷️ {quote.customLabel}
+          </span>
+        )}
         <div
           className="kanban-card-owner"
           title={ownerName}

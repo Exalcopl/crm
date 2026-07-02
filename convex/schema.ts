@@ -137,6 +137,7 @@ export default defineSchema({
 
   quotes: defineTable({
     code: v.string(),
+    customLabel: v.optional(v.string()),
     clientId: v.optional(v.id("clients")),
     contact: v.object({
       name: v.string(),
