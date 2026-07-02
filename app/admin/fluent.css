@@ -1150,7 +1150,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1490,6 +1490,10 @@
 .quote-detail-meta-owner-wrap {
   position: relative;
   display: inline-flex;
+}
+
+.quote-detail-meta-owner-wrap:has(.quote-detail-meta-owner-popover) {
+  z-index: 50;
 }
 
 .quote-detail-meta-owner-trigger {
@@ -1909,7 +1913,7 @@
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .quote-detail-section-head {
@@ -1919,6 +1923,13 @@
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   background: rgba(255, 255, 255, 0.015);
+  border-top-left-radius: 7px;
+  border-top-right-radius: 7px;
+}
+
+.quote-widget-item .quote-detail-section-head {
+  border-top-left-radius: 9px;
+  border-top-right-radius: 9px;
 }
 
 .quote-detail-section-title {
@@ -4887,12 +4898,18 @@ select.fluent-input {
 }
 
 .quote-detail-todo-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 4px;
   border-radius: 6px;
   transition: background 100ms;
+}
+
+.quote-detail-todo-row:has(.quote-detail-task-assignee-popover),
+.quote-detail-todo-row:has(.quote-detail-task-due-popover) {
+  z-index: 50;
 }
 
 .quote-detail-todo-row:hover {

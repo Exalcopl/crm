@@ -116,10 +116,15 @@
   transition: border-color 180ms ease, box-shadow 220ms ease, transform 180ms ease;
   touch-action: none;
   user-select: none;
-  overflow: hidden;
+  overflow: visible;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.quote-detail-task-card:has(.quote-detail-task-assignee-popover),
+.quote-detail-task-card:has(.quote-detail-task-due-popover) {
+  z-index: 50;
 }
 
 .quote-detail-task-card.is-draggable {
