@@ -623,6 +623,30 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   const [tempLabel, setTempLabel] = useState("");
   const updateLabel = useMutation(api.quotes.updateCustomLabel);
 
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [tempValue, setTempValue] = useState("");
+  const updateValueMutation = useMutation(api.quotes.updateValue);
+
+  async function handleSaveValue() {
+    let finalVal: number | null = null;
+    if (tempValue.trim() !== "") {
+      const cleanVal = tempValue.replace(/\s/g, "").replace(",", ".");
+      const parsed = Number(cleanVal);
+      if (isNaN(parsed) || parsed < 0) {
+        toast.error("Podaj poprawną wartość nieujemną");
+        return;
+      }
+      finalVal = parsed;
+    }
+    try {
+      await updateValueMutation({ id: quote._id, value: finalVal });
+      toast.success("Zaktualizowano wartość wyceny");
+      setIsEditingValue(false);
+    } catch {
+      toast.error("Błąd zapisu");
+    }
+  }
+
   async function handleSaveLabel() {
     try {
       await updateLabel({ id: quote._id, customLabel: tempLabel.trim() || undefined });
@@ -802,13 +826,68 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           <div className="quote-detail-meta-item">
             <div className="quote-detail-meta-label">Wartość</div>
             <div className="quote-detail-meta-value">
-              {hasValue ? (
-                <>
-                  <span className="quote-detail-meta-num">{formatPLN(quote.value!)}</span>
-                  <span className="quote-detail-meta-unit">PLN</span>
-                </>
+              {isEditingValue ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void handleSaveValue();
+                  }}
+                  style={{ display: "flex", gap: "6px", alignItems: "center" }}
+                >
+                  <input
+                    type="text"
+                    value={tempValue}
+                    onChange={(e) => setTempValue(e.target.value)}
+                    placeholder="Kwota netto..."
+                    className="fluent-input"
+                    style={{ padding: "3px 6px", fontSize: "11px", width: "90px", textAlign: "right" }}
+                    autoFocus
+                  />
+                  <span style={{ fontSize: "11px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
+                  <button type="submit" className="fluent-btn fluent-btn-primary" style={{ padding: "3px 6px", fontSize: "10px" }}>
+                    Zapisz
+                  </button>
+                  <button
+                    type="button"
+                    className="fluent-btn fluent-btn-ghost"
+                    onClick={() => setIsEditingValue(false)}
+                    style={{ padding: "3px 6px", fontSize: "10px" }}
+                  >
+                    Anuluj
+                  </button>
+                </form>
               ) : (
-                <span className="quote-detail-meta-empty">— brak —</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  {hasValue ? (
+                    <>
+                      <span className="quote-detail-meta-num">{formatPLN(quote.value!)}</span>
+                      <span className="quote-detail-meta-unit">PLN</span>
+                    </>
+                  ) : (
+                    <span className="quote-detail-meta-empty">— brak —</span>
+                  )}
+                  {!archived && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTempValue(quote.value !== null ? String(quote.value) : "");
+                        setIsEditingValue(true);
+                      }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-muted)",
+                        cursor: "pointer",
+                        padding: "2px",
+                        display: "inline-flex",
+                        alignItems: "center"
+                      }}
+                      title="Edytuj wartość netto"
+                    >
+                      <I.wrench s={11} />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1284,6 +1363,8 @@ function activityIcon(type: string) {
   switch (type) {
     case "quote_created": return <I.plus s={12} />;
     case "configuration_updated": return <I.doc s={12} />;
+    case "value_updated": return <I.pln s={12} />;
+    case "custom_label_updated": return <I.edit s={12} />;
     default: return <I.refresh s={12} />;
   }
 }

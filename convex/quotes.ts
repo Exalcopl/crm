@@ -1087,3 +1087,40 @@ export const updateCustomLabel = mutation({
     });
   },
 });
+
+export const updateValue = mutation({
+  args: {
+    id: v.id("quotes"),
+    value: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, { id, value }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    const quote = await ctx.db.get(id);
+    if (!quote) throw new Error("Nie znaleziono wyceny");
+
+    const oldValue = quote.value;
+    if (oldValue === value) return;
+
+    await ctx.db.patch(id, { value });
+
+    const formatPLN = (val: number | null) => {
+      if (val === null) return "brak kwoty";
+      return `${val.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`;
+    };
+
+    const user = await ctx.db.get(callerId);
+    const detail = `Zmieniono wartość z: ${formatPLN(oldValue)} na: ${formatPLN(value)}`;
+
+    await ctx.db.insert("quoteActivity", {
+      quoteId: id,
+      type: "value_updated",
+      title: "Wartość wyceny zaktualizowana",
+      detail,
+      authorId: callerId,
+      authorName: user?.name ?? user?.email ?? "Handlowiec",
+      createdAt: Date.now(),
+    });
+  },
+});
