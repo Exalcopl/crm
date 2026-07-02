@@ -38,6 +38,9 @@ function clientFromDoc(c: Doc<"clients">): Client {
     postalCity: c.postalCity,
     phone: c.phoneRaw,
     email: c.email,
+    type: c.type,
+    nip: c.nip,
+    contactPerson: c.contactPerson,
   };
 }
 
@@ -875,14 +878,25 @@ function FormBox({
 // ─── Klient ───────────────────────────────────────────────────────────────────
 
 function SelectedClientCard({ client }: { client: Client }) {
-  const hasMeta = client.street || client.postalCity || client.phone || client.email;
+  const hasMeta = client.street || client.postalCity || client.phone || client.email || client.nip || client.contactPerson;
   return (
     <div className="quote-new-v2-selected">
-      <div className="quote-new-v2-selected-avatar">{ownerInitials(client.name)}</div>
+      <div className="quote-new-v2-selected-avatar">
+        {client.type === "business" ? "🏢" : ownerInitials(client.name)}
+      </div>
       <div className="quote-new-v2-selected-body">
-        <div className="quote-new-v2-selected-name">{client.name}</div>
+        <div className="quote-new-v2-selected-name">
+          {client.name}
+          {client.type === "business" && (
+            <span style={{ fontSize: "11px", fontWeight: "normal", color: "var(--text-muted)", marginLeft: "6px" }}>
+              (Firma)
+            </span>
+          )}
+        </div>
         {hasMeta ? (
           <div className="quote-new-v2-selected-meta">
+            {client.nip && <span><strong>NIP:</strong> {client.nip}</span>}
+            {client.contactPerson && <span><strong>Osoba kont.:</strong> {client.contactPerson}</span>}
             {client.street && <span>{client.street}</span>}
             {client.postalCity && <span>{client.postalCity}</span>}
             {client.phone && <span className="quote-new-v2-selected-inline"><I.phone s={12} /> {client.phone}</span>}

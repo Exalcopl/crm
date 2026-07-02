@@ -430,3 +430,80 @@
   font-size: 13px;
   text-align: left;
 }
+
+/* Segmented Control dla wyboru typu klienta */
+.wp-toggle-group {
+  display: flex;
+  background: var(--wp-bg);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--wp-border);
+  width: fit-content;
+  margin-bottom: 4px;
+}
+
+.wp-toggle-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--wp-fg-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+
+.wp-toggle-btn.is-active {
+  background: var(--wp-card);
+  color: var(--wp-fg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Przycisk pobierania z Białej Listy */
+.wp-nip-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.wp-nip-btn {
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--wp-border-strong);
+  border-radius: 8px;
+  background: var(--wp-bg);
+  color: var(--wp-fg);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity 0.12s, background 0.12s;
+}
+
+.wp-nip-btn:hover:not(:disabled) {
+  background: var(--wp-border);
+}
+
+.wp-nip-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.wp-nip-status {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.wp-nip-status.is-success {
+  color: var(--wp-success);
+}
+
+.wp-nip-status.is-error {
+  color: var(--wp-error);
+}
+
+.wp-nip-status.is-loading {
+  color: var(--wp-accent);
+}

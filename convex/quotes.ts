@@ -25,6 +25,9 @@ const CONTACT_VALUE = v.object({
   postalCity: v.optional(v.string()),
   phone: v.optional(v.string()),
   email: v.optional(v.string()),
+  nip: v.optional(v.string()),
+  clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+  contactPerson: v.optional(v.string()),
 });
 
 const GLOBAL_COUNTER_KEY = 0;
@@ -355,6 +358,9 @@ export const createPublic = mutation({
     investment: v.optional(
       v.object({
         address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
         notes: v.optional(v.string()),
       }),
     ),
@@ -444,6 +450,9 @@ export const createPublic = mutation({
       postalCity: args.contact.postalCity?.trim() || undefined,
       phone,
       email,
+      nip: args.contact.nip?.trim() || undefined,
+      clientType: args.contact.clientType || "individual",
+      contactPerson: args.contact.contactPerson?.trim() || undefined,
     };
 
     const createdAt = Date.now();
@@ -479,6 +488,9 @@ export const createPublic = mutation({
       investment: args.investment
         ? {
             address: args.investment.address?.trim() || undefined,
+            placeId: args.investment.placeId,
+            lat: args.investment.lat,
+            lng: args.investment.lng,
             notes: args.investment.notes?.trim() || undefined,
           }
         : undefined,

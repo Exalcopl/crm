@@ -71,6 +71,10 @@ export default defineSchema({
     street: v.optional(v.string()),
     postalCity: v.optional(v.string()),
     createdAt: v.number(),
+    type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+    nip: v.optional(v.string()),
+    nipNormalized: v.optional(v.string()),
+    contactPerson: v.optional(v.string()),
     sharepointFolder: v.optional(
       v.object({
         itemId: v.string(),
@@ -88,7 +92,8 @@ export default defineSchema({
     ),
   })
     .index("by_phone_normalized", ["phoneNormalized"])
-    .index("by_name_normalized", ["nameNormalized"]),
+    .index("by_name_normalized", ["nameNormalized"])
+    .index("by_nip_normalized", ["nipNormalized"]),
 
   projectTypes: defineTable({
     name: v.string(),
@@ -139,6 +144,9 @@ export default defineSchema({
       postalCity: v.optional(v.string()),
       phone: v.optional(v.string()),
       email: v.optional(v.string()),
+      nip: v.optional(v.string()),
+      clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+      contactPerson: v.optional(v.string()),
     }),
     investment: v.optional(
       v.object({

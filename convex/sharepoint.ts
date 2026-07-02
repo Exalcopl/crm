@@ -1172,7 +1172,23 @@ export const createFolderForQuote = internalAction({
 
         const token = await getGraphToken(tenantId, clientId, clientSecret);
 
-        const clientFolderName = buildClientFolderName(quote.contact.name);
+        let client = null;
+        if (quote.clientId) {
+          client = (await ctx.runQuery(api.clients.get, { id: quote.clientId })) as {
+            name: string;
+            type?: string;
+            nip?: string;
+          } | null;
+        }
+
+        let clientFolderName;
+        if (client && client.type === "business" && client.nip) {
+          const cleanNip = client.nip.replace(/\D/g, "");
+          clientFolderName = `${sanitizeFolderName(client.name)}_${cleanNip}`;
+        } else {
+          clientFolderName = buildClientFolderName(quote.contact.name);
+        }
+
         const { id: clientFolderId, webUrl: clientWebUrl } = await ensureFolder(
           token,
           driveId,
@@ -1192,7 +1208,7 @@ export const createFolderForQuote = internalAction({
         const quoteFolderName = buildQuoteSubfolderName(
           quote.code,
           quote._creationTime,
-          quote.contact.name,
+          client && client.type === "business" ? client.name : quote.contact.name,
         );
         const { id: quoteFolderId, webUrl: quoteWebUrl } = await ensureFolder(
           token,

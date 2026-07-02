@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { FilePicker } from "@/app/_components/file-picker";
+import { APIProvider, useMapsLibrary } from "@vis.gl/react-google-maps";
 
 type AnswerType = "text" | "boolean" | "number";
 
@@ -50,19 +51,36 @@ function isoFromOffsetDays(days: number): string {
 
 export default function PublicQuotePage() {
   const convex = useConvex();
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const createPublic = useMutation(api.quotes.createPublic);
   const createUpload = useAction(api.sharepoint.createPublicUploadSession);
+  const fetchNipData = useAction(api.clients.fetchNipData);
   const activeTypesRaw = useQuery(api.projectTypes.listActive) as
     | ActiveType[]
     | undefined;
   const activeTypes = useMemo(() => activeTypesRaw ?? [], [activeTypesRaw]);
 
-  const [name, setName] = useState("");
+  // Client states
+  const [clientType, setClientType] = useState<"individual" | "business">("individual");
+  const [name, setName] = useState(""); // Imię/Nazwisko dla Indywidualnego, Nazwa firmy dla B2B
+  const [nip, setNip] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [street, setStreet] = useState("");
   const [postalCity, setPostalCity] = useState("");
+
+  // NIP fetch statuses
+  const [nipLoading, setNipLoading] = useState(false);
+  const [nipError, setNipError] = useState<string | null>(null);
+  const [nipSuccess, setNipSuccess] = useState<string | null>(null);
+
+  // Investment states (with Google coords/placeId)
   const [investmentAddress, setInvestmentAddress] = useState("");
+  const [investmentPlaceId, setInvestmentPlaceId] = useState<string | undefined>(undefined);
+  const [investmentLat, setInvestmentLat] = useState<number | undefined>(undefined);
+  const [investmentLng, setInvestmentLng] = useState<number | undefined>(undefined);
+
   const [deadline, setDeadline] = useState("");
   const [description, setDescription] = useState("");
   const [website, setWebsite] = useState(""); // honeypot
@@ -117,6 +135,7 @@ export default function PublicQuotePage() {
 
   const nameValid = name.trim().length > 0;
   const contactValid = phone.trim().length > 0 || email.trim().length > 0;
+  const nipValid = clientType === "individual" || nip.replace(/\D/g, "").length === 10;
   const typesValid = selectedTypes.length > 0;
   const requiredAnswersValid = useMemo(() => {
     for (const q of questions) {
@@ -137,6 +156,7 @@ export default function PublicQuotePage() {
   const canSubmit =
     nameValid &&
     contactValid &&
+    nipValid &&
     typesValid &&
     requiredAnswersValid &&
     stage.kind === "idle";
@@ -182,6 +202,28 @@ export default function PublicQuotePage() {
     });
     if (!res.ok && res.status !== 201) {
       throw new Error(`Upload ${res.status}`);
+    }
+  }
+
+  async function handleFetchNip() {
+    const cleanNip = nip.replace(/\D/g, "");
+    if (cleanNip.length !== 10) {
+      setNipError("NIP musi składać się z 10 cyfr");
+      return;
+    }
+    setNipLoading(true);
+    setNipError(null);
+    setNipSuccess(null);
+    try {
+      const data = await fetchNipData({ nip: cleanNip });
+      setName(data.name || "");
+      setStreet(data.street || "");
+      setPostalCity(data.postalCity || "");
+      setNipSuccess("Pomyślnie pobrano dane z Białej Listy VAT");
+    } catch (err: any) {
+      setNipError(err.message || "Błąd podczas pobierania danych");
+    } finally {
+      setNipLoading(false);
     }
   }
 
@@ -238,10 +280,18 @@ export default function PublicQuotePage() {
           postalCity: postalCity.trim() || undefined,
           phone: phone.trim() || undefined,
           email: email.trim() || undefined,
+          clientType,
+          nip: clientType === "business" ? nip.trim() : undefined,
+          contactPerson: clientType === "business" ? contactPerson.trim() : undefined,
         },
         projectType: projectTypeNames,
         investment: investmentAddress.trim()
-          ? { address: investmentAddress.trim() }
+          ? {
+              address: investmentAddress.trim(),
+              placeId: investmentPlaceId,
+              lat: investmentLat,
+              lng: investmentLng,
+            }
           : undefined,
         deadline: deadline || undefined,
         description: description.trim() || undefined,
@@ -297,7 +347,11 @@ export default function PublicQuotePage() {
   }
 
   if (stage.kind === "done") {
-    return <ThankYou stage={stage} />;
+    return (
+      <APIProvider apiKey={apiKey}>
+        <ThankYou stage={stage} />
+      </APIProvider>
+    );
   }
 
   const showError = (kind: "name" | "contact" | "types" | "answers"): boolean => {
@@ -309,7 +363,8 @@ export default function PublicQuotePage() {
   };
 
   return (
-    <main className="wp-main">
+    <APIProvider apiKey={apiKey}>
+      <main className="wp-main">
       <h1 className="wp-hero-title">Wyceń projekt</h1>
       <p className="wp-hero-sub">
         Wypełnij krótki formularz, a odezwiemy się z wyceną. Im więcej
@@ -325,24 +380,112 @@ export default function PublicQuotePage() {
               <span>Dane kontaktowe</span>
             </h2>
           </header>
+
+          <div className="wp-toggle-group">
+            <button
+              type="button"
+              className={`wp-toggle-btn${clientType === "individual" ? " is-active" : ""}`}
+              onClick={() => {
+                setClientType("individual");
+                setName("");
+                setStreet("");
+                setPostalCity("");
+                setNip("");
+                setNipError(null);
+                setNipSuccess(null);
+              }}
+            >
+              Osoba prywatna
+            </button>
+            <button
+              type="button"
+              className={`wp-toggle-btn${clientType === "business" ? " is-active" : ""}`}
+              onClick={() => {
+                setClientType("business");
+                setName("");
+                setStreet("");
+                setPostalCity("");
+                setNip("");
+                setNipError(null);
+                setNipSuccess(null);
+              }}
+            >
+              Firma
+            </button>
+          </div>
+
           <div className="wp-grid">
+            {clientType === "business" && (
+              <label className="wp-field wp-field-full">
+                <span className="wp-label wp-label-required">NIP firmy</span>
+                <div className="wp-nip-wrapper">
+                  <input
+                    className="wp-input"
+                    type="text"
+                    value={nip}
+                    onChange={(e) => {
+                      setNip(e.target.value);
+                      setNipError(null);
+                      setNipSuccess(null);
+                    }}
+                    placeholder="np. 1234567890"
+                    maxLength={15}
+                  />
+                  <button
+                    type="button"
+                    className="wp-nip-btn"
+                    onClick={handleFetchNip}
+                    disabled={nip.replace(/\D/g, "").length !== 10 || nipLoading}
+                  >
+                    {nipLoading ? "Pobieranie..." : "Pobierz dane"}
+                  </button>
+                </div>
+                {nipError && <span className="wp-error wp-nip-status is-error">{nipError}</span>}
+                {nipSuccess && <span className="wp-nip-status is-success">{nipSuccess}</span>}
+                {touched && !nipValid && (
+                  <span className="wp-error">Podaj poprawny 10-cyfrowy NIP firmy.</span>
+                )}
+              </label>
+            )}
+
             <label className="wp-field wp-field-full">
-              <span className="wp-label wp-label-required">Imię / firma</span>
+              <span className="wp-label wp-label-required">
+                {clientType === "business" ? "Nazwa firmy" : "Imię i Nazwisko"}
+              </span>
               <input
                 className="wp-input"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="np. Jan Kowalski / ProBud Inwestycje"
-                autoComplete="name"
+                placeholder={clientType === "business" ? "np. ProBud Inwestycje" : "np. Jan Kowalski"}
+                autoComplete={clientType === "business" ? "organization" : "name"}
                 required
               />
               {showError("name") && (
-                <span className="wp-error">Podaj imię lub nazwę firmy.</span>
+                <span className="wp-error">
+                  {clientType === "business" ? "Podaj nazwę firmy." : "Podaj imię i nazwisko."}
+                </span>
               )}
             </label>
+
+            {clientType === "business" && (
+              <label className="wp-field wp-field-full">
+                <span className="wp-label">Osoba kontaktowa</span>
+                <input
+                  className="wp-input"
+                  type="text"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  placeholder="np. Marek Nowak"
+                  autoComplete="name"
+                />
+              </label>
+            )}
+
             <label className="wp-field">
-              <span className="wp-label">Telefon</span>
+              <span className="wp-label">
+                {clientType === "business" ? "Telefon kontaktowy" : "Telefon"}
+              </span>
               <input
                 className="wp-input"
                 type="tel"
@@ -353,7 +496,9 @@ export default function PublicQuotePage() {
               />
             </label>
             <label className="wp-field">
-              <span className="wp-label">E-mail</span>
+              <span className="wp-label">
+                {clientType === "business" ? "E-mail kontaktowy" : "E-mail"}
+              </span>
               <input
                 className="wp-input"
                 type="email"
@@ -371,7 +516,9 @@ export default function PublicQuotePage() {
               </div>
             )}
             <label className="wp-field">
-              <span className="wp-label">Ulica</span>
+              <span className="wp-label">
+                {clientType === "business" ? "Adres rejestrowy (Ulica)" : "Ulica"}
+              </span>
               <input
                 className="wp-input"
                 type="text"
@@ -492,12 +639,15 @@ export default function PublicQuotePage() {
           <div className="wp-grid">
             <label className="wp-field wp-field-full">
               <span className="wp-label">Adres inwestycji (jeśli inny niż kontaktowy)</span>
-              <input
-                className="wp-input"
-                type="text"
+              <PublicAddressAutocompleteInput
                 value={investmentAddress}
-                onChange={(e) => setInvestmentAddress(e.target.value)}
-                placeholder="np. ul. Słoneczna 5, Kraków"
+                onChangeText={setInvestmentAddress}
+                onSelect={(p) => {
+                  setInvestmentAddress(p.address);
+                  setInvestmentPlaceId(p.placeId);
+                  setInvestmentLat(p.lat);
+                  setInvestmentLng(p.lng);
+                }}
               />
             </label>
             <label className="wp-field">
@@ -607,6 +757,7 @@ export default function PublicQuotePage() {
         </div>
       </form>
     </main>
+    </APIProvider>
   );
 }
 
@@ -766,5 +917,56 @@ function ThankYou({
           )}
       </div>
     </main>
+  );
+}
+
+function PublicAddressAutocompleteInput({
+  value,
+  onChangeText,
+  onSelect,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  onSelect: (p: {
+    address: string;
+    placeId?: string;
+    lat?: number;
+    lng?: number;
+  }) => void;
+}) {
+  const places = useMapsLibrary("places");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!places || !inputRef.current) return;
+    const ac = new places.Autocomplete(inputRef.current, {
+      fields: ["place_id", "formatted_address", "geometry", "name"],
+      types: ["geocode"],
+    });
+    const listener = ac.addListener("place_changed", () => {
+      const place = ac.getPlace();
+      const loc = place.geometry?.location;
+      onSelect({
+        address: place.formatted_address || place.name || "",
+        placeId: place.place_id,
+        lat: loc?.lat(),
+        lng: loc?.lng(),
+      });
+    });
+    return () => {
+      listener.remove();
+    };
+  }, [places, onSelect]);
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChangeText(e.target.value)}
+      placeholder="Wpisz adres inwestycji, np. Słoneczna 5, Kraków"
+      className="wp-input"
+      autoComplete="off"
+    />
   );
 }

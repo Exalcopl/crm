@@ -5,4 +5,7 @@ export type Client = {
   postalCity?: string;
   phone?: string;
   email?: string;
+  type?: "individual" | "business";
+  nip?: string;
+  contactPerson?: string;
 };

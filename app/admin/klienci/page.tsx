@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../_lib/icons";
@@ -17,6 +17,9 @@ type ClientDraft = {
   postalCity: string;
   phone: string;
   email: string;
+  type?: "individual" | "business";
+  nip?: string;
+  contactPerson?: string;
 };
 
 const EMPTY_DRAFT: ClientDraft = {
@@ -25,6 +28,9 @@ const EMPTY_DRAFT: ClientDraft = {
   postalCity: "",
   phone: "",
   email: "",
+  type: "individual",
+  nip: "",
+  contactPerson: "",
 };
 
 function toDraft(c: Doc<"clients">): ClientDraft {
@@ -34,6 +40,9 @@ function toDraft(c: Doc<"clients">): ClientDraft {
     postalCity: c.postalCity ?? "",
     phone: c.phoneRaw ?? "",
     email: c.email ?? "",
+    type: c.type ?? "individual",
+    nip: c.nip ?? "",
+    contactPerson: c.contactPerson ?? "",
   };
 }
 
@@ -117,6 +126,9 @@ export default function KlienciPage() {
           postalCity: trimOrUndefined(draft.postalCity),
           phone: trimOrUndefined(draft.phone),
           email: trimOrUndefined(draft.email),
+          type: draft.type || "individual",
+          nip: trimOrUndefined(draft.nip || ""),
+          contactPerson: trimOrUndefined(draft.contactPerson || ""),
         },
       ],
     });
@@ -131,6 +143,9 @@ export default function KlienciPage() {
       postalCity: draft.postalCity.trim() ? draft.postalCity.trim() : null,
       phone: draft.phone.trim() ? draft.phone.trim() : null,
       email: draft.email.trim() ? draft.email.trim() : null,
+      type: draft.type || "individual",
+      nip: draft.nip?.trim() ? draft.nip.trim() : null,
+      contactPerson: draft.contactPerson?.trim() ? draft.contactPerson.trim() : null,
     });
     setDialog(null);
   }
@@ -293,12 +308,39 @@ function ClientDialog({
   onClose: () => void;
   onSubmit: (draft: ClientDraft) => void;
 }) {
+  const [clientType, setClientType] = useState<"individual" | "business">(initial.type ?? "individual");
   const [name, setName] = useState(initial.name);
   const [street, setStreet] = useState(initial.street);
   const [postalCity, setPostalCity] = useState(initial.postalCity);
   const [phone, setPhone] = useState(initial.phone);
   const [email, setEmail] = useState(initial.email);
+  const [nip, setNip] = useState(initial.nip ?? "");
+  const [contactPerson, setContactPerson] = useState(initial.contactPerson ?? "");
   const [touched, setTouched] = useState(false);
+
+  const fetchNipData = useAction(api.clients.fetchNipData);
+  const [nipLoading, setNipLoading] = useState(false);
+  const [nipError, setNipError] = useState<string | null>(null);
+
+  async function handleFetchNip() {
+    const cleanNip = nip.replace(/\D/g, "");
+    if (cleanNip.length !== 10) {
+      setNipError("NIP musi mieć 10 cyfr");
+      return;
+    }
+    setNipLoading(true);
+    setNipError(null);
+    try {
+      const data = await fetchNipData({ nip: cleanNip });
+      setName(data.name || "");
+      setStreet(data.street || "");
+      setPostalCity(data.postalCity || "");
+    } catch (err: any) {
+      setNipError(err.message || "Błąd pobierania");
+    } finally {
+      setNipLoading(false);
+    }
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -314,12 +356,22 @@ function ClientDialog({
   }, [onClose]);
 
   const nameValid = name.trim().length > 0;
+  const nipValid = clientType === "individual" || nip.replace(/\D/g, "").length === 10;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched(true);
-    if (!nameValid) return;
-    onSubmit({ name, street, postalCity, phone, email });
+    if (!nameValid || !nipValid) return;
+    onSubmit({
+      name,
+      street,
+      postalCity,
+      phone,
+      email,
+      type: clientType,
+      nip: clientType === "business" ? nip : undefined,
+      contactPerson: clientType === "business" ? contactPerson : undefined,
+    });
   }
 
   return (
@@ -357,21 +409,91 @@ function ClientDialog({
         <div className="fluent-modal-body">
           <div className="fluent-form-grid">
             <label className="fluent-field fluent-field-full">
+              <span className="fluent-field-label">Typ klienta</span>
+              <select
+                className="fluent-input"
+                value={clientType}
+                onChange={(e) => {
+                  setClientType(e.target.value as "individual" | "business");
+                  setNipError(null);
+                }}
+              >
+                <option value="individual">Osoba prywatna</option>
+                <option value="business">Firma</option>
+              </select>
+            </label>
+
+            {clientType === "business" && (
+              <label className="fluent-field fluent-field-full">
+                <span className="fluent-field-label">
+                  NIP <span className="fluent-field-required">*</span>
+                </span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    className="fluent-input"
+                    type="text"
+                    value={nip}
+                    onChange={(e) => {
+                      setNip(e.target.value);
+                      setNipError(null);
+                    }}
+                    placeholder="np. 1234567890"
+                    maxLength={15}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="fluent-btn"
+                    onClick={handleFetchNip}
+                    disabled={nip.replace(/\D/g, "").length !== 10 || nipLoading}
+                    style={{ whiteSpace: "nowrap", padding: "0 12px", border: "1px solid var(--border)" }}
+                  >
+                    {nipLoading ? "Pobieranie..." : "Pobierz dane"}
+                  </button>
+                </div>
+                {nipError && (
+                  <span className="fluent-field-error" style={{ display: "block", marginTop: "4px" }}>
+                    {nipError}
+                  </span>
+                )}
+                {touched && !nipValid && (
+                  <span className="fluent-field-error" style={{ display: "block", marginTop: "4px" }}>
+                    Podaj poprawny 10-cyfrowy NIP firmy.
+                  </span>
+                )}
+              </label>
+            )}
+
+            <label className="fluent-field fluent-field-full">
               <span className="fluent-field-label">
-                Nazwa / firma <span className="fluent-field-required">*</span>
+                {clientType === "business" ? "Nazwa firmy" : "Nazwa / imię i nazwisko"}{" "}
+                <span className="fluent-field-required">*</span>
               </span>
               <input
                 className="fluent-input"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="np. ProBud Inwestycje"
+                placeholder={clientType === "business" ? "np. ProBud Inwestycje" : "np. Jan Kowalski"}
                 autoFocus
               />
               {touched && !nameValid && (
                 <span className="fluent-field-error">Podaj nazwę lub firmę.</span>
               )}
             </label>
+
+            {clientType === "business" && (
+              <label className="fluent-field fluent-field-full">
+                <span className="fluent-field-label">Osoba kontaktowa</span>
+                <input
+                  className="fluent-input"
+                  type="text"
+                  value={contactPerson}
+                  onChange={(e) => setContactPerson(e.target.value)}
+                  placeholder="np. Jan Kowalski"
+                />
+              </label>
+            )}
 
             <label className="fluent-field fluent-field-full">
               <span className="fluent-field-label">Ulica</span>
@@ -430,7 +552,7 @@ function ClientDialog({
           <button
             type="submit"
             className="fluent-btn fluent-btn-primary"
-            disabled={touched && !nameValid}
+            disabled={touched && (!nameValid || !nipValid)}
           >
             {mode === "create" ? (
               <>

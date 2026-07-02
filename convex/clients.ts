@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import {
+  action,
   internalMutation,
   internalQuery,
   mutation,
@@ -16,6 +17,9 @@ const CONTACT_VALUE = v.object({
   postalCity: v.optional(v.string()),
   phone: v.optional(v.string()),
   email: v.optional(v.string()),
+  nip: v.optional(v.string()),
+  clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+  contactPerson: v.optional(v.string()),
 });
 
 export const findMatch = internalQuery({
@@ -55,50 +59,77 @@ export const getOrCreate = internalMutation({
   handler: async (ctx, { contact }) => {
     const phoneNorm = normalizePhone(contact.phone);
     const nameNorm = normalizeName(contact.name);
+    const clientType = contact.clientType ?? "individual";
+    const nipNorm = contact.nip ? contact.nip.replace(/\D/g, "") : undefined;
 
     let existing = null;
 
-    if (phoneNorm) {
+    if (clientType === "business" && nipNorm) {
       existing = await ctx.db
         .query("clients")
-        .withIndex("by_phone_normalized", (q) =>
-          q.eq("phoneNormalized", phoneNorm),
+        .withIndex("by_nip_normalized", (q) =>
+          q.eq("nipNormalized", nipNorm)
         )
         .first();
-    }
+    } else {
+      if (phoneNorm) {
+        existing = await ctx.db
+          .query("clients")
+          .withIndex("by_phone_normalized", (q) =>
+            q.eq("phoneNormalized", phoneNorm)
+          )
+          .first();
+      }
 
-    if (!existing) {
-      existing = await ctx.db
-        .query("clients")
-        .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", nameNorm))
-        .first();
+      if (!existing) {
+        existing = await ctx.db
+          .query("clients")
+          .withIndex("by_name_normalized", (q) => q.eq("nameNormalized", nameNorm))
+          .first();
+      }
     }
 
     if (existing) {
+      const patch: any = {};
       if (contact.phone && !existing.phoneRaw) {
-        await ctx.db.patch(existing._id, { phoneRaw: contact.phone });
+        patch.phoneRaw = contact.phone;
+        patch.phoneNormalized = phoneNorm;
       }
       if (contact.email && !existing.email) {
-        await ctx.db.patch(existing._id, { email: contact.email });
+        patch.email = contact.email;
       }
       if (contact.street && !existing.street) {
-        await ctx.db.patch(existing._id, { street: contact.street });
+        patch.street = contact.street;
       }
       if (contact.postalCity && !existing.postalCity) {
-        await ctx.db.patch(existing._id, { postalCity: contact.postalCity });
+        patch.postalCity = contact.postalCity;
+      }
+      if (clientType === "business" && contact.contactPerson && !existing.contactPerson) {
+        patch.contactPerson = contact.contactPerson;
+      }
+      if (clientType === "business" && contact.nip && !existing.nip) {
+        patch.nip = contact.nip;
+        patch.nipNormalized = nipNorm;
+      }
+      if (Object.keys(patch).length > 0) {
+        await ctx.db.patch(existing._id, patch);
       }
       return existing._id;
     }
 
     const newClientId = await ctx.db.insert("clients", {
       name: contact.name,
-      nameNormalized: normalizeName(contact.name),
+      nameNormalized: nameNorm,
       phoneRaw: contact.phone,
-      phoneNormalized: normalizePhone(contact.phone),
+      phoneNormalized: phoneNorm,
       email: contact.email,
       street: contact.street,
       postalCity: contact.postalCity,
       createdAt: Date.now(),
+      type: clientType,
+      nip: contact.nip,
+      nipNormalized: nipNorm,
+      contactPerson: contact.contactPerson,
     });
     return newClientId;
   },
@@ -155,6 +186,9 @@ export const update = mutation({
     postalCity: v.optional(v.union(v.string(), v.null())),
     phone: v.optional(v.union(v.string(), v.null())),
     email: v.optional(v.union(v.string(), v.null())),
+    type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+    nip: v.optional(v.union(v.string(), v.null())),
+    contactPerson: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, { id, ...patch }) => {
     const callerId = await getAuthUserId(ctx);
@@ -178,6 +212,10 @@ export const update = mutation({
       email: string | undefined;
       street: string | undefined;
       postalCity: string | undefined;
+      type: "individual" | "business";
+      nip: string | undefined;
+      nipNormalized: string | undefined;
+      contactPerson: string | undefined;
     }> = {};
 
     if (patch.name !== undefined) {
@@ -195,6 +233,14 @@ export const update = mutation({
     if (patch.street !== undefined) updates.street = toOptional(patch.street);
     if (patch.postalCity !== undefined)
       updates.postalCity = toOptional(patch.postalCity);
+    if (patch.type !== undefined) updates.type = patch.type;
+    if (patch.nip !== undefined) {
+      const nip = toOptional(patch.nip);
+      updates.nip = nip;
+      updates.nipNormalized = nip ? nip.replace(/\D/g, "") : undefined;
+    }
+    if (patch.contactPerson !== undefined)
+      updates.contactPerson = toOptional(patch.contactPerson);
 
     await ctx.db.patch(id, updates);
   },
@@ -255,6 +301,9 @@ export const migrateFromLocal = mutation({
         postalCity: v.optional(v.string()),
         phone: v.optional(v.string()),
         email: v.optional(v.string()),
+        type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+        nip: v.optional(v.string()),
+        contactPerson: v.optional(v.string()),
       }),
     ),
   },
@@ -268,32 +317,53 @@ export const migrateFromLocal = mutation({
     for (const it of items) {
       const phoneNorm = normalizePhone(it.phone);
       const nameNorm = normalizeName(it.name);
+      const clientType = it.type ?? "individual";
+      const nipNorm = it.nip ? it.nip.replace(/\D/g, "") : undefined;
 
       let existing = null;
-      if (phoneNorm) {
+      if (clientType === "business" && nipNorm) {
         existing = await ctx.db
           .query("clients")
-          .withIndex("by_phone_normalized", (q) =>
-            q.eq("phoneNormalized", phoneNorm),
+          .withIndex("by_nip_normalized", (q) =>
+            q.eq("nipNormalized", nipNorm)
           )
           .first();
-      }
-      if (!existing) {
-        existing = await ctx.db
-          .query("clients")
-          .withIndex("by_name_normalized", (q) =>
-            q.eq("nameNormalized", nameNorm),
-          )
-          .first();
+      } else {
+        if (phoneNorm) {
+          existing = await ctx.db
+            .query("clients")
+            .withIndex("by_phone_normalized", (q) =>
+              q.eq("phoneNormalized", phoneNorm)
+            )
+            .first();
+        }
+        if (!existing) {
+          existing = await ctx.db
+            .query("clients")
+            .withIndex("by_name_normalized", (q) =>
+              q.eq("nameNormalized", nameNorm)
+            )
+            .first();
+        }
       }
 
       if (existing) {
-        const patch: Record<string, string> = {};
-        if (it.phone && !existing.phoneRaw) patch.phoneRaw = it.phone;
+        const patch: any = {};
+        if (it.phone && !existing.phoneRaw) {
+          patch.phoneRaw = it.phone;
+          patch.phoneNormalized = phoneNorm;
+        }
         if (it.email && !existing.email) patch.email = it.email;
         if (it.street && !existing.street) patch.street = it.street;
         if (it.postalCity && !existing.postalCity)
           patch.postalCity = it.postalCity;
+        if (clientType === "business" && it.nip && !existing.nip) {
+          patch.nip = it.nip;
+          patch.nipNormalized = nipNorm;
+        }
+        if (clientType === "business" && it.contactPerson && !existing.contactPerson) {
+          patch.contactPerson = it.contactPerson;
+        }
         if (Object.keys(patch).length > 0) {
           await ctx.db.patch(existing._id, patch);
         }
@@ -310,6 +380,10 @@ export const migrateFromLocal = mutation({
         street: it.street,
         postalCity: it.postalCity,
         createdAt: Date.now(),
+        type: clientType,
+        nip: it.nip,
+        nipNormalized: nipNorm,
+        contactPerson: it.contactPerson,
       });
       imported++;
     }
@@ -386,5 +460,56 @@ export const _deleteCascade = internalMutation({
     await Promise.all(clientNotes.map((n) => ctx.db.delete(n._id)));
 
     await ctx.db.delete(clientId);
+  },
+});
+
+function parsePolishAddress(fullAddress: string) {
+  if (!fullAddress) return { street: "", postalCity: "" };
+  const zipRegex = /(\d{2}-\d{3})\s+([^\n,]+)/;
+  const match = fullAddress.match(zipRegex);
+  if (match) {
+    const postalCity = `${match[1]} ${match[2].trim()}`;
+    const street = fullAddress.replace(match[0], "").replace(/^[,\s]+|[,\s]+$/g, "").trim();
+    return { street, postalCity };
+  }
+  return { street: fullAddress, postalCity: "" };
+}
+
+export const fetchNipData = action({
+  args: { nip: v.string() },
+  handler: async (ctx, { nip }) => {
+    const cleanNip = nip.replace(/\D/g, "");
+    if (cleanNip.length !== 10) {
+      throw new Error("Niepoprawny format NIP (musi mieć 10 cyfr)");
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const url = `https://wl-api.mf.gov.pl/api/search/nip/${cleanNip}?date=${today}`;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("Przekroczono limit zapytań do bazy Białej Listy VAT (spróbuj jutro)");
+        }
+        throw new Error(`Błąd API Białej Listy: status ${response.status}`);
+      }
+      const data = await response.json();
+      const subject = data?.result?.subject;
+      if (!subject) {
+        throw new Error("Nie znaleziono firmy o podanym NIP w bazie Białej Listy VAT");
+      }
+
+      const fullAddress = subject.workingAddress || subject.residenceAddress || "";
+      const { street, postalCity } = parsePolishAddress(fullAddress);
+
+      return {
+        name: subject.name,
+        nip: subject.nip,
+        street,
+        postalCity,
+      };
+    } catch (err: any) {
+      throw new Error(err.message || "Błąd podczas pobierania danych z Białej Listy VAT");
+    }
   },
 });
