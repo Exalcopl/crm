@@ -622,10 +622,12 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [tempLabel, setTempLabel] = useState("");
   const updateLabel = useMutation(api.quotes.updateCustomLabel);
+  const ignoreBlurLabelRef = useRef(false);
 
   const [isEditingValue, setIsEditingValue] = useState(false);
   const [tempValue, setTempValue] = useState("");
   const updateValueMutation = useMutation(api.quotes.updateValue);
+  const ignoreBlurValueRef = useRef(false);
 
   async function handleSaveValue() {
     let finalVal: number | null = null;
@@ -638,20 +640,29 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
       }
       finalVal = parsed;
     }
+    if ((finalVal ?? null) === (quote.value ?? null)) {
+      setIsEditingValue(false);
+      return;
+    }
+    setIsEditingValue(false);
     try {
       await updateValueMutation({ id: quote._id, value: finalVal });
       toast.success("Zaktualizowano wartość wyceny");
-      setIsEditingValue(false);
     } catch {
       toast.error("Błąd zapisu");
     }
   }
 
   async function handleSaveLabel() {
-    try {
-      await updateLabel({ id: quote._id, customLabel: tempLabel.trim() || undefined });
-      toast.success("Zaktualizowano wyróżnik B2B");
+    const cleaned = tempLabel.trim() || undefined;
+    if ((cleaned ?? undefined) === (quote.customLabel ?? undefined)) {
       setIsEditingLabel(false);
+      return;
+    }
+    setIsEditingLabel(false);
+    try {
+      await updateLabel({ id: quote._id, customLabel: cleaned });
+      toast.success("Zaktualizowano wyróżnik B2B");
     } catch {
       toast.error("Błąd zapisu");
     }
@@ -739,36 +750,46 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           {quote.contact.clientType === "business" && (
             <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
               {isEditingLabel ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void handleSaveLabel();
-                  }}
-                  style={{ display: "flex", gap: "6px", alignItems: "center" }}
-                >
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input
                     type="text"
                     value={tempLabel}
                     onChange={(e) => setTempLabel(e.target.value)}
+                    onBlur={() => {
+                      if (ignoreBlurLabelRef.current) return;
+                      void handleSaveLabel();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleSaveLabel();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        ignoreBlurLabelRef.current = true;
+                        setIsEditingLabel(false);
+                      }
+                    }}
                     placeholder="Wpisz wyróżnik B2B (np. inwestycję)..."
                     className="fluent-input"
                     style={{ padding: "4px 10px", fontSize: "12px", width: "260px", borderLeft: "3px solid var(--accent-primary)" }}
                     autoFocus
                   />
-                  <button type="submit" className="fluent-btn fluent-btn-primary" style={{ padding: "4px 10px", fontSize: "12px" }}>
-                    Zapisz
-                  </button>
-                  <button
-                    type="button"
-                    className="fluent-btn fluent-btn-ghost"
-                    onClick={() => setIsEditingLabel(false)}
-                    style={{ padding: "4px 10px", fontSize: "12px" }}
-                  >
-                    Anuluj
-                  </button>
-                </form>
+                </div>
               ) : (
-                <>
+                <div
+                  onClick={() => {
+                    if (archived) return;
+                    ignoreBlurLabelRef.current = false;
+                    setTempLabel(quote.customLabel || "");
+                    setIsEditingLabel(true);
+                  }}
+                  style={{
+                    cursor: archived ? "default" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center"
+                  }}
+                  title={archived ? undefined : "Kliknij, aby edytować wyróżnik B2B"}
+                >
                   {quote.customLabel ? (
                     <span
                       style={{
@@ -783,41 +804,29 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "6px",
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.15)"
+                        boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                        transition: "all 0.15s ease"
                       }}
                     >
                       🏷️ Wyróżnik B2B: <strong>{quote.customLabel}</strong>
                     </span>
                   ) : (
-                    <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "italic" }}>
-                      Brak wyróżnika B2B (tekstu własnego)
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        fontStyle: "italic",
+                        padding: "3px 8px",
+                        border: "1px dashed var(--border-color)",
+                        borderRadius: "6px",
+                        background: "rgba(0,0,0,0.02)",
+                        transition: "all 0.15s ease"
+                      }}
+                    >
+                      🏷️ + Dodaj wyróżnik B2B (tekst własny)
                     </span>
                   )}
-                  {!archived && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTempLabel(quote.customLabel || "");
-                        setIsEditingLabel(true);
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                        fontSize: "11px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        padding: "2px 6px"
-                      }}
-                      title="Edytuj wyróżnik B2B"
-                    >
-                      <I.wrench s={11} />
-                      <span>{quote.customLabel ? "Edytuj" : "Dodaj wyróżnik"}</span>
-                    </button>
-                  )}
-                </>
+                </div>
               )}
             </div>
           )}
@@ -827,37 +836,51 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
             <div className="quote-detail-meta-label">Wartość</div>
             <div className="quote-detail-meta-value">
               {isEditingValue ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void handleSaveValue();
-                  }}
-                  style={{ display: "flex", gap: "6px", alignItems: "center" }}
-                >
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <input
                     type="text"
                     value={tempValue}
                     onChange={(e) => setTempValue(e.target.value)}
+                    onBlur={() => {
+                      if (ignoreBlurValueRef.current) return;
+                      void handleSaveValue();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleSaveValue();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        ignoreBlurValueRef.current = true;
+                        setIsEditingValue(false);
+                      }
+                    }}
                     placeholder="Kwota netto..."
                     className="fluent-input"
                     style={{ padding: "3px 6px", fontSize: "11px", width: "90px", textAlign: "right" }}
                     autoFocus
                   />
                   <span style={{ fontSize: "11px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
-                  <button type="submit" className="fluent-btn fluent-btn-primary" style={{ padding: "3px 6px", fontSize: "10px" }}>
-                    Zapisz
-                  </button>
-                  <button
-                    type="button"
-                    className="fluent-btn fluent-btn-ghost"
-                    onClick={() => setIsEditingValue(false)}
-                    style={{ padding: "3px 6px", fontSize: "10px" }}
-                  >
-                    Anuluj
-                  </button>
-                </form>
+                </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <div
+                  onClick={() => {
+                    if (archived) return;
+                    ignoreBlurValueRef.current = false;
+                    setTempValue(quote.value !== null && quote.value !== undefined ? String(quote.value) : "");
+                    setIsEditingValue(true);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    cursor: archived ? "default" : "pointer",
+                    padding: "2px 4px",
+                    borderRadius: "4px",
+                    transition: "background 0.15s ease"
+                  }}
+                  title={archived ? undefined : "Kliknij, aby edytować wartość netto"}
+                >
                   {hasValue ? (
                     <>
                       <span className="quote-detail-meta-num">{formatPLN(quote.value!)}</span>
@@ -865,27 +888,6 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
                     </>
                   ) : (
                     <span className="quote-detail-meta-empty">— brak —</span>
-                  )}
-                  {!archived && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTempValue(quote.value !== null ? String(quote.value) : "");
-                        setIsEditingValue(true);
-                      }}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "var(--text-muted)",
-                        cursor: "pointer",
-                        padding: "2px",
-                        display: "inline-flex",
-                        alignItems: "center"
-                      }}
-                      title="Edytuj wartość netto"
-                    >
-                      <I.wrench s={11} />
-                    </button>
                   )}
                 </div>
               )}
