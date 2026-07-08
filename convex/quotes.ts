@@ -6,9 +6,10 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { normalizePhone } from "./_lib/phone";
-import type { Id } from "./_generated/dataModel";
+import type { Id, Doc } from "./_generated/dataModel";
 
 const STATUS_VALUES = v.union(
   v.literal("Do zrobienia"),
@@ -55,6 +56,38 @@ function buildTypeCode(
     .filter(Boolean)
     .join("");
   return code || "XX";
+}
+
+async function createDefaultTasksForQuote(
+  ctx: MutationCtx,
+  quoteId: Id<"quotes">,
+  projectTypes: string[],
+  createdBy: Id<"users"> | null,
+) {
+  const typeDocs: Doc<"projectTypes">[] = await ctx.db.query("projectTypes").collect();
+  const activeTypes = typeDocs.filter((t) => projectTypes.includes(t.name));
+
+  let orderCounter = 0;
+  for (const typeDoc of activeTypes) {
+    const defaultTasks: Doc<"projectTypeDefaultTasks">[] = await ctx.db
+      .query("projectTypeDefaultTasks")
+      .withIndex("by_projectType", (q) => q.eq("projectTypeId", typeDoc._id))
+      .collect();
+    defaultTasks.sort((a, b) => a.order - b.order);
+
+    for (const defaultTask of defaultTasks) {
+      await ctx.db.insert("tasks", {
+        quoteId,
+        title: defaultTask.title,
+        description: defaultTask.description,
+        status: "todo",
+        assigneeId: null,
+        createdAt: Date.now(),
+        createdBy,
+        order: orderCounter++,
+      });
+    }
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -228,6 +261,8 @@ export const create = mutation({
           }
         : undefined,
     });
+
+    await createDefaultTasksForQuote(ctx, quoteId, args.projectType, callerId);
 
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForQuote, {
       quoteId,
@@ -523,6 +558,8 @@ export const createPublic = mutation({
           }
         : undefined,
     });
+
+    await createDefaultTasksForQuote(ctx, quoteId, args.projectType, null);
 
     // Pytania pomocnicze
     for (const a of args.answers) {

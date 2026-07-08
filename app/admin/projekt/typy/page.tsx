@@ -34,6 +34,7 @@ type ProjectTypeDoc = {
   isActive: boolean;
   questionsCount: number;
   galleryCount: number;
+  defaultTasksCount: number;
 };
 
 type FormData = {
@@ -440,6 +441,7 @@ export default function ProjectTypesPage() {
               <th>Opis</th>
               <th style={{ width: 100, textAlign: "center" }}>Pytania</th>
               <th style={{ width: 100, textAlign: "center" }}>Galeria</th>
+              <th style={{ width: 100, textAlign: "center" }}>Zadania</th>
               <th style={{ width: 110, textAlign: "center" }}>Status</th>
               <th aria-label="Akcje" />
             </tr>
@@ -447,7 +449,7 @@ export default function ProjectTypesPage() {
           <tbody>
             {types.length === 0 ? (
               <tr>
-                <td colSpan={9} className="users-empty">
+                <td colSpan={10} className="users-empty">
                   Brak typów. Dodaj pierwszy, klikając <strong>Dodaj typ</strong>.
                 </td>
               </tr>
@@ -513,6 +515,15 @@ export default function ProjectTypesPage() {
                         style={{ padding: "3px 10px", fontSize: 12 }}
                       >
                         {t.galleryCount} 🖼
+                      </Link>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <Link
+                        href={`/admin/projekt/typy/${t._id}/zadania`}
+                        className="users-btn users-btn-ghost"
+                        style={{ padding: "3px 10px", fontSize: 12 }}
+                      >
+                        {t.defaultTasksCount ?? 0} <I.check s={12} />
                       </Link>
                     </td>
                     <td style={{ textAlign: "center" }}>

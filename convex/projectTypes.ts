@@ -19,10 +19,17 @@ export const list = query({
       const key = img.projectTypeId as unknown as string;
       galleryCountByType.set(key, (galleryCountByType.get(key) ?? 0) + 1);
     }
+    const allDefaultTasks = await ctx.db.query("projectTypeDefaultTasks").collect();
+    const defaultTasksCountByType = new Map<string, number>();
+    for (const t of allDefaultTasks) {
+      const key = t.projectTypeId as unknown as string;
+      defaultTasksCountByType.set(key, (defaultTasksCountByType.get(key) ?? 0) + 1);
+    }
     return types.map((t) => ({
       ...t,
       questionsCount: countByType.get(t._id as unknown as string) ?? 0,
       galleryCount: galleryCountByType.get(t._id as unknown as string) ?? 0,
+      defaultTasksCount: defaultTasksCountByType.get(t._id as unknown as string) ?? 0,
     }));
   },
 });
@@ -155,6 +162,15 @@ export const remove = mutation({
     for (const img of galleryImages) {
       await ctx.storage.delete(img.storageId);
       await ctx.db.delete(img._id);
+    }
+
+    // Delete default tasks
+    const defaultTasks = await ctx.db
+      .query("projectTypeDefaultTasks")
+      .withIndex("by_projectType", (q) => q.eq("projectTypeId", id))
+      .collect();
+    for (const task of defaultTasks) {
+      await ctx.db.delete(task._id);
     }
 
     await ctx.db.delete(id);

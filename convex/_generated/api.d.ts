@@ -18,6 +18,7 @@ import type * as clients from "../clients.js";
 import type * as contacts from "../contacts.js";
 import type * as http from "../http.js";
 import type * as permissions from "../permissions.js";
+import type * as projectTypeDefaultTasks from "../projectTypeDefaultTasks.js";
 import type * as projectTypeGallery from "../projectTypeGallery.js";
 import type * as projectTypeQuestions from "../projectTypeQuestions.js";
 import type * as projectTypes from "../projectTypes.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   contacts: typeof contacts;
   http: typeof http;
   permissions: typeof permissions;
+  projectTypeDefaultTasks: typeof projectTypeDefaultTasks;
   projectTypeGallery: typeof projectTypeGallery;
   projectTypeQuestions: typeof projectTypeQuestions;
   projectTypes: typeof projectTypes;

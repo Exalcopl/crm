@@ -313,4 +313,13 @@ export default defineSchema({
     color: v.string(),
     code: v.string(),
   }).index("by_code", ["code"]),
+
+  projectTypeDefaultTasks: defineTable({
+    projectTypeId: v.id("projectTypes"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    order: v.number(),
+  })
+    .index("by_projectType", ["projectTypeId"])
+    .index("by_projectType_order", ["projectTypeId", "order"]),
 });
