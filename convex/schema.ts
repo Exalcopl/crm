@@ -288,6 +288,19 @@ export default defineSchema({
     startTime: v.string(),
     endTime: v.string(),
     color: v.optional(v.string()),
+    isPrivate: v.optional(v.boolean()),
+    recurrence: v.optional(
+      v.union(
+        v.literal("none"),
+        v.literal("daily"),
+        v.literal("weekly"),
+        v.literal("monthly"),
+      ),
+    ),
+    recurrenceEndDate: v.optional(v.string()),
+    parentEventId: v.optional(v.id("calendarEvents")),
+    type: v.optional(v.union(v.literal("private"), v.literal("company"))),
+    category: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
   })

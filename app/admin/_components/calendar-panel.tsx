@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
@@ -28,14 +28,36 @@ import {
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 8); // 8..16
 const HOUR_HEIGHT = 58; // px per hour slot
 
-const EVENT_COLORS = [
-  { id: "red", hex: "#d41d3c", label: "Czerwony" },
-  { id: "blue", hex: "#3b82f6", label: "Niebieski" },
-  { id: "green", hex: "#22a06b", label: "Zielony" },
-  { id: "amber", hex: "#d97706", label: "Pomarańczowy" },
-  { id: "purple", hex: "#8b5cf6", label: "Fioletowy" },
-  { id: "cyan", hex: "#06b6d4", label: "Turkusowy" },
+const USER_PALETTE = [
+  "#d41d3c", // Czerwony
+  "#3b82f6", // Niebieski
+  "#22a06b", // Zielony
+  "#d97706", // Pomarańczowy
+  "#8b5cf6", // Fioletowy
+  "#06b6d4", // Turkusowy
 ];
+
+function getUserColor(userId?: string): string {
+  if (!userId) return USER_PALETTE[0];
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+  return USER_PALETTE[hash % USER_PALETTE.length];
+}
+
+const COMPANY_CATEGORIES = [
+  { id: "spotkanie", label: "Spotkanie", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.12)", border: "rgba(59, 130, 246, 0.3)" },
+  { id: "montaz", label: "Montaż", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" },
+  { id: "pomiary", label: "Pomiary", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" },
+  { id: "urlop", label: "Urlop", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.12)", border: "rgba(139, 92, 246, 0.3)" },
+  { id: "inne", label: "Inne", color: "#9ca3af", bg: "rgba(156, 163, 175, 0.12)", border: "rgba(156, 163, 175, 0.3)" },
+];
+
+function getCategoryStyle(catId?: string) {
+  const cat = COMPANY_CATEGORIES.find((c) => c.id === catId);
+  return cat || COMPANY_CATEGORIES[4];
+}
 
 const POLISH_DAYS = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
 const POLISH_MONTHS = [
@@ -43,22 +65,138 @@ const POLISH_MONTHS = [
   "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
 ];
 
-function formatDateLabel(d: CalendarDate): string {
-  const jsDate = new Date(d.year, d.month - 1, d.day);
-  const dayName = POLISH_DAYS[jsDate.getDay()];
-  return `${dayName}, ${d.day} ${POLISH_MONTHS[d.month - 1]} ${d.year}`;
+function formatWeekRangeLabel(startStr: string, endStr: string): string {
+  const [y1, m1, d1] = startStr.split("-").map(Number);
+  const [y2, m2, d2] = endStr.split("-").map(Number);
+  
+  if (y1 === y2 && m1 === m2) {
+    return `${d1} - ${d2} ${POLISH_MONTHS[m1 - 1]} ${y1}`;
+  }
+  if (y1 === y2) {
+    return `${d1} ${POLISH_MONTHS[m1 - 1]} - ${d2} ${POLISH_MONTHS[m2 - 1]} ${y1}`;
+  }
+  return `${d1} ${POLISH_MONTHS[m1 - 1]} ${y1} - ${d2} ${POLISH_MONTHS[m2 - 1]} ${y2}`;
 }
 
-function dateToString(d: CalendarDate): string {
+function shiftWeek(d: CalendarDate, weeks: number): CalendarDate {
+  const jsDate = new Date(d.year, d.month - 1, d.day);
+  jsDate.setDate(jsDate.getDate() + weeks * 7);
+  return {
+    year: jsDate.getFullYear(),
+    month: jsDate.getMonth() + 1,
+    day: jsDate.getDate(),
+    calendar: d.calendar,
+    era: d.era,
+    copy() { return this; }
+  } as CalendarDate;
+}
+
+function getTodayCalendarDate(centerDate: CalendarDate): CalendarDate {
+  const jsDate = new Date();
+  return {
+    year: jsDate.getFullYear(),
+    month: jsDate.getMonth() + 1,
+    day: jsDate.getDate(),
+    calendar: centerDate.calendar,
+    era: centerDate.era,
+    copy() { return this; }
+  } as CalendarDate;
+}
+
+function getWeekDateStrings(centerDate: CalendarDate): string[] {
+  const jsDate = new Date(centerDate.year, centerDate.month - 1, centerDate.day);
+  const day = jsDate.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(jsDate);
+  monday.setDate(jsDate.getDate() + diff);
+
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }
+  return dates;
+}
+
+const POLISH_DAYS_SHORT = ["Niedz", "Pon", "Wt", "Śr", "Czw", "Pt", "Sob"];
+const POLISH_MONTHS_SHORT = [
+  "sty", "lut", "mar", "kwi", "maj", "cze",
+  "lip", "sie", "wrz", "paź", "lis", "gru",
+];
+
+function formatWeekDayHeader(dateStr: string): { dayName: string; dateNum: number; monthName: string } {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const jsDate = new Date(y, m - 1, d);
+  const dayName = POLISH_DAYS_SHORT[jsDate.getDay()] || "";
+  const monthName = POLISH_MONTHS_SHORT[m - 1] || "";
+  return { dayName, dateNum: d, monthName };
+}
+
+function getMonthGridDays(centerDate: CalendarDate): string[] {
+  const year = centerDate.year;
+  const month = centerDate.month;
+  
+  const firstDay = new Date(year, month - 1, 1);
+  const startDayOfWeek = firstDay.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const offsetToMonday = startDayOfWeek === 0 ? -6 : 1 - startDayOfWeek;
+  
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() + offsetToMonday);
+  
+  const dates: string[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+  }
+  return dates;
+}
+
+function shiftMonth(d: CalendarDate, months: number): CalendarDate {
+  const jsDate = new Date(d.year, d.month - 1 + months, 1);
+  return {
+    year: jsDate.getFullYear(),
+    month: jsDate.getMonth() + 1,
+    day: 1,
+    calendar: d.calendar,
+    era: d.era,
+    copy() { return this; }
+  } as CalendarDate;
+}
+
+function formatMonthLabel(d: CalendarDate): string {
+  return `${POLISH_MONTHS[d.month - 1].toUpperCase()} ${d.year}`;
+}
+
+function formatDateLabel(d?: CalendarDate): string {
+  if (!d) return "";
+  const jsDate = new Date(d.year, d.month - 1, d.day);
+  const dayName = POLISH_DAYS[jsDate.getDay()] || "";
+  return `${dayName}, ${d.day} ${POLISH_MONTHS[d.month - 1] || ""} ${d.year}`;
+}
+
+function dateToString(d?: CalendarDate): string {
+  if (!d) return "";
   return `${d.year}-${String(d.month).padStart(2, "0")}-${String(d.day).padStart(2, "0")}`;
 }
 
-function parseHour(timeStr: string): number {
-  const [h, m] = timeStr.split(":").map(Number);
-  return h + (m || 0) / 60;
+function parseHour(timeStr?: string): number {
+  if (!timeStr || typeof timeStr !== "string" || !timeStr.includes(":")) return 9;
+  const parts = timeStr.split(":");
+  const h = Number(parts[0]) || 0;
+  const m = Number(parts[1]) || 0;
+  return h + m / 60;
 }
 
-function formatDurationLabel(startStr: string, endStr: string): string {
+function formatHour(h: number): string {
+  const hours = Math.floor(h);
+  const mins = Math.round((h - hours) * 60);
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+function formatDurationLabel(startStr?: string, endStr?: string): string {
+  if (!startStr || !endStr) return "-";
   const diff = parseHour(endStr) - parseHour(startStr);
   if (diff <= 0) return "Nieprawidłowy czas";
   const hours = Math.floor(diff);
@@ -66,6 +204,20 @@ function formatDurationLabel(startStr: string, endStr: string): string {
   if (hours > 0 && mins > 0) return `${hours} godz. ${mins} min`;
   if (hours > 0) return `${hours} godz.`;
   return `${mins} min`;
+}
+
+function getInitials(name?: string | null, email?: string | null): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.substring(0, 2).toUpperCase();
+  }
+  return "?";
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,6 +230,12 @@ type CalEvent = {
   startTime: string;
   endTime: string;
   color?: string;
+  isPrivate?: boolean;
+  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  recurrenceEndDate?: string;
+  parentEventId?: Id<"calendarEvents">;
+  type?: "private" | "company";
+  category?: string;
   createdBy: Id<"users">;
   createdAt: number;
 };
@@ -89,7 +247,12 @@ type FormState = {
   description: string;
   startTime: string;
   endTime: string;
-  color: string;
+  recurrence: "none" | "daily" | "weekly" | "monthly";
+  recurrenceEndDate: string;
+  isPrivate: boolean;
+  type?: "private" | "company";
+  category?: string;
+  createdBy?: Id<"users">;
 };
 
 // ─── Sliding Drawer for Add / Edit Event ─────────────────────────────────────
@@ -103,6 +266,7 @@ function EventDrawer({
   onDelete,
   onCancel,
   saving,
+  currentUserId,
 }: {
   isOpen: boolean;
   form: FormState;
@@ -112,7 +276,13 @@ function EventDrawer({
   onDelete?: () => void;
   onCancel: () => void;
   saving: boolean;
+  currentUserId?: Id<"users">;
 }) {
+  const isReadOnly =
+    form.mode === "edit" &&
+    form.createdBy !== undefined &&
+    form.createdBy !== currentUserId;
+
   const timeOptions = HOURS.flatMap((h) => [
     `${String(h).padStart(2, "0")}:00`,
     `${String(h).padStart(2, "0")}:30`,
@@ -134,7 +304,11 @@ function EventDrawer({
             ← Powrót
           </button>
           <span className="cal-drawer-mode-badge">
-            {form.mode === "create" ? "Nowe wydarzenie" : "Edycja wydarzenia"}
+            {form.mode === "create"
+              ? `Nowe wydarzenie ${form.type === "company" ? "firmowe" : "prywatne"}`
+              : isReadOnly
+              ? "Szczegóły wydarzenia"
+              : `Edycja wydarzenia ${form.type === "company" ? "firmowe" : "prywatne"}`}
           </span>
         </div>
         <div className="cal-drawer-date-pill">
@@ -152,19 +326,36 @@ function EventDrawer({
             <input
               type="text"
               className="cal-input"
-              placeholder="np. Spotkanie z inwestorem, Wizyta na budowie..."
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
-              autoFocus
+              disabled={isReadOnly}
+              autoFocus={!isReadOnly}
             />
           </div>
+          {form.type === "company" && (
+            <div className="cal-form-group" style={{ marginTop: 12 }}>
+              <label className="cal-label">Kategoria wydarzenia</label>
+              <select
+                className="cal-select"
+                value={form.category || "spotkanie"}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                disabled={isReadOnly}
+              >
+                {COMPANY_CATEGORIES.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="cal-form-group" style={{ marginTop: 12 }}>
             <label className="cal-label">Opis / Notatki</label>
             <textarea
               className="cal-textarea"
-              placeholder="Dodatkowe informacje (opcjonalnie)..."
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
+              disabled={isReadOnly}
               rows={3}
             />
           </div>
@@ -182,6 +373,7 @@ function EventDrawer({
               <select
                 className="cal-select"
                 value={form.startTime}
+                disabled={isReadOnly}
                 onChange={(e) => {
                   const newStart = e.target.value;
                   let newEnd = form.endTime;
@@ -203,6 +395,7 @@ function EventDrawer({
               <select
                 className="cal-select"
                 value={form.endTime}
+                disabled={isReadOnly}
                 onChange={(e) => setForm({ ...form, endTime: e.target.value })}
               >
                 {timeOptions.map((t) => (
@@ -213,36 +406,77 @@ function EventDrawer({
           </div>
         </div>
 
-        {/* Card 3: Kolor */}
-        <div className="cal-card">
-          <div className="cal-card-title">Kolor oznaczenia</div>
-          <div className="cal-color-grid">
-            {EVENT_COLORS.map((c) => {
-              const active = form.color === c.hex;
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={`cal-color-card ${active ? "is-active" : ""}`}
-                  onClick={() => setForm({ ...form, color: c.hex })}
-                >
-                  <span
-                    className="cal-color-swatch"
-                    style={{ background: c.hex }}
-                  >
-                    {active && <span className="cal-color-check">✓</span>}
-                  </span>
-                  <span className="cal-color-name">{c.label}</span>
-                </button>
-              );
-            })}
+        {/* Card 3: Cykliczność / powtarzanie */}
+        {form.mode === "create" && (
+          <div className="cal-card">
+            <div className="cal-card-title">Cykliczność wydarzenia</div>
+            <div className="cal-form-group">
+              <label className="cal-label">Powtarzaj</label>
+              <select
+                className="cal-select"
+                value={form.recurrence}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    recurrence: e.target.value as FormState["recurrence"],
+                  })
+                }
+              >
+                <option value="none">Jednorazowe wydarzenie</option>
+                <option value="daily">Codziennie</option>
+                <option value="weekly">Co tydzień</option>
+                <option value="monthly">Co miesiąc</option>
+              </select>
+            </div>
+
+            {form.recurrence !== "none" && (
+              <div className="cal-form-group" style={{ marginTop: 12 }}>
+                <label className="cal-label">Powtarzaj do daty (opcjonalnie)</label>
+                <input
+                  type="date"
+                  className="cal-input"
+                  value={form.recurrenceEndDate}
+                  onChange={(e) =>
+                    setForm({ ...form, recurrenceEndDate: e.target.value })
+                  }
+                />
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Card 4: Prywatność */}
+        {form.type !== "company" && (
+          <div className="cal-card">
+            <div className="cal-card-title">Prywatność</div>
+            <label
+              className="cal-checkbox-label"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: isReadOnly ? "default" : "pointer",
+                marginTop: "4px",
+              }}
+            >
+              <input
+                type="checkbox"
+                className="cal-checkbox"
+                checked={form.isPrivate}
+                onChange={(e) => setForm({ ...form, isPrivate: e.target.checked })}
+                disabled={isReadOnly}
+              />
+              <span className="cal-checkbox-text" style={{ fontSize: "13px", color: "#c9d1d9" }}>
+                Wydarzenie prywatne (tylko ja widzę szczegóły, inni widzą „🔒 Zajęty”)
+              </span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Footer bar */}
       <div className="cal-drawer-footer">
-        {form.mode === "edit" && onDelete ? (
+        {form.mode === "edit" && onDelete && !isReadOnly ? (
           <button
             type="button"
             className="cal-btn cal-btn--danger"
@@ -261,20 +495,81 @@ function EventDrawer({
             onClick={onCancel}
             disabled={saving}
           >
-            Anuluj
+            {isReadOnly ? "Zamknij" : "Anuluj"}
           </button>
-          <button
-            type="button"
-            className="cal-btn cal-btn--primary"
-            onClick={onSave}
-            disabled={saving || !form.title.trim()}
-          >
-            {saving ? "Zapisywanie…" : "Zapisz wydarzenie"}
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              className="cal-btn cal-btn--primary"
+              onClick={onSave}
+              disabled={saving || !form.title.trim()}
+            >
+              {saving ? "Zapisywanie…" : "Zapisz wydarzenie"}
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function packEvents(sortedEvents: CalEvent[]): {
+  clusters: {
+    events: CalEvent[];
+    maxCols: number;
+    positions: Map<string, number>;
+  }[];
+} {
+  const clusters: {
+    events: CalEvent[];
+    maxCols: number;
+    positions: Map<string, number>;
+  }[] = [];
+
+  for (const ev of sortedEvents) {
+    const startH = parseHour(ev.startTime);
+    let placed = false;
+
+    for (const cluster of clusters) {
+      const overlaps = cluster.events.some((e) => {
+        const eStart = parseHour(e.startTime);
+        const eEnd = parseHour(e.endTime);
+        const evEnd = parseHour(ev.endTime);
+        return startH < eEnd && parseHour(ev.startTime) < eEnd && eStart < evEnd;
+      });
+
+      if (overlaps) {
+        cluster.events.push(ev);
+        let colIdx = 0;
+        while (true) {
+          const colHasOverlap = cluster.events.some((e) => {
+            if (e._id === ev._id) return false;
+            if (cluster.positions.get(e._id) !== colIdx) return false;
+            const eStart = parseHour(e.startTime);
+            const eEnd = parseHour(e.endTime);
+            const evEnd = parseHour(ev.endTime);
+            return startH < eEnd && parseHour(ev.startTime) < eEnd && eStart < evEnd;
+          });
+          if (!colHasOverlap) break;
+          colIdx++;
+        }
+        cluster.positions.set(ev._id, colIdx);
+        cluster.maxCols = Math.max(cluster.maxCols, colIdx + 1);
+        placed = true;
+        break;
+      }
+    }
+
+    if (!placed) {
+      clusters.push({
+        events: [ev],
+        maxCols: 1,
+        positions: new Map([[ev._id, 0]]),
+      });
+    }
+  }
+
+  return { clusters };
 }
 
 // ─── Day View ─────────────────────────────────────────────────────────────────
@@ -285,13 +580,118 @@ function DayView({
   onSlotClick,
   onEventClick,
   onAddClick,
+  onEventUpdate,
+  selectedUserIds,
+  allUsers,
+  currentUserId,
 }: {
   selectedDate: CalendarDate;
   events: CalEvent[];
   onSlotClick: (hour: number) => void;
   onEventClick: (event: CalEvent) => void;
   onAddClick: () => void;
+  onEventUpdate?: (id: Id<"calendarEvents">, startTime: string, endTime: string) => void;
+  selectedUserIds: Id<"users">[];
+  allUsers: { _id: Id<"users">; name: string | null; email: string | null }[];
+  currentUserId?: Id<"users">;
 }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const suppressClickRef = useRef(false);
+  const [dragState, setDragState] = useState<{
+    type: "move" | "resize";
+    eventId: Id<"calendarEvents">;
+    originalStart: number;
+    originalEnd: number;
+    currentStart: number;
+    currentEnd: number;
+    grabOffsetY: number;
+    didMove: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    function handlePointerMove(e: PointerEvent) {
+      if (!gridRef.current || !dragState) return;
+      const rect = gridRef.current.getBoundingClientRect();
+
+      if (dragState.type === "move") {
+        const y = e.clientY - rect.top - dragState.grabOffsetY;
+        const duration = dragState.originalEnd - dragState.originalStart;
+        const rawHour = 8 + y / HOUR_HEIGHT;
+        const snappedStart = Math.max(
+          8,
+          Math.min(17 - duration, Math.round(rawHour * 2) / 2),
+        );
+        const didMove = Math.abs(snappedStart - dragState.originalStart) >= 0.25;
+        setDragState((prev) =>
+          prev ? {
+            ...prev,
+            currentStart: snappedStart,
+            currentEnd: snappedStart + duration,
+            didMove: prev.didMove || didMove,
+          } : null,
+        );
+      } else if (dragState.type === "resize") {
+        const y = e.clientY - rect.top;
+        const rawEnd = 8 + y / HOUR_HEIGHT;
+        const snappedEnd = Math.max(
+          dragState.originalStart + 0.5,
+          Math.min(17, Math.round(rawEnd * 2) / 2),
+        );
+        const didMove = Math.abs(snappedEnd - dragState.originalEnd) >= 0.25;
+        setDragState((prev) =>
+          prev ? {
+            ...prev,
+            currentEnd: snappedEnd,
+            didMove: prev.didMove || didMove,
+          } : null,
+        );
+      }
+    }
+
+    function handlePointerUp() {
+      if (!dragState) return;
+      if (dragState.didMove) {
+        suppressClickRef.current = true;
+        setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 250);
+        if (onEventUpdate) {
+          onEventUpdate(
+            dragState.eventId,
+            formatHour(dragState.currentStart),
+            formatHour(dragState.currentEnd),
+          );
+        }
+      }
+      setDragState(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [dragState, onEventUpdate]);
+
+  // 1. Filter events by selected users
+  const activeEvents = events.filter((ev) => selectedUserIds.includes(ev.createdBy));
+
+  // 2. Sort events by start hour (and then duration desc)
+  const sortedEvents = [...activeEvents].sort((a, b) => {
+    const startA = parseHour(a.startTime);
+    const startB = parseHour(b.startTime);
+    if (Math.abs(startA - startB) > 0.001) {
+      return startA - startB;
+    }
+    return parseHour(b.endTime) - parseHour(a.endTime);
+  });
+
+  // 3. Simple packing algorithm for overlapping events in a single column
+  const { clusters } = packEvents(sortedEvents);
+
   return (
     <div className="cal-day-view">
       <div className="cal-day-header">
@@ -305,14 +705,20 @@ function DayView({
         </button>
       </div>
 
-      <div className="cal-day-grid" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+      <div
+        ref={gridRef}
+        className="cal-day-grid"
+        style={{ height: HOURS.length * HOUR_HEIGHT }}
+      >
         {/* Hour lines */}
         {HOURS.map((h) => (
           <div
             key={h}
             className="cal-hour-slot"
             style={{ top: (h - 8) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
-            onClick={() => onSlotClick(h)}
+            onClick={() => {
+              if (!dragState && !suppressClickRef.current) onSlotClick(h);
+            }}
           >
             <span className="cal-hour-label">
               {String(h).padStart(2, "0")}:00
@@ -321,34 +727,98 @@ function DayView({
         ))}
 
         {/* Events */}
-        {events.map((ev) => {
-          const startH = parseHour(ev.startTime);
-          const endH = parseHour(ev.endTime);
+        {sortedEvents.map((ev) => {
+          if (!ev || !ev.startTime || !ev.endTime) return null;
+
+          const isDraggingThis = dragState?.eventId === ev._id;
+          const startH = isDraggingThis ? dragState.currentStart : parseHour(ev.startTime);
+          const endH = isDraggingThis ? dragState.currentEnd : parseHour(ev.endTime);
           const top = (startH - 8) * HOUR_HEIGHT;
           const height = Math.max((endH - startH) * HOUR_HEIGHT, 28);
-          const color = ev.color || EVENT_COLORS[0].hex;
+          const color = ev.color || getUserColor(ev.createdBy);
+
+          const timeLabel = isDraggingThis
+            ? `${formatHour(startH)}–${formatHour(endH)}`
+            : `${ev.startTime}–${ev.endTime}`;
+
+          const isMine = ev.createdBy === currentUserId;
+          const isPrivateForOthers = ev.isPrivate && !isMine;
+
+          // Find position inside cluster
+          const cluster = clusters.find((c) => c.events.some((e) => e._id === ev._id));
+          const colIdx = cluster?.positions.get(ev._id) ?? 0;
+          const maxCols = cluster?.maxCols ?? 1;
+
+          const leftStyle = `calc(54px + ${colIdx} * (100% - 58px) / ${maxCols})`;
+          const widthStyle = `calc((100% - 58px) / ${maxCols} - 4px)`;
 
           return (
-            <button
+            <div
               key={ev._id}
-              type="button"
-              className="cal-event-block"
+              className={`cal-event-block ${isDraggingThis ? "cal-event-block--dragging" : ""} ${!isMine ? "cal-event-block--readonly" : ""}`}
               style={{
                 top,
                 height,
+                left: leftStyle,
+                width: widthStyle,
                 borderLeftColor: color,
                 background: `${color}1e`,
               }}
+              onPointerDown={(e) => {
+                if (!isMine) return;
+                if ((e.target as HTMLElement).closest(".cal-event-resize-handle")) return;
+                const rect = e.currentTarget.getBoundingClientRect();
+                setDragState({
+                  type: "move",
+                  eventId: ev._id,
+                  originalStart: parseHour(ev.startTime),
+                  originalEnd: parseHour(ev.endTime),
+                  currentStart: parseHour(ev.startTime),
+                  currentEnd: parseHour(ev.endTime),
+                  grabOffsetY: e.clientY - rect.top,
+                  didMove: false,
+                });
+              }}
               onClick={(e) => {
                 e.stopPropagation();
-                onEventClick(ev);
+                if (isPrivateForOthers) {
+                  toast.info("To wydarzenie jest prywatne");
+                  return;
+                }
+                if (!suppressClickRef.current && !dragState?.didMove) {
+                  onEventClick(ev);
+                }
               }}
             >
               <span className="cal-event-time">
-                {ev.startTime}–{ev.endTime}
+                {timeLabel}
+                {ev.recurrence && ev.recurrence !== "none" && " 🔄"}
+                {ev.isPrivate && " 🔒"}
               </span>
               <span className="cal-event-title">{ev.title}</span>
-            </button>
+
+              {/* Resize handle at bottom (only for mine) */}
+              {isMine && (
+                <div
+                  className="cal-event-resize-handle"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    setDragState({
+                      type: "resize",
+                      eventId: ev._id,
+                      originalStart: parseHour(ev.startTime),
+                      originalEnd: parseHour(ev.endTime),
+                      currentStart: parseHour(ev.startTime),
+                      currentEnd: parseHour(ev.endTime),
+                      grabOffsetY: 0,
+                      didMove: false,
+                    });
+                  }}
+                >
+                  <div className="cal-event-resize-bar" />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -358,29 +828,241 @@ function DayView({
 
 // ─── Main CalendarPanel ───────────────────────────────────────────────────────
 
+class CalErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "20px", color: "#f85149", fontSize: "13px" }}>
+          <strong>Błąd wyświetlania kalendarza:</strong>
+          <pre style={{ whiteSpace: "pre-wrap", marginTop: "8px", color: "#c9d1d9" }}>
+            {this.state.error?.message || "Nieznany błąd"}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function CalendarPanel() {
   const [open, setOpen] = useState(false);
+  const [isCompanyOpen, setIsCompanyOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<CalendarDate>(
-    today(getLocalTimeZone()),
-  );
+  const [selectedDate, setSelectedDate] = useState<CalendarDate>(() => {
+    try {
+      return today(getLocalTimeZone());
+    } catch {
+      return today("Europe/Warsaw");
+    }
+  });
+
+  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
+  const currentUser = allUsersRaw.find((u) => u.isCurrentUser);
+  const currentUserId = currentUser?._id;
+
+  const allUsers = [...allUsersRaw].sort((a, b) => {
+    if (a.isCurrentUser) return -1;
+    if (b.isCurrentUser) return 1;
+    return (a.name || a.email || "").localeCompare(b.name || b.email || "");
+  });
+  const [selectedUserIds, setSelectedUserIds] = useState<Id<"users">[]>([]);
+
+  useEffect(() => {
+    if (currentUserId && selectedUserIds.length === 0) {
+      setSelectedUserIds([currentUserId]);
+    }
+  }, [currentUserId, selectedUserIds.length]);
+
   const [form, setForm] = useState<FormState>({
     mode: "create",
     title: "",
     description: "",
     startTime: "09:00",
     endTime: "10:00",
-    color: EVENT_COLORS[0].hex,
+    recurrence: "none",
+    recurrenceEndDate: "",
+    isPrivate: false,
+    type: "private",
+    category: "spotkanie",
   });
   const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const dateStr = dateToString(selectedDate);
-  const events = useQuery(api.calendarEvents.listByDate, { date: dateStr });
+  const events = useQuery(
+    api.calendarEvents.listByDateAndUsers,
+    selectedUserIds.length > 0 ? { date: dateStr, userIds: selectedUserIds } : "skip"
+  );
+
+  const [companyViewMode, setCompanyViewMode] = useState<"week" | "month">("week");
+
+  const weekDateStrings = getWeekDateStrings(selectedDate);
+  const monthGridDays = getMonthGridDays(selectedDate);
+
+  const startDate = companyViewMode === "week" ? weekDateStrings[0] : monthGridDays[0];
+  const endDate = companyViewMode === "week" ? weekDateStrings[6] : monthGridDays[41];
+
+  const companyEvents = useQuery(
+    api.calendarEvents.listCompanyEventsByRange,
+    isCompanyOpen ? { startDate, endDate } : "skip"
+  ) ?? [];
 
   const createEvent = useMutation(api.calendarEvents.create);
   const updateEvent = useMutation(api.calendarEvents.update);
   const removeEvent = useMutation(api.calendarEvents.remove);
+
+  const [compDragState, setCompDragState] = useState<{
+    type: "move" | "resize" | "month-move";
+    eventId: Id<"calendarEvents">;
+    originalDate: string;
+    originalStart: number;
+    originalEnd: number;
+    currentDate: string;
+    currentStart: number;
+    currentEnd: number;
+    grabOffsetY: number;
+    grabOffsetX: number;
+    didMove: boolean;
+  } | null>(null);
+
+  const weekGridRef = useRef<HTMLDivElement>(null);
+  const monthGridRef = useRef<HTMLDivElement>(null);
+  const suppressCompanyClickRef = useRef(false);
+
+  useEffect(() => {
+    if (!compDragState) return;
+
+    function handlePointerMove(e: PointerEvent) {
+      if (!compDragState) return;
+
+      if (compDragState.type === "move" || compDragState.type === "resize") {
+        if (!weekGridRef.current) return;
+        const rect = weekGridRef.current.getBoundingClientRect();
+        
+        if (compDragState.type === "move") {
+          const y = e.clientY - rect.top - compDragState.grabOffsetY;
+          const duration = compDragState.originalEnd - compDragState.originalStart;
+          const rawHour = 8 + y / HOUR_HEIGHT;
+          
+          // Lock hour if shift is pressed
+          const snappedStart = e.shiftKey
+            ? compDragState.originalStart
+            : Math.max(8, Math.min(17 - duration, Math.round(rawHour * 2) / 2));
+          
+          const x = e.clientX - rect.left - 54;
+          const colWidth = (rect.width - 54) / 7;
+          const colIdx = Math.max(0, Math.min(6, Math.floor(x / colWidth)));
+          const targetDate = weekDateStrings[colIdx];
+
+          const didMove = targetDate !== compDragState.originalDate || Math.abs(snappedStart - compDragState.originalStart) >= 0.25;
+
+          setCompDragState(prev => prev ? {
+            ...prev,
+            currentStart: snappedStart,
+            currentEnd: snappedStart + duration,
+            currentDate: targetDate,
+            didMove: prev.didMove || didMove
+          } : null);
+        } else {
+          const y = e.clientY - rect.top;
+          const rawEnd = 8 + y / HOUR_HEIGHT;
+          const snappedEnd = Math.max(compDragState.originalStart + 0.5, Math.min(17, Math.round(rawEnd * 2) / 2));
+
+          const didMove = Math.abs(snappedEnd - compDragState.originalEnd) >= 0.25;
+
+          setCompDragState(prev => prev ? {
+            ...prev,
+            currentEnd: snappedEnd,
+            didMove: prev.didMove || didMove
+          } : null);
+        }
+      } else if (compDragState.type === "month-move") {
+        if (!monthGridRef.current) return;
+        const rect = monthGridRef.current.getBoundingClientRect();
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const colWidth = rect.width / 7;
+        const rowHeight = rect.height / 6;
+
+        const colIdx = Math.max(0, Math.min(6, Math.floor(x / colWidth)));
+        const rowIdx = Math.max(0, Math.min(5, Math.floor(y / rowHeight)));
+        const targetIdx = rowIdx * 7 + colIdx;
+        const targetDate = monthGridDays[targetIdx];
+
+        const didMove = targetDate !== compDragState.originalDate;
+
+        setCompDragState(prev => prev ? {
+          ...prev,
+          currentDate: targetDate,
+          didMove: prev.didMove || didMove
+        } : null);
+      }
+    }
+
+    function handlePointerUp(e: PointerEvent) {
+      if (!compDragState) return;
+
+      if (compDragState.didMove) {
+        suppressCompanyClickRef.current = true;
+        setTimeout(() => {
+          suppressCompanyClickRef.current = false;
+        }, 150);
+
+        if (e.altKey) {
+          // Alt/Option drag: copy event to target date
+          const origEvent = companyEvents.find(ev => ev._id === compDragState.eventId);
+          if (origEvent) {
+            createEvent({
+              title: origEvent.title,
+              description: origEvent.description || undefined,
+              date: compDragState.currentDate,
+              startTime: formatHour(compDragState.currentStart),
+              endTime: formatHour(compDragState.currentEnd),
+              color: origEvent.color || undefined,
+              isPrivate: !!origEvent.isPrivate,
+              recurrence: origEvent.recurrence || "none",
+              recurrenceEndDate: origEvent.recurrenceEndDate || undefined,
+              type: origEvent.type || "company",
+              category: origEvent.category || undefined,
+            }).catch((err) => {
+              console.error("Failed to duplicate event via drag:", err);
+            });
+          }
+        } else {
+          // Normal drag: move event
+          updateEvent({
+            id: compDragState.eventId,
+            date: compDragState.currentDate,
+            startTime: formatHour(compDragState.currentStart),
+            endTime: formatHour(compDragState.currentEnd),
+          }).catch((err) => {
+            console.error("Failed to drag-update event:", err);
+          });
+        }
+      }
+
+      setCompDragState(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [compDragState, updateEvent, weekDateStrings, monthGridDays]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -389,6 +1071,7 @@ export function CalendarPanel() {
           setIsDrawerOpen(false);
         } else {
           setOpen(false);
+          setIsCompanyOpen(false);
         }
       }
     }
@@ -403,7 +1086,12 @@ export function CalendarPanel() {
       description: "",
       startTime: `${String(hour).padStart(2, "0")}:00`,
       endTime: `${String(Math.min(hour + 1, 17)).padStart(2, "0")}:00`,
-      color: EVENT_COLORS[0].hex,
+      recurrence: "none",
+      recurrenceEndDate: "",
+      isPrivate: false,
+      type: "private",
+      category: "spotkanie",
+      createdBy: currentUserId,
     });
     setIsDrawerOpen(true);
   }
@@ -415,7 +1103,12 @@ export function CalendarPanel() {
       description: "",
       startTime: "09:00",
       endTime: "10:00",
-      color: EVENT_COLORS[0].hex,
+      recurrence: "none",
+      recurrenceEndDate: "",
+      isPrivate: false,
+      type: "private",
+      category: "spotkanie",
+      createdBy: currentUserId,
     });
     setIsDrawerOpen(true);
   }
@@ -428,9 +1121,87 @@ export function CalendarPanel() {
       description: ev.description || "",
       startTime: ev.startTime,
       endTime: ev.endTime,
-      color: ev.color || EVENT_COLORS[0].hex,
+      recurrence: ev.recurrence || "none",
+      recurrenceEndDate: ev.recurrenceEndDate || "",
+      isPrivate: !!ev.isPrivate,
+      type: ev.type || "private",
+      category: ev.category || "spotkanie",
+      createdBy: ev.createdBy,
     });
     setIsDrawerOpen(true);
+  }
+
+  function handleCompanyAddClick(dayStr: string, hour?: number) {
+    const [y, m, d] = dayStr.split("-").map(Number);
+    const newDate = {
+      year: y,
+      month: m,
+      day: d,
+      calendar: selectedDate.calendar,
+      era: selectedDate.era,
+      copy() { return this; }
+    } as CalendarDate;
+    setSelectedDate(newDate);
+
+    const startH = hour !== undefined ? hour : 9;
+    const endH = hour !== undefined ? Math.min(hour + 1, 17) : 10;
+
+    setForm({
+      mode: "create",
+      title: "",
+      description: "",
+      startTime: `${String(startH).padStart(2, "0")}:00`,
+      endTime: `${String(endH).padStart(2, "0")}:00`,
+      recurrence: "none",
+      recurrenceEndDate: "",
+      isPrivate: false,
+      type: "company",
+      category: "spotkanie",
+      createdBy: currentUserId,
+    });
+    setIsDrawerOpen(true);
+  }
+
+  function handleCompanyEventClick(ev: CalEvent) {
+    const [y, m, d] = ev.date.split("-").map(Number);
+    const newDate = {
+      year: y,
+      month: m,
+      day: d,
+      calendar: selectedDate.calendar,
+      era: selectedDate.era,
+      copy() { return this; }
+    } as CalendarDate;
+    setSelectedDate(newDate);
+
+    setForm({
+      mode: "edit",
+      eventId: ev._id,
+      title: ev.title,
+      description: ev.description || "",
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+      recurrence: ev.recurrence || "none",
+      recurrenceEndDate: ev.recurrenceEndDate || "",
+      isPrivate: !!ev.isPrivate,
+      type: ev.type || "company",
+      category: ev.category || "spotkanie",
+      createdBy: ev.createdBy,
+    });
+    setIsDrawerOpen(true);
+  }
+
+  async function handleQuickUpdate(
+    id: Id<"calendarEvents">,
+    startTime: string,
+    endTime: string,
+  ) {
+    try {
+      await updateEvent({ id, startTime, endTime });
+      toast.success("Zmieniono czas wydarzenia");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Błąd aktualizacji czasu");
+    }
   }
 
   async function handleSave() {
@@ -444,7 +1215,11 @@ export function CalendarPanel() {
           date: dateStr,
           startTime: form.startTime,
           endTime: form.endTime,
-          color: form.color,
+          recurrence: form.recurrence,
+          recurrenceEndDate: form.recurrenceEndDate || undefined,
+          isPrivate: form.isPrivate,
+          type: form.type,
+          category: form.type === "company" ? form.category : undefined,
         });
         toast.success("Wydarzenie dodane");
       } else if (form.eventId) {
@@ -454,7 +1229,9 @@ export function CalendarPanel() {
           description: form.description || null,
           startTime: form.startTime,
           endTime: form.endTime,
-          color: form.color,
+          isPrivate: form.isPrivate,
+          type: form.type,
+          category: form.type === "company" ? form.category : null,
         });
         toast.success("Wydarzenie zaktualizowane");
       }
@@ -483,22 +1260,26 @@ export function CalendarPanel() {
   return (
     <>
       {/* Backdrop */}
-      {open && (
+      {(open || isCompanyOpen) && (
         <div
           className="cal-backdrop"
-          onClick={() => { setIsDrawerOpen(false); setOpen(false); }}
+          onClick={() => {
+            setIsDrawerOpen(false);
+            setOpen(false);
+            setIsCompanyOpen(false);
+          }}
           aria-hidden="true"
         />
       )}
 
-      {/* Sliding panel */}
+      {/* Sliding private panel */}
       <aside
         ref={panelRef}
         className={`cal-panel ${open ? "cal-panel--open" : ""}`}
-        aria-label="Kalendarz"
+        aria-label="Kalendarz prywatny"
       >
         <div className="cal-panel-header">
-          <span className="cal-panel-title">Mój kalendarz</span>
+          <span className="cal-panel-title">Kalendarz prywatny</span>
           <button
             type="button"
             className="cal-panel-close"
@@ -509,46 +1290,119 @@ export function CalendarPanel() {
           </button>
         </div>
 
-        <div className="cal-panel-body">
-          {/* ─── Month View (react-aria) ──────────────────────────────── */}
-          <Calendar
-            value={selectedDate}
-            onChange={(d) => { setSelectedDate(d); setIsDrawerOpen(false); }}
-            aria-label="Wybierz datę"
-            className="cal-month"
-          >
-            <header className="cal-month-header">
-              <Button slot="previous" className="cal-month-nav">◀</Button>
-              <CalendarHeading className="cal-month-heading" />
-              <Button slot="next" className="cal-month-nav">▶</Button>
-            </header>
-            <CalendarGrid className="cal-month-grid">
-              <CalendarGridHeader>
-                {(day) => (
-                  <CalendarHeaderCell className="cal-month-day-header">
-                    {day}
-                  </CalendarHeaderCell>
-                )}
-              </CalendarGridHeader>
-              <CalendarGridBody>
-                {(date) => <CalendarCell date={date} className="cal-month-cell" />}
-              </CalendarGridBody>
-            </CalendarGrid>
-          </Calendar>
+        {/* User Filter Bar */}
+        {allUsers.length > 0 && (
+          <div className="cal-user-filter-bar">
+            <span className="cal-filter-label">Filtruj kalendarze</span>
+            <div className="cal-filter-chips">
+              {allUsers.map((u) => {
+                const isSelected = selectedUserIds.includes(u._id);
+                const color = getUserColor(u._id);
+                const isMe = u._id === currentUserId;
+                const initials = getInitials(u.name, u.email);
+                const fullName = isMe ? "Mój kalendarz" : u.name || u.email || "Użytkownik";
 
-          {/* ─── Day View ────────────────────────────────────────────── */}
-          <DayView
-            selectedDate={selectedDate}
-            events={(events ?? []) as CalEvent[]}
-            onSlotClick={handleSlotClick}
-            onEventClick={handleEventClick}
-            onAddClick={handleAddHeaderClick}
-          />
+                return (
+                  <button
+                    key={u._id}
+                    type="button"
+                    title={fullName}
+                    className={`cal-filter-avatar ${isSelected ? "cal-filter-avatar--active" : ""}`}
+                    style={
+                      isSelected
+                        ? {
+                            borderColor: color,
+                            background: `${color}18`,
+                            color: "#ffffff",
+                            boxShadow: `0 0 12px ${color}25`,
+                          }
+                        : {}
+                    }
+                    onClick={() => {
+                      if (isMe) return; // Ja jest zawsze wybrane
+                      setSelectedUserIds((prev) => {
+                        if (prev.includes(u._id)) {
+                          return prev.filter((id) => id !== u._id);
+                        } else {
+                          if (prev.length >= 4) {
+                            toast.warning("Możesz wybrać maksymalnie 4 kalendarze");
+                            return prev;
+                          }
+                          return [...prev, u._id];
+                        }
+                      });
+                    }}
+                  >
+                    {isMe ? "Ja" : initials}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="cal-panel-body">
+          <CalErrorBoundary>
+            {/* ─── Month View (react-aria) ──────────────────────────────── */}
+            <Calendar
+              value={selectedDate}
+              onChange={(d) => { setSelectedDate(d); setIsDrawerOpen(false); }}
+              aria-label="Wybierz datę"
+              className="cal-month"
+            >
+              <header className="cal-month-header">
+                <div className="cal-month-nav-group">
+                  <Button slot="previous" className="cal-month-nav">◀</Button>
+                  <Button slot="next" className="cal-month-nav">▶</Button>
+                </div>
+                <CalendarHeading className="cal-month-heading" />
+                <button
+                  type="button"
+                  className="cal-month-today-btn"
+                  onClick={() => {
+                    try {
+                      setSelectedDate(today(getLocalTimeZone()));
+                    } catch {
+                      setSelectedDate(today("Europe/Warsaw"));
+                    }
+                  }}
+                  title="Przejdź do dzisiejszej daty"
+                >
+                  Dziś
+                </button>
+              </header>
+              <CalendarGrid className="cal-month-grid">
+                <CalendarGridHeader>
+                  {(day) => (
+                    <CalendarHeaderCell className="cal-month-day-header">
+                      {day}
+                    </CalendarHeaderCell>
+                  )}
+                </CalendarGridHeader>
+                <CalendarGridBody>
+                  {(date) => <CalendarCell date={date} className="cal-month-cell" />}
+                </CalendarGridBody>
+              </CalendarGrid>
+            </Calendar>
+
+            {/* ─── Day View ────────────────────────────────────────────── */}
+            <DayView
+              selectedDate={selectedDate}
+              events={Array.isArray(events) ? (events as CalEvent[]).filter(e => !e.type || e.type === "private") : []}
+              onSlotClick={handleSlotClick}
+              onEventClick={handleEventClick}
+              onAddClick={handleAddHeaderClick}
+              onEventUpdate={handleQuickUpdate}
+              selectedUserIds={selectedUserIds}
+              allUsers={allUsers}
+              currentUserId={currentUserId}
+            />
+          </CalErrorBoundary>
         </div>
 
         {/* ─── Sliding Secondary Drawer for Add / Edit Event ────────── */}
         <EventDrawer
-          isOpen={isDrawerOpen}
+          isOpen={isDrawerOpen && form.type === "private"}
           form={form}
           setForm={setForm}
           selectedDate={selectedDate}
@@ -556,31 +1410,487 @@ export function CalendarPanel() {
           onDelete={form.mode === "edit" ? handleDelete : undefined}
           onCancel={() => setIsDrawerOpen(false)}
           saving={saving}
+          currentUserId={currentUserId}
         />
       </aside>
 
-      {/* FAB */}
-      <button
-        type="button"
-        className={`cal-fab ${open ? "cal-fab--active" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Otwórz kalendarz"
-        aria-expanded={open}
+      {/* Sliding Company Panel (3/4 width) */}
+      <aside
+        className={`cal-company-panel ${isCompanyOpen ? "cal-company-panel--open" : ""}`}
+        aria-label="Kalendarz firmowy"
       >
-        <Image
-          src="/calendar-svgrepo-com.svg"
-          alt=""
-          width={26}
-          height={26}
-          className="cal-fab-icon"
+        <div className="cal-panel-header">
+          <span className="cal-panel-title">📅 Kalendarz firmowy</span>
+          <button
+            type="button"
+            className="cal-panel-close"
+            onClick={() => { setIsDrawerOpen(false); setIsCompanyOpen(false); }}
+            aria-label="Zamknij kalendarz"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Navigation Bar */}
+        <div className="cal-company-nav-bar">
+          <div className="cal-month-nav-group" style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div className="cal-month-nav-buttons">
+              <button
+                type="button"
+                className="cal-month-nav"
+                onClick={() => setSelectedDate(d => companyViewMode === "week" ? shiftWeek(d, -1) : shiftMonth(d, -1))}
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="cal-month-nav"
+                onClick={() => setSelectedDate(d => companyViewMode === "week" ? shiftWeek(d, 1) : shiftMonth(d, 1))}
+              >
+                ▶
+              </button>
+            </div>
+            
+            {/* View Toggle */}
+            <div className="cal-view-toggle">
+              <button
+                type="button"
+                className={`cal-toggle-btn ${companyViewMode === "week" ? "cal-toggle-btn--active" : ""}`}
+                onClick={() => setCompanyViewMode("week")}
+              >
+                Tydzień
+              </button>
+              <button
+                type="button"
+                className={`cal-toggle-btn ${companyViewMode === "month" ? "cal-toggle-btn--active" : ""}`}
+                onClick={() => setCompanyViewMode("month")}
+              >
+                Miesiąc
+              </button>
+            </div>
+          </div>
+          
+          <span className="cal-company-week-label">
+            {companyViewMode === "week"
+              ? formatWeekRangeLabel(weekDateStrings[0], weekDateStrings[6])
+              : formatMonthLabel(selectedDate)}
+          </span>
+          
+          <button
+            type="button"
+            className="cal-month-today-btn"
+            onClick={() => setSelectedDate(d => getTodayCalendarDate(d))}
+          >
+            Dziś
+          </button>
+        </div>
+
+        {/* Categories Filter Bar */}
+        <div className="cal-company-filters">
+          <div className="cal-company-filter-group">
+            <span className="cal-filter-label">Filtruj kategorie</span>
+            <div className="cal-category-chips">
+              <button
+                type="button"
+                className={`cal-category-chip ${selectedCategory === "all" ? "cal-category-chip--active" : ""}`}
+                style={
+                  selectedCategory === "all"
+                    ? {
+                        borderColor: "#3b82f6",
+                        color: "#ffffff",
+                        background: "rgba(59, 130, 246, 0.15)",
+                        boxShadow: "0 0 12px rgba(59, 130, 246, 0.2)",
+                      }
+                    : {
+                        borderColor: "#30363d",
+                      }
+                }
+                onClick={() => setSelectedCategory("all")}
+              >
+                <span className="cal-category-chip-dot" style={{ backgroundColor: "#ffffff" }} />
+                Wszystkie
+              </button>
+              {COMPANY_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  className={`cal-category-chip ${selectedCategory === cat.id ? "cal-category-chip--active" : ""}`}
+                  style={
+                    selectedCategory === cat.id
+                      ? {
+                          borderColor: cat.color,
+                          color: "#ffffff",
+                          background: `${cat.color}25`,
+                          boxShadow: `0 0 12px ${cat.color}20`,
+                        }
+                      : {
+                          borderColor: "#30363d",
+                        }
+                  }
+                  onClick={() => setSelectedCategory(cat.id)}
+                >
+                  <span className="cal-category-chip-dot" style={{ backgroundColor: cat.color }} />
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Company Calendar Body */}
+        <div className="cal-company-body">
+          <CalErrorBoundary>
+            {companyViewMode === "month" ? (
+              <div className="cal-monthly-grid-container">
+                {/* Headers */}
+                <div className="cal-monthly-headers">
+                  {["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Niedz"].map((dayName) => (
+                    <div key={dayName} className="cal-monthly-header-cell">
+                      {dayName}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Days Grid */}
+                <div ref={monthGridRef} className="cal-monthly-days-grid">
+                  {monthGridDays.map((dayStr) => {
+                    const [y, m, d] = dayStr.split("-").map(Number);
+                    const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
+                    const isCurrentMonth = m === selectedDate.month;
+                    
+                    // Filter events for this day
+                    const dayEvents = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter((ev) => {
+                      const eventDate = compDragState?.eventId === ev._id ? compDragState.currentDate : ev.date;
+                      if (eventDate !== dayStr) return false;
+                      if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
+                      return true;
+                    }) : [];
+
+                    // Sort day events by start time
+                    dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+                    return (
+                      <div
+                        key={dayStr}
+                        className={`cal-monthly-day-cell ${!isCurrentMonth ? "cal-monthly-day-cell--outside" : ""} ${isTodayStr ? "cal-monthly-day-cell--today" : ""}`}
+                        onClick={(e) => {
+                          if (compDragState || suppressCompanyClickRef.current) return;
+                          if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("cal-monthly-day-number")) {
+                            handleCompanyAddClick(dayStr);
+                          }
+                        }}
+                      >
+                        <div className="cal-monthly-day-cell-header">
+                          <span className={`cal-monthly-day-number ${isTodayStr ? "cal-monthly-day-number--today" : ""}`}>
+                            {d}
+                          </span>
+                        </div>
+                        <div className="cal-monthly-day-events">
+                          {dayEvents.slice(0, 3).map((ev) => {
+                            const cat = getCategoryStyle(ev.category);
+                            const isDraggingThis = compDragState?.eventId === ev._id;
+                            return (
+                              <button
+                                key={ev._id}
+                                type="button"
+                                className={`cal-monthly-event-pill ${isDraggingThis ? "cal-monthly-event-pill--dragging" : ""}`}
+                                style={{
+                                  background: cat.bg,
+                                  borderLeft: `2.5px solid ${cat.color}`,
+                                  color: cat.color,
+                                  touchAction: "none",
+                                }}
+                                onPointerDown={(e) => {
+                                  const startH = parseHour(ev.startTime);
+                                  const endH = parseHour(ev.endTime);
+                                  setCompDragState({
+                                    type: "month-move",
+                                    eventId: ev._id,
+                                    originalDate: ev.date,
+                                    originalStart: startH,
+                                    originalEnd: endH,
+                                    currentDate: ev.date,
+                                    currentStart: startH,
+                                    currentEnd: endH,
+                                    grabOffsetY: 0,
+                                    grabOffsetX: 0,
+                                    didMove: false,
+                                  });
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!suppressCompanyClickRef.current) {
+                                    handleCompanyEventClick(ev);
+                                  }
+                                }}
+                                title={`${ev.startTime} ${ev.title}`}
+                              >
+                                <span className="cal-monthly-event-pill-time">{ev.startTime}</span>
+                                <span className="cal-monthly-event-pill-title">{ev.title}</span>
+                              </button>
+                            );
+                          })}
+                          {dayEvents.length > 3 && (
+                            <div className="cal-monthly-more-events">
+                              + {dayEvents.length - 3} więcej
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="cal-weekly-scroll-container">
+                {/* Day Headers (sticky at the top) */}
+                <div className="cal-weekly-header-row">
+                  <div className="cal-weekly-hour-label-spacer" />
+                  {weekDateStrings.map((dayStr) => {
+                    const { dayName, dateNum, monthName } = formatWeekDayHeader(dayStr);
+                    const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
+                    return (
+                      <div
+                        key={dayStr}
+                        className={`cal-weekly-day-header ${isTodayStr ? "cal-weekly-day-header--today" : ""}`}
+                      >
+                        <span className="cal-week-day-name">{dayName}</span>
+                        <span className="cal-week-date-label-wrapper">
+                          <span className={`cal-week-date-number ${isTodayStr ? "cal-week-date-number--today" : ""}`}>
+                            {dateNum}
+                          </span>
+                          <span className="cal-week-date-month">{monthName}</span>
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Grid content (scrollable vertically) */}
+                <div ref={weekGridRef} className="cal-weekly-grid-content" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+                  {/* Left side: Hour labels */}
+                  <div className="cal-weekly-hour-column">
+                    {HOURS.map((h) => (
+                      <div key={h} className="cal-weekly-hour-label-slot" style={{ height: HOUR_HEIGHT }}>
+                        <span>{String(h).padStart(2, "0")}:00</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Columns for each day */}
+                  <div className="cal-weekly-columns-container">
+                    {weekDateStrings.map((dayStr) => {
+                      const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
+                      
+                      // Filter events for this day
+                      const dayEvents = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter((ev) => {
+                        const eventDate = compDragState?.eventId === ev._id ? compDragState.currentDate : ev.date;
+                        if (eventDate !== dayStr) return false;
+                        if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
+                        return true;
+                      }) : [];
+
+                      // Sort day events by start time
+                      dayEvents.sort((a, b) => {
+                        const startA = compDragState?.eventId === a._id ? compDragState.currentStart : parseHour(a.startTime);
+                        const startB = compDragState?.eventId === b._id ? compDragState.currentStart : parseHour(b.startTime);
+                        return startA - startB;
+                      });
+
+                      // Pack day events
+                      const { clusters: dayClusters } = packEvents(dayEvents);
+
+                      return (
+                        <div
+                          key={dayStr}
+                          className={`cal-weekly-day-column ${isTodayStr ? "cal-weekly-day-column--today" : ""}`}
+                          style={{ height: HOURS.length * HOUR_HEIGHT }}
+                        >
+                          {/* Hour slot background grids */}
+                          {HOURS.map((h) => (
+                            <div
+                              key={h}
+                              className="cal-weekly-day-hour-slot"
+                              style={{ height: HOUR_HEIGHT }}
+                              onClick={() => {
+                                if (!compDragState && !suppressCompanyClickRef.current) {
+                                  handleCompanyAddClick(dayStr, h);
+                                }
+                              }}
+                            />
+                          ))}
+
+                          {/* Absolutely positioned events */}
+                          {dayEvents.map((ev) => {
+                            const isDraggingThis = compDragState?.eventId === ev._id;
+                            const startH = isDraggingThis ? compDragState.currentStart : parseHour(ev.startTime);
+                            const endH = isDraggingThis ? compDragState.currentEnd : parseHour(ev.endTime);
+                            const top = (startH - 8) * HOUR_HEIGHT;
+                            const height = Math.max((endH - startH) * HOUR_HEIGHT, 28);
+                            const cat = getCategoryStyle(ev.category);
+
+                            const cluster = dayClusters.find((c) => c.events.some((e) => e._id === ev._id));
+                            const colIdx = cluster?.positions.get(ev._id) ?? 0;
+                            const maxCols = cluster?.maxCols ?? 1;
+
+                            const leftStyle = `calc(4px + ${colIdx} * (100% - 8px) / ${maxCols})`;
+                            const widthStyle = `calc((100% - 8px) / ${maxCols} - 2px)`;
+
+                            return (
+                              <button
+                                key={ev._id}
+                                type="button"
+                                className={`cal-weekly-event-card ${isDraggingThis ? "cal-weekly-event-card--dragging" : ""}`}
+                                style={{
+                                  top,
+                                  height,
+                                  left: leftStyle,
+                                  width: widthStyle,
+                                  background: cat.bg,
+                                  border: `1px solid ${cat.border}`,
+                                  borderLeft: `4px solid ${cat.color}`,
+                                  touchAction: "none",
+                                }}
+                                onPointerDown={(e) => {
+                                  if ((e.target as HTMLElement).closest(".cal-event-resize-handle")) return;
+
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const startVal = parseHour(ev.startTime);
+                                  const endVal = parseHour(ev.endTime);
+
+                                  setCompDragState({
+                                    type: "move",
+                                    eventId: ev._id,
+                                    originalDate: ev.date,
+                                    originalStart: startVal,
+                                    originalEnd: endVal,
+                                    currentDate: ev.date,
+                                    currentStart: startVal,
+                                    currentEnd: endVal,
+                                    grabOffsetY: e.clientY - rect.top,
+                                    grabOffsetX: e.clientX - rect.left,
+                                    didMove: false,
+                                  });
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!suppressCompanyClickRef.current) {
+                                    handleCompanyEventClick(ev);
+                                  }
+                                }}
+                              >
+                                <div className="cal-weekly-event-time" style={{ color: cat.color }}>
+                                  {isDraggingThis ? `${formatHour(startH)} - ${formatHour(endH)}` : `${ev.startTime} - ${ev.endTime}`}
+                                </div>
+                                <div className="cal-weekly-event-title">{ev.title}</div>
+                                {height > 40 && ev.description && (
+                                  <div className="cal-weekly-event-desc">{ev.description}</div>
+                                )}
+                                {!isDraggingThis && (
+                                  <div
+                                    className="cal-event-resize-handle"
+                                    onPointerDown={(e) => {
+                                      const startVal = parseHour(ev.startTime);
+                                      const endVal = parseHour(ev.endTime);
+                                      setCompDragState({
+                                        type: "resize",
+                                        eventId: ev._id,
+                                        originalDate: ev.date,
+                                        originalStart: startVal,
+                                        originalEnd: endVal,
+                                        currentDate: ev.date,
+                                        currentStart: startVal,
+                                        currentEnd: endVal,
+                                        grabOffsetY: 0,
+                                        grabOffsetX: 0,
+                                        didMove: false,
+                                      });
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    <div className="cal-event-resize-bar" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CalErrorBoundary>
+        </div>
+
+        {/* ─── Sliding Secondary Drawer for Add / Edit Event (Company) ─── */}
+        <EventDrawer
+          isOpen={isDrawerOpen && form.type === "company"}
+          form={form}
+          setForm={setForm}
+          selectedDate={selectedDate}
+          onSave={handleSave}
+          onDelete={form.mode === "edit" ? handleDelete : undefined}
+          onCancel={() => setIsDrawerOpen(false)}
+          saving={saving}
+          currentUserId={currentUserId}
         />
-      </button>
+      </aside>
+
+      {/* FAB Container */}
+      <div className="cal-fab-container">
+        {/* Company Calendar FAB */}
+        <button
+          type="button"
+          className={`cal-fab-item cal-fab-item--company ${isCompanyOpen ? "cal-fab-item--active" : ""}`}
+          onClick={() => {
+            setIsCompanyOpen((v) => !v);
+            setOpen(false);
+          }}
+          aria-label="Otwórz kalendarz firmowy"
+          aria-expanded={isCompanyOpen}
+          title="Kalendarz firmowy"
+        >
+          <Image
+            src="/calendar-svgrepo-com.svg"
+            alt=""
+            width={24}
+            height={24}
+            className="cal-fab-icon"
+            style={{ filter: "brightness(0) invert(1)" }}
+          />
+        </button>
+
+        {/* Private Calendar FAB (Base FAB) */}
+        <button
+          type="button"
+          className={`cal-fab-item cal-fab-item--private ${open ? "cal-fab-item--active" : ""}`}
+          onClick={() => {
+            setOpen((v) => !v);
+            setIsCompanyOpen(false);
+          }}
+          aria-label="Otwórz kalendarz prywatny"
+          aria-expanded={open}
+          title="Kalendarz prywatny"
+        >
+          <Image
+            src="/calendar-svgrepo-com.svg"
+            alt=""
+            width={24}
+            height={24}
+            className="cal-fab-icon"
+          />
+        </button>
+      </div>
 
       <style>{`
         /* ─── Typography & Container (Geist Sans / Modern Sans) ──── */
         .cal-panel,
+        .cal-company-panel,
         .cal-drawer,
-        .cal-panel * {
+        .cal-panel *,
+        .cal-company-panel * {
           font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           box-sizing: border-box;
           -webkit-font-smoothing: antialiased;
@@ -688,6 +1998,30 @@ export function CalendarPanel() {
           color: #f0f6fc;
           text-align: center;
           letter-spacing: -0.01em;
+        }
+
+        .cal-month-nav-group {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .cal-month-today-btn {
+          background: rgba(212, 29, 60, 0.15);
+          color: #ff7b90;
+          border: 1px solid rgba(212, 29, 60, 0.35);
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 5px 11px;
+          border-radius: 7px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .cal-month-today-btn:hover {
+          background: #d41d3c;
+          color: #ffffff;
+          border-color: #d41d3c;
         }
 
         .cal-month-nav {
@@ -852,25 +2186,58 @@ export function CalendarPanel() {
         .cal-event-block {
           position: absolute;
           left: 54px;
-          right: 4px;
+          width: calc(100% - 58px);
           border-radius: 7px;
           border: 1px solid rgba(255, 255, 255, 0.08);
           border-left: 4px solid #d41d3c;
-          padding: 5px 10px;
-          cursor: pointer;
+          padding: 5px 10px 10px;
+          cursor: grab;
           display: flex;
           flex-direction: column;
           gap: 2px;
           overflow: hidden;
           text-align: left;
-          transition: all 0.15s;
+          transition: filter 0.15s, transform 0.15s;
           z-index: 2;
           box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+          user-select: none;
         }
 
         .cal-event-block:hover {
           filter: brightness(1.18);
-          transform: translateY(-1px);
+        }
+
+        .cal-event-block--dragging {
+          cursor: grabbing !important;
+          z-index: 10 !important;
+          filter: brightness(1.25);
+          box-shadow: 0 10px 28px rgba(0,0,0,0.6) !important;
+          opacity: 0.92;
+        }
+
+        .cal-event-resize-handle {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 9px;
+          cursor: ns-resize;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 5;
+        }
+
+        .cal-event-resize-bar {
+          width: 28px;
+          height: 3px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.25);
+          transition: background 0.15s;
+        }
+
+        .cal-event-resize-handle:hover .cal-event-resize-bar {
+          background: rgba(255, 255, 255, 0.75);
         }
 
         .cal-event-time {
@@ -891,21 +2258,26 @@ export function CalendarPanel() {
         /* ─── Sliding Drawer (Add / Edit Event) ─────────────────────── */
         .cal-drawer {
           position: absolute;
-          inset: 0;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: 400px;
+          max-width: 100%;
           z-index: 20;
           background: #111419;
+          border-left: 1px solid #282e37;
+          box-shadow: -10px 0 36px rgba(0, 0, 0, 0.4);
           display: flex;
           flex-direction: column;
           transform: translateX(100%);
-          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
-          pointer-events: none;
-          opacity: 0;
+          visibility: hidden;
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
         }
 
         .cal-drawer--open {
           transform: translateX(0);
-          pointer-events: auto;
-          opacity: 1;
+          visibility: visible;
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .cal-drawer-header {
@@ -1058,58 +2430,6 @@ export function CalendarPanel() {
           padding-top: 20px;
         }
 
-        .cal-color-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 8px;
-        }
-
-        .cal-color-card {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 9px 12px;
-          background: #10141a;
-          border: 1px solid #282e37;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.15s;
-          text-align: left;
-        }
-
-        .cal-color-card:hover {
-          background: #181d24;
-          border-color: #38414e;
-        }
-
-        .cal-color-card.is-active {
-          background: #1c222b;
-          border-color: #f0f6fc;
-        }
-
-        .cal-color-swatch {
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .cal-color-check {
-          font-size: 11px;
-          color: #ffffff;
-          font-weight: 800;
-          line-height: 1;
-        }
-
-        .cal-color-name {
-          font-size: 12.5px;
-          color: #e6edf3;
-          font-weight: 500;
-        }
-
         /* ─── Drawer Footer ───────────────────────────────────────── */
         .cal-drawer-footer {
           padding: 14px 20px;
@@ -1174,43 +2494,673 @@ export function CalendarPanel() {
           background: rgba(248, 81, 73, 0.15);
         }
 
-        /* ─── FAB ─────────────────────────────────────────────────── */
-        .cal-fab {
+        /* ─── Company Panel ───────────────────────────────────────── */
+        .cal-company-panel {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: 75vw;
+          max-width: 100vw;
+          z-index: 50;
+          background: #111419;
+          border-left: 1px solid #282e37;
+          box-shadow: -10px 0 36px rgba(0, 0, 0, 0.6);
+          display: flex;
+          flex-direction: column;
+          transform: translateX(100%);
+          transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
+        }
+
+        .cal-company-panel--open {
+          transform: translateX(0);
+        }
+
+        .cal-company-nav-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 20px;
+          border-bottom: 1px solid #21262d;
+          background: #14181f;
+          flex-shrink: 0;
+        }
+
+        .cal-company-week-label {
+          font-size: 15px;
+          font-weight: 600;
+          color: #f0f6fc;
+          letter-spacing: -0.01em;
+        }
+
+        .cal-company-filters {
+          padding: 12px 20px;
+          border-bottom: 1px solid #21262d;
+          background: #0d1117;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-shrink: 0;
+        }
+
+        .cal-company-filter-group {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .cal-category-chips {
+          display: flex;
+          gap: 10px;
+        }
+
+        .cal-category-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: #161b22;
+          border: 1px solid #30363d;
+          border-radius: 8px;
+          padding: 6px 14px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          color: #c9d1d9;
+          transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .cal-category-chip:hover {
+          background: #21262d;
+          color: #ffffff;
+          border-color: #8b949e;
+        }
+
+        .cal-category-chip-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+        }
+
+        .cal-company-body {
+          flex: 1;
+          background: #0d1117;
+          display: flex;
+          overflow: hidden;
+        }
+
+        /* ─── Weekly Grid Layout ─── */
+        .cal-weekly-scroll-container {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          overflow-y: auto;
+          overflow-x: auto;
+          background: #0d1117;
+          min-width: 900px;
+        }
+
+        .cal-weekly-header-row {
+          display: flex;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: #14181f;
+          border-bottom: 1px solid #21262d;
+          flex-shrink: 0;
+        }
+
+        .cal-weekly-hour-label-spacer {
+          width: 54px;
+          flex-shrink: 0;
+          border-right: 1px solid #21262d;
+        }
+
+        .cal-weekly-day-header {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 10px 4px;
+          border-right: 1px solid #282e37;
+          background: #161b22;
+          min-width: 120px;
+        }
+
+        .cal-weekly-day-header:last-child {
+          border-right: none;
+        }
+
+        .cal-weekly-day-header--today {
+          background: #1d2430;
+          border-bottom: 2px solid #2563eb;
+        }
+
+        .cal-week-day-name {
+          font-size: 11px;
+          font-weight: 700;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          margin-bottom: 6px;
+        }
+
+        .cal-weekly-day-header--today .cal-week-day-name {
+          color: #3b82f6;
+        }
+
+        .cal-week-date-label-wrapper {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .cal-week-date-number {
+          font-size: 16px;
+          font-weight: 700;
+          color: #ffffff;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.2s;
+        }
+
+        .cal-week-date-number--today {
+          background: #2563eb;
+          color: #ffffff;
+          box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+        }
+
+        .cal-week-date-month {
+          font-size: 13px;
+          font-weight: 500;
+          color: #8b949e;
+        }
+
+        .cal-weekly-grid-content {
+          display: flex;
+          position: relative;
+          flex: 1;
+        }
+
+        .cal-weekly-hour-column {
+          width: 54px;
+          flex-shrink: 0;
+          border-right: 1px solid #21262d;
+          background: #14181f;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .cal-weekly-hour-label-slot {
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          font-size: 11px;
+          font-weight: 500;
+          color: #7d8590;
+          padding-top: 6px;
+          user-select: none;
+          border-bottom: 1px solid #1f242c;
+        }
+
+        .cal-weekly-columns-container {
+          display: flex;
+          flex: 1;
+          position: relative;
+        }
+
+        .cal-weekly-day-column {
+          flex: 1;
+          position: relative;
+          border-right: 1px solid #21262d;
+          background: #111419;
+          min-width: 120px;
+        }
+
+        .cal-weekly-day-column:last-child {
+          border-right: none;
+        }
+
+        .cal-weekly-day-column--today {
+          background: rgba(37, 99, 235, 0.01);
+        }
+
+        .cal-weekly-day-hour-slot {
+          border-bottom: 1px solid #1f242c;
+          cursor: pointer;
+          transition: background 0.12s;
+        }
+
+        .cal-weekly-day-hour-slot:hover {
+          background: rgba(255, 255, 255, 0.025);
+        }
+
+        .cal-weekly-event-card {
+          position: absolute;
+          border-radius: 6px;
+          padding: 6px 8px;
+          cursor: pointer;
+          transition: filter 0.15s, transform 0.12s;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+          text-align: left;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          overflow: hidden;
+          z-index: 2;
+        }
+
+        .cal-weekly-event-card:hover {
+          filter: brightness(1.18);
+          transform: translateY(-1px);
+        }
+
+        .cal-weekly-event-time {
+          font-size: 10px;
+          font-weight: 700;
+        }
+
+        .cal-weekly-event-title {
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #ffffff;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .cal-weekly-event-desc {
+          font-size: 10.5px;
+          color: #8b949e;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .cal-weekly-event-card--dragging {
+          opacity: 0.75;
+          z-index: 100 !important;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+          pointer-events: none;
+          transform: scale(1.02);
+        }
+
+        .cal-weekly-event-resize-handle {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: 8px;
+          cursor: ns-resize;
+          background: transparent;
+          z-index: 10;
+        }
+
+        .cal-weekly-event-card:hover .cal-weekly-event-resize-handle {
+          background: rgba(255, 255, 255, 0.15);
+        }
+
+        .cal-monthly-event-pill--dragging {
+          opacity: 0.75;
+          z-index: 100 !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+          pointer-events: none;
+          transform: scale(1.04);
+        }
+
+        /* ─── FAB Container & Hover Anims ────────────────────────── */
+        .cal-fab-container {
           position: fixed;
           bottom: 28px;
           right: 28px;
           z-index: 48;
           width: 52px;
           height: 52px;
+          transition: height 0s;
+        }
+
+        .cal-fab-container:hover {
+          height: 120px;
+        }
+
+        .cal-fab-item {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          width: 52px;
+          height: 52px;
           border-radius: 50%;
-          background: #d41d3c;
           border: none;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 18px rgba(212, 29, 60, 0.5);
-          transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+          box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .cal-fab:hover {
+        .cal-fab-item--private {
+          background: #d41d3c;
+          box-shadow: 0 4px 18px rgba(212, 29, 60, 0.5);
+          z-index: 2;
+        }
+
+        .cal-fab-item--private:hover {
           background: #e63350;
           transform: scale(1.06);
           box-shadow: 0 6px 24px rgba(212, 29, 60, 0.65);
         }
 
-        .cal-fab:active {
+        .cal-fab-item--private:active {
           transform: scale(0.95);
         }
 
-        .cal-fab--active {
+        .cal-fab-item--private.cal-fab-item--active {
           background: #a31530;
           box-shadow: 0 4px 16px rgba(212, 29, 60, 0.35);
+        }
+
+        .cal-fab-item--company {
+          background: #2563eb;
+          box-shadow: 0 4px 18px rgba(37, 99, 235, 0.5);
+          opacity: 0;
+          transform: translateY(0) scale(0.6);
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .cal-fab-container:hover .cal-fab-item--company {
+          opacity: 1;
+          transform: translateY(-66px) scale(1);
+          pointer-events: auto;
+          z-index: 3;
+        }
+
+        .cal-fab-item--company:hover {
+          background: #3b82f6;
+          transform: translateY(-66px) scale(1.06);
+          box-shadow: 0 6px 24px rgba(37, 99, 235, 0.65);
+        }
+
+        .cal-fab-item--company:active {
+          transform: translateY(-66px) scale(0.95);
+        }
+
+        .cal-fab-item--company.cal-fab-item--active {
+          background: #1d4ed8;
+          box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
         }
 
         .cal-fab-icon {
           filter: brightness(0) invert(1);
           pointer-events: none;
+        }
+
+        /* ─── Multi-User Filters & Columns Styles ─────────────────── */
+        .cal-user-filter-bar {
+          padding: 12px 20px;
+          border-bottom: 1px solid #21262d;
+          background: #0d1117;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .cal-filter-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        .cal-filter-chips {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          padding-bottom: 2px;
+          scrollbar-width: none;
+        }
+
+        .cal-filter-chips::-webkit-scrollbar {
+          display: none;
+        }
+
+        .cal-filter-avatar {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          border: 2px solid #30363d;
+          background: #161b22;
+          color: #8b949e;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          user-select: none;
+          flex-shrink: 0;
+        }
+
+        .cal-filter-avatar:hover {
+          border-color: #8b949e;
+          transform: scale(1.05);
+        }
+
+        .cal-filter-avatar--active {
+          transform: scale(1.05);
+          font-weight: 800;
+        }
+
+        .cal-day-columns-header {
+          display: flex;
+          margin-bottom: 6px;
+          border-bottom: 1px solid #21262d;
+          padding-bottom: 8px;
+        }
+
+        .cal-day-column-header-title {
+          text-align: center;
+          font-size: 11.5px;
+          font-weight: 600;
+          text-overflow: ellipsis;
+          overflow: hidden;
+          white-space: nowrap;
+          padding: 0 4px;
+        }
+
+        .cal-column-divider {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 1px;
+          background: #21262d;
+          pointer-events: none;
+        }
+
+        .cal-event-block--readonly {
+          cursor: default !important;
+        }
+
+        /* ─── Monthly View Grid Layout ─── */
+        .cal-monthly-grid-container {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          height: 100%;
+          min-width: 900px;
+          background: #0d1117;
+        }
+
+        .cal-monthly-headers {
+          display: flex;
+          background: #14181f;
+          border-bottom: 1px solid #21262d;
+          flex-shrink: 0;
+        }
+
+        .cal-monthly-header-cell {
+          flex: 1;
+          text-align: center;
+          padding: 10px 4px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          border-right: 1px solid #282e37;
+        }
+
+        .cal-monthly-header-cell:last-child {
+          border-right: none;
+        }
+
+        .cal-monthly-days-grid {
+          display: grid;
+          grid-template-columns: repeat(7, 1fr);
+          grid-template-rows: repeat(6, 1fr);
+          flex: 1;
+          background: #21262d;
+          gap: 1px;
+        }
+
+        .cal-monthly-day-cell {
+          background: #111419;
+          padding: 6px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          cursor: pointer;
+          transition: background 0.15s;
+          min-height: 80px;
+          overflow: hidden;
+        }
+
+        .cal-monthly-day-cell:hover {
+          background: #161a22;
+        }
+
+        .cal-monthly-day-cell--outside {
+          background: #0d0f13;
+          opacity: 0.45;
+        }
+
+        .cal-monthly-day-cell--today {
+          background: rgba(37, 99, 235, 0.02);
+        }
+
+        .cal-monthly-day-cell-header {
+          display: flex;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .cal-monthly-day-number {
+          font-size: 12px;
+          font-weight: 700;
+          color: #c9d1d9;
+          width: 22px;
+          height: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+        }
+
+        .cal-monthly-day-number--today {
+          background: #2563eb;
+          color: #ffffff;
+          box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
+        }
+
+        .cal-monthly-day-events {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          overflow: hidden;
+        }
+
+        .cal-monthly-event-pill {
+          width: 100%;
+          border: none;
+          border-radius: 4px;
+          padding: 3px 6px;
+          font-size: 10.5px;
+          font-weight: 600;
+          cursor: pointer;
+          text-align: left;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          overflow: hidden;
+          white-space: nowrap;
+          transition: filter 0.15s;
+        }
+
+        .cal-monthly-event-pill:hover {
+          filter: brightness(1.15);
+        }
+
+        .cal-monthly-event-pill-time {
+          font-weight: 700;
+          flex-shrink: 0;
+        }
+
+        .cal-monthly-event-pill-title {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .cal-monthly-more-events {
+          font-size: 9.5px;
+          font-weight: 700;
+          color: #8b949e;
+          padding-left: 4px;
+          margin-top: 1px;
+        }
+
+        /* ─── Toggle Button Styling ─── */
+        .cal-view-toggle {
+          display: flex;
+          background: #161b22;
+          border: 1px solid #30363d;
+          border-radius: 6px;
+          padding: 2px;
+        }
+
+        .cal-toggle-btn {
+          background: transparent;
+          border: none;
+          color: #8b949e;
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+
+        .cal-toggle-btn:hover {
+          color: #ffffff;
+        }
+
+        .cal-toggle-btn--active {
+          background: #2563eb;
+          color: #ffffff !important;
+          box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+        }
+
+        .cal-month-nav-buttons {
+          display: flex;
+          gap: 4px;
         }
       `}</style>
     </>
