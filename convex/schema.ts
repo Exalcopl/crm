@@ -280,4 +280,18 @@ export default defineSchema({
   })
     .index("by_projectType", ["projectTypeId"])
     .index("by_projectType_order", ["projectTypeId", "order"]),
+
+  calendarEvents: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    color: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_date", ["date"])
+    .index("by_createdBy", ["createdBy"])
+    .index("by_createdBy_date", ["createdBy", "date"]),
 });
