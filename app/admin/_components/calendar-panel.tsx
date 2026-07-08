@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
@@ -219,6 +219,8 @@ function getInitials(name?: string | null, email?: string | null): string {
   }
   return "?";
 }
+
+const EMPTY_ARRAY: never[] = [];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -582,7 +584,6 @@ function DayView({
   onAddClick,
   onEventUpdate,
   selectedUserIds,
-  allUsers,
   currentUserId,
 }: {
   selectedDate: CalendarDate;
@@ -592,7 +593,6 @@ function DayView({
   onAddClick: () => void;
   onEventUpdate?: (id: Id<"calendarEvents">, startTime: string, endTime: string) => void;
   selectedUserIds: Id<"users">[];
-  allUsers: { _id: Id<"users">; name: string | null; email: string | null }[];
   currentUserId?: Id<"users">;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -978,7 +978,10 @@ export function CalendarPanel() {
 
   useEffect(() => {
     if (currentUserId && selectedUserIds.length === 0) {
-      setSelectedUserIds([currentUserId]);
+      const timer = setTimeout(() => {
+        setSelectedUserIds([currentUserId]);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [currentUserId, selectedUserIds.length]);
 
@@ -1014,7 +1017,7 @@ export function CalendarPanel() {
   const companyEvents = useQuery(
     api.calendarEvents.listCompanyEventsByRange,
     isCompanyOpen ? { startDate, endDate } : "skip"
-  ) ?? [];
+  ) ?? (EMPTY_ARRAY as CalEvent[]);
 
   const createEvent = useMutation(api.calendarEvents.create);
   const updateEvent = useMutation(api.calendarEvents.update);
@@ -1037,6 +1040,55 @@ export function CalendarPanel() {
   const weekGridRef = useRef<HTMLDivElement>(null);
   const monthGridRef = useRef<HTMLDivElement>(null);
   const suppressCompanyClickRef = useRef(false);
+
+  const handleSlotClick = useCallback((startHour: number, endHour?: number) => {
+    const finalEndHour = endHour !== undefined ? endHour : Math.min(startHour + 1, 17);
+    setForm({
+      mode: "create",
+      title: "",
+      description: "",
+      startTime: formatHour(startHour),
+      endTime: formatHour(finalEndHour),
+      recurrence: "none",
+      recurrenceEndDate: "",
+      isPrivate: false,
+      type: "private",
+      category: "spotkanie",
+      createdBy: currentUserId,
+    });
+    setIsDrawerOpen(true);
+  }, [currentUserId, setForm, setIsDrawerOpen]);
+
+  const handleCompanyAddClick = useCallback((dayStr: string, startHour?: number, endHour?: number) => {
+    const [y, m, d] = dayStr.split("-").map(Number);
+    const newDate = {
+      year: y,
+      month: m,
+      day: d,
+      calendar: selectedDate.calendar,
+      era: selectedDate.era,
+      copy() { return this; }
+    } as CalendarDate;
+    setSelectedDate(newDate);
+
+    const startH = startHour !== undefined ? startHour : 9;
+    const endH = endHour !== undefined ? endHour : (startHour !== undefined ? Math.min(startHour + 1, 17) : 10);
+
+    setForm({
+      mode: "create",
+      title: "",
+      description: "",
+      startTime: formatHour(startH),
+      endTime: formatHour(endH),
+      recurrence: "none",
+      recurrenceEndDate: "",
+      isPrivate: false,
+      type: "company",
+      category: "spotkanie",
+      createdBy: currentUserId,
+    });
+    setIsDrawerOpen(true);
+  }, [selectedDate, currentUserId, setSelectedDate, setForm, setIsDrawerOpen]);
 
   useEffect(() => {
     if (!compDragState) return;
@@ -1160,7 +1212,7 @@ export function CalendarPanel() {
       window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", handlePointerUp);
     };
-  }, [compDragState, updateEvent, weekDateStrings, monthGridDays]);
+  }, [compDragState, updateEvent, weekDateStrings, monthGridDays, companyEvents, createEvent]);
 
   const [compCreateDrag, setCompCreateDrag] = useState<{
     dayStr: string;
@@ -1225,23 +1277,7 @@ export function CalendarPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [isDrawerOpen]);
 
-  function handleSlotClick(startHour: number, endHour?: number) {
-    const finalEndHour = endHour !== undefined ? endHour : Math.min(startHour + 1, 17);
-    setForm({
-      mode: "create",
-      title: "",
-      description: "",
-      startTime: formatHour(startHour),
-      endTime: formatHour(finalEndHour),
-      recurrence: "none",
-      recurrenceEndDate: "",
-      isPrivate: false,
-      type: "private",
-      category: "spotkanie",
-      createdBy: currentUserId,
-    });
-    setIsDrawerOpen(true);
-  }
+  // handleSlotClick moved above
 
   function handleAddHeaderClick() {
     setForm({
@@ -1278,36 +1314,7 @@ export function CalendarPanel() {
     setIsDrawerOpen(true);
   }
 
-  function handleCompanyAddClick(dayStr: string, startHour?: number, endHour?: number) {
-    const [y, m, d] = dayStr.split("-").map(Number);
-    const newDate = {
-      year: y,
-      month: m,
-      day: d,
-      calendar: selectedDate.calendar,
-      era: selectedDate.era,
-      copy() { return this; }
-    } as CalendarDate;
-    setSelectedDate(newDate);
-
-    const startH = startHour !== undefined ? startHour : 9;
-    const endH = endHour !== undefined ? endHour : (startHour !== undefined ? Math.min(startHour + 1, 17) : 10);
-
-    setForm({
-      mode: "create",
-      title: "",
-      description: "",
-      startTime: formatHour(startH),
-      endTime: formatHour(endH),
-      recurrence: "none",
-      recurrenceEndDate: "",
-      isPrivate: false,
-      type: "company",
-      category: "spotkanie",
-      createdBy: currentUserId,
-    });
-    setIsDrawerOpen(true);
-  }
+  // handleCompanyAddClick moved above
 
   function handleCompanyEventClick(ev: CalEvent) {
     const [y, m, d] = ev.date.split("-").map(Number);
@@ -1541,7 +1548,6 @@ export function CalendarPanel() {
               onAddClick={handleAddHeaderClick}
               onEventUpdate={handleQuickUpdate}
               selectedUserIds={selectedUserIds}
-              allUsers={allUsers}
               currentUserId={currentUserId}
             />
           </CalErrorBoundary>
@@ -1701,7 +1707,7 @@ export function CalendarPanel() {
                 {/* Days Grid */}
                 <div ref={monthGridRef} className="cal-monthly-days-grid">
                   {monthGridDays.map((dayStr) => {
-                    const [y, m, d] = dayStr.split("-").map(Number);
+                    const [, m, d] = dayStr.split("-").map(Number);
                     const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
                     const isCurrentMonth = m === selectedDate.month;
                     
@@ -1747,7 +1753,7 @@ export function CalendarPanel() {
                                   color: cat.color,
                                   touchAction: "none",
                                 }}
-                                onPointerDown={(e) => {
+                                onPointerDown={() => {
                                   const startH = parseHour(ev.startTime);
                                   const endH = parseHour(ev.endTime);
                                   setCompDragState({
@@ -1951,7 +1957,7 @@ export function CalendarPanel() {
                                 {!isDraggingThis && (
                                   <div
                                     className="cal-event-resize-handle"
-                                    onPointerDown={(e) => {
+                                    onPointerDown={() => {
                                       const startVal = parseHour(ev.startTime);
                                       const endVal = parseHour(ev.endTime);
                                       setCompDragState({
