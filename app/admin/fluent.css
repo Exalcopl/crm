@@ -880,10 +880,8 @@
   font-weight: 700;
   letter-spacing: 0.3px;
   color: #fff;
-  background: linear-gradient(135deg, #7a1024 0%, #d41d3c 100%);
-  border: 1.5px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(212, 29, 60, 0.2);
+  background: #25282d;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 @media (max-width: 768px) {

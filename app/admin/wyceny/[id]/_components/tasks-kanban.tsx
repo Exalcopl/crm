@@ -162,6 +162,13 @@ function TodoRow({
         </button>
       )}
 
+
+      {task.description && (
+        <div className="quote-detail-task-card-desc" style={{ padding: "0 4px 6px 28px" }}>
+          {task.description}
+        </div>
+      )}
+
       <div className="quote-detail-todo-meta">
         <AssigneePicker
           assignees={assignees}
@@ -267,22 +274,28 @@ function AssigneePicker({
         title={currentIds.length > 0 ? `${currentIds.length} przypisanych` : "Przypisz osoby"}
       >
         {currentIds.length > 0 ? (
-          <div style={{ display: "flex", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px" }}>
             {currentIds.map((id, index) => {
               const u = assignees.find((a) => a._id === id);
               const label = u?.name?.trim() || u?.email?.trim() || "—";
+              const firstName = label.split(" ")[0];
               return (
                 <span
                   key={id}
-                  className="kanban-card-owner-avatar quote-detail-task-assignee-avatar"
+                  className="quote-detail-task-assignee-badge"
                   title={label}
                   style={{
-                    marginLeft: index > 0 ? "-6px" : "0px",
-                    zIndex: currentIds.length - index,
-                    border: "2px solid #161b22"
+                    padding: "2px 8px",
+                    borderRadius: "12px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    fontSize: "11px",
+                    fontWeight: 500,
+                    color: "#fff",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {ownerInitials(label)}
+                  {firstName}
                 </span>
               );
             })}
