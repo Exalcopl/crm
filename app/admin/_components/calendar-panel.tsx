@@ -1773,6 +1773,7 @@ export function CalendarPanel() {
       eventId: ev._id,
       title: ev.title,
       description: ev.description || "",
+      date: ev.date,
       startTime: ev.startTime,
       endTime: ev.endTime,
       recurrence: ev.recurrence || "none",
