@@ -441,28 +441,42 @@ function QuoteDetailLayout({
         <QuoteDetailHeader quote={quote} archived={archived} />
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div className="quote-widget-item">
-                <TasksKanban quote={quote} archived={archived} />
-              </div>
-              <div className="quote-widget-item">
-                <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-                  <HelperQuestionsSection quoteId={quote._id} />
-                </Section>
-              </div>
-            </div>
-            {quote.configuration && (quote.projectType.includes("Pergola") || quote.projectType.includes("Zadaszenia")) && (
-              <div className="quote-widget-item quote-widget-span-2">
-                <QuoteConfiguration
-                  quoteId={quote._id}
-                  configuration={quote.configuration}
-                  archived={archived}
-                />
-              </div>
-            )}
-            <div className="quote-widget-item quote-widget-span-1">
-              <QuoteFileBrowser quote={quote} archived={archived} />
-            </div>
+            {(() => {
+              const isStolarka = quote.projectType.includes("Stolarka") ||
+                                 quote.projectType.includes("Stolarka aluminiowa") ||
+                                 quote.id.startsWith("ST-");
+              return (
+                <>
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 14 }}
+                  >
+                    <div className="quote-widget-item">
+                      <TasksKanban quote={quote} archived={archived} />
+                    </div>
+                    <div className="quote-widget-item">
+                      <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                        <HelperQuestionsSection quoteId={quote._id} />
+                      </Section>
+                    </div>
+                  </div>
+                  {quote.configuration && (quote.projectType.includes("Pergola") || quote.projectType.includes("Zadaszenia")) && (
+                    <div className="quote-widget-item quote-widget-span-2">
+                      <QuoteConfiguration
+                        quoteId={quote._id}
+                        configuration={quote.configuration}
+                        archived={archived}
+                      />
+                    </div>
+                  )}
+                  <div
+                    className="quote-widget-item quote-widget-span-1"
+                    style={isStolarka ? { gridColumnStart: 4 } : undefined}
+                  >
+                    <QuoteFileBrowser quote={quote} archived={archived} />
+                  </div>
+                </>
+              );
+            })()}
           </div>
         ) : (
           <div className="quote-detail-main">
