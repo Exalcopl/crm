@@ -1511,6 +1511,7 @@ export function CalendarPanel() {
       mode: "create",
       title: "",
       description: "",
+      date: dayStr,
       startTime: formatHour(startH),
       endTime: formatHour(endH),
       recurrence: "none",
