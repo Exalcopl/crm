@@ -26,7 +26,7 @@ import {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 8); // 8..16
-const HOUR_HEIGHT = 54; // px per hour slot
+const HOUR_HEIGHT = 58; // px per hour slot
 
 const EVENT_COLORS = [
   { id: "red", hex: "#d41d3c", label: "Czerwony" },
@@ -58,6 +58,16 @@ function parseHour(timeStr: string): number {
   return h + (m || 0) / 60;
 }
 
+function formatDurationLabel(startStr: string, endStr: string): string {
+  const diff = parseHour(endStr) - parseHour(startStr);
+  if (diff <= 0) return "Nieprawidłowy czas";
+  const hours = Math.floor(diff);
+  const mins = Math.round((diff - hours) * 60);
+  if (hours > 0 && mins > 0) return `${hours} godz. ${mins} min`;
+  if (hours > 0) return `${hours} godz.`;
+  return `${mins} min`;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type CalEvent = {
@@ -82,11 +92,12 @@ type FormState = {
   color: string;
 };
 
-// ─── Event Form ───────────────────────────────────────────────────────────────
+// ─── Sliding Drawer for Add / Edit Event ─────────────────────────────────────
 
-function EventForm({
+function EventDrawer({
   form,
   setForm,
+  selectedDate,
   onSave,
   onDelete,
   onCancel,
@@ -94,6 +105,7 @@ function EventForm({
 }: {
   form: FormState;
   setForm: (f: FormState) => void;
+  selectedDate: CalendarDate;
   onSave: () => void;
   onDelete?: () => void;
   onCancel: () => void;
@@ -104,100 +116,160 @@ function EventForm({
     `${String(h).padStart(2, "0")}:30`,
   ]).concat(["17:00"]);
 
+  const durationText = formatDurationLabel(form.startTime, form.endTime);
+
   return (
-    <div className="cal-event-form">
-      <div className="cal-form-field">
-        <input
-          type="text"
-          className="cal-form-input"
-          placeholder="Tytuł wydarzenia…"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          autoFocus
-        />
-      </div>
-
-      <div className="cal-form-field">
-        <textarea
-          className="cal-form-textarea"
-          placeholder="Opis (opcjonalnie)…"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          rows={2}
-        />
-      </div>
-
-      <div className="cal-form-row">
-        <div className="cal-form-field cal-form-half">
-          <label className="cal-form-label">Od</label>
-          <select
-            className="cal-form-select"
-            value={form.startTime}
-            onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-          >
-            {timeOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-        <div className="cal-form-field cal-form-half">
-          <label className="cal-form-label">Do</label>
-          <select
-            className="cal-form-select"
-            value={form.endTime}
-            onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-          >
-            {timeOptions.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="cal-form-field">
-        <label className="cal-form-label">Kolor</label>
-        <div className="cal-color-picker">
-          {EVENT_COLORS.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className={`cal-color-dot${form.color === c.hex ? " is-active" : ""}`}
-              style={{ background: c.hex }}
-              title={c.label}
-              onClick={() => setForm({ ...form, color: c.hex })}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="cal-form-actions">
-        {form.mode === "edit" && onDelete && (
+    <div className="cal-drawer">
+      {/* Header */}
+      <div className="cal-drawer-header">
+        <div className="cal-drawer-header-top">
           <button
             type="button"
-            className="cal-form-btn cal-form-btn--danger"
+            className="cal-drawer-back"
+            onClick={onCancel}
+            title="Powrót do kalendarza"
+          >
+            ← Powrót
+          </button>
+          <span className="cal-drawer-mode-badge">
+            {form.mode === "create" ? "Nowe wydarzenie" : "Edycja wydarzenia"}
+          </span>
+        </div>
+        <div className="cal-drawer-date-pill">
+          📅 {formatDateLabel(selectedDate)}
+        </div>
+      </div>
+
+      {/* Body cards */}
+      <div className="cal-drawer-body">
+        {/* Card 1: Tytuł i opis */}
+        <div className="cal-card">
+          <div className="cal-card-title">Informacje podstawowe</div>
+          <div className="cal-form-group">
+            <label className="cal-label">Tytuł wydarzenia *</label>
+            <input
+              type="text"
+              className="cal-input"
+              placeholder="np. Spotkanie z inwestorem, Wizyta na budowie..."
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              autoFocus
+            />
+          </div>
+          <div className="cal-form-group" style={{ marginTop: 12 }}>
+            <label className="cal-label">Opis / Notatki</label>
+            <textarea
+              className="cal-textarea"
+              placeholder="Dodatkowe informacje (opcjonalnie)..."
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              rows={3}
+            />
+          </div>
+        </div>
+
+        {/* Card 2: Godziny */}
+        <div className="cal-card">
+          <div className="cal-card-title-row">
+            <span className="cal-card-title">Czas trwania</span>
+            <span className="cal-duration-chip">⏱ {durationText}</span>
+          </div>
+          <div className="cal-time-row">
+            <div className="cal-time-col">
+              <label className="cal-label">Początek</label>
+              <select
+                className="cal-select"
+                value={form.startTime}
+                onChange={(e) => {
+                  const newStart = e.target.value;
+                  let newEnd = form.endTime;
+                  if (parseHour(newStart) >= parseHour(newEnd)) {
+                    const nextHourIdx = timeOptions.indexOf(newStart) + 2;
+                    newEnd = timeOptions[Math.min(nextHourIdx, timeOptions.length - 1)];
+                  }
+                  setForm({ ...form, startTime: newStart, endTime: newEnd });
+                }}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <span className="cal-time-arrow">→</span>
+            <div className="cal-time-col">
+              <label className="cal-label">Koniec</label>
+              <select
+                className="cal-select"
+                value={form.endTime}
+                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+              >
+                {timeOptions.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Kolor */}
+        <div className="cal-card">
+          <div className="cal-card-title">Kolor oznaczenia</div>
+          <div className="cal-color-grid">
+            {EVENT_COLORS.map((c) => {
+              const active = form.color === c.hex;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`cal-color-card ${active ? "is-active" : ""}`}
+                  onClick={() => setForm({ ...form, color: c.hex })}
+                >
+                  <span
+                    className="cal-color-swatch"
+                    style={{ background: c.hex }}
+                  >
+                    {active && <span className="cal-color-check">✓</span>}
+                  </span>
+                  <span className="cal-color-name">{c.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer bar */}
+      <div className="cal-drawer-footer">
+        {form.mode === "edit" && onDelete ? (
+          <button
+            type="button"
+            className="cal-btn cal-btn--danger"
             onClick={onDelete}
             disabled={saving}
           >
             Usuń
           </button>
+        ) : (
+          <div />
         )}
-        <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          className="cal-form-btn cal-form-btn--ghost"
-          onClick={onCancel}
-          disabled={saving}
-        >
-          Anuluj
-        </button>
-        <button
-          type="button"
-          className="cal-form-btn cal-form-btn--primary"
-          onClick={onSave}
-          disabled={saving || !form.title.trim()}
-        >
-          {saving ? "…" : "Zapisz"}
-        </button>
+        <div className="cal-drawer-footer-right">
+          <button
+            type="button"
+            className="cal-btn cal-btn--ghost"
+            onClick={onCancel}
+            disabled={saving}
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            className="cal-btn cal-btn--primary"
+            onClick={onSave}
+            disabled={saving || !form.title.trim()}
+          >
+            {saving ? "Zapisywanie…" : "Zapisz wydarzenie"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -210,15 +282,27 @@ function DayView({
   events,
   onSlotClick,
   onEventClick,
+  onAddClick,
 }: {
   selectedDate: CalendarDate;
   events: CalEvent[];
   onSlotClick: (hour: number) => void;
   onEventClick: (event: CalEvent) => void;
+  onAddClick: () => void;
 }) {
   return (
     <div className="cal-day-view">
-      <div className="cal-day-header">{formatDateLabel(selectedDate)}</div>
+      <div className="cal-day-header">
+        <div className="cal-day-header-title">{formatDateLabel(selectedDate)}</div>
+        <button
+          type="button"
+          className="cal-day-add-btn"
+          onClick={onAddClick}
+        >
+          + Dodaj
+        </button>
+      </div>
+
       <div className="cal-day-grid" style={{ height: HOURS.length * HOUR_HEIGHT }}>
         {/* Hour lines */}
         {HOURS.map((h) => (
@@ -239,7 +323,7 @@ function DayView({
           const startH = parseHour(ev.startTime);
           const endH = parseHour(ev.endTime);
           const top = (startH - 8) * HOUR_HEIGHT;
-          const height = Math.max((endH - startH) * HOUR_HEIGHT, 24);
+          const height = Math.max((endH - startH) * HOUR_HEIGHT, 28);
           const color = ev.color || EVENT_COLORS[0].hex;
 
           return (
@@ -251,7 +335,7 @@ function DayView({
                 top,
                 height,
                 borderLeftColor: color,
-                background: `${color}22`,
+                background: `${color}1e`,
               }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -308,7 +392,18 @@ export function CalendarPanel() {
       title: "",
       description: "",
       startTime: `${String(hour).padStart(2, "0")}:00`,
-      endTime: `${String(hour + 1).padStart(2, "0")}:00`,
+      endTime: `${String(Math.min(hour + 1, 17)).padStart(2, "0")}:00`,
+      color: EVENT_COLORS[0].hex,
+    });
+  }
+
+  function handleAddHeaderClick() {
+    setForm({
+      mode: "create",
+      title: "",
+      description: "",
+      startTime: "09:00",
+      endTime: "10:00",
       color: EVENT_COLORS[0].hex,
     });
   }
@@ -390,7 +485,7 @@ export function CalendarPanel() {
         aria-label="Kalendarz"
       >
         <div className="cal-panel-header">
-          <span className="cal-panel-title">Kalendarz</span>
+          <span className="cal-panel-title">Mój kalendarz</span>
           <button
             type="button"
             className="cal-panel-close"
@@ -434,20 +529,22 @@ export function CalendarPanel() {
             events={(events ?? []) as CalEvent[]}
             onSlotClick={handleSlotClick}
             onEventClick={handleEventClick}
+            onAddClick={handleAddHeaderClick}
           />
-
-          {/* ─── Event Form ──────────────────────────────────────────── */}
-          {form && (
-            <EventForm
-              form={form}
-              setForm={setForm}
-              onSave={handleSave}
-              onDelete={form.mode === "edit" ? handleDelete : undefined}
-              onCancel={() => setForm(null)}
-              saving={saving}
-            />
-          )}
         </div>
+
+        {/* ─── Sliding Secondary Drawer for Add / Edit Event ────────── */}
+        {form && (
+          <EventDrawer
+            form={form}
+            setForm={setForm}
+            selectedDate={selectedDate}
+            onSave={handleSave}
+            onDelete={form.mode === "edit" ? handleDelete : undefined}
+            onCancel={() => setForm(null)}
+            saving={saving}
+          />
+        )}
       </aside>
 
       {/* FAB */}
@@ -468,13 +565,23 @@ export function CalendarPanel() {
       </button>
 
       <style>{`
+        /* ─── Typography & Container (Geist Sans / Modern Sans) ──── */
+        .cal-panel,
+        .cal-drawer,
+        .cal-panel * {
+          font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          box-sizing: border-box;
+          -webkit-font-smoothing: antialiased;
+        }
+
         /* ─── Backdrop & Panel ────────────────────────────────────── */
         .cal-backdrop {
           position: fixed;
           inset: 0;
           z-index: 49;
-          background: rgba(0, 0, 0, 0.35);
-          animation: cal-fade-in 0.18s ease;
+          background: rgba(0, 0, 0, 0.45);
+          backdrop-filter: blur(2px);
+          animation: cal-fade-in 0.2s ease;
         }
 
         @keyframes cal-fade-in {
@@ -487,16 +594,17 @@ export function CalendarPanel() {
           top: 0;
           right: 0;
           bottom: 0;
-          width: 380px;
+          width: 400px;
           max-width: 100vw;
           z-index: 50;
-          background: #161b22;
-          border-left: 1px solid #30363d;
-          box-shadow: -8px 0 32px rgba(0, 0, 0, 0.55);
+          background: #111419;
+          border-left: 1px solid #282e37;
+          box-shadow: -10px 0 36px rgba(0, 0, 0, 0.6);
           display: flex;
           flex-direction: column;
           transform: translateX(100%);
-          transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
         }
 
         .cal-panel--open {
@@ -507,75 +615,88 @@ export function CalendarPanel() {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 18px;
-          border-bottom: 1px solid #30363d;
+          padding: 16px 20px;
+          border-bottom: 1px solid #21262d;
           flex-shrink: 0;
+          background: #13171d;
         }
 
         .cal-panel-title {
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 600;
-          color: #ffffff;
-          letter-spacing: 0.02em;
+          color: #f0f6fc;
+          letter-spacing: -0.01em;
         }
 
         .cal-panel-close {
-          background: none;
-          border: none;
+          background: #1d2229;
+          border: 1px solid #30363d;
           cursor: pointer;
           color: #8b949e;
-          font-size: 16px;
+          font-size: 14px;
           line-height: 1;
-          padding: 2px 4px;
-          border-radius: 4px;
-          transition: color 0.15s, background 0.15s;
+          width: 28px;
+          height: 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 6px;
+          transition: color 0.15s, background 0.15s, border-color 0.15s;
         }
 
         .cal-panel-close:hover {
           color: #ffffff;
           background: #2d3748;
+          border-color: #444c56;
         }
 
         .cal-panel-body {
           flex: 1;
           overflow-y: auto;
-          padding: 16px 0;
+          padding: 18px 0;
+          position: relative;
         }
 
         /* ─── Month Calendar (react-aria) ─────────────────────────── */
         .cal-month {
           display: block;
-          padding: 0 18px 16px;
+          padding: 0 20px 18px;
         }
 
         .cal-month-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 12px;
+          margin-bottom: 14px;
         }
 
         .cal-month-heading {
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 600;
-          color: #ffffff;
+          color: #f0f6fc;
           text-align: center;
+          letter-spacing: -0.01em;
         }
 
         .cal-month-nav {
-          background: none;
+          background: #181d24;
           border: 1px solid #30363d;
           color: #c9d1d9;
           cursor: pointer;
-          padding: 4px 8px;
-          border-radius: 6px;
-          font-size: 12px;
-          transition: background 0.15s, color 0.15s;
+          width: 32px;
+          height: 30px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 7px;
+          font-size: 11px;
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
 
         .cal-month-nav:hover {
-          background: #2d3748;
+          background: #262c36;
           color: #ffffff;
+          border-color: #444c56;
         }
 
         .cal-month-grid {
@@ -586,16 +707,16 @@ export function CalendarPanel() {
         .cal-month-day-header {
           font-size: 11px;
           font-weight: 600;
-          color: #8b949e;
+          color: #7d8590;
           text-align: center;
-          padding: 4px 0 8px;
+          padding: 6px 0 10px;
           text-transform: uppercase;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.05em;
         }
 
         .cal-month-cell {
           text-align: center;
-          padding: 0;
+          padding: 1px 0;
         }
 
         .cal-month-cell > span,
@@ -603,21 +724,22 @@ export function CalendarPanel() {
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 36px;
-          height: 36px;
-          margin: 1px auto;
-          border-radius: 8px;
-          font-size: 13px;
+          width: 38px;
+          height: 38px;
+          margin: 0 auto;
+          border-radius: 9px;
+          font-size: 13.5px;
+          font-weight: 500;
           color: #c9d1d9;
           cursor: pointer;
-          transition: background 0.12s, color 0.12s;
+          transition: background 0.15s, color 0.15s, transform 0.1s;
           border: none;
-          background: none;
+          background: transparent;
           outline: none;
         }
 
         .cal-month-cell[data-hovered] {
-          background: #2d3748;
+          background: #222832;
           color: #ffffff;
         }
 
@@ -625,6 +747,7 @@ export function CalendarPanel() {
           background: linear-gradient(135deg, #7a1024, #d41d3c);
           color: #ffffff;
           font-weight: 600;
+          box-shadow: 0 2px 10px rgba(212, 29, 60, 0.45);
         }
 
         .cal-month-cell[data-focused] {
@@ -634,6 +757,7 @@ export function CalendarPanel() {
 
         .cal-month-cell[data-outside-month] {
           color: #484f58;
+          font-weight: 400;
         }
 
         .cal-month-cell[data-disabled] {
@@ -641,36 +765,55 @@ export function CalendarPanel() {
           cursor: default;
         }
 
-        .cal-month-cell[data-unavailable] {
-          color: #30363d;
-          cursor: default;
-        }
-
         /* ─── Day View ────────────────────────────────────────────── */
         .cal-day-view {
-          border-top: 1px solid #30363d;
-          margin-top: 4px;
+          border-top: 1px solid #21262d;
         }
 
         .cal-day-header {
-          padding: 12px 18px;
-          font-size: 13px;
-          font-weight: 600;
-          color: #c9d1d9;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 20px;
           border-bottom: 1px solid #21262d;
-          letter-spacing: 0.01em;
+          background: #14181f;
+        }
+
+        .cal-day-header-title {
+          font-size: 13.5px;
+          font-weight: 600;
+          color: #e6edf3;
+          letter-spacing: -0.01em;
+        }
+
+        .cal-day-add-btn {
+          background: rgba(212, 29, 60, 0.15);
+          color: #ff7b90;
+          border: 1px solid rgba(212, 29, 60, 0.35);
+          font-size: 12px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .cal-day-add-btn:hover {
+          background: #d41d3c;
+          color: #ffffff;
+          border-color: #d41d3c;
         }
 
         .cal-day-grid {
           position: relative;
-          margin: 0 18px;
+          margin: 0 20px;
         }
 
         .cal-hour-slot {
           position: absolute;
           left: 0;
           right: 0;
-          border-bottom: 1px solid #21262d;
+          border-bottom: 1px solid #1f242c;
           cursor: pointer;
           transition: background 0.12s;
           display: flex;
@@ -678,51 +821,54 @@ export function CalendarPanel() {
         }
 
         .cal-hour-slot:hover {
-          background: rgba(255, 255, 255, 0.03);
+          background: rgba(255, 255, 255, 0.025);
         }
 
         .cal-hour-label {
           position: sticky;
           top: 0;
-          font-size: 11px;
-          color: #8b949e;
-          width: 48px;
+          font-size: 11.5px;
+          font-weight: 500;
+          color: #7d8590;
+          width: 50px;
           flex-shrink: 0;
-          padding: 4px 0;
+          padding: 6px 0;
           user-select: none;
         }
 
         /* ─── Event Blocks ────────────────────────────────────────── */
         .cal-event-block {
           position: absolute;
-          left: 52px;
+          left: 54px;
           right: 4px;
-          border-radius: 6px;
-          border: none;
-          border-left: 3px solid #d41d3c;
-          padding: 4px 8px;
+          border-radius: 7px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-left: 4px solid #d41d3c;
+          padding: 5px 10px;
           cursor: pointer;
           display: flex;
           flex-direction: column;
-          gap: 1px;
+          gap: 2px;
           overflow: hidden;
           text-align: left;
-          transition: filter 0.12s;
-          z-index: 1;
+          transition: all 0.15s;
+          z-index: 2;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         }
 
         .cal-event-block:hover {
-          filter: brightness(1.2);
+          filter: brightness(1.18);
+          transform: translateY(-1px);
         }
 
         .cal-event-time {
-          font-size: 10px;
+          font-size: 11px;
           color: #c9d1d9;
-          font-weight: 500;
+          font-weight: 600;
         }
 
         .cal-event-title {
-          font-size: 12px;
+          font-size: 13px;
           color: #ffffff;
           font-weight: 600;
           white-space: nowrap;
@@ -730,152 +876,285 @@ export function CalendarPanel() {
           text-overflow: ellipsis;
         }
 
-        /* ─── Event Form ──────────────────────────────────────────── */
-        .cal-event-form {
-          border-top: 1px solid #30363d;
-          padding: 16px 18px;
+        /* ─── Sliding Drawer (Add / Edit Event) ─────────────────────── */
+        .cal-drawer {
+          position: absolute;
+          inset: 0;
+          z-index: 20;
+          background: #111419;
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          animation: cal-slide-up 0.18s ease;
+          animation: cal-drawer-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @keyframes cal-slide-up {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
+        @keyframes cal-drawer-in {
+          from { transform: translateX(100%); }
+          to   { transform: translateX(0); }
         }
 
-        .cal-form-field {
+        .cal-drawer-header {
+          padding: 16px 20px 14px;
+          border-bottom: 1px solid #21262d;
+          background: #14181f;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 8px;
         }
 
-        .cal-form-row {
+        .cal-drawer-header-top {
           display: flex;
-          gap: 10px;
+          align-items: center;
+          justify-content: space-between;
         }
 
-        .cal-form-half {
+        .cal-drawer-back {
+          background: none;
+          border: none;
+          color: #8b949e;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          padding: 4px 8px 4px 0;
+          transition: color 0.15s;
+        }
+
+        .cal-drawer-back:hover {
+          color: #ffffff;
+        }
+
+        .cal-drawer-mode-badge {
+          font-size: 11.5px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: #ff7b90;
+          background: rgba(212, 29, 60, 0.15);
+          padding: 3px 9px;
+          border-radius: 999px;
+          border: 1px solid rgba(212, 29, 60, 0.3);
+        }
+
+        .cal-drawer-date-pill {
+          font-size: 14px;
+          font-weight: 600;
+          color: #f0f6fc;
+        }
+
+        .cal-drawer-body {
           flex: 1;
+          overflow-y: auto;
+          padding: 18px 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
         }
 
-        .cal-form-label {
-          font-size: 11px;
+        .cal-card {
+          background: #161b22;
+          border: 1px solid #282e37;
+          border-radius: 10px;
+          padding: 16px;
+        }
+
+        .cal-card-title {
+          font-size: 12px;
           font-weight: 600;
           color: #8b949e;
           text-transform: uppercase;
-          letter-spacing: 0.04em;
+          letter-spacing: 0.05em;
+          margin-bottom: 12px;
         }
 
-        .cal-form-input,
-        .cal-form-textarea,
-        .cal-form-select {
+        .cal-card-title-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+
+        .cal-card-title-row .cal-card-title {
+          margin-bottom: 0;
+        }
+
+        .cal-duration-chip {
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #7d8590;
+          background: #1d222b;
+          padding: 3px 8px;
+          border-radius: 6px;
+        }
+
+        .cal-form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .cal-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: #c9d1d9;
+        }
+
+        .cal-input,
+        .cal-textarea,
+        .cal-select {
           width: 100%;
-          padding: 7px 10px;
-          font-size: 13px;
+          padding: 9px 12px;
+          font-size: 13.5px;
           color: #ffffff;
           background: #0d1117;
           border: 1px solid #30363d;
-          border-radius: 6px;
+          border-radius: 7px;
           outline: none;
-          font-family: inherit;
-          transition: border-color 0.15s;
+          transition: border-color 0.15s, box-shadow 0.15s;
         }
 
-        .cal-form-input:focus,
-        .cal-form-textarea:focus,
-        .cal-form-select:focus {
+        .cal-input:focus,
+        .cal-textarea:focus,
+        .cal-select:focus {
           border-color: #d41d3c;
+          box-shadow: 0 0 0 2px rgba(212, 29, 60, 0.2);
         }
 
-        .cal-form-textarea {
+        .cal-textarea {
           resize: vertical;
-          min-height: 48px;
+          min-height: 64px;
         }
 
-        .cal-form-select {
-          cursor: pointer;
-          appearance: none;
-          background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%238b949e' stroke-width='1.5'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 8px center;
-          padding-right: 28px;
-        }
-
-        .cal-color-picker {
+        .cal-time-row {
           display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .cal-time-col {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .cal-time-arrow {
+          color: #7d8590;
+          font-weight: 600;
+          padding-top: 20px;
+        }
+
+        .cal-color-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
           gap: 8px;
-          padding: 2px 0;
         }
 
-        .cal-color-dot {
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          border: 2px solid transparent;
+        .cal-color-card {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 12px;
+          background: #10141a;
+          border: 1px solid #282e37;
+          border-radius: 8px;
           cursor: pointer;
-          transition: border-color 0.12s, transform 0.12s;
+          transition: all 0.15s;
+          text-align: left;
         }
 
-        .cal-color-dot:hover {
-          transform: scale(1.15);
+        .cal-color-card:hover {
+          background: #181d24;
+          border-color: #38414e;
         }
 
-        .cal-color-dot.is-active {
-          border-color: #ffffff;
-          box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+        .cal-color-card.is-active {
+          background: #1c222b;
+          border-color: #f0f6fc;
         }
 
-        .cal-form-actions {
+        .cal-color-swatch {
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .cal-color-check {
+          font-size: 11px;
+          color: #ffffff;
+          font-weight: 800;
+          line-height: 1;
+        }
+
+        .cal-color-name {
+          font-size: 12.5px;
+          color: #e6edf3;
+          font-weight: 500;
+        }
+
+        /* ─── Drawer Footer ───────────────────────────────────────── */
+        .cal-drawer-footer {
+          padding: 14px 20px;
+          border-top: 1px solid #21262d;
+          background: #14181f;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .cal-drawer-footer-right {
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-top: 4px;
         }
 
-        .cal-form-btn {
-          padding: 6px 14px;
-          border-radius: 6px;
-          font-size: 12px;
+        .cal-btn {
+          padding: 8px 16px;
+          border-radius: 7px;
+          font-size: 13px;
           font-weight: 600;
           cursor: pointer;
           border: none;
-          transition: background 0.12s, opacity 0.12s;
+          transition: all 0.15s;
         }
 
-        .cal-form-btn:disabled {
+        .cal-btn:disabled {
           opacity: 0.5;
-          cursor: default;
+          cursor: not-allowed;
         }
 
-        .cal-form-btn--primary {
+        .cal-btn--primary {
           background: linear-gradient(135deg, #7a1024, #d41d3c);
           color: #ffffff;
+          box-shadow: 0 2px 8px rgba(212, 29, 60, 0.4);
         }
 
-        .cal-form-btn--primary:hover:not(:disabled) {
-          background: linear-gradient(135deg, #8a1228, #e63350);
+        .cal-btn--primary:hover:not(:disabled) {
+          background: linear-gradient(135deg, #8c1329, #e63350);
+          box-shadow: 0 4px 14px rgba(212, 29, 60, 0.6);
         }
 
-        .cal-form-btn--ghost {
+        .cal-btn--ghost {
           background: transparent;
           color: #8b949e;
           border: 1px solid #30363d;
         }
 
-        .cal-form-btn--ghost:hover:not(:disabled) {
-          background: #2d3748;
+        .cal-btn--ghost:hover:not(:disabled) {
+          background: #222730;
           color: #ffffff;
         }
 
-        .cal-form-btn--danger {
+        .cal-btn--danger {
           background: transparent;
           color: #f85149;
-          border: 1px solid rgba(248, 81, 73, 0.3);
+          border: 1px solid rgba(248, 81, 73, 0.35);
         }
 
-        .cal-form-btn--danger:hover:not(:disabled) {
+        .cal-btn--danger:hover:not(:disabled) {
           background: rgba(248, 81, 73, 0.15);
         }
 
@@ -894,23 +1173,23 @@ export function CalendarPanel() {
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 16px rgba(212, 29, 60, 0.45);
+          box-shadow: 0 4px 18px rgba(212, 29, 60, 0.5);
           transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
         }
 
         .cal-fab:hover {
           background: #e63350;
-          transform: scale(1.07);
-          box-shadow: 0 6px 22px rgba(212, 29, 60, 0.6);
+          transform: scale(1.06);
+          box-shadow: 0 6px 24px rgba(212, 29, 60, 0.65);
         }
 
         .cal-fab:active {
-          transform: scale(0.96);
+          transform: scale(0.95);
         }
 
         .cal-fab--active {
           background: #a31530;
-          box-shadow: 0 4px 16px rgba(212, 29, 60, 0.3);
+          box-shadow: 0 4px 16px rgba(212, 29, 60, 0.35);
         }
 
         .cal-fab-icon {
