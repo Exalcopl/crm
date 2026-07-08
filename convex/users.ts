@@ -76,7 +76,7 @@ export const list = query({
   },
 });
 
-const ASSIGNABLE_ROLE_NAMES = ["admin", "sales"] as const;
+
 
 export const listAssignable = query({
   args: {},
@@ -84,21 +84,12 @@ export const listAssignable = query({
     const callerId = await getAuthUserId(ctx);
     if (!callerId) return [];
 
-    const roles = await ctx.db.query("roles").collect();
-    const assignableRoleIds = new Set(
-      roles
-        .filter((r) => (ASSIGNABLE_ROLE_NAMES as readonly string[]).includes(r.name))
-        .map((r) => r._id as unknown as string),
-    );
-    if (assignableRoleIds.size === 0) return [];
-
     const users = await ctx.db.query("users").collect();
     return users
       .filter((u) => {
         if ((u.isActive ?? true) === false) return false;
         if ((u.isAssignable ?? true) === false) return false;
-        if (!u.roleId) return false;
-        return assignableRoleIds.has(u.roleId as unknown as string);
+        return true;
       })
       .map((u) => ({
         _id: u._id,
