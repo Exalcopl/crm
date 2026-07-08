@@ -307,6 +307,7 @@ type FormState = {
   eventId?: Id<"calendarEvents">;
   title: string;
   description: string;
+  date: string;
   startTime: string;
   endTime: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
@@ -395,6 +396,16 @@ function EventDrawer({
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               disabled={isReadOnly}
               autoFocus={!isReadOnly}
+            />
+          </div>
+          <div className="cal-form-group" style={{ marginTop: 12 }}>
+            <label className="cal-label">Data wydarzenia *</label>
+            <input
+              type="date"
+              className="cal-input"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              disabled={isReadOnly}
             />
           </div>
           {form.type === "company" && (
@@ -1407,6 +1418,7 @@ export function CalendarPanel() {
     mode: "create",
     title: "",
     description: "",
+    date: "",
     startTime: "09:00",
     endTime: "10:00",
     recurrence: "none",
@@ -1466,6 +1478,7 @@ export function CalendarPanel() {
       mode: "create",
       title: "",
       description: "",
+      date: dateStr,
       startTime: formatHour(startHour),
       endTime: formatHour(finalEndHour),
       recurrence: "none",
@@ -1477,7 +1490,7 @@ export function CalendarPanel() {
       createdBy: currentUserId,
     });
     setIsDrawerOpen(true);
-  }, [currentUserId, setForm, setIsDrawerOpen]);
+  }, [currentUserId, dateStr, setForm, setIsDrawerOpen]);
 
   const handleCompanyAddClick = useCallback((dayStr: string, startHour?: number, endHour?: number) => {
     const [y, m, d] = dayStr.split("-").map(Number);
@@ -1706,6 +1719,7 @@ export function CalendarPanel() {
       mode: "create",
       title: "",
       description: "",
+      date: dateStr,
       startTime: "09:00",
       endTime: "10:00",
       recurrence: "none",
@@ -1725,6 +1739,7 @@ export function CalendarPanel() {
       eventId: ev._id,
       title: ev.title,
       description: ev.description || "",
+      date: ev.date,
       startTime: ev.startTime,
       endTime: ev.endTime,
       recurrence: ev.recurrence || "none",
@@ -1791,7 +1806,7 @@ export function CalendarPanel() {
         await createEvent({
           title: form.title,
           description: form.description || undefined,
-          date: dateStr,
+          date: form.date || dateStr,
           startTime: form.startTime,
           endTime: form.endTime,
           recurrence: form.recurrence,
@@ -1807,6 +1822,7 @@ export function CalendarPanel() {
           id: form.eventId,
           title: form.title,
           description: form.description || null,
+          date: form.date || dateStr,
           startTime: form.startTime,
           endTime: form.endTime,
           isPrivate: form.isPrivate,
