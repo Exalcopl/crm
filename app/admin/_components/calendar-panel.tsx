@@ -60,6 +60,57 @@ function hexToRgba(hex: string, alpha: number): string {
   }
 }
 
+function getPolishHoliday(year: number, month: number, day: number): string | null {
+  if (month === 1 && day === 1) return "Nowy Rok";
+  if (month === 1 && day === 6) return "Trzech Króli";
+  if (month === 5 && day === 1) return "Święto Pracy";
+  if (month === 5 && day === 3) return "Święto Konstytucji 3 Maja";
+  if (month === 8 && day === 15) return "Wniebowzięcie NMP / Wojska Polskiego";
+  if (month === 11 && day === 1) return "Wszystkich Świętych";
+  if (month === 11 && day === 11) return "Święto Niepodległości";
+  if (month === 12 && day === 25) return "Boże Narodzenie";
+  if (month === 12 && day === 26) return "Boże Narodzenie (drugi dzień)";
+
+  const a = year % 19;
+  const b = year % 4;
+  const c = year % 7;
+  const d = (19 * a + 24) % 30;
+  const e = (2 * b + 4 * c + 6 * d + 5) % 7;
+  let easterDay = 22 + d + e;
+  let easterMonth = 3;
+  if (easterDay > 31) {
+    easterDay = d + e - 9;
+    if (easterDay === 26) easterDay = 19;
+    if (easterDay === 25 && d === 28 && e === 6 && a > 10) easterDay = 18;
+    easterMonth = 4;
+  }
+
+  const easter = new Date(Date.UTC(year, easterMonth - 1, easterDay));
+
+  const easterMonday = new Date(easter);
+  easterMonday.setUTCDate(easter.getUTCDate() + 1);
+
+  const bozeCialo = new Date(easter);
+  bozeCialo.setUTCDate(easter.getUTCDate() + 60);
+
+  const zieloneSwiatki = new Date(easter);
+  zieloneSwiatki.setUTCDate(easter.getUTCDate() + 49);
+
+  const queryDate = new Date(Date.UTC(year, month - 1, day));
+
+  const compare = (d1: Date, d2: Date) =>
+    d1.getUTCFullYear() === d2.getUTCFullYear() &&
+    d1.getUTCMonth() === d2.getUTCMonth() &&
+    d1.getUTCDate() === d2.getUTCDate();
+
+  if (compare(queryDate, easter)) return "Niedziela Wielkanocna";
+  if (compare(queryDate, easterMonday)) return "Poniedziałek Wielkanocny";
+  if (compare(queryDate, zieloneSwiatki)) return "Zielone Świątki";
+  if (compare(queryDate, bozeCialo)) return "Boże Ciało";
+
+  return null;
+}
+
 const FALLBACK_CATEGORY: CategoryStyle = {
   id: "inne", label: "Inne", color: "#9ca3af",
   bg: "rgba(156, 163, 175, 0.12)", border: "rgba(156, 163, 175, 0.3)",
@@ -446,6 +497,8 @@ function EventDrawer({
                   type="date"
                   className="cal-input"
                   value={form.recurrenceEndDate}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) =>
                     setForm({ ...form, recurrenceEndDate: e.target.value })
                   }
@@ -748,10 +801,21 @@ function DayView({
   // 3. Simple packing algorithm for overlapping events in a single column
   const { clusters } = packEvents(sortedEvents);
 
+  const holiday = getPolishHoliday(selectedDate.year, selectedDate.month, selectedDate.day);
+
   return (
     <div className="cal-day-view">
       <div className="cal-day-header">
-        <div className="cal-day-header-title">{formatDateLabel(selectedDate)}</div>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div className="cal-day-header-title" style={holiday ? { color: "#ff7b72" } : undefined}>
+            {formatDateLabel(selectedDate)}
+          </div>
+          {holiday && (
+            <span style={{ fontSize: "11.5px", color: "#ff7b72", fontWeight: 500, marginTop: "2px" }}>
+              🎉 {holiday}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           className="cal-day-add-btn"
@@ -1571,7 +1635,16 @@ export function CalendarPanel() {
                   )}
                 </CalendarGridHeader>
                 <CalendarGridBody>
-                  {(date) => <CalendarCell date={date} className="cal-month-cell" />}
+                  {(date) => {
+                    const hol = getPolishHoliday(date.year, date.month, date.day);
+                    const isSunday = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay() === 0;
+                    return (
+                      <CalendarCell
+                        date={date}
+                        className={`cal-month-cell ${hol ? "cal-month-cell--holiday" : ""} ${isSunday ? "cal-month-cell--sunday" : ""}`}
+                      />
+                    );
+                  }}
                 </CalendarGridBody>
               </CalendarGrid>
             </Calendar>
@@ -1760,19 +1833,30 @@ export function CalendarPanel() {
                     // Sort day events by start time
                     dayEvents.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
+                    const [y] = dayStr.split("-").map(Number);
+                    const hol = getPolishHoliday(y, m, d);
+                    const isSunday = new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
+
                     return (
                       <div
                         key={dayStr}
-                        className={`cal-monthly-day-cell ${!isCurrentMonth ? "cal-monthly-day-cell--outside" : ""} ${isTodayStr ? "cal-monthly-day-cell--today" : ""}`}
+                        className={`cal-monthly-day-cell ${!isCurrentMonth ? "cal-monthly-day-cell--outside" : ""} ${isTodayStr ? "cal-monthly-day-cell--today" : ""} ${hol ? "cal-monthly-day-cell--holiday" : ""} ${isSunday ? "cal-monthly-day-cell--sunday" : ""}`}
+                        title={hol || undefined}
                         onClick={(e) => {
                           if (compDragState || suppressCompanyClickRef.current) return;
-                          if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("cal-monthly-day-number")) {
+                          const target = e.target as HTMLElement;
+                          if (!target.closest(".cal-monthly-event-pill") && !target.closest(".cal-monthly-more-events")) {
                             handleCompanyAddClick(dayStr);
                           }
                         }}
                       >
-                        <div className="cal-monthly-day-cell-header">
-                          <span className={`cal-monthly-day-number ${isTodayStr ? "cal-monthly-day-number--today" : ""}`}>
+                        <div className="cal-monthly-day-cell-header" style={{ justifyContent: hol ? "space-between" : "flex-end" }}>
+                          {hol && (
+                            <span className="cal-monthly-holiday-label" title={hol}>
+                              {hol}
+                            </span>
+                          )}
+                          <span className={`cal-monthly-day-number ${isTodayStr ? "cal-monthly-day-number--today" : ""} ${hol ? "cal-monthly-day-number--holiday" : ""} ${isSunday ? "cal-monthly-day-number--sunday" : ""}`}>
                             {d}
                           </span>
                         </div>
@@ -1840,10 +1924,13 @@ export function CalendarPanel() {
                   {weekDateStrings.map((dayStr) => {
                     const { dayName, dateNum, monthName } = formatWeekDayHeader(dayStr);
                     const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
+                    const [y, m, d] = dayStr.split("-").map(Number);
+                    const hol = getPolishHoliday(y, m, d);
+                    const isSunday = new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
                     return (
                       <div
                         key={dayStr}
-                        className={`cal-weekly-day-header ${isTodayStr ? "cal-weekly-day-header--today" : ""}`}
+                        className={`cal-weekly-day-header ${isTodayStr ? "cal-weekly-day-header--today" : ""} ${hol ? "cal-weekly-day-header--holiday" : ""} ${isSunday ? "cal-weekly-day-header--sunday" : ""}`}
                       >
                         <span className="cal-week-day-name">{dayName}</span>
                         <span className="cal-week-date-label-wrapper">
@@ -1852,6 +1939,11 @@ export function CalendarPanel() {
                           </span>
                           <span className="cal-week-date-month">{monthName}</span>
                         </span>
+                        {hol && (
+                          <span className="cal-week-holiday-tag" title={hol}>
+                            {hol}
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -1872,6 +1964,9 @@ export function CalendarPanel() {
                   <div className="cal-weekly-columns-container">
                     {weekDateStrings.map((dayStr) => {
                       const isTodayStr = dayStr === dateToString(today(getLocalTimeZone()));
+                      const [y, m, d] = dayStr.split("-").map(Number);
+                      const hol = getPolishHoliday(y, m, d);
+                      const isSunday = new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
                       
                       // Filter events for this day
                       const dayEvents = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter((ev) => {
@@ -1894,7 +1989,7 @@ export function CalendarPanel() {
                       return (
                         <div
                           key={dayStr}
-                          className={`cal-weekly-day-column ${isTodayStr ? "cal-weekly-day-column--today" : ""}`}
+                          className={`cal-weekly-day-column ${isTodayStr ? "cal-weekly-day-column--today" : ""} ${hol ? "cal-weekly-day-column--holiday" : ""} ${isSunday ? "cal-weekly-day-column--sunday" : ""}`}
                           style={{ height: HOURS.length * HOUR_HEIGHT }}
                         >
                           {/* Hour slot background grids */}
@@ -2305,6 +2400,27 @@ export function CalendarPanel() {
         .cal-month-cell {
           text-align: center;
           padding: 1px 0;
+        }
+
+        .cal-month-cell--holiday > span,
+        .cal-month-cell--holiday,
+        .cal-month-cell--sunday > span,
+        .cal-month-cell--sunday {
+          color: #ff7b72 !important;
+        }
+
+        .cal-month-cell--holiday {
+          position: relative;
+        }
+
+        .cal-month-cell--holiday::after {
+          content: '';
+          position: absolute;
+          bottom: 3px;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background-color: #ff7b72;
         }
 
         .cal-month-cell > span,
@@ -2870,6 +2986,36 @@ export function CalendarPanel() {
           min-width: 120px;
         }
 
+        .cal-weekly-day-header--holiday,
+        .cal-weekly-day-header--sunday {
+          background: #1b1215;
+        }
+
+        .cal-weekly-day-header--holiday .cal-week-day-name,
+        .cal-weekly-day-header--sunday .cal-week-day-name {
+          color: #ff7b72;
+        }
+
+        .cal-weekly-day-header--holiday .cal-week-date-number,
+        .cal-weekly-day-header--sunday .cal-week-date-number {
+          color: #ff7b72;
+        }
+
+        .cal-week-holiday-tag {
+          font-size: 9px;
+          font-weight: 600;
+          color: #ff7b72;
+          background: rgba(255, 123, 114, 0.12);
+          border: 1px solid rgba(255, 123, 114, 0.3);
+          border-radius: 4px;
+          padding: 1px 4px;
+          margin-top: 4px;
+          max-width: 95%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
         .cal-weekly-day-header:last-child {
           border-right: none;
         }
@@ -2962,6 +3108,11 @@ export function CalendarPanel() {
           border-right: 1px solid #21262d;
           background: #111419;
           min-width: 120px;
+        }
+
+        .cal-weekly-day-column--holiday,
+        .cal-weekly-day-column--sunday {
+          background: rgba(255, 123, 114, 0.02) !important;
         }
 
         .cal-weekly-day-column:last-child {
@@ -3285,6 +3436,11 @@ export function CalendarPanel() {
           overflow: hidden;
         }
 
+        .cal-monthly-day-cell--holiday,
+        .cal-monthly-day-cell--sunday {
+          background: rgba(255, 123, 114, 0.015);
+        }
+
         .cal-monthly-day-cell:hover {
           background: #161a22;
         }
@@ -3314,6 +3470,25 @@ export function CalendarPanel() {
           align-items: center;
           justify-content: center;
           border-radius: 50%;
+        }
+
+        .cal-monthly-day-number--holiday,
+        .cal-monthly-day-number--sunday {
+          color: #ff7b72 !important;
+        }
+
+        .cal-monthly-holiday-label {
+          font-size: 9px;
+          font-weight: 550;
+          color: #ff7b72;
+          background: rgba(255, 123, 114, 0.12);
+          border: 1px solid rgba(255, 123, 114, 0.3);
+          border-radius: 4px;
+          padding: 1px 4px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 90px;
         }
 
         .cal-monthly-day-number--today {
