@@ -31,6 +31,7 @@ export default function UsersPage() {
   const canRead = has("users", "read");
   const canCreate = has("users", "create");
   const canUpdate = has("users", "update");
+  const canDelete = has("users", "delete");
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Id<"roles"> | "all" | "none">(
@@ -60,6 +61,11 @@ export default function UsersPage() {
         : "skip",
     ) as UserRow[] | undefined) ?? [];
 
+  const users = useMemo(() => {
+    if (roleFilter === "none") return allUsers.filter((u) => !u.roleId);
+    return allUsers;
+  }, [allUsers, roleFilter]);
+
   if (!isLoading && !canRead) {
     return (
       <main className="users-content">
@@ -74,11 +80,6 @@ export default function UsersPage() {
       </main>
     );
   }
-
-  const users = useMemo(() => {
-    if (roleFilter === "none") return allUsers.filter((u) => !u.roleId);
-    return allUsers;
-  }, [allUsers, roleFilter]);
 
   const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
@@ -159,7 +160,7 @@ export default function UsersPage() {
           <tbody>
             {pageItems.length === 0 ? (
               <tr>
-                <td colSpan={canUpdate ? 5 : 4} className="users-empty">
+                <td colSpan={canUpdate || canDelete ? 5 : 4} className="users-empty">
                   Brak wyników
                 </td>
               </tr>
@@ -170,6 +171,7 @@ export default function UsersPage() {
                   user={u}
                   roles={allRoles}
                   canUpdate={canUpdate}
+                  canDelete={canDelete}
                 />
               ))
             )}
@@ -230,6 +232,7 @@ function UserRowView({
   user,
   roles,
   canUpdate,
+  canDelete,
 }: {
   user: UserRow;
   roles: Array<{
@@ -238,9 +241,11 @@ function UserRowView({
     isSystem: boolean;
   }>;
   canUpdate: boolean;
+  canDelete: boolean;
 }) {
   const setActive = useMutation(api.users.setActive);
   const setRole = useMutation(api.users.setRole);
+  const removeUser = useMutation(api.users.remove);
   const [working, setWorking] = useState(false);
 
   async function toggleActive() {
@@ -263,6 +268,19 @@ function UserRowView({
         userId: user._id,
         roleId: roleId === "" ? null : (roleId as Id<"roles">),
       });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Błąd");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function deleteUser() {
+    if (!window.confirm(`Czy na pewno chcesz bezpowrotnie usunąć użytkownika ${user.name || user.email || ""}?`)) return;
+    if (working) return;
+    setWorking(true);
+    try {
+      await removeUser({ userId: user._id });
     } catch (e) {
       alert(e instanceof Error ? e.message : "Błąd");
     } finally {
@@ -313,16 +331,29 @@ function UserRowView({
         ) : null}
       </td>
       <td>{new Date(user.createdAt).toLocaleDateString("pl-PL")}</td>
-      {canUpdate ? (
-        <td className="users-actions">
-          <button
-            type="button"
-            className="users-btn users-btn-ghost"
-            onClick={toggleActive}
-            disabled={working}
-          >
-            {user.isActive ? "Dezaktywuj" : "Aktywuj"}
-          </button>
+      {canUpdate || canDelete ? (
+        <td className="users-actions" style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          {canUpdate && (
+            <button
+              type="button"
+              className="users-btn users-btn-ghost"
+              onClick={toggleActive}
+              disabled={working}
+            >
+              {user.isActive ? "Dezaktywuj" : "Aktywuj"}
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              className="users-btn users-btn-ghost"
+              style={{ color: "#ffb4af" }}
+              onClick={deleteUser}
+              disabled={working}
+            >
+              <I.trash s={14} /> Usuń
+            </button>
+          )}
         </td>
       ) : null}
     </tr>

@@ -197,6 +197,36 @@ export const setRole = mutation({
   },
 });
 
+export const remove = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    await requirePermission(ctx, "users", "delete");
+    const callerId = await getAuthUserId(ctx);
+    if (callerId === userId) {
+      throw new Error("Nie możesz usunąć własnego konta");
+    }
+
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", userId))
+      .collect();
+    for (const acc of accounts) {
+      await ctx.db.delete(acc._id);
+    }
+
+    const sessions = await ctx.db
+      .query("authSessions")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const sess of sessions) {
+      await ctx.db.delete(sess._id);
+    }
+
+    await ctx.db.delete(userId);
+    return null;
+  },
+});
+
 export const _internalCreateUser = internalMutation({
   args: {
     userId: v.id("users"),
