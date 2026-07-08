@@ -66,27 +66,20 @@ function formatDueShort(iso: string | undefined): string {
   return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "short" });
 }
 
-function pickFirstName(name: string | null, email: string | null): string {
-  if (name && name.trim()) {
-    const first = name.trim().split(/\s+/)[0];
-    if (first) return first;
-  }
-  if (email) {
-    const local = email.split("@")[0];
-    if (local) return local.charAt(0).toUpperCase() + local.slice(1);
-  }
-  return "";
+function pickFirstName(name: string | null, email: string | null): string | null {
+  const base = name?.trim() || email?.trim() || "";
+  if (!base) return null;
+  return base.split(" ")[0].split("@")[0];
 }
 
-function greetingFor(hour: number): string {
-  if (hour >= 22 || hour < 5) return "Witaj z powrotem";
-  if (hour < 12) return "Dzień dobry";
-  if (hour < 18) return "Dzień dobry";
+function greetingFor(h: number): string {
+  if (h >= 5 && h < 12) return "Dzień dobry";
+  if (h >= 12 && h < 18) return "Dzień dobry";
   return "Dobry wieczór";
 }
 
 function useGreeting(): string {
-  const [hour, setHour] = useState<number>(() => new Date().getHours());
+  const [hour, setHour] = useState(12);
   useEffect(() => {
     const tick = () => setHour(new Date().getHours());
     tick();
@@ -148,12 +141,17 @@ export default function PanelPage() {
     ? "…"
     : `${greeting}${firstName ? `, ${firstName}` : ""}!`;
 
+  const isSuperAdmin = user?.role?.name === "super_admin";
+  const subTitle = isSuperAdmin
+    ? "Wszystkie zadania przypisane do użytkowników w systemie."
+    : "Twoje zadania przypisane bezpośrednio do Ciebie oraz z powiązanych wycen.";
+
   return (
     <main className="fluent-content panel-page">
       <header className="panel-greeting">
         <h1 className="panel-greeting-title">{greetingLine}</h1>
         <p className="panel-greeting-sub">
-          Twoje zadania ze wszystkich aktywnych wycen.
+          {subTitle}
         </p>
       </header>
 
@@ -259,14 +257,7 @@ function PanelTaskCard({
   const assignTask = useMutation(api.tasks.assign);
   const [editing, setEditing] = useState(false);
 
-  const assignee = assignees.find(
-    (a) =>
-      (a._id as unknown as string) === (task.assigneeId as unknown as string),
-  );
-  const assigneeName =
-    assignee?.name?.trim() || assignee?.email?.trim() || null;
   const tone = dueTone(task.dueDate);
-
   const draggable = !isOverlay && !editing;
 
   return (
@@ -317,26 +308,27 @@ function PanelTaskCard({
         )}
       </div>
 
-      <Link
-        href={`/admin/wyceny/${encodeURIComponent(task.quote.code)}`}
-        className="panel-task-card-quote"
-        title={`${task.quote.code} · ${task.quote.contactName}`}
-      >
-        <span className="panel-task-card-quote-code">{task.quote.code}</span>
-        <span className="panel-task-card-quote-sep">·</span>
-        <span className="panel-task-card-quote-client">
-          {task.quote.contactName}
-        </span>
-      </Link>
+      {task.quote && (
+        <Link
+          href={`/admin/wyceny/${encodeURIComponent(task.quote.code)}`}
+          className="panel-task-card-quote"
+          title={`${task.quote.code} · ${task.quote.contactName}`}
+        >
+          <span className="panel-task-card-quote-code">{task.quote.code}</span>
+          <span className="panel-task-card-quote-sep">·</span>
+          <span className="panel-task-card-quote-client">
+            {task.quote.contactName}
+          </span>
+        </Link>
+      )}
 
       <div className="quote-detail-task-card-foot">
         <AssigneePicker
           assignees={assignees}
-          currentId={task.assigneeId}
-          currentName={assigneeName}
+          currentIds={task.assigneeIds ?? []}
           disabled={isOverlay}
-          onAssign={(userId) =>
-            void assignTask({ id: task._id, assigneeId: userId })
+          onAssign={(userIds) =>
+            void assignTask({ id: task._id, assigneeIds: userIds })
           }
         />
         <DueDatePicker
@@ -354,16 +346,14 @@ function PanelTaskCard({
 
 function AssigneePicker({
   assignees,
-  currentId,
-  currentName,
+  currentIds,
   disabled,
   onAssign,
 }: {
   assignees: AssignableUser[];
-  currentId: Id<"users"> | null;
-  currentName: string | null;
+  currentIds: Id<"users">[];
   disabled?: boolean;
-  onAssign: (userId: Id<"users"> | null) => void;
+  onAssign: (userIds: Id<"users">[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -389,15 +379,32 @@ function AssigneePicker({
     <div className="quote-detail-task-assignee" ref={wrapperRef}>
       <button
         type="button"
-        className={`quote-detail-task-assignee-btn${currentId ? "" : " is-empty"}`}
+        className={`quote-detail-task-assignee-btn${currentIds.length > 0 ? "" : " is-empty"}`}
         onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled}
-        title={currentName ?? "Przypisz osobę"}
+        title={currentIds.length > 0 ? `${currentIds.length} przypisanych` : "Przypisz osoby"}
       >
-        {currentId ? (
-          <span className="kanban-card-owner-avatar quote-detail-task-assignee-avatar">
-            {ownerInitials(currentName ?? "—")}
-          </span>
+        {currentIds.length > 0 ? (
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {currentIds.map((id, index) => {
+              const u = assignees.find((a) => a._id === id);
+              const label = u?.name?.trim() || u?.email?.trim() || "—";
+              return (
+                <span
+                  key={id}
+                  className="kanban-card-owner-avatar quote-detail-task-assignee-avatar"
+                  title={label}
+                  style={{
+                    marginLeft: index > 0 ? "-6px" : "0px",
+                    zIndex: currentIds.length - index,
+                    border: "2px solid #161b22"
+                  }}
+                >
+                  {ownerInitials(label)}
+                </span>
+              );
+            })}
+          </div>
         ) : (
           <span className="quote-detail-task-assignee-empty">
             <I.userPlus s={12} sw={2} />
@@ -405,22 +412,10 @@ function AssigneePicker({
         )}
       </button>
       {open && (
-        <div className="quote-detail-task-assignee-popover" role="listbox">
-          <button
-            type="button"
-            className={`quote-detail-task-assignee-option${currentId === null ? " is-active" : ""}`}
-            onClick={() => {
-              onAssign(null);
-              setOpen(false);
-            }}
-          >
-            <span className="quote-detail-task-assignee-option-avatar">—</span>
-            <span>Bez przypisania</span>
-          </button>
+        <div className="quote-detail-task-assignee-popover" role="listbox" style={{ padding: "4px" }}>
           {assignees.map((u) => {
             const label = u.name?.trim() || u.email?.trim() || "—";
-            const active =
-              (u._id as unknown as string) === (currentId as unknown as string);
+            const active = currentIds.includes(u._id);
             return (
               <button
                 key={u._id as unknown as string}
@@ -428,18 +423,41 @@ function AssigneePicker({
                 role="option"
                 aria-selected={active}
                 className={`quote-detail-task-assignee-option${active ? " is-active" : ""}`}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 8px" }}
                 onClick={() => {
-                  onAssign(u._id);
-                  setOpen(false);
+                  const nextIds = active
+                    ? currentIds.filter((id) => id !== u._id)
+                    : [...currentIds, u._id];
+                  onAssign(nextIds);
                 }}
               >
-                <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
-                  {ownerInitials(label)}
-                </span>
-                <span>{label}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
+                    {ownerInitials(label)}
+                  </span>
+                  <span>{label}</span>
+                </div>
+                {active && (
+                  <span style={{ color: "#3fb950", fontSize: "12px", marginLeft: "8px" }}>✓</span>
+                )}
               </button>
             );
           })}
+          {currentIds.length > 0 && (
+            <div style={{ borderTop: "1px solid #21262d", marginTop: "4px", paddingTop: "4px" }}>
+              <button
+                type="button"
+                className="quote-detail-task-assignee-option"
+                style={{ width: "100%", color: "#f85149", justifyContent: "center", padding: "6px" }}
+                onClick={() => {
+                  onAssign([]);
+                  setOpen(false);
+                }}
+              >
+                <span>Wyczyść przypisania</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

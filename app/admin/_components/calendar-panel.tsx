@@ -6,6 +6,8 @@ import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { ownerInitials } from "../_lib/quotes";
+import { Building2, CalendarDays, CheckSquare, Plus } from "lucide-react";
 
 import {
   Calendar,
@@ -291,6 +293,7 @@ type CalEvent = {
   color?: string;
   isPrivate?: boolean;
   recurrence?: "none" | "daily" | "weekly" | "monthly";
+  recurrenceInterval?: number;
   recurrenceEndDate?: string;
   parentEventId?: Id<"calendarEvents">;
   type?: "private" | "company";
@@ -307,6 +310,7 @@ type FormState = {
   startTime: string;
   endTime: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
+  recurrenceInterval: number;
   recurrenceEndDate: string;
   isPrivate: boolean;
   type?: "private" | "company";
@@ -491,19 +495,44 @@ function EventDrawer({
             </div>
 
             {form.recurrence !== "none" && (
-              <div className="cal-form-group" style={{ marginTop: 12 }}>
-                <label className="cal-label">Powtarzaj do daty (opcjonalnie)</label>
+              <>
+                <div className="cal-form-group" style={{ marginTop: 12 }}>
+                  <label className="cal-label">Co ile {form.recurrence === "daily" ? "dni" : form.recurrence === "weekly" ? "tygodni" : "miesięcy"} powtarzać?</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="cal-input"
+                    value={form.recurrenceInterval}
+                    onChange={(e) =>
+                      setForm({ ...form, recurrenceInterval: Math.max(1, parseInt(e.target.value) || 1) })
+                    }
+                  />
+                </div>
+                <div className="cal-form-group" style={{ marginTop: 12 }}>
+                  <label className="cal-label">Powtarzaj do daty (opcjonalnie)</label>
                 <input
                   type="date"
                   className="cal-input"
                   value={form.recurrenceEndDate}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }}
+                  onFocus={(e) => {
+                    try {
+                      e.currentTarget.showPicker();
+                    } catch {}
+                  }}
                   onChange={(e) =>
                     setForm({ ...form, recurrenceEndDate: e.target.value })
                   }
                 />
               </div>
+              </>
             )}
           </div>
         )}
@@ -572,6 +601,282 @@ function EventDrawer({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TaskDrawer({
+  isOpen,
+  onClose,
+  users,
+  form,
+  setForm,
+  currentUserId,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  users: Array<{ _id: Id<"users">; name: string | null; email: string | null }>;
+  form: { title: string; description: string; assigneeIds: string[]; dueDate: string };
+  setForm: (f: { title: string; description: string; assigneeIds: string[]; dueDate: string }) => void;
+  currentUserId?: string | null;
+}) {
+  const addTask = useMutation(api.tasks.add);
+  const [saving, setSaving] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function onClick(e: MouseEvent) {
+      if (!dropdownRef.current?.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", onClick);
+    return () => window.removeEventListener("mousedown", onClick);
+  }, [dropdownOpen]);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const t = form.title.trim();
+    if (!t) {
+      toast.error("Tytuł zadania jest wymagany");
+      return;
+    }
+    setSaving(true);
+    try {
+      await addTask({
+        title: t,
+        description: form.description.trim() || undefined,
+        assigneeIds: form.assigneeIds.length > 0 ? (form.assigneeIds as Id<"users">[]) : undefined,
+        dueDate: form.dueDate || undefined,
+        status: "todo",
+      });
+      toast.success("Zadanie zostało utworzone pomyślnie!");
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Nie udało się utworzyć zadania");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`cal-drawer ${isOpen ? "cal-drawer--open" : ""}`} style={{ position: "fixed", zIndex: 49 }}>
+      <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+        {/* Header */}
+        <div className="cal-drawer-header">
+          <div className="cal-drawer-header-top">
+            <button
+              type="button"
+              className="cal-drawer-back"
+              onClick={onClose}
+              title="Powrót"
+            >
+              ← Powrót
+            </button>
+            <span className="cal-drawer-mode-badge" style={{ background: "#25d36615", color: "#25d366", borderColor: "#25d36640" }}>
+              Nowe Zadanie
+            </span>
+          </div>
+          <div className="cal-drawer-date-pill">
+            📋 Zadanie CRM
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="cal-drawer-body">
+          {/* Card 1: Tytuł i opis */}
+          <div className="cal-card">
+            <div className="cal-card-title">Informacje podstawowe</div>
+            <div className="cal-form-group">
+              <label className="cal-label">Tytuł zadania *</label>
+              <input
+                type="text"
+                className="cal-input"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Wpisz tytuł zadania..."
+                required
+                disabled={saving}
+                autoFocus
+              />
+            </div>
+
+            <div className="cal-form-group" style={{ marginTop: 12 }}>
+              <label className="cal-label">Opis zadania / Notatki</label>
+              <textarea
+                className="cal-textarea"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                placeholder="Wpisz szczegółowy opis..."
+                disabled={saving}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          {/* Card 2: Przypisanie i termin */}
+          <div className="cal-card" style={{ overflow: "visible" }}>
+            <div className="cal-form-group" ref={dropdownRef} style={{ position: "relative" }}>
+              <label className="cal-label">Przypisz do osób</label>
+              <button
+                type="button"
+                className="cal-select"
+                style={{ display: "flex", alignItems: "center", gap: "8px", textAlign: "left", width: "100%", background: "#0d1117", marginTop: "6px" }}
+                onClick={() => setDropdownOpen((v) => !v)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} style={{ opacity: 0.7 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {form.assigneeIds.length === 0
+                    ? "Wybierz osoby..."
+                    : form.assigneeIds.length === 1
+                    ? (users.find(u => u._id === form.assigneeIds[0])?.name || users.find(u => u._id === form.assigneeIds[0])?.email || "1 osoba")
+                    : `${form.assigneeIds.length} przypisanych osób`}
+                </span>
+                <span style={{ fontSize: "10px", opacity: 0.6 }}>▼</span>
+              </button>
+              {dropdownOpen && (
+                <div
+                  className="quote-detail-task-assignee-popover"
+                  role="listbox"
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    right: 0,
+                    zIndex: 100,
+                    padding: "4px",
+                    background: "#161b22",
+                    border: "1px solid #30363d",
+                    borderRadius: "8px",
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5)"
+                  }}
+                >
+                  {currentUserId && !form.assigneeIds.includes(currentUserId) && (
+                    <>
+                      <button
+                        type="button"
+                        className="quote-detail-task-assignee-option quote-detail-task-assignee-option-me"
+                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 8px", color: "#ffffff" }}
+                        onClick={() => {
+                          setForm({ ...form, assigneeIds: [...form.assigneeIds, currentUserId] });
+                        }}
+                      >
+                        <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar quote-detail-task-assignee-option-avatar-me" style={{ border: "1px solid #2563eb", background: "#eff6ff", color: "#2563eb" }}>
+                          +
+                        </span>
+                        <span>Przypisz mnie</span>
+                      </button>
+                      <div className="quote-detail-task-assignee-sep" aria-hidden />
+                    </>
+                  )}
+                  {users.map((u) => {
+                    const label = u.name?.trim() || u.email?.trim() || "—";
+                    const active = form.assigneeIds.includes(u._id);
+                    const isMe = currentUserId === u._id;
+                    return (
+                      <button
+                        key={u._id}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        className={`quote-detail-task-assignee-option${active ? " is-active" : ""}`}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 8px", color: "#ffffff" }}
+                        onClick={() => {
+                          const nextIds = active
+                            ? form.assigneeIds.filter((id) => id !== u._id)
+                            : [...form.assigneeIds, u._id];
+                          setForm({ ...form, assigneeIds: nextIds });
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
+                            {ownerInitials(label)}
+                          </span>
+                          <span>
+                            {label}
+                            {isMe && (
+                              <span className="quote-detail-task-assignee-option-tag" style={{ marginLeft: "6px" }}>Ty</span>
+                            )}
+                          </span>
+                        </div>
+                        {active && (
+                          <span style={{ color: "#3fb950", fontSize: "12px", marginLeft: "8px" }}>✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {form.assigneeIds.length > 0 && (
+                    <div style={{ borderTop: "1px solid #21262d", marginTop: "4px", paddingTop: "4px" }}>
+                      <button
+                        type="button"
+                        className="quote-detail-task-assignee-option"
+                        style={{ width: "100%", color: "#f85149", justifyContent: "center", padding: "6px" }}
+                        onClick={() => {
+                          setForm({ ...form, assigneeIds: [] });
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <span>Wyczyść przypisania</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="cal-form-group" style={{ marginTop: 12 }}>
+              <label className="cal-label">Termin realizacji</label>
+              <input
+                type="date"
+                className="cal-input"
+                value={form.dueDate}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
+                onFocus={(e) => {
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
+                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                disabled={saving}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="cal-drawer-footer">
+          <div />
+          <div className="cal-drawer-footer-right">
+            <button
+              type="button"
+              className="cal-btn cal-btn--ghost"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Anuluj
+            </button>
+            <button
+              type="submit"
+              className="cal-btn cal-btn--primary"
+              style={{ background: "#25d366" }}
+              disabled={saving || !form.title.trim()}
+            >
+              {saving ? "Zapisywanie…" : "Zapisz zadanie"}
+            </button>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }
@@ -962,7 +1267,11 @@ function DayView({
             >
               <span className="cal-event-time">
                 {timeLabel}
-                {ev.recurrence && ev.recurrence !== "none" && " 🔄"}
+                {ev.recurrence && ev.recurrence !== "none" && (
+                  ev.recurrenceInterval && ev.recurrenceInterval > 1
+                    ? ` 🔄 co ${ev.recurrenceInterval} ${ev.recurrence === "daily" ? "dni" : ev.recurrence === "weekly" ? "tyg" : "msc"}`
+                    : " 🔄"
+                )}
                 {ev.isPrivate && " 🔒"}
               </span>
               <span className="cal-event-title">{ev.title}</span>
@@ -1028,6 +1337,13 @@ export function CalendarPanel() {
   const [open, setOpen] = useState(false);
   const [isCompanyOpen, setIsCompanyOpen] = useState(false);
   const [menuExpanded, setMenuExpanded] = useState(false);
+  const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState({
+    title: "",
+    description: "",
+    assigneeIds: [] as string[],
+    dueDate: "",
+  });
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<CalendarDate>(() => {
@@ -1094,6 +1410,7 @@ export function CalendarPanel() {
     startTime: "09:00",
     endTime: "10:00",
     recurrence: "none",
+    recurrenceInterval: 1,
     recurrenceEndDate: "",
     isPrivate: false,
     type: "private",
@@ -1152,6 +1469,7 @@ export function CalendarPanel() {
       startTime: formatHour(startHour),
       endTime: formatHour(finalEndHour),
       recurrence: "none",
+      recurrenceInterval: 1,
       recurrenceEndDate: "",
       isPrivate: false,
       type: "private",
@@ -1183,6 +1501,7 @@ export function CalendarPanel() {
       startTime: formatHour(startH),
       endTime: formatHour(endH),
       recurrence: "none",
+      recurrenceInterval: 1,
       recurrenceEndDate: "",
       isPrivate: false,
       type: "company",
@@ -1285,6 +1604,7 @@ export function CalendarPanel() {
               color: origEvent.color || undefined,
               isPrivate: !!origEvent.isPrivate,
               recurrence: origEvent.recurrence || "none",
+              recurrenceInterval: origEvent.recurrenceInterval || 1,
               recurrenceEndDate: origEvent.recurrenceEndDate || undefined,
               type: origEvent.type || "company",
               category: origEvent.category || undefined,
@@ -1389,6 +1709,7 @@ export function CalendarPanel() {
       startTime: "09:00",
       endTime: "10:00",
       recurrence: "none",
+      recurrenceInterval: 1,
       recurrenceEndDate: "",
       isPrivate: false,
       type: "private",
@@ -1407,6 +1728,7 @@ export function CalendarPanel() {
       startTime: ev.startTime,
       endTime: ev.endTime,
       recurrence: ev.recurrence || "none",
+      recurrenceInterval: ev.recurrenceInterval || 1,
       recurrenceEndDate: ev.recurrenceEndDate || "",
       isPrivate: !!ev.isPrivate,
       type: ev.type || "private",
@@ -1438,6 +1760,7 @@ export function CalendarPanel() {
       startTime: ev.startTime,
       endTime: ev.endTime,
       recurrence: ev.recurrence || "none",
+      recurrenceInterval: ev.recurrenceInterval || 1,
       recurrenceEndDate: ev.recurrenceEndDate || "",
       isPrivate: !!ev.isPrivate,
       type: ev.type || "company",
@@ -1472,6 +1795,7 @@ export function CalendarPanel() {
           startTime: form.startTime,
           endTime: form.endTime,
           recurrence: form.recurrence,
+          recurrenceInterval: form.recurrence !== "none" ? form.recurrenceInterval : undefined,
           recurrenceEndDate: form.recurrenceEndDate || undefined,
           isPrivate: form.isPrivate,
           type: form.type,
@@ -2176,6 +2500,15 @@ export function CalendarPanel() {
         />
       </aside>
 
+      <TaskDrawer
+        isOpen={isTaskDrawerOpen}
+        onClose={() => setIsTaskDrawerOpen(false)}
+        users={allUsers}
+        form={taskForm}
+        setForm={setTaskForm}
+        currentUserId={currentUserId}
+      />
+
       {/* FAB Container */}
       <div className={`cal-fab-container ${menuExpanded ? "cal-fab-container--expanded" : ""}`}>
         {/* Company Calendar FAB */}
@@ -2191,14 +2524,24 @@ export function CalendarPanel() {
           aria-expanded={isCompanyOpen}
           title="Kalendarz firmowy"
         >
-          <Image
-            src="/calendar-svgrepo-com.svg"
-            alt=""
-            width={24}
-            height={24}
-            className="cal-fab-icon"
-            style={{ filter: "brightness(0) invert(1)" }}
-          />
+          <Building2 className="cal-fab-icon" style={{ strokeWidth: 1.5, filter: "none", color: "#fff" }} />
+        </button>
+
+        {/* Tasks Link FAB */}
+        <button
+          type="button"
+          className="cal-fab-item cal-fab-item--tasks"
+          onClick={() => {
+            setOpen(false);
+            setIsCompanyOpen(false);
+            setMenuExpanded(false);
+            setTaskForm({ title: "", description: "", assigneeIds: [], dueDate: "" });
+            setIsTaskDrawerOpen(true);
+          }}
+          aria-label="Utwórz zadanie"
+          title="Zadania"
+        >
+          <CheckSquare className="cal-fab-icon" style={{ strokeWidth: 1.5, filter: "none", color: "#fff" }} />
         </button>
 
         {/* Private Calendar FAB */}
@@ -2214,14 +2557,7 @@ export function CalendarPanel() {
           aria-expanded={open}
           title="Kalendarz prywatny"
         >
-          <Image
-            src="/calendar-svgrepo-com.svg"
-            alt=""
-            width={24}
-            height={24}
-            className="cal-fab-icon"
-            style={{ filter: "brightness(0) invert(1)" }}
-          />
+          <CalendarDays className="cal-fab-icon" style={{ strokeWidth: 1.5, filter: "none", color: "#fff" }} />
         </button>
 
         {/* Trigger FAB (Primary Base) */}
@@ -2234,17 +2570,10 @@ export function CalendarPanel() {
           aria-label="Otwórz nawigację kalendarzy"
           title="Kalendarz i narzędzia"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
+          <Plus
             className="cal-fab-icon cal-fab-trigger-icon"
-            style={{ width: "32px", height: "32px", transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
-          >
-            <circle cx="12" cy="12" r="10" stroke="#ffffff" strokeWidth="2" />
-            <line x1="12" y1="7.5" x2="12" y2="16.5" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-            <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+            style={{ width: "32px", height: "32px", color: "#ffffff", strokeWidth: 1.5, transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
+          />
         </button>
       </div>
 
@@ -3246,7 +3575,7 @@ export function CalendarPanel() {
 
         .cal-fab-container:hover,
         .cal-fab-container--expanded {
-          height: 200px;
+          height: 260px;
         }
 
         .cal-fab-item {
@@ -3293,24 +3622,24 @@ export function CalendarPanel() {
           opacity: 0;
           transform: translateY(0) scale(0.6);
           pointer-events: none;
-          z-index: 3;
+          z-index: 4;
         }
 
         .cal-fab-container:hover .cal-fab-item--private,
         .cal-fab-container--expanded .cal-fab-item--private {
           opacity: 1;
-          transform: translateY(-66px) scale(1);
+          transform: translateY(-132px) scale(1);
           pointer-events: auto;
         }
 
         .cal-fab-item--private:hover {
           background: #e63350;
-          transform: translateY(-66px) scale(1.06);
+          transform: translateY(-132px) scale(1.06);
           box-shadow: 0 6px 24px rgba(212, 29, 60, 0.65);
         }
 
         .cal-fab-item--private:active {
-          transform: translateY(-66px) scale(0.95);
+          transform: translateY(-132px) scale(0.95);
         }
 
         .cal-fab-item--private.cal-fab-item--active {
@@ -3318,7 +3647,34 @@ export function CalendarPanel() {
           box-shadow: 0 4px 16px rgba(212, 29, 60, 0.35);
         }
 
-        /* Company Calendar (Circle 2) */
+        /* Tasks (Circle 2) */
+        .cal-fab-item--tasks {
+          background: #25d366;
+          box-shadow: 0 4px 18px rgba(37, 211, 102, 0.4);
+          opacity: 0;
+          transform: translateY(0) scale(0.6);
+          pointer-events: none;
+          z-index: 3;
+        }
+
+        .cal-fab-container:hover .cal-fab-item--tasks,
+        .cal-fab-container--expanded .cal-fab-item--tasks {
+          opacity: 1;
+          transform: translateY(-66px) scale(1);
+          pointer-events: auto;
+        }
+
+        .cal-fab-item--tasks:hover {
+          background: #20ba5a;
+          transform: translateY(-66px) scale(1.06);
+          box-shadow: 0 6px 24px rgba(37, 211, 102, 0.55);
+        }
+
+        .cal-fab-item--tasks:active {
+          transform: translateY(-66px) scale(0.95);
+        }
+
+        /* Company Calendar (Circle 3) */
         .cal-fab-item--company {
           background: #2563eb;
           box-shadow: 0 4px 18px rgba(37, 99, 235, 0.5);
@@ -3331,18 +3687,18 @@ export function CalendarPanel() {
         .cal-fab-container:hover .cal-fab-item--company,
         .cal-fab-container--expanded .cal-fab-item--company {
           opacity: 1;
-          transform: translateY(-132px) scale(1);
+          transform: translateY(-198px) scale(1);
           pointer-events: auto;
         }
 
         .cal-fab-item--company:hover {
           background: #3b82f6;
-          transform: translateY(-132px) scale(1.06);
+          transform: translateY(-198px) scale(1.06);
           box-shadow: 0 6px 24px rgba(37, 99, 235, 0.65);
         }
 
         .cal-fab-item--company:active {
-          transform: translateY(-132px) scale(0.95);
+          transform: translateY(-198px) scale(0.95);
         }
 
         .cal-fab-item--company.cal-fab-item--active {

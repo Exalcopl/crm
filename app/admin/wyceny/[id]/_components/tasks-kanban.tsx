@@ -8,7 +8,9 @@ import type { Quote } from "@/app/admin/_lib/quotes";
 import { ownerInitials } from "@/app/admin/_lib/quotes";
 import { I } from "@/app/admin/_lib/icons";
 
-type TaskDoc = Doc<"tasks">;
+type TaskDoc = Omit<Doc<"tasks">, "assigneeIds"> & {
+  assigneeIds?: Id<"users">[];
+};
 type TaskStatus = TaskDoc["status"];
 
 const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
@@ -120,11 +122,6 @@ function TodoRow({
   const [editing, setEditing] = useState(false);
   const tone = dueTone(task.dueDate);
 
-  const assignee = assignees.find(
-    (a) => (a._id as unknown as string) === (task.assigneeId as unknown as string),
-  );
-  const assigneeName = assignee?.name?.trim() || assignee?.email?.trim() || null;
-
   return (
     <div className={`quote-detail-todo-row${task.status === "done" ? " is-done" : ""}${task.status === "in_progress" ? " is-progress" : ""}`}>
       <button
@@ -168,10 +165,9 @@ function TodoRow({
       <div className="quote-detail-todo-meta">
         <AssigneePicker
           assignees={assignees}
-          currentId={task.assigneeId}
-          currentName={assigneeName}
+          currentIds={task.assigneeIds ?? []}
           disabled={archived}
-          onAssign={(userId) => void assignTask({ id: task._id, assigneeId: userId })}
+          onAssign={(userIds) => void assignTask({ id: task._id, assigneeIds: userIds })}
         />
         <DueDatePicker
           dueDate={task.dueDate}
@@ -229,16 +225,14 @@ function AddTaskRow({ quoteId }: { quoteId: Id<"quotes"> }) {
 
 function AssigneePicker({
   assignees,
-  currentId,
-  currentName,
+  currentIds,
   disabled,
   onAssign,
 }: {
   assignees: AssignableUser[];
-  currentId: Id<"users"> | null;
-  currentName: string | null;
+  currentIds: Id<"users">[];
   disabled?: boolean;
-  onAssign: (userId: Id<"users"> | null) => void;
+  onAssign: (userIds: Id<"users">[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -261,23 +255,38 @@ function AssigneePicker({
 
   const me = assignees.find((u) => u.isCurrentUser) ?? null;
   const meLabel = me ? me.name?.trim() || me.email?.trim() || "—" : null;
-  const meIsAssigned =
-    me !== null &&
-    (me._id as unknown as string) === (currentId as unknown as string);
+  const meIsAssigned = me !== null && currentIds.includes(me._id);
 
   return (
     <div className="quote-detail-task-assignee" ref={wrapperRef}>
       <button
         type="button"
-        className={`quote-detail-task-assignee-btn${currentId ? "" : " is-empty"}`}
+        className={`quote-detail-task-assignee-btn${currentIds.length > 0 ? "" : " is-empty"}`}
         onClick={() => !disabled && setOpen((v) => !v)}
         disabled={disabled}
-        title={currentName ?? "Przypisz osobę"}
+        title={currentIds.length > 0 ? `${currentIds.length} przypisanych` : "Przypisz osoby"}
       >
-        {currentId ? (
-          <span className="kanban-card-owner-avatar quote-detail-task-assignee-avatar">
-            {ownerInitials(currentName ?? "—")}
-          </span>
+        {currentIds.length > 0 ? (
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {currentIds.map((id, index) => {
+              const u = assignees.find((a) => a._id === id);
+              const label = u?.name?.trim() || u?.email?.trim() || "—";
+              return (
+                <span
+                  key={id}
+                  className="kanban-card-owner-avatar quote-detail-task-assignee-avatar"
+                  title={label}
+                  style={{
+                    marginLeft: index > 0 ? "-6px" : "0px",
+                    zIndex: currentIds.length - index,
+                    border: "2px solid #161b22"
+                  }}
+                >
+                  {ownerInitials(label)}
+                </span>
+              );
+            })}
+          </div>
         ) : (
           <span className="quote-detail-task-assignee-empty">
             <I.userPlus s={12} sw={2} />
@@ -285,33 +294,30 @@ function AssigneePicker({
         )}
       </button>
       {open && (
-        <div className="quote-detail-task-assignee-popover" role="listbox">
-          <button
-            type="button"
-            className={`quote-detail-task-assignee-option${currentId === null ? " is-active" : ""}`}
-            onClick={() => { onAssign(null); setOpen(false); }}
-          >
-            <span className="quote-detail-task-assignee-option-avatar">—</span>
-            <span>Bez przypisania</span>
-          </button>
+        <div className="quote-detail-task-assignee-popover" role="listbox" style={{ padding: "4px" }}>
           {me && !meIsAssigned && (
-            <button
-              type="button"
-              className="quote-detail-task-assignee-option quote-detail-task-assignee-option-me"
-              onClick={() => { onAssign(me._id); setOpen(false); }}
-              title={meLabel ?? undefined}
-            >
-              <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar quote-detail-task-assignee-option-avatar-me">
-                {ownerInitials(meLabel ?? "—")}
-              </span>
-              <span>Przypisz mnie</span>
-              <span className="quote-detail-task-assignee-option-me-name">({meLabel})</span>
-            </button>
+            <>
+              <button
+                type="button"
+                className="quote-detail-task-assignee-option quote-detail-task-assignee-option-me"
+                style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "6px 8px" }}
+                onClick={() => {
+                  onAssign([...currentIds, me._id]);
+                }}
+                title={meLabel ?? undefined}
+              >
+                <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar quote-detail-task-assignee-option-avatar-me">
+                  {ownerInitials(meLabel ?? "—")}
+                </span>
+                <span>Przypisz mnie</span>
+                <span className="quote-detail-task-assignee-option-me-name">({meLabel})</span>
+              </button>
+              <div className="quote-detail-task-assignee-sep" aria-hidden />
+            </>
           )}
-          <div className="quote-detail-task-assignee-sep" aria-hidden />
           {assignees.map((u) => {
             const label = u.name?.trim() || u.email?.trim() || "—";
-            const active = (u._id as unknown as string) === (currentId as unknown as string);
+            const active = currentIds.includes(u._id);
             return (
               <button
                 key={u._id as unknown as string}
@@ -319,20 +325,46 @@ function AssigneePicker({
                 role="option"
                 aria-selected={active}
                 className={`quote-detail-task-assignee-option${active ? " is-active" : ""}`}
-                onClick={() => { onAssign(u._id); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "6px 8px" }}
+                onClick={() => {
+                  const nextIds = active
+                    ? currentIds.filter((id) => id !== u._id)
+                    : [...currentIds, u._id];
+                  onAssign(nextIds);
+                }}
               >
-                <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
-                  {ownerInitials(label)}
-                </span>
-                <span>
-                  {label}
-                  {u.isCurrentUser && (
-                    <span className="quote-detail-task-assignee-option-tag">Ty</span>
-                  )}
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span className="kanban-card-owner-avatar quote-detail-task-assignee-option-avatar">
+                    {ownerInitials(label)}
+                  </span>
+                  <span>
+                    {label}
+                    {u.isCurrentUser && (
+                      <span className="quote-detail-task-assignee-option-tag">Ty</span>
+                    )}
+                  </span>
+                </div>
+                {active && (
+                  <span style={{ color: "#3fb950", fontSize: "12px", marginLeft: "8px" }}>✓</span>
+                )}
               </button>
             );
           })}
+          {currentIds.length > 0 && (
+            <div style={{ borderTop: "1px solid #21262d", marginTop: "4px", paddingTop: "4px" }}>
+              <button
+                type="button"
+                className="quote-detail-task-assignee-option"
+                style={{ width: "100%", color: "#f85149", justifyContent: "center", padding: "6px" }}
+                onClick={() => {
+                  onAssign([]);
+                  setOpen(false);
+                }}
+              >
+                <span>Wyczyść przypisania</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

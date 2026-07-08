@@ -215,7 +215,7 @@ export default defineSchema({
   }).index("by_quote", ["quoteId"]),
 
   tasks: defineTable({
-    quoteId: v.id("quotes"),
+    quoteId: v.optional(v.id("quotes")),
     title: v.string(),
     description: v.optional(v.string()),
     status: v.union(
@@ -223,7 +223,8 @@ export default defineSchema({
       v.literal("in_progress"),
       v.literal("done"),
     ),
-    assigneeId: v.union(v.id("users"), v.null()),
+    assigneeId: v.optional(v.union(v.id("users"), v.null())),
+    assigneeIds: v.optional(v.array(v.id("users"))),
     dueDate: v.optional(v.string()),
     createdAt: v.number(),
     createdBy: v.union(v.id("users"), v.null()),
@@ -231,8 +232,7 @@ export default defineSchema({
     order: v.number(),
   })
     .index("by_quote", ["quoteId"])
-    .index("by_quote_status", ["quoteId", "status"])
-    .index("by_assignee", ["assigneeId"]),
+    .index("by_quote_status", ["quoteId", "status"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),
@@ -298,6 +298,7 @@ export default defineSchema({
         v.literal("monthly"),
       ),
     ),
+    recurrenceInterval: v.optional(v.number()),
     recurrenceEndDate: v.optional(v.string()),
     parentEventId: v.optional(v.id("calendarEvents")),
     type: v.optional(v.union(v.literal("private"), v.literal("company"))),

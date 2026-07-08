@@ -110,6 +110,7 @@ export const create = mutation({
         v.literal("monthly"),
       ),
     ),
+    recurrenceInterval: v.optional(v.number()),
     recurrenceEndDate: v.optional(v.string()),
     type: v.optional(v.union(v.literal("private"), v.literal("company"))),
     category: v.optional(v.string()),
@@ -123,6 +124,7 @@ export const create = mutation({
 
     const now = Date.now();
     const rec = args.recurrence || "none";
+    const interval = args.recurrenceInterval || 1;
 
     // 1. Create base event
     const parentId = await ctx.db.insert("calendarEvents", {
@@ -134,6 +136,7 @@ export const create = mutation({
       color: args.color || undefined,
       isPrivate: !!args.isPrivate,
       recurrence: rec,
+      recurrenceInterval: args.recurrenceInterval || undefined,
       recurrenceEndDate: args.recurrenceEndDate || undefined,
       type: args.type || "private",
       category: args.category || undefined,
@@ -151,11 +154,11 @@ export const create = mutation({
       while (maxCount-- > 0) {
         let nextDate: string;
         if (rec === "daily") {
-          nextDate = addDays(args.date, step);
+          nextDate = addDays(args.date, step * interval);
         } else if (rec === "weekly") {
-          nextDate = addDays(args.date, step * 7);
+          nextDate = addDays(args.date, step * 7 * interval);
         } else {
-          nextDate = addMonths(args.date, step);
+          nextDate = addMonths(args.date, step * interval);
         }
 
         if (nextDate > endLimit) break;
@@ -173,6 +176,7 @@ export const create = mutation({
           color: args.color || undefined,
           isPrivate: !!args.isPrivate,
           recurrence: rec,
+          recurrenceInterval: args.recurrenceInterval || undefined,
           parentEventId: parentId,
           type: args.type || "private",
           category: args.category || undefined,

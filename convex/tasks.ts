@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 
 const TASK_STATUS = v.union(
   v.literal("todo"),
@@ -15,7 +16,11 @@ export const list = query({
       .query("tasks")
       .withIndex("by_quote", (q) => q.eq("quoteId", quoteId))
       .collect();
-    return docs.sort((a, b) => {
+    const mapped = docs.map((t) => ({
+      ...t,
+      assigneeIds: t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []),
+    }));
+    return mapped.sort((a, b) => {
       if (a.status !== b.status) {
         const order = { todo: 0, in_progress: 1, done: 2 } as const;
         return order[a.status] - order[b.status];
@@ -31,19 +36,29 @@ export const listMine = query({
     const callerId = await getAuthUserId(ctx);
     if (!callerId) return [];
 
-    const tasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_assignee", (q) => q.eq("assigneeId", callerId))
-      .collect();
+    const caller = await ctx.db.get(callerId);
+    const role = caller?.roleId ? await ctx.db.get(caller.roleId) : null;
+    const isSuperAdmin = role?.name === "super_admin";
+
+    let tasks;
+    if (isSuperAdmin) {
+      tasks = await ctx.db.query("tasks").collect();
+    } else {
+      const allTasks = await ctx.db.query("tasks").collect();
+      tasks = allTasks.filter((t) => {
+        const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+        return ids.includes(callerId);
+      });
+    }
 
     if (tasks.length === 0) return [];
 
     const uniqueQuoteIds = Array.from(
-      new Set(tasks.map((t) => t.quoteId as unknown as string)),
+      new Set(tasks.map((t) => t.quoteId).filter(Boolean) as string[]),
     );
     const quotes = await Promise.all(
       uniqueQuoteIds.map((id) =>
-        ctx.db.get(id as unknown as typeof tasks[number]["quoteId"]),
+        ctx.db.get(id as Id<"quotes">),
       ),
     );
     const quoteById = new Map<
@@ -61,21 +76,24 @@ export const listMine = query({
 
     const enriched = tasks
       .map((t) => {
-        const ctx = quoteById.get(t.quoteId as unknown as string);
-        if (!ctx) return null;
-        if (ctx.archived) return null;
+        const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+        if (!t.quoteId) {
+          return {
+            ...t,
+            assigneeIds: ids,
+            quote: null,
+          };
+        }
+        const ctxQuote = quoteById.get(t.quoteId as unknown as string);
+        if (!ctxQuote) return null;
+        if (ctxQuote.archived) return null;
         return {
           ...t,
-          quote: { code: ctx.code, contactName: ctx.contactName },
+          assigneeIds: ids,
+          quote: { code: ctxQuote.code, contactName: ctxQuote.contactName },
         };
       })
-      .filter(
-        (
-          v,
-        ): v is (typeof tasks)[number] & {
-          quote: { code: string; contactName: string };
-        } => v !== null,
-      );
+      .filter((t) => t !== null) as Array<typeof tasks[number] & { assigneeIds: Id<"users">[]; quote: { code: string; contactName: string } | null }>;
 
     return enriched.sort((a, b) => {
       if (a.status !== b.status) {
@@ -89,10 +107,11 @@ export const listMine = query({
 
 export const add = mutation({
   args: {
-    quoteId: v.id("quotes"),
+    quoteId: v.optional(v.id("quotes")),
     title: v.string(),
     description: v.optional(v.string()),
     assigneeId: v.optional(v.union(v.id("users"), v.null())),
+    assigneeIds: v.optional(v.array(v.id("users"))),
     dueDate: v.optional(v.string()),
     status: v.optional(TASK_STATUS),
   },
@@ -103,13 +122,19 @@ export const add = mutation({
     if (!title) throw new Error("Tytuł zadania nie może być pusty");
 
     const status = args.status ?? "todo";
-    const existing = await ctx.db
-      .query("tasks")
-      .withIndex("by_quote_status", (q) =>
-        q.eq("quoteId", args.quoteId).eq("status", status),
-      )
-      .collect();
-    const maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    
+    let maxOrder = -1;
+    if (args.quoteId) {
+      const existing = await ctx.db
+        .query("tasks")
+        .withIndex("by_quote_status", (q) =>
+          q.eq("quoteId", args.quoteId!).eq("status", status),
+        )
+        .collect();
+      maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    }
+
+    const ids = args.assigneeIds ?? (args.assigneeId ? [args.assigneeId] : []);
 
     return await ctx.db.insert("tasks", {
       quoteId: args.quoteId,
@@ -117,6 +142,7 @@ export const add = mutation({
       description: args.description?.trim() || undefined,
       status,
       assigneeId: args.assigneeId ?? null,
+      assigneeIds: ids,
       dueDate: args.dueDate || undefined,
       createdAt: Date.now(),
       createdBy: callerId,
@@ -167,13 +193,16 @@ export const setStatus = mutation({
 
     if (task.status === status) return;
 
-    const existing = await ctx.db
-      .query("tasks")
-      .withIndex("by_quote_status", (q) =>
-        q.eq("quoteId", task.quoteId).eq("status", status),
-      )
-      .collect();
-    const maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    let maxOrder = -1;
+    if (task.quoteId) {
+      const existing = await ctx.db
+        .query("tasks")
+        .withIndex("by_quote_status", (q) =>
+          q.eq("quoteId", task.quoteId!).eq("status", status),
+        )
+        .collect();
+      maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    }
 
     await ctx.db.patch(id, {
       status,
@@ -186,12 +215,26 @@ export const setStatus = mutation({
 export const assign = mutation({
   args: {
     id: v.id("tasks"),
-    assigneeId: v.union(v.id("users"), v.null()),
+    assigneeId: v.optional(v.union(v.id("users"), v.null())),
+    assigneeIds: v.optional(v.array(v.id("users"))),
   },
-  handler: async (ctx, { id, assigneeId }) => {
+  handler: async (ctx, { id, assigneeId, assigneeIds }) => {
     const callerId = await getAuthUserId(ctx);
     if (!callerId) throw new Error("Brak autoryzacji");
-    await ctx.db.patch(id, { assigneeId });
+    
+    const patch: Record<string, any> = {};
+    if (assigneeIds !== undefined) {
+      patch.assigneeIds = assigneeIds;
+    }
+    if (assigneeId !== undefined) {
+      patch.assigneeId = assigneeId;
+      if (assigneeIds === undefined) {
+        patch.assigneeIds = assigneeId ? [assigneeId] : [];
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(id, patch);
+    }
   },
 });
 
