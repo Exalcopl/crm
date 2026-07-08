@@ -95,6 +95,7 @@ type FormState = {
 // ─── Sliding Drawer for Add / Edit Event ─────────────────────────────────────
 
 function EventDrawer({
+  isOpen,
   form,
   setForm,
   selectedDate,
@@ -103,6 +104,7 @@ function EventDrawer({
   onCancel,
   saving,
 }: {
+  isOpen: boolean;
   form: FormState;
   setForm: (f: FormState) => void;
   selectedDate: CalendarDate;
@@ -119,7 +121,7 @@ function EventDrawer({
   const durationText = formatDurationLabel(form.startTime, form.endTime);
 
   return (
-    <div className="cal-drawer">
+    <div className={`cal-drawer ${isOpen ? "cal-drawer--open" : ""}`}>
       {/* Header */}
       <div className="cal-drawer-header">
         <div className="cal-drawer-header-top">
@@ -358,10 +360,18 @@ function DayView({
 
 export function CalendarPanel() {
   const [open, setOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<CalendarDate>(
     today(getLocalTimeZone()),
   );
-  const [form, setForm] = useState<FormState | null>(null);
+  const [form, setForm] = useState<FormState>({
+    mode: "create",
+    title: "",
+    description: "",
+    startTime: "09:00",
+    endTime: "10:00",
+    color: EVENT_COLORS[0].hex,
+  });
   const [saving, setSaving] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -375,8 +385,8 @@ export function CalendarPanel() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (form) {
-          setForm(null);
+        if (isDrawerOpen) {
+          setIsDrawerOpen(false);
         } else {
           setOpen(false);
         }
@@ -384,7 +394,7 @@ export function CalendarPanel() {
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [form]);
+  }, [isDrawerOpen]);
 
   function handleSlotClick(hour: number) {
     setForm({
@@ -395,6 +405,7 @@ export function CalendarPanel() {
       endTime: `${String(Math.min(hour + 1, 17)).padStart(2, "0")}:00`,
       color: EVENT_COLORS[0].hex,
     });
+    setIsDrawerOpen(true);
   }
 
   function handleAddHeaderClick() {
@@ -406,6 +417,7 @@ export function CalendarPanel() {
       endTime: "10:00",
       color: EVENT_COLORS[0].hex,
     });
+    setIsDrawerOpen(true);
   }
 
   function handleEventClick(ev: CalEvent) {
@@ -418,6 +430,7 @@ export function CalendarPanel() {
       endTime: ev.endTime,
       color: ev.color || EVENT_COLORS[0].hex,
     });
+    setIsDrawerOpen(true);
   }
 
   async function handleSave() {
@@ -445,7 +458,7 @@ export function CalendarPanel() {
         });
         toast.success("Wydarzenie zaktualizowane");
       }
-      setForm(null);
+      setIsDrawerOpen(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Błąd zapisu");
     } finally {
@@ -459,7 +472,7 @@ export function CalendarPanel() {
     try {
       await removeEvent({ id: form.eventId });
       toast.success("Wydarzenie usunięte");
-      setForm(null);
+      setIsDrawerOpen(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Błąd usuwania");
     } finally {
@@ -473,7 +486,7 @@ export function CalendarPanel() {
       {open && (
         <div
           className="cal-backdrop"
-          onClick={() => { setForm(null); setOpen(false); }}
+          onClick={() => { setIsDrawerOpen(false); setOpen(false); }}
           aria-hidden="true"
         />
       )}
@@ -489,7 +502,7 @@ export function CalendarPanel() {
           <button
             type="button"
             className="cal-panel-close"
-            onClick={() => { setForm(null); setOpen(false); }}
+            onClick={() => { setIsDrawerOpen(false); setOpen(false); }}
             aria-label="Zamknij kalendarz"
           >
             ✕
@@ -500,7 +513,7 @@ export function CalendarPanel() {
           {/* ─── Month View (react-aria) ──────────────────────────────── */}
           <Calendar
             value={selectedDate}
-            onChange={(d) => { setSelectedDate(d); setForm(null); }}
+            onChange={(d) => { setSelectedDate(d); setIsDrawerOpen(false); }}
             aria-label="Wybierz datę"
             className="cal-month"
           >
@@ -534,17 +547,16 @@ export function CalendarPanel() {
         </div>
 
         {/* ─── Sliding Secondary Drawer for Add / Edit Event ────────── */}
-        {form && (
-          <EventDrawer
-            form={form}
-            setForm={setForm}
-            selectedDate={selectedDate}
-            onSave={handleSave}
-            onDelete={form.mode === "edit" ? handleDelete : undefined}
-            onCancel={() => setForm(null)}
-            saving={saving}
-          />
-        )}
+        <EventDrawer
+          isOpen={isDrawerOpen}
+          form={form}
+          setForm={setForm}
+          selectedDate={selectedDate}
+          onSave={handleSave}
+          onDelete={form.mode === "edit" ? handleDelete : undefined}
+          onCancel={() => setIsDrawerOpen(false)}
+          saving={saving}
+        />
       </aside>
 
       {/* FAB */}
@@ -884,12 +896,16 @@ export function CalendarPanel() {
           background: #111419;
           display: flex;
           flex-direction: column;
-          animation: cal-drawer-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+          transform: translateX(100%);
+          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
+          pointer-events: none;
+          opacity: 0;
         }
 
-        @keyframes cal-drawer-in {
-          from { transform: translateX(100%); }
-          to   { transform: translateX(0); }
+        .cal-drawer--open {
+          transform: translateX(0);
+          pointer-events: auto;
+          opacity: 1;
         }
 
         .cal-drawer-header {
