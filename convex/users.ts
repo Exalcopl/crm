@@ -70,6 +70,7 @@ export const list = query({
         role: u.roleId
           ? roleById.get(u.roleId as unknown as string) ?? null
           : null,
+        isAssignable: u.isAssignable ?? true,
         createdAt: u._creationTime,
       }));
   },
@@ -95,6 +96,7 @@ export const listAssignable = query({
     return users
       .filter((u) => {
         if ((u.isActive ?? true) === false) return false;
+        if ((u.isAssignable ?? true) === false) return false;
         if (!u.roleId) return false;
         return assignableRoleIds.has(u.roleId as unknown as string);
       })
@@ -117,7 +119,11 @@ export const listAllAssignable = query({
 
     const users = await ctx.db.query("users").collect();
     return users
-      .filter((u) => (u.isActive ?? true) !== false)
+      .filter((u) => {
+        if ((u.isActive ?? true) === false) return false;
+        if ((u.isAssignable ?? true) === false) return false;
+        return true;
+      })
       .map((u) => ({
         _id: u._id,
         name: u.name ?? null,
@@ -180,6 +186,15 @@ export const setActive = mutation({
       throw new Error("Nie możesz dezaktywować własnego konta");
     }
     await ctx.db.patch(userId, { isActive });
+    return null;
+  },
+});
+
+export const setAssignable = mutation({
+  args: { userId: v.id("users"), isAssignable: v.boolean() },
+  handler: async (ctx, { userId, isAssignable }) => {
+    await requirePermission(ctx, "users", "update");
+    await ctx.db.patch(userId, { isAssignable });
     return null;
   },
 });

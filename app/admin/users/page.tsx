@@ -23,6 +23,7 @@ type UserRow = {
     displayName: string;
     isSystem: boolean;
   } | null;
+  isAssignable: boolean;
   createdAt: number;
 };
 
@@ -153,8 +154,9 @@ export default function UsersPage() {
               <th>Użytkownik</th>
               <th>Rola</th>
               <th>Status</th>
+              <th>Kalendarz/Zadania</th>
               <th>Utworzono</th>
-              {canUpdate ? <th aria-label="Akcje" /> : null}
+              {canUpdate || canDelete ? <th aria-label="Akcje" /> : null}
             </tr>
           </thead>
           <tbody>
@@ -246,7 +248,20 @@ function UserRowView({
   const setActive = useMutation(api.users.setActive);
   const setRole = useMutation(api.users.setRole);
   const removeUser = useMutation(api.users.remove);
+  const setAssignable = useMutation(api.users.setAssignable);
   const [working, setWorking] = useState(false);
+
+  async function toggleAssignable() {
+    if (working) return;
+    setWorking(true);
+    try {
+      await setAssignable({ userId: user._id, isAssignable: !user.isAssignable });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Błąd");
+    } finally {
+      setWorking(false);
+    }
+  }
 
   async function toggleActive() {
     if (working) return;
@@ -329,6 +344,17 @@ function UserRowView({
         {user.mustChangePassword ? (
           <span className="users-badge">wymaga zmiany hasła</span>
         ) : null}
+      </td>
+      <td>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <input
+            type="checkbox"
+            checked={user.isAssignable}
+            disabled={!canUpdate || working}
+            onChange={toggleAssignable}
+            style={{ width: "16px", height: "16px", cursor: canUpdate ? "pointer" : "default" }}
+          />
+        </div>
       </td>
       <td>{new Date(user.createdAt).toLocaleDateString("pl-PL")}</td>
       {canUpdate || canDelete ? (

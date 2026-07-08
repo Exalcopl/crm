@@ -19,6 +19,7 @@ export default defineSchema({
     roleId: v.optional(v.id("roles")),
     isActive: v.optional(v.boolean()),
     mustChangePassword: v.optional(v.boolean()),
+    isAssignable: v.optional(v.boolean()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"])
