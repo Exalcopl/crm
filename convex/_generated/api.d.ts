@@ -11,6 +11,7 @@
 import type * as _lib_phone from "../_lib/phone.js";
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
+import type * as calendarCategories from "../calendarCategories.js";
 import type * as calendarEvents from "../calendarEvents.js";
 import type * as clientNotes from "../clientNotes.js";
 import type * as clients from "../clients.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   "_lib/phone": typeof _lib_phone;
   account: typeof account;
   auth: typeof auth;
+  calendarCategories: typeof calendarCategories;
   calendarEvents: typeof calendarEvents;
   clientNotes: typeof clientNotes;
   clients: typeof clients;

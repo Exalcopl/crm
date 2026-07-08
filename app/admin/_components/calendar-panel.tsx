@@ -46,18 +46,24 @@ function getUserColor(userId?: string): string {
   return USER_PALETTE[hash % USER_PALETTE.length];
 }
 
-const COMPANY_CATEGORIES = [
-  { id: "spotkanie", label: "Spotkanie", color: "#3b82f6", bg: "rgba(59, 130, 246, 0.12)", border: "rgba(59, 130, 246, 0.3)" },
-  { id: "montaz", label: "Montaż", color: "#10b981", bg: "rgba(16, 185, 129, 0.12)", border: "rgba(16, 185, 129, 0.3)" },
-  { id: "pomiary", label: "Pomiary", color: "#f59e0b", bg: "rgba(245, 158, 11, 0.12)", border: "rgba(245, 158, 11, 0.3)" },
-  { id: "urlop", label: "Urlop", color: "#8b5cf6", bg: "rgba(139, 92, 246, 0.12)", border: "rgba(139, 92, 246, 0.3)" },
-  { id: "inne", label: "Inne", color: "#9ca3af", bg: "rgba(156, 163, 175, 0.12)", border: "rgba(156, 163, 175, 0.3)" },
-];
+type CategoryStyle = { id: string; label: string; color: string; bg: string; border: string };
 
-function getCategoryStyle(catId?: string) {
-  const cat = COMPANY_CATEGORIES.find((c) => c.id === catId);
-  return cat || COMPANY_CATEGORIES[4];
+function hexToRgba(hex: string, alpha: number): string {
+  try {
+    const cleanHex = hex.replace("#", "");
+    const r = parseInt(cleanHex.substring(0, 2), 16) || 0;
+    const g = parseInt(cleanHex.substring(2, 4), 16) || 0;
+    const b = parseInt(cleanHex.substring(4, 6), 16) || 0;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  } catch {
+    return `rgba(156, 163, 175, ${alpha})`;
+  }
 }
+
+const FALLBACK_CATEGORY: CategoryStyle = {
+  id: "inne", label: "Inne", color: "#9ca3af",
+  bg: "rgba(156, 163, 175, 0.12)", border: "rgba(156, 163, 175, 0.3)",
+};
 
 const POLISH_DAYS = ["Niedziela", "Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota"];
 const POLISH_MONTHS = [
@@ -269,6 +275,7 @@ function EventDrawer({
   onCancel,
   saving,
   currentUserId,
+  categories,
 }: {
   isOpen: boolean;
   form: FormState;
@@ -279,6 +286,7 @@ function EventDrawer({
   onCancel: () => void;
   saving: boolean;
   currentUserId?: Id<"users">;
+  categories: CategoryStyle[];
 }) {
   const isReadOnly =
     form.mode === "edit" &&
@@ -343,7 +351,7 @@ function EventDrawer({
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 disabled={isReadOnly}
               >
-                {COMPANY_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.label}
                   </option>
@@ -965,6 +973,35 @@ export function CalendarPanel() {
     }
   });
 
+  // ─── Dynamic Calendar Categories ─────────────────────────────────────────
+  const categoriesRaw = useQuery(api.calendarCategories.list) ?? [];
+  const seedCategories = useMutation(api.calendarCategories.checkAndSeed);
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    if (!seededRef.current) {
+      seededRef.current = true;
+      seedCategories().catch(() => {});
+    }
+  }, [seedCategories]);
+
+  const companyCategories: CategoryStyle[] = categoriesRaw.map((c) => ({
+    id: c.code || c._id,
+    label: c.name,
+    color: c.color,
+    bg: hexToRgba(c.color, 0.12),
+    border: hexToRgba(c.color, 0.3),
+  }));
+
+  const getCategoryStyle = useCallback(
+    (catId?: string): CategoryStyle => {
+      if (!catId) return companyCategories[companyCategories.length - 1] || FALLBACK_CATEGORY;
+      const cat = companyCategories.find((c) => c.id === catId);
+      return cat || companyCategories[companyCategories.length - 1] || FALLBACK_CATEGORY;
+    },
+    [companyCategories],
+  );
+
   const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
   const currentUser = allUsersRaw.find((u) => u.isCurrentUser);
   const currentUserId = currentUser?._id;
@@ -1564,6 +1601,7 @@ export function CalendarPanel() {
           onCancel={() => setIsDrawerOpen(false)}
           saving={saving}
           currentUserId={currentUserId}
+          categories={companyCategories}
         />
       </aside>
 
@@ -1663,7 +1701,7 @@ export function CalendarPanel() {
                 <span className="cal-category-chip-dot" style={{ backgroundColor: "#ffffff" }} />
                 Wszystkie
               </button>
-              {COMPANY_CATEGORIES.map((cat) => (
+              {companyCategories.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -1957,7 +1995,7 @@ export function CalendarPanel() {
                                 {!isDraggingThis && (
                                   <div
                                     className="cal-event-resize-handle"
-                                    onPointerDown={() => {
+                                    onPointerDown={(e) => {
                                       const startVal = parseHour(ev.startTime);
                                       const endVal = parseHour(ev.endTime);
                                       setCompDragState({
@@ -2038,6 +2076,7 @@ export function CalendarPanel() {
           onCancel={() => setIsDrawerOpen(false)}
           saving={saving}
           currentUserId={currentUserId}
+          categories={companyCategories}
         />
       </aside>
 

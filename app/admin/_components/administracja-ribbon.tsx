@@ -16,7 +16,8 @@ export function AdministracjaRibbon() {
 
   const usersActive = pathname.startsWith("/admin/users");
   const rolesActive = pathname.startsWith("/admin/roles");
-  const projectTypesActive = pathname.startsWith("/admin/projekt");
+  const projectTypesActive = pathname.startsWith("/admin/projekt/typy");
+  const calendarCategoriesActive = pathname.startsWith("/admin/projekt/kategorie");
 
   return (
     <div className="fluent-ribbon">
@@ -58,6 +59,15 @@ export function AdministracjaRibbon() {
               <I.layers s={22} />
             </span>
             <span className="ribbon-label">Typy projektów</span>
+          </Link>
+          <Link
+            href="/admin/projekt/kategorie"
+            className={`ribbon-btn ${calendarCategoriesActive ? "active" : ""}`}
+          >
+            <span className="ribbon-icon">
+              <I.cal s={22} />
+            </span>
+            <span className="ribbon-label">Kategorie kalendarza</span>
           </Link>
         </div>
         <div className="ribbon-group-label">Projekt</div>

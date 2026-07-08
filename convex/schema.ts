@@ -307,4 +307,10 @@ export default defineSchema({
     .index("by_date", ["date"])
     .index("by_createdBy", ["createdBy"])
     .index("by_createdBy_date", ["createdBy", "date"]),
+
+  calendarCategories: defineTable({
+    name: v.string(),
+    color: v.string(),
+    code: v.string(),
+  }).index("by_code", ["code"]),
 });
