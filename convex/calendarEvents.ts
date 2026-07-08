@@ -209,7 +209,7 @@ export const update = mutation({
 
     const event = await ctx.db.get(id);
     if (!event) throw new Error("Wydarzenie nie istnieje");
-    if (event.createdBy !== userId)
+    if (event.createdBy !== userId && event.type !== "company")
       throw new Error("Brak uprawnień do edycji tego wydarzenia");
 
     const patch: Record<string, unknown> = {};
@@ -257,7 +257,7 @@ export const remove = mutation({
 
     const event = await ctx.db.get(id);
     if (!event) throw new Error("Wydarzenie nie istnieje");
-    if (event.createdBy !== userId)
+    if (event.createdBy !== userId && event.type !== "company")
       throw new Error("Brak uprawnień do usunięcia tego wydarzenia");
 
     await ctx.db.delete(id);

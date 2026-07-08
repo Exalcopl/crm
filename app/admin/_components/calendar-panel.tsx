@@ -346,6 +346,7 @@ function EventDrawer({
 }) {
   const isReadOnly =
     form.mode === "edit" &&
+    form.type !== "company" &&
     form.createdBy !== undefined &&
     form.createdBy !== currentUserId;
 
@@ -1787,6 +1788,8 @@ export function CalendarPanel() {
     setIsDrawerOpen(true);
   }
 
+  const isReadOnly = form.mode === "edit" && form.createdBy !== currentUserId && form.type !== "company";
+
   async function handleQuickUpdate(
     id: Id<"calendarEvents">,
     startTime: string,
@@ -1804,11 +1807,12 @@ export function CalendarPanel() {
     if (!form || !form.title.trim()) return;
     setSaving(true);
     try {
+      const targetDate = form.date || dateStr;
       if (form.mode === "create") {
         await createEvent({
           title: form.title,
           description: form.description || undefined,
-          date: form.date || dateStr,
+          date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
           recurrence: form.recurrence,
@@ -1824,7 +1828,7 @@ export function CalendarPanel() {
           id: form.eventId,
           title: form.title,
           description: form.description || null,
-          date: form.date || dateStr,
+          date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
           isPrivate: form.isPrivate,
@@ -1833,6 +1837,25 @@ export function CalendarPanel() {
         });
         toast.success("Wydarzenie zaktualizowane");
       }
+      
+      if (targetDate !== dateStr) {
+        const [y, m, d] = targetDate.split("-").map(Number);
+        try {
+          // Keep existing calendar and era if possible
+          const newDate = {
+            year: y,
+            month: m,
+            day: d,
+            calendar: selectedDate.calendar,
+            era: selectedDate.era,
+            copy() { return this; }
+          } as CalendarDate;
+          setSelectedDate(newDate as any);
+        } catch {
+          setSelectedDate(new Date(Date.UTC(y, m - 1, d)) as any);
+        }
+      }
+      
       setIsDrawerOpen(false);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Błąd zapisu");
