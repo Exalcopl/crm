@@ -1027,6 +1027,7 @@ class CalErrorBoundary extends React.Component<
 export function CalendarPanel() {
   const [open, setOpen] = useState(false);
   const [isCompanyOpen, setIsCompanyOpen] = useState(false);
+  const [menuExpanded, setMenuExpanded] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<CalendarDate>(() => {
@@ -2176,7 +2177,7 @@ export function CalendarPanel() {
       </aside>
 
       {/* FAB Container */}
-      <div className="cal-fab-container">
+      <div className={`cal-fab-container ${menuExpanded ? "cal-fab-container--expanded" : ""}`}>
         {/* Company Calendar FAB */}
         <button
           type="button"
@@ -2184,6 +2185,7 @@ export function CalendarPanel() {
           onClick={() => {
             setIsCompanyOpen((v) => !v);
             setOpen(false);
+            setMenuExpanded(false);
           }}
           aria-label="Otwórz kalendarz firmowy"
           aria-expanded={isCompanyOpen}
@@ -2199,13 +2201,14 @@ export function CalendarPanel() {
           />
         </button>
 
-        {/* Private Calendar FAB (Base FAB) */}
+        {/* Private Calendar FAB */}
         <button
           type="button"
           className={`cal-fab-item cal-fab-item--private ${open ? "cal-fab-item--active" : ""}`}
           onClick={() => {
             setOpen((v) => !v);
             setIsCompanyOpen(false);
+            setMenuExpanded(false);
           }}
           aria-label="Otwórz kalendarz prywatny"
           aria-expanded={open}
@@ -2217,7 +2220,31 @@ export function CalendarPanel() {
             width={24}
             height={24}
             className="cal-fab-icon"
+            style={{ filter: "brightness(0) invert(1)" }}
           />
+        </button>
+
+        {/* Trigger FAB (Primary Base) */}
+        <button
+          type="button"
+          className={`cal-fab-item cal-fab-item--trigger ${menuExpanded ? "cal-fab-item--active" : ""}`}
+          onClick={() => {
+            setMenuExpanded((v) => !v);
+          }}
+          aria-label="Otwórz nawigację kalendarzy"
+          title="Kalendarz i narzędzia"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="cal-fab-icon cal-fab-trigger-icon"
+            style={{ width: "32px", height: "32px", transition: "transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }}
+          >
+            <circle cx="12" cy="12" r="10" stroke="#ffffff" strokeWidth="2" />
+            <line x1="12" y1="7.5" x2="12" y2="16.5" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+            <line x1="7.5" y1="12" x2="16.5" y2="12" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+          </svg>
         </button>
       </div>
 
@@ -3217,8 +3244,9 @@ export function CalendarPanel() {
           transition: height 0s;
         }
 
-        .cal-fab-container:hover {
-          height: 120px;
+        .cal-fab-container:hover,
+        .cal-fab-container--expanded {
+          height: 200px;
         }
 
         .cal-fab-item {
@@ -3237,20 +3265,52 @@ export function CalendarPanel() {
           transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        .cal-fab-item--private {
+        .cal-fab-item--trigger {
           background: #d41d3c;
           box-shadow: 0 4px 18px rgba(212, 29, 60, 0.5);
-          z-index: 2;
+          z-index: 5;
         }
 
-        .cal-fab-item--private:hover {
+        .cal-fab-item--trigger:hover {
           background: #e63350;
           transform: scale(1.06);
           box-shadow: 0 6px 24px rgba(212, 29, 60, 0.65);
         }
 
+        .cal-fab-item--trigger .cal-fab-trigger-icon {
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .cal-fab-container:hover .cal-fab-item--trigger .cal-fab-trigger-icon,
+        .cal-fab-container--expanded .cal-fab-item--trigger .cal-fab-trigger-icon {
+          transform: rotate(45deg);
+        }
+
+        /* Private Calendar (Circle 1) */
+        .cal-fab-item--private {
+          background: #d41d3c;
+          box-shadow: 0 4px 18px rgba(212, 29, 60, 0.5);
+          opacity: 0;
+          transform: translateY(0) scale(0.6);
+          pointer-events: none;
+          z-index: 3;
+        }
+
+        .cal-fab-container:hover .cal-fab-item--private,
+        .cal-fab-container--expanded .cal-fab-item--private {
+          opacity: 1;
+          transform: translateY(-66px) scale(1);
+          pointer-events: auto;
+        }
+
+        .cal-fab-item--private:hover {
+          background: #e63350;
+          transform: translateY(-66px) scale(1.06);
+          box-shadow: 0 6px 24px rgba(212, 29, 60, 0.65);
+        }
+
         .cal-fab-item--private:active {
-          transform: scale(0.95);
+          transform: translateY(-66px) scale(0.95);
         }
 
         .cal-fab-item--private.cal-fab-item--active {
@@ -3258,30 +3318,31 @@ export function CalendarPanel() {
           box-shadow: 0 4px 16px rgba(212, 29, 60, 0.35);
         }
 
+        /* Company Calendar (Circle 2) */
         .cal-fab-item--company {
           background: #2563eb;
           box-shadow: 0 4px 18px rgba(37, 99, 235, 0.5);
           opacity: 0;
           transform: translateY(0) scale(0.6);
           pointer-events: none;
-          z-index: 1;
+          z-index: 2;
         }
 
-        .cal-fab-container:hover .cal-fab-item--company {
+        .cal-fab-container:hover .cal-fab-item--company,
+        .cal-fab-container--expanded .cal-fab-item--company {
           opacity: 1;
-          transform: translateY(-66px) scale(1);
+          transform: translateY(-132px) scale(1);
           pointer-events: auto;
-          z-index: 3;
         }
 
         .cal-fab-item--company:hover {
           background: #3b82f6;
-          transform: translateY(-66px) scale(1.06);
+          transform: translateY(-132px) scale(1.06);
           box-shadow: 0 6px 24px rgba(37, 99, 235, 0.65);
         }
 
         .cal-fab-item--company:active {
-          transform: translateY(-66px) scale(0.95);
+          transform: translateY(-132px) scale(0.95);
         }
 
         .cal-fab-item--company.cal-fab-item--active {
