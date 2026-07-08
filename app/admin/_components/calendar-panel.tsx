@@ -587,7 +587,7 @@ function DayView({
 }: {
   selectedDate: CalendarDate;
   events: CalEvent[];
-  onSlotClick: (hour: number) => void;
+  onSlotClick: (startHour: number, endHour?: number) => void;
   onEventClick: (event: CalEvent) => void;
   onAddClick: () => void;
   onEventUpdate?: (id: Id<"calendarEvents">, startTime: string, endTime: string) => void;
@@ -607,6 +607,54 @@ function DayView({
     grabOffsetY: number;
     didMove: boolean;
   } | null>(null);
+
+  const [createDrag, setCreateDrag] = useState<{
+    startHour: number;
+    currentHour: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!createDrag) return;
+
+    function handlePointerMove(e: PointerEvent) {
+      if (!gridRef.current || !createDrag) return;
+      const rect = gridRef.current.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const rawHour = 8 + y / HOUR_HEIGHT;
+      const snappedHour = Math.max(
+        8,
+        Math.min(17, Math.round(rawHour * 2) / 2)
+      );
+      setCreateDrag((prev) =>
+        prev ? { ...prev, currentHour: snappedHour } : null
+      );
+    }
+
+    function handlePointerUp() {
+      if (!createDrag) return;
+      const start = createDrag.startHour;
+      const end = createDrag.currentHour;
+      const minHour = Math.min(start, end);
+      const maxHour = Math.max(start, end);
+      const duration = maxHour - minHour;
+      const finalEnd = duration === 0 ? Math.min(minHour + 1, 17) : maxHour;
+
+      suppressClickRef.current = true;
+      setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 150);
+
+      onSlotClick(minHour, finalEnd);
+      setCreateDrag(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [createDrag, onSlotClick]);
 
   useEffect(() => {
     if (!dragState) return;
@@ -715,9 +763,21 @@ function DayView({
           <div
             key={h}
             className="cal-hour-slot"
-            style={{ top: (h - 8) * HOUR_HEIGHT, height: HOUR_HEIGHT }}
+            style={{ top: (h - 8) * HOUR_HEIGHT, height: HOUR_HEIGHT, touchAction: "none" }}
             onClick={() => {
-              if (!dragState && !suppressClickRef.current) onSlotClick(h);
+              if (!dragState && !createDrag && !suppressClickRef.current) onSlotClick(h);
+            }}
+            onPointerDown={(e) => {
+              if (dragState) return;
+              if (e.button !== 0) return; // Left click only
+              const rect = e.currentTarget.getBoundingClientRect();
+              const relativeY = e.clientY - rect.top;
+              const clickedHalf = relativeY >= HOUR_HEIGHT / 2 ? 0.5 : 0;
+              const startHour = h + clickedHalf;
+              setCreateDrag({
+                startHour,
+                currentHour: startHour,
+              });
             }}
           >
             <span className="cal-hour-label">
@@ -725,6 +785,44 @@ function DayView({
             </span>
           </div>
         ))}
+
+        {/* Preview drag-create block */}
+        {createDrag && (() => {
+          const minHour = Math.min(createDrag.startHour, createDrag.currentHour);
+          const maxHour = Math.max(createDrag.startHour, createDrag.currentHour);
+          const top = (minHour - 8) * HOUR_HEIGHT;
+          const duration = maxHour - minHour;
+          const finalDuration = duration === 0 ? 0.5 : duration;
+          const height = finalDuration * HOUR_HEIGHT;
+          const color = getUserColor(currentUserId);
+          
+          return (
+            <div
+              className="cal-event-block"
+              style={{
+                top,
+                height,
+                left: "54px",
+                width: "calc(100% - 58px)",
+                borderLeftColor: color,
+                background: `${color}12`,
+                borderStyle: "dashed",
+                borderWidth: "1px",
+                borderLeftWidth: "4px",
+                opacity: 0.8,
+                pointerEvents: "none",
+                zIndex: 5,
+              }}
+            >
+              <span className="cal-event-time">
+                {formatHour(minHour)}–{formatHour(minHour + finalDuration)}
+              </span>
+              <span className="cal-event-title" style={{ fontStyle: "italic", opacity: 0.7 }}>
+                Nowe zadanie...
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Events */}
         {sortedEvents.map((ev) => {
@@ -1064,6 +1162,54 @@ export function CalendarPanel() {
     };
   }, [compDragState, updateEvent, weekDateStrings, monthGridDays]);
 
+  const [compCreateDrag, setCompCreateDrag] = useState<{
+    dayStr: string;
+    startHour: number;
+    currentHour: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!compCreateDrag) return;
+
+    function handlePointerMove(e: PointerEvent) {
+      if (!weekGridRef.current || !compCreateDrag) return;
+      const rect = weekGridRef.current.getBoundingClientRect();
+      const y = e.clientY - rect.top;
+      const rawHour = 8 + y / HOUR_HEIGHT;
+      const snappedHour = Math.max(
+        8,
+        Math.min(17, Math.round(rawHour * 2) / 2)
+      );
+      setCompCreateDrag((prev) =>
+        prev ? { ...prev, currentHour: snappedHour } : null
+      );
+    }
+
+    function handlePointerUp() {
+      if (!compCreateDrag) return;
+      const { dayStr, startHour, currentHour } = compCreateDrag;
+      const minHour = Math.min(startHour, currentHour);
+      const maxHour = Math.max(startHour, currentHour);
+      const duration = maxHour - minHour;
+      const finalEnd = duration === 0 ? Math.min(minHour + 1, 17) : maxHour;
+
+      suppressCompanyClickRef.current = true;
+      setTimeout(() => {
+        suppressCompanyClickRef.current = false;
+      }, 150);
+
+      handleCompanyAddClick(dayStr, minHour, finalEnd);
+      setCompCreateDrag(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [compCreateDrag, handleCompanyAddClick]);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -1079,13 +1225,14 @@ export function CalendarPanel() {
     return () => document.removeEventListener("keydown", onKey);
   }, [isDrawerOpen]);
 
-  function handleSlotClick(hour: number) {
+  function handleSlotClick(startHour: number, endHour?: number) {
+    const finalEndHour = endHour !== undefined ? endHour : Math.min(startHour + 1, 17);
     setForm({
       mode: "create",
       title: "",
       description: "",
-      startTime: `${String(hour).padStart(2, "0")}:00`,
-      endTime: `${String(Math.min(hour + 1, 17)).padStart(2, "0")}:00`,
+      startTime: formatHour(startHour),
+      endTime: formatHour(finalEndHour),
       recurrence: "none",
       recurrenceEndDate: "",
       isPrivate: false,
@@ -1131,7 +1278,7 @@ export function CalendarPanel() {
     setIsDrawerOpen(true);
   }
 
-  function handleCompanyAddClick(dayStr: string, hour?: number) {
+  function handleCompanyAddClick(dayStr: string, startHour?: number, endHour?: number) {
     const [y, m, d] = dayStr.split("-").map(Number);
     const newDate = {
       year: y,
@@ -1143,15 +1290,15 @@ export function CalendarPanel() {
     } as CalendarDate;
     setSelectedDate(newDate);
 
-    const startH = hour !== undefined ? hour : 9;
-    const endH = hour !== undefined ? Math.min(hour + 1, 17) : 10;
+    const startH = startHour !== undefined ? startHour : 9;
+    const endH = endHour !== undefined ? endHour : (startHour !== undefined ? Math.min(startHour + 1, 17) : 10);
 
     setForm({
       mode: "create",
       title: "",
       description: "",
-      startTime: `${String(startH).padStart(2, "0")}:00`,
-      endTime: `${String(endH).padStart(2, "0")}:00`,
+      startTime: formatHour(startH),
+      endTime: formatHour(endH),
       recurrence: "none",
       recurrenceEndDate: "",
       isPrivate: false,
@@ -1711,11 +1858,26 @@ export function CalendarPanel() {
                             <div
                               key={h}
                               className="cal-weekly-day-hour-slot"
-                              style={{ height: HOUR_HEIGHT }}
+                              style={{ height: HOUR_HEIGHT, touchAction: "none" }}
                               onClick={() => {
-                                if (!compDragState && !suppressCompanyClickRef.current) {
+                                if (!compDragState && !compCreateDrag && !suppressCompanyClickRef.current) {
                                   handleCompanyAddClick(dayStr, h);
                                 }
+                              }}
+                              onPointerDown={(e) => {
+                                if (compDragState) return;
+                                if (e.button !== 0) return; // Left click only
+
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const relativeY = e.clientY - rect.top;
+                                const clickedHalf = relativeY >= HOUR_HEIGHT / 2 ? 0.5 : 0;
+                                const startHour = h + clickedHalf;
+
+                                setCompCreateDrag({
+                                  dayStr,
+                                  startHour,
+                                  currentHour: startHour,
+                                });
                               }}
                             />
                           ))}
@@ -1814,6 +1976,41 @@ export function CalendarPanel() {
                               </button>
                             );
                           })}
+
+                          {/* Preview drag-create block (Company Calendar) */}
+                          {compCreateDrag?.dayStr === dayStr && (() => {
+                            const minHour = Math.min(compCreateDrag.startHour, compCreateDrag.currentHour);
+                            const maxHour = Math.max(compCreateDrag.startHour, compCreateDrag.currentHour);
+                            const top = (minHour - 8) * HOUR_HEIGHT;
+                            const duration = maxHour - minHour;
+                            const finalDuration = duration === 0 ? 0.5 : duration;
+                            const height = finalDuration * HOUR_HEIGHT;
+                            
+                            return (
+                              <div
+                                className="cal-weekly-event-card"
+                                style={{
+                                  top,
+                                  height,
+                                  left: "4px",
+                                  width: "calc(100% - 8px)",
+                                  background: "rgba(37, 99, 235, 0.12)",
+                                  border: "1px dashed rgba(37, 99, 235, 0.5)",
+                                  borderLeft: "4px solid #2563eb",
+                                  opacity: 0.8,
+                                  pointerEvents: "none",
+                                  zIndex: 5,
+                                }}
+                              >
+                                <div className="cal-weekly-event-time" style={{ color: "#2563eb" }}>
+                                  {formatHour(minHour)} - {formatHour(minHour + finalDuration)}
+                                </div>
+                                <div className="cal-weekly-event-title" style={{ fontStyle: "italic", opacity: 0.7 }}>
+                                  Nowe wydarzenie...
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       );
                     })}
