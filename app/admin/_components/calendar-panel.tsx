@@ -3348,6 +3348,7 @@ export function CalendarPanel() {
           border: 1px solid #30363d;
           border-radius: 7px;
           outline: none;
+          color-scheme: dark;
           transition: border-color 0.15s, box-shadow 0.15s;
         }
 
