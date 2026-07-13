@@ -298,6 +298,7 @@ export default defineSchema({
         v.literal("daily"),
         v.literal("weekly"),
         v.literal("monthly"),
+        v.literal("yearly"),
       ),
     ),
     recurrenceInterval: v.optional(v.number()),

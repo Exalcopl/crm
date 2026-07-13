@@ -277,7 +277,7 @@ type CalEvent = {
   endDate?: string;
   color?: string;
   isPrivate?: boolean;
-  recurrence?: "none" | "daily" | "weekly" | "monthly";
+  recurrence?: "none" | "daily" | "weekly" | "monthly" | "yearly";
   recurrenceInterval?: number;
   recurrenceEndDate?: string;
   parentEventId?: Id<"calendarEvents">;
@@ -297,7 +297,7 @@ type FormState = {
   endTime: string;
   isAllDay: boolean;
   endDate: string;
-  recurrence: "none" | "daily" | "weekly" | "monthly";
+  recurrence: "none" | "daily" | "weekly" | "monthly" | "yearly";
   recurrenceInterval: number;
   recurrenceEndDate: string;
   isPrivate: boolean;
@@ -393,6 +393,11 @@ function EventDrawer({
                 type="date"
                 className="cal-input"
                 value={form.date}
+                onClick={(e) => {
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   // Auto-update endDate if it was previously same as start date
@@ -406,6 +411,11 @@ function EventDrawer({
                 className="cal-input"
                 value={form.endDate || form.date}
                 min={form.date}
+                onClick={(e) => {
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
                 onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                 disabled={isReadOnly}
               />
@@ -415,7 +425,7 @@ function EventDrawer({
             <input
               type="checkbox"
               id="isAllDay"
-              checked={form.isAllDay}
+              checked={!!form.isAllDay}
               onChange={(e) => setForm({ ...form, isAllDay: e.target.checked })}
               disabled={isReadOnly}
               style={{ width: 16, height: 16 }}
@@ -502,63 +512,69 @@ function EventDrawer({
         {form.mode === "create" && (
           <div className="cal-card">
             <div className="cal-card-title">Cykliczność wydarzenia</div>
-            <div className="cal-form-group">
-              <label className="cal-label">Powtarzaj</label>
-              <select
-                className="cal-select"
-                value={form.recurrence}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    recurrence: e.target.value as FormState["recurrence"],
-                  })
-                }
-              >
-                <option value="none">Jednorazowe wydarzenie</option>
-                <option value="daily">Codziennie</option>
-                <option value="weekly">Co tydzień</option>
-                <option value="monthly">Co miesiąc</option>
-              </select>
+            <div className="cal-form-group" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                id="isRecurring"
+                checked={form.recurrence !== "none"}
+                onChange={(e) => setForm({ ...form, recurrence: e.target.checked ? "weekly" : "none" })}
+                style={{ width: 16, height: 16 }}
+              />
+              <label htmlFor="isRecurring" className="cal-label" style={{ marginBottom: 0, cursor: "pointer" }}>Powtarzaj wydarzenie</label>
             </div>
 
             {form.recurrence !== "none" && (
               <>
+                <div style={{ display: "flex", gap: "12px", marginTop: "12px", alignItems: "flex-end" }}>
+                  <div className="cal-form-group" style={{ flex: 1 }}>
+                    <label className="cal-label">Powtarzaj co</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className="cal-input"
+                      value={form.recurrenceInterval}
+                      onChange={(e) =>
+                        setForm({ ...form, recurrenceInterval: Math.max(1, parseInt(e.target.value) || 1) })
+                      }
+                    />
+                  </div>
+                  <div className="cal-form-group" style={{ flex: 2 }}>
+                    <label className="cal-label">&nbsp;</label>
+                    <select
+                      className="cal-select"
+                      value={form.recurrence === "none" ? "weekly" : form.recurrence}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          recurrence: e.target.value as FormState["recurrence"],
+                        })
+                      }
+                    >
+                      <option value="daily">Dzień</option>
+                      <option value="weekly">Tydzień</option>
+                      <option value="monthly">Miesiąc</option>
+                      <option value="yearly">Rok</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="cal-form-group" style={{ marginTop: 12 }}>
-                  <label className="cal-label">Co ile {form.recurrence === "daily" ? "dni" : form.recurrence === "weekly" ? "tygodni" : "miesięcy"} powtarzać?</label>
+                  <label className="cal-label">Koniec powtarzania (opcjonalnie)</label>
                   <input
-                    type="number"
-                    min={1}
+                    type="date"
                     className="cal-input"
-                    value={form.recurrenceInterval}
+                    value={form.recurrenceEndDate}
+                    min={form.date}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch {}
+                    }}
                     onChange={(e) =>
-                      setForm({ ...form, recurrenceInterval: Math.max(1, parseInt(e.target.value) || 1) })
+                      setForm({ ...form, recurrenceEndDate: e.target.value })
                     }
                   />
                 </div>
-                <div className="cal-form-group" style={{ marginTop: 12 }}>
-                  <label className="cal-label">Powtarzaj do daty (opcjonalnie)</label>
-                <input
-                  type="date"
-                  className="cal-input"
-                  value={form.recurrenceEndDate}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    try {
-                      e.currentTarget.showPicker();
-                    } catch {}
-                  }}
-                  onFocus={(e) => {
-                    try {
-                      e.currentTarget.showPicker();
-                    } catch {}
-                  }}
-                  onChange={(e) =>
-                    setForm({ ...form, recurrenceEndDate: e.target.value })
-                  }
-                />
-              </div>
               </>
             )}
           </div>
@@ -861,15 +877,7 @@ function TaskDrawer({
                 type="date"
                 className="cal-input"
                 value={form.dueDate}
-                onPointerDown={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
-                  e.stopPropagation();
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }}
-                onFocus={(e) => {
                   try {
                     e.currentTarget.showPicker();
                   } catch {}
@@ -1296,8 +1304,8 @@ function DayView({
                 {timeLabel}
                 {ev.recurrence && ev.recurrence !== "none" && (
                   ev.recurrenceInterval && ev.recurrenceInterval > 1
-                    ? ` 🔄 co ${ev.recurrenceInterval} ${ev.recurrence === "daily" ? "dni" : ev.recurrence === "weekly" ? "tyg" : "msc"}`
-                    : " 🔄"
+                    ? ` 🔄 co ${ev.recurrenceInterval} ${ev.recurrence === "daily" ? "dni" : ev.recurrence === "weekly" ? "tyg" : ev.recurrence === "monthly" ? "msc" : "lat"}`
+                    : ` 🔄 co ${ev.recurrence === "daily" ? "dzień" : ev.recurrence === "weekly" ? "tydzień" : ev.recurrence === "monthly" ? "miesiąc" : "rok"}`
                 )}
                 {ev.isPrivate && " 🔒"}
               </span>

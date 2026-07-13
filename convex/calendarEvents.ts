@@ -98,6 +98,12 @@ function addMonths(dateStr: string, months: number): string {
   return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
 }
 
+function addYears(dateStr: string, years: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y + years, m - 1, d));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
 export const create = mutation({
@@ -117,6 +123,7 @@ export const create = mutation({
         v.literal("daily"),
         v.literal("weekly"),
         v.literal("monthly"),
+        v.literal("yearly"),
       ),
     ),
     recurrenceInterval: v.optional(v.number()),
@@ -158,8 +165,8 @@ export const create = mutation({
     // 2. Generate recurring instances if requested
     if (rec !== "none") {
       const dates: string[] = [];
-      const endLimit = args.recurrenceEndDate || addMonths(args.date, 6);
-      let maxCount = rec === "daily" ? 90 : rec === "weekly" ? 52 : 12;
+      const endLimit = args.recurrenceEndDate || addYears(args.date, 1);
+      let maxCount = rec === "daily" ? 90 : rec === "weekly" ? 52 : rec === "monthly" ? 12 : 5;
 
       let step = 1;
       while (maxCount-- > 0) {
@@ -168,8 +175,10 @@ export const create = mutation({
           nextDate = addDays(args.date, step * interval);
         } else if (rec === "weekly") {
           nextDate = addDays(args.date, step * 7 * interval);
-        } else {
+        } else if (rec === "monthly") {
           nextDate = addMonths(args.date, step * interval);
+        } else {
+          nextDate = addYears(args.date, step * interval);
         }
 
         if (nextDate > endLimit) break;
