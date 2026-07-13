@@ -122,6 +122,8 @@
   box-shadow: 0 1px 0 rgba(255, 100, 100, 0.15) inset, 0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
+.quote-detail-tasks-col:has(.quote-detail-task-assignee-popover),
+.quote-detail-tasks-col:has(.quote-detail-task-due-popover),
 .quote-detail-task-card:has(.quote-detail-task-assignee-popover),
 .quote-detail-task-card:has(.quote-detail-task-due-popover) {
   z-index: 50;

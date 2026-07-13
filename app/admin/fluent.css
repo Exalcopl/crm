@@ -565,6 +565,11 @@
   border-top: 3px solid var(--accent-primary);
 }
 
+.kanban-column:has(.quote-detail-task-assignee-popover),
+.kanban-column:has(.quote-detail-task-due-popover) {
+  z-index: 50;
+}
+
 .kanban-column-header {
   display: flex;
   align-items: center;
@@ -611,7 +616,7 @@
     transform 180ms ease, background 220ms ease;
   touch-action: none;
   user-select: none;
-  overflow: hidden;
+  overflow: visible;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -2200,6 +2205,12 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+
+.kanban-card:has(.quote-detail-task-assignee-popover),
+.kanban-card:has(.quote-detail-task-due-popover) {
+  z-index: 50;
 }
 
 .quote-detail-rail-card {
