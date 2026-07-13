@@ -295,8 +295,8 @@ type FormState = {
   date: string;
   startTime: string;
   endTime: string;
-  isAllDay: boolean;
-  endDate: string;
+  isAllDay?: boolean;
+  endDate?: string;
   recurrence: "none" | "daily" | "weekly" | "monthly" | "yearly";
   recurrenceInterval: number;
   recurrenceEndDate: string;
