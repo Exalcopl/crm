@@ -2845,7 +2845,6 @@ export function CalendarPanel() {
         .cal-panel {
           position: fixed;
           top: 0;
-          right: 0;
           bottom: 0;
           width: 400px;
           max-width: 100vw;
@@ -2855,13 +2854,13 @@ export function CalendarPanel() {
           box-shadow: -10px 0 36px rgba(0, 0, 0, 0.6);
           display: flex;
           flex-direction: column;
-          transform: translateX(100%);
-          transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+          right: -400px;
+          transition: right 0.28s cubic-bezier(0.16, 1, 0.3, 1);
           overflow: hidden;
         }
 
         .cal-panel--open {
-          transform: translateX(0);
+          right: 0;
         }
 
         .cal-panel-header {
@@ -3209,13 +3208,12 @@ export function CalendarPanel() {
 
         /* ─── Sliding Drawer (Add / Edit Event) ─────────────────────── */
         .cal-drawer {
-          position: absolute;
+          position: fixed;
           top: 0;
-          right: 0;
           bottom: 0;
           width: 400px;
-          max-width: 100%;
-          z-index: 20;
+          max-width: 100vw;
+          z-index: 51;
           background: #111419;
           border-left: 1px solid #282e37;
           box-shadow: -10px 0 36px rgba(0, 0, 0, 0.4);
@@ -3352,8 +3350,20 @@ export function CalendarPanel() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
 
+        .cal-input[type="date"] {
+          position: relative;
+          cursor: pointer;
+        }
+
         .cal-input::-webkit-calendar-picker-indicator {
-          filter: invert(1);
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0;
           cursor: pointer;
         }
 
