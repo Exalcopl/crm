@@ -38,7 +38,7 @@ export function UserFilterBar({
             const color = getUserColor(u._id);
             const isMe = u._id === currentUserId;
             const initials = getInitials(u.name, u.email);
-            const fullName = isMe ? "Mój kalendarz" : u.name || u.email || "Użytkownik";
+            const fullName = isMe ? "Moje" : u.name || u.email || "Użytkownik";
 
             return (
               <button
@@ -107,7 +107,7 @@ export function UserFilterBar({
           const isSelected = selectedUserIds.includes(u._id);
           const color = getUserColor(u._id);
           const isMe = u._id === currentUserId;
-          const fullName = isMe ? "Mój kalendarz" : u.name || u.email || "Użytkownik";
+          const fullName = isMe ? "Moje" : u.name || u.email || "Użytkownik";
 
           return (
             <button

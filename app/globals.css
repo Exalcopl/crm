@@ -380,6 +380,11 @@
   border-color: #8b949e;
 }
 
+.cal-category-chip--active {
+  border-width: 2px;
+  padding: 5px 13px;
+}
+
 .cal-category-chip-dot {
   width: 8px;
   height: 8px;
