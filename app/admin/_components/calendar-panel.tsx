@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { ownerInitials } from "../_lib/quotes";
+import { UserFilterBar } from "./user-filter-bar";
+import { getUserColor } from "../_lib/users";
 import { Building2, CalendarDays, CheckSquare, Plus } from "lucide-react";
 
 import {
@@ -38,15 +40,6 @@ const USER_PALETTE = [
   "#8b5cf6", // Fioletowy
   "#06b6d4", // Turkusowy
 ];
-
-function getUserColor(userId?: string): string {
-  if (!userId) return USER_PALETTE[0];
-  let hash = 0;
-  for (let i = 0; i < userId.length; i++) {
-    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
-  }
-  return USER_PALETTE[hash % USER_PALETTE.length];
-}
 
 type CategoryStyle = { id: string; label: string; color: string; bg: string; border: string };
 
@@ -265,18 +258,8 @@ function formatDurationLabel(startStr?: string, endStr?: string): string {
   return `${mins} min`;
 }
 
-function getInitials(name?: string | null, email?: string | null): string {
-  if (name) {
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return parts[0].substring(0, 2).toUpperCase();
-  }
-  if (email) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return "?";
+function isSameDay(a: CalendarDate, b: CalendarDate) {
+  return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
 const EMPTY_ARRAY: never[] = [];
@@ -1912,55 +1895,22 @@ export function CalendarPanel() {
         </div>
 
         {/* User Filter Bar */}
-        {allUsers.length > 0 && (
-          <div className="cal-user-filter-bar">
-            <span className="cal-filter-label">Filtruj kalendarze</span>
-            <div className="cal-filter-chips">
-              {allUsers.map((u) => {
-                const isSelected = selectedUserIds.includes(u._id);
-                const color = getUserColor(u._id);
-                const isMe = u._id === currentUserId;
-                const initials = getInitials(u.name, u.email);
-                const fullName = isMe ? "Mój kalendarz" : u.name || u.email || "Użytkownik";
-
-                return (
-                  <button
-                    key={u._id}
-                    type="button"
-                    title={fullName}
-                    className={`cal-filter-avatar ${isSelected ? "cal-filter-avatar--active" : ""}`}
-                    style={
-                      isSelected
-                        ? {
-                            borderColor: color,
-                            background: `${color}18`,
-                            color: "#ffffff",
-                            boxShadow: `0 0 12px ${color}25`,
-                          }
-                        : {}
-                    }
-                    onClick={() => {
-                      if (isMe) return; // Ja jest zawsze wybrane
-                      setSelectedUserIds((prev) => {
-                        if (prev.includes(u._id)) {
-                          return prev.filter((id) => id !== u._id);
-                        } else {
-                          if (prev.length >= 4) {
-                            toast.warning("Możesz wybrać maksymalnie 4 kalendarze");
-                            return prev;
-                          }
-                          return [...prev, u._id];
-                        }
-                      });
-                    }}
-                  >
-                    {isMe ? "Ja" : initials}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <UserFilterBar
+          users={allUsers as { _id: string; name: string | null; email: string | null }[]}
+          selectedUserIds={selectedUserIds as string[]}
+          currentUserId={currentUserId as string | undefined}
+          onToggle={(id, isMe) => {
+            if (isMe) return; // Ja jest zawsze wybrane
+            setSelectedUserIds((prev) => {
+              const prevStr = prev as string[];
+              if (prevStr.includes(id)) {
+                return prev.filter((pid) => pid !== id) as Id<"users">[];
+              } else {
+                return [...prev, id as Id<"users">];
+              }
+            });
+          }}
+        />
 
         <div className="cal-panel-body">
           <CalErrorBoundary>
@@ -3751,62 +3701,6 @@ export function CalendarPanel() {
         }
 
         /* ─── Multi-User Filters & Columns Styles ─────────────────── */
-        .cal-user-filter-bar {
-          padding: 12px 20px;
-          border-bottom: 1px solid #21262d;
-          background: #0d1117;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .cal-filter-label {
-          font-size: 11px;
-          font-weight: 600;
-          color: #8b949e;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .cal-filter-chips {
-          display: flex;
-          gap: 6px;
-          overflow-x: auto;
-          padding-bottom: 2px;
-          scrollbar-width: none;
-        }
-
-        .cal-filter-chips::-webkit-scrollbar {
-          display: none;
-        }
-
-        .cal-filter-avatar {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          width: 38px;
-          height: 38px;
-          border-radius: 50%;
-          border: 2px solid #30363d;
-          background: #161b22;
-          color: #8b949e;
-          font-size: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-          user-select: none;
-          flex-shrink: 0;
-        }
-
-        .cal-filter-avatar:hover {
-          border-color: #8b949e;
-          transform: scale(1.05);
-        }
-
-        .cal-filter-avatar--active {
-          transform: scale(1.05);
-          font-weight: 800;
-        }
 
         .cal-day-columns-header {
           display: flex;

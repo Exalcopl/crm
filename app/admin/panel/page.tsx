@@ -19,6 +19,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../_lib/icons";
 import { ownerInitials } from "../_lib/quotes";
 import { usePermissions } from "../_lib/permissions";
+import { UserFilterBar } from "../_components/user-filter-bar";
 import "./panel.css";
 
 type TaskWithQuote = Doc<"tasks"> & {
@@ -103,6 +104,27 @@ export default function PanelPage() {
   const setStatus = useMutation(api.tasks.setStatus);
   const [activeTask, setActiveTask] = useState<TaskWithQuote | null>(null);
 
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const currentUserId = assignees.find((u) => u._id === user?._id)?._id; // or from user context
+
+  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
+  const allUsers = useMemo(() => {
+    return [...allUsersRaw].sort((a, b) => {
+      if (a.isCurrentUser) return -1;
+      if (b.isCurrentUser) return 1;
+      return (a.name || a.email || "").localeCompare(b.name || b.email || "");
+    });
+  }, [allUsersRaw]);
+
+  const filteredTasks = useMemo(() => {
+    if (selectedUserIds.length === 0) return tasks;
+    return tasks.filter((t) => {
+      // If task has no assignees, we can decide whether to show it. We'll hide it if filters are active.
+      if (!t.assigneeIds || t.assigneeIds.length === 0) return false;
+      return t.assigneeIds.some((id) => selectedUserIds.includes(id as string));
+    });
+  }, [tasks, selectedUserIds]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -113,9 +135,9 @@ export default function PanelPage() {
       in_progress: [],
       done: [],
     };
-    for (const t of tasks) map[t.status].push(t);
+    for (const t of filteredTasks) map[t.status].push(t);
     return map;
-  }, [tasks]);
+  }, [filteredTasks]);
 
   function handleDragStart(e: DragStartEvent) {
     const id = e.active.id as string;
@@ -172,6 +194,25 @@ export default function PanelPage() {
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
+          {allUsers.length > 0 && (
+            <UserFilterBar
+              users={allUsers as { _id: string; name: string | null; email: string | null }[]}
+              selectedUserIds={selectedUserIds}
+              currentUserId={currentUserId as string | undefined}
+              onToggle={(id, isMe) => {
+                setSelectedUserIds((prev) => {
+                  if (prev.includes(id)) {
+                    return prev.filter((pid) => pid !== id);
+                  } else {
+                    return [...prev, id];
+                  }
+                });
+              }}
+              label="Filtruj przypisane zadania"
+              variant="chip"
+            />
+          )}
+
           <div className="panel-tasks-board">
             {COLUMNS.map((col) => (
               <PanelKanbanColumn
@@ -260,15 +301,24 @@ function PanelTaskCard({
   const tone = dueTone(task.dueDate);
   const draggable = !isOverlay && !editing;
 
+  const toneColor = tone === "overdue" ? "#f85149" : tone === "soon" ? "#d29922" : "#3fb950";
+
   return (
     <div
       ref={setNodeRef}
-      className={`quote-detail-task-card panel-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
+      className={`kanban-card panel-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
       style={{ opacity: isDragging && !isOverlay ? 0 : 1 }}
       {...(draggable ? attributes : {})}
       {...(draggable ? listeners : {})}
     >
-      <div className="quote-detail-task-card-top">
+      <div
+        className="kanban-card-rail"
+        style={{
+          background: `linear-gradient(90deg, ${toneColor}, transparent)`,
+          opacity: 0.8,
+        }}
+      />
+      <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
         {editing ? (
           <input
             type="text"
@@ -286,67 +336,91 @@ function PanelTaskCard({
               if (e.key === "Escape") setEditing(false);
             }}
             className="quote-detail-task-card-title-input"
+            style={{ flex: 1, minWidth: "120px" }}
           />
         ) : (
           <button
             type="button"
-            className="quote-detail-task-card-title"
-            onClick={() => setEditing(true)}
+            className="kanban-card-id"
+            style={{ background: "none", border: "none", cursor: "text", padding: 0, flex: 1, textAlign: "left", whiteSpace: "normal" }}
+            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
           >
             {task.title}
           </button>
         )}
-        
-        <AssigneePicker
-          assignees={assignees}
-          currentIds={task.assigneeIds ?? []}
-          disabled={isOverlay}
-          onAssign={(userIds) =>
-            void assignTask({ id: task._id, assigneeIds: userIds })
-          }
-        />
+
+        {task.quote && (
+          <Link
+            href={`/admin/wyceny/${encodeURIComponent(task.quote.code)}`}
+            style={{
+              fontSize: "9px",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+              color: "var(--accent-primary)",
+              background: "var(--accent-soft)",
+              border: "1px solid var(--accent-line)",
+              padding: "1px 6px",
+              borderRadius: "4px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              maxWidth: "120px",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+              textDecoration: "none"
+            }}
+            title={`${task.quote.code} · ${task.quote.contactName}`}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            🏷️ {task.quote.code}
+          </Link>
+        )}
+
+        <div className="kanban-card-owner" onPointerDown={(e) => e.stopPropagation()}>
+          <AssigneePicker
+            assignees={assignees}
+            currentIds={task.assigneeIds ?? []}
+            disabled={isOverlay}
+            onAssign={(userIds) =>
+              void assignTask({ id: task._id, assigneeIds: userIds })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="kanban-card-client" style={{ marginTop: "4px" }}>
+        {task.quote ? task.quote.contactName : "Zadanie wewnętrzne"}
+      </div>
+
+      {task.description && (
+        <div className="kanban-card-client" style={{ whiteSpace: "pre-wrap", opacity: 0.6, fontSize: "11px", marginTop: "2px" }}>
+          {task.description}
+        </div>
+      )}
+
+      <div className="kanban-card-footer" style={{ marginTop: "8px", alignItems: "center" }}>
+        <div onPointerDown={(e) => e.stopPropagation()}>
+          <DueDatePicker
+            dueDate={task.dueDate}
+            tone={tone}
+            disabled={isOverlay}
+            onChange={(d) =>
+              void updateTask({ id: task._id, dueDate: d ?? null })
+            }
+          />
+        </div>
 
         {!isOverlay && (
           <button
             type="button"
             className="quote-detail-task-card-remove"
+            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "4px" }}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void removeTask({ id: task._id })}
             aria-label="Usuń zadanie"
           >
-            <I.trash s={11} />
+            <I.trash s={12} />
           </button>
         )}
-      </div>
-
-      {task.description && (
-        <div className="quote-detail-task-card-desc">
-          {task.description}
-        </div>
-      )}
-
-      {task.quote && (
-        <Link
-          href={`/admin/wyceny/${encodeURIComponent(task.quote.code)}`}
-          className="panel-task-card-quote"
-          title={`${task.quote.code} · ${task.quote.contactName}`}
-        >
-          <span className="panel-task-card-quote-code">{task.quote.code}</span>
-          <span className="panel-task-card-quote-sep">·</span>
-          <span className="panel-task-card-quote-client">
-            {task.quote.contactName}
-          </span>
-        </Link>
-      )}
-
-      <div className="quote-detail-task-card-foot">
-        <DueDatePicker
-          dueDate={task.dueDate}
-          tone={tone}
-          disabled={isOverlay}
-          onChange={(d) =>
-            void updateTask({ id: task._id, dueDate: d ?? null })
-          }
-        />
       </div>
     </div>
   );

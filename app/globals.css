@@ -288,3 +288,101 @@
   cursor: not-allowed;
   opacity: 0.3;
 }
+
+/* ─── Multi-User Filters Styles ─────────────────── */
+.cal-user-filter-bar {
+  padding: 12px 20px;
+  border-bottom: 1px solid #21262d;
+  background: #0d1117;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cal-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cal-filter-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.cal-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.cal-filter-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid #30363d;
+  background: #161b22;
+  color: #8b949e;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.cal-filter-avatar:hover {
+  border-color: #8b949e;
+  transform: scale(1.05);
+}
+
+.cal-filter-avatar--active {
+  transform: scale(1.05);
+  font-weight: 800;
+}
+
+/* ─── Multi-User Category Chips Styles ─────────────────── */
+.cal-company-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cal-category-chips {
+  display: flex;
+  gap: 10px;
+}
+
+.cal-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #c9d1d9;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cal-category-chip:hover {
+  background: #21262d;
+  color: #ffffff;
+  border-color: #8b949e;
+}
+
+.cal-category-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}

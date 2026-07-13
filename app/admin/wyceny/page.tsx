@@ -43,6 +43,7 @@ import {
   type ProjectTypeFilter,
 } from "../_components/project-type-filter";
 import { QuoteListView } from "../_components/quote-list";
+import { UserFilterBar } from "../_components/user-filter-bar";
 
 type WycenyViewMode = "kanban" | "lista";
 
@@ -148,6 +149,23 @@ function WycenyKanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const originalStatusRef = useRef<QuoteStatus | null>(null);
 
+  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
+  const currentUserId = allUsersRaw.find((u) => u.isCurrentUser)?._id;
+  const allUsers = useMemo(() => {
+    return [...allUsersRaw].sort((a, b) => {
+      if (a.isCurrentUser) return -1;
+      if (b.isCurrentUser) return 1;
+      return (a.name || a.email || "").localeCompare(b.name || b.email || "");
+    });
+  }, [allUsersRaw]);
+
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  const finalFilteredQuotes = useMemo(() => {
+    if (selectedUserIds.length === 0) return filteredQuotes;
+    return filteredQuotes.filter((q) => q.ownerId && selectedUserIds.includes(q.ownerId));
+  }, [filteredQuotes, selectedUserIds]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -159,9 +177,9 @@ function WycenyKanbanBoard({
       "Pomiary i uzgodnienia": [],
       Zrobione: [],
     };
-    filteredQuotes.forEach((q) => map[q.status].push(q));
+    finalFilteredQuotes.forEach((q) => map[q.status].push(q));
     return map;
-  }, [filteredQuotes]);
+  }, [finalFilteredQuotes]);
 
   const activeQuote = activeId ? quotes.find((q) => q.id === activeId) ?? null : null;
 
@@ -255,6 +273,22 @@ function WycenyKanbanBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={() => { setActiveId(null); onDragEnd(); originalStatusRef.current = null; }}
     >
+      <UserFilterBar
+        users={allUsers as { _id: string; name: string | null; email: string | null }[]}
+        selectedUserIds={selectedUserIds}
+        currentUserId={currentUserId as string | undefined}
+        onToggle={(id, isMe) => {
+          setSelectedUserIds((prev) => {
+            if (prev.includes(id)) {
+              return prev.filter((pid) => pid !== id);
+            } else {
+              return [...prev, id];
+            }
+          });
+        }}
+        label="Filtruj przypisane wyceny"
+        variant="chip"
+      />
       <div className="kanban-board">
         {QUOTE_STATUSES.map((status) => (
           <KanbanColumn
