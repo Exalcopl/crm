@@ -3352,6 +3352,11 @@ export function CalendarPanel() {
           transition: border-color 0.15s, box-shadow 0.15s;
         }
 
+        .cal-input::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          cursor: pointer;
+        }
+
         .cal-input:focus,
         .cal-textarea:focus,
         .cal-select:focus {
