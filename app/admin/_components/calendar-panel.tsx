@@ -386,17 +386,14 @@ function EventDrawer({
             />
           </div>
           <div className="cal-form-group" style={{ marginTop: 12 }}>
-            <label className="cal-label">Data wydarzenia (od - do) *</label>
+            <label className="cal-label">
+              Data wydarzenia {!!form.isAllDay ? "(od - do)" : ""} *
+            </label>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
               <input
                 type="date"
                 className="cal-input"
                 value={form.date}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   // Auto-update endDate if it was previously same as start date
@@ -404,20 +401,19 @@ function EventDrawer({
                 }}
                 disabled={isReadOnly}
               />
-              <span style={{ color: "var(--text-muted)" }}>-</span>
-              <input
-                type="date"
-                className="cal-input"
-                value={form.endDate || form.date}
-                min={form.date}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }}
-                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                disabled={isReadOnly}
-              />
+              {!!form.isAllDay && (
+                <>
+                  <span style={{ color: "var(--text-muted)" }}>-</span>
+                  <input
+                    type="date"
+                    className="cal-input"
+                    value={form.endDate || form.date}
+                    min={form.date}
+                    onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                    disabled={isReadOnly}
+                  />
+                </>
+              )}
             </div>
           </div>
           <div className="cal-form-group" style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
