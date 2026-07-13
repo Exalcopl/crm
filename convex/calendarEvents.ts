@@ -53,12 +53,19 @@ export const listCompanyEventsByRange = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
 
+    // Assuming no event spans more than 60 days in the past
+    const maxPastDate = addDays(startDate, -60);
+
     const events = await ctx.db
       .query("calendarEvents")
-      .withIndex("by_date", (q) => q.gte("date", startDate).lte("date", endDate))
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", endDate))
       .collect();
 
-    return events.filter((e) => e.type === "company");
+    return events.filter((e) => {
+      if (e.type !== "company") return false;
+      const eventEnd = e.endDate || e.date;
+      return eventEnd >= startDate && e.date <= endDate;
+    });
   },
 });
 
@@ -100,6 +107,8 @@ export const create = mutation({
     date: v.string(),
     startTime: v.string(),
     endTime: v.string(),
+    isAllDay: v.optional(v.boolean()),
+    endDate: v.optional(v.string()),
     color: v.optional(v.string()),
     isPrivate: v.optional(v.boolean()),
     recurrence: v.optional(
@@ -133,6 +142,8 @@ export const create = mutation({
       date: args.date,
       startTime: args.startTime,
       endTime: args.endTime,
+      isAllDay: args.isAllDay,
+      endDate: args.endDate,
       color: args.color || undefined,
       isPrivate: !!args.isPrivate,
       recurrence: rec,
@@ -198,6 +209,8 @@ export const update = mutation({
     description: v.optional(v.union(v.string(), v.null())),
     startTime: v.optional(v.string()),
     endTime: v.optional(v.string()),
+    isAllDay: v.optional(v.boolean()),
+    endDate: v.optional(v.string()),
     color: v.optional(v.union(v.string(), v.null())),
     isPrivate: v.optional(v.boolean()),
     type: v.optional(v.union(v.literal("private"), v.literal("company"))),
@@ -227,6 +240,8 @@ export const update = mutation({
     }
     if (fields.startTime !== undefined) patch.startTime = fields.startTime;
     if (fields.endTime !== undefined) patch.endTime = fields.endTime;
+    if (fields.isAllDay !== undefined) patch.isAllDay = fields.isAllDay;
+    if (fields.endDate !== undefined) patch.endDate = fields.endDate;
     if (fields.color !== undefined) {
       patch.color = fields.color === null ? undefined : fields.color;
     }

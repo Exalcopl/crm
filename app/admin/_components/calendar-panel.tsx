@@ -273,6 +273,8 @@ type CalEvent = {
   date: string;
   startTime: string;
   endTime: string;
+  isAllDay?: boolean;
+  endDate?: string;
   color?: string;
   isPrivate?: boolean;
   recurrence?: "none" | "daily" | "weekly" | "monthly";
@@ -293,6 +295,8 @@ type FormState = {
   date: string;
   startTime: string;
   endTime: string;
+  isAllDay: boolean;
+  endDate: string;
   recurrence: "none" | "daily" | "weekly" | "monthly";
   recurrenceInterval: number;
   recurrenceEndDate: string;
@@ -383,14 +387,40 @@ function EventDrawer({
             />
           </div>
           <div className="cal-form-group" style={{ marginTop: 12 }}>
-            <label className="cal-label">Data wydarzenia *</label>
+            <label className="cal-label">Data wydarzenia (od - do) *</label>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <input
+                type="date"
+                className="cal-input"
+                value={form.date}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  // Auto-update endDate if it was previously same as start date
+                  setForm({ ...form, date: newDate, endDate: form.endDate === form.date || !form.endDate ? newDate : form.endDate });
+                }}
+                disabled={isReadOnly}
+              />
+              <span style={{ color: "var(--text-muted)" }}>-</span>
+              <input
+                type="date"
+                className="cal-input"
+                value={form.endDate || form.date}
+                min={form.date}
+                onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                disabled={isReadOnly}
+              />
+            </div>
+          </div>
+          <div className="cal-form-group" style={{ marginTop: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
             <input
-              type="date"
-              className="cal-input"
-              value={form.date}
-              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              type="checkbox"
+              id="isAllDay"
+              checked={form.isAllDay}
+              onChange={(e) => setForm({ ...form, isAllDay: e.target.checked })}
               disabled={isReadOnly}
+              style={{ width: 16, height: 16 }}
             />
+            <label htmlFor="isAllDay" className="cal-label" style={{ marginBottom: 0, cursor: "pointer" }}>Cały dzień</label>
           </div>
           {form.type === "company" && (
             <div className="cal-form-group" style={{ marginTop: 12 }}>
@@ -422,49 +452,51 @@ function EventDrawer({
         </div>
 
         {/* Card 2: Godziny */}
-        <div className="cal-card">
-          <div className="cal-card-title-row">
-            <span className="cal-card-title">Czas trwania</span>
-            <span className="cal-duration-chip">⏱ {durationText}</span>
-          </div>
-          <div className="cal-time-row">
-            <div className="cal-time-col">
-              <label className="cal-label">Początek</label>
-              <select
-                className="cal-select"
-                value={form.startTime}
-                disabled={isReadOnly}
-                onChange={(e) => {
-                  const newStart = e.target.value;
-                  let newEnd = form.endTime;
-                  if (parseHour(newStart) >= parseHour(newEnd)) {
-                    const nextHourIdx = timeOptions.indexOf(newStart) + 2;
-                    newEnd = timeOptions[Math.min(nextHourIdx, timeOptions.length - 1)];
-                  }
-                  setForm({ ...form, startTime: newStart, endTime: newEnd });
-                }}
-              >
-                {timeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+        {!form.isAllDay && (
+          <div className="cal-card">
+            <div className="cal-card-title-row">
+              <span className="cal-card-title">Czas trwania</span>
+              <span className="cal-duration-chip">⏱ {durationText}</span>
             </div>
-            <span className="cal-time-arrow">→</span>
-            <div className="cal-time-col">
-              <label className="cal-label">Koniec</label>
-              <select
-                className="cal-select"
-                value={form.endTime}
-                disabled={isReadOnly}
-                onChange={(e) => setForm({ ...form, endTime: e.target.value })}
-              >
-                {timeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+            <div className="cal-time-row">
+              <div className="cal-time-col">
+                <label className="cal-label">Początek</label>
+                <select
+                  className="cal-select"
+                  value={form.startTime}
+                  disabled={isReadOnly}
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    let newEnd = form.endTime;
+                    if (parseHour(newStart) >= parseHour(newEnd)) {
+                      const nextHourIdx = timeOptions.indexOf(newStart) + 2;
+                      newEnd = timeOptions[Math.min(nextHourIdx, timeOptions.length - 1)];
+                    }
+                    setForm({ ...form, startTime: newStart, endTime: newEnd });
+                  }}
+                >
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <span className="cal-time-arrow">→</span>
+              <div className="cal-time-col">
+                <label className="cal-label">Koniec</label>
+                <select
+                  className="cal-select"
+                  value={form.endTime}
+                  disabled={isReadOnly}
+                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                >
+                  {timeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Card 3: Cykliczność / powtarzanie */}
         {form.mode === "create" && (
@@ -1439,12 +1471,14 @@ export function CalendarPanel() {
   const removeEvent = useMutation(api.calendarEvents.remove);
 
   const [compDragState, setCompDragState] = useState<{
-    type: "move" | "resize" | "month-move";
+    type: "move" | "resize" | "month-move" | "allday-resize" | "month-resize";
     eventId: Id<"calendarEvents">;
     originalDate: string;
+    originalEndDate?: string;
     originalStart: number;
     originalEnd: number;
     currentDate: string;
+    currentEndDate?: string;
     currentStart: number;
     currentEnd: number;
     grabOffsetY: number;
@@ -1465,6 +1499,8 @@ export function CalendarPanel() {
       date: dateStr,
       startTime: formatHour(startHour),
       endTime: formatHour(finalEndHour),
+      isAllDay: false,
+      endDate: dateStr,
       recurrence: "none",
       recurrenceInterval: 1,
       recurrenceEndDate: "",
@@ -1498,6 +1534,8 @@ export function CalendarPanel() {
       date: dayStr,
       startTime: formatHour(startH),
       endTime: formatHour(endH),
+      isAllDay: false,
+      endDate: dayStr,
       recurrence: "none",
       recurrenceInterval: 1,
       recurrenceEndDate: "",
@@ -1556,7 +1594,7 @@ export function CalendarPanel() {
             didMove: prev.didMove || didMove
           } : null);
         }
-      } else if (compDragState.type === "month-move") {
+      } else if (compDragState.type === "month-move" || compDragState.type === "month-resize") {
         if (!monthGridRef.current) return;
         const rect = monthGridRef.current.getBoundingClientRect();
 
@@ -1570,13 +1608,41 @@ export function CalendarPanel() {
         const targetIdx = rowIdx * 7 + colIdx;
         const targetDate = monthGridDays[targetIdx];
 
-        const didMove = targetDate !== compDragState.originalDate;
-
-        setCompDragState(prev => prev ? {
-          ...prev,
-          currentDate: targetDate,
-          didMove: prev.didMove || didMove
-        } : null);
+        if (compDragState.type === "month-move") {
+          const didMove = targetDate !== compDragState.originalDate;
+          setCompDragState(prev => prev ? {
+            ...prev,
+            currentDate: targetDate,
+            didMove: prev.didMove || didMove
+          } : null);
+        } else {
+          // month-resize
+          if (targetDate >= compDragState.currentDate) {
+            const didMove = targetDate !== compDragState.originalEndDate;
+            setCompDragState(prev => prev ? {
+              ...prev,
+              currentEndDate: targetDate,
+              didMove: prev.didMove || didMove
+            } : null);
+          }
+        }
+      } else if (compDragState.type === "allday-resize") {
+        // week grid resize for all day
+        if (!weekGridRef.current) return;
+        const rect = weekGridRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left - 54;
+        const colWidth = (rect.width - 54) / 7;
+        const colIdx = Math.max(0, Math.min(6, Math.floor(x / colWidth)));
+        const targetDate = weekDateStrings[colIdx];
+        
+        if (targetDate >= compDragState.currentDate) {
+          const didMove = targetDate !== compDragState.originalEndDate;
+          setCompDragState(prev => prev ? {
+            ...prev,
+            currentEndDate: targetDate,
+            didMove: prev.didMove || didMove
+          } : null);
+        }
       }
     }
 
@@ -1589,7 +1655,14 @@ export function CalendarPanel() {
           suppressCompanyClickRef.current = false;
         }, 150);
 
-        if (e.altKey) {
+        if (compDragState.type === "allday-resize" || compDragState.type === "month-resize") {
+          updateEvent({
+            id: compDragState.eventId,
+            endDate: compDragState.currentEndDate,
+          }).catch((err) => {
+            console.error("Failed to resize event:", err);
+          });
+        } else if (e.altKey) {
           // Alt/Option drag: copy event to target date
           const origEvent = companyEvents.find(ev => ev._id === compDragState.eventId);
           if (origEvent) {
@@ -1606,6 +1679,8 @@ export function CalendarPanel() {
               recurrenceEndDate: origEvent.recurrenceEndDate || undefined,
               type: origEvent.type || "company",
               category: origEvent.category || undefined,
+              isAllDay: origEvent.isAllDay,
+              endDate: origEvent.endDate || origEvent.date,
             }).catch((err) => {
               console.error("Failed to duplicate event via drag:", err);
             });
@@ -1617,6 +1692,7 @@ export function CalendarPanel() {
             date: compDragState.currentDate,
             startTime: formatHour(compDragState.currentStart),
             endTime: formatHour(compDragState.currentEnd),
+            endDate: compDragState.currentEndDate,
           }).catch((err) => {
             console.error("Failed to drag-update event:", err);
           });
@@ -1707,6 +1783,8 @@ export function CalendarPanel() {
       date: dateStr,
       startTime: "09:00",
       endTime: "10:00",
+      isAllDay: false,
+      endDate: dateStr,
       recurrence: "none",
       recurrenceInterval: 1,
       recurrenceEndDate: "",
@@ -1727,6 +1805,8 @@ export function CalendarPanel() {
       date: ev.date,
       startTime: ev.startTime,
       endTime: ev.endTime,
+      isAllDay: !!ev.isAllDay,
+      endDate: ev.endDate || ev.date,
       recurrence: ev.recurrence || "none",
       recurrenceInterval: ev.recurrenceInterval || 1,
       recurrenceEndDate: ev.recurrenceEndDate || "",
@@ -1760,6 +1840,8 @@ export function CalendarPanel() {
       date: ev.date,
       startTime: ev.startTime,
       endTime: ev.endTime,
+      isAllDay: !!ev.isAllDay,
+      endDate: ev.endDate || ev.date,
       recurrence: ev.recurrence || "none",
       recurrenceInterval: ev.recurrenceInterval || 1,
       recurrenceEndDate: ev.recurrenceEndDate || "",
@@ -1798,6 +1880,8 @@ export function CalendarPanel() {
           date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
+          isAllDay: form.isAllDay,
+          endDate: form.isAllDay && form.endDate ? form.endDate : form.date,
           recurrence: form.recurrence,
           recurrenceInterval: form.recurrence !== "none" ? form.recurrenceInterval : undefined,
           recurrenceEndDate: form.recurrenceEndDate || undefined,
@@ -1814,6 +1898,8 @@ export function CalendarPanel() {
           date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
+          isAllDay: form.isAllDay,
+          endDate: form.isAllDay && form.endDate ? form.endDate : targetDate,
           isPrivate: form.isPrivate,
           type: form.type,
           category: form.type === "company" ? form.category : null,
@@ -2140,8 +2226,10 @@ export function CalendarPanel() {
                     
                     // Filter events for this day
                     const dayEvents = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter((ev) => {
-                      const eventDate = compDragState?.eventId === ev._id ? compDragState.currentDate : ev.date;
-                      if (eventDate !== dayStr) return false;
+                      const isDraggingThis = compDragState?.eventId === ev._id;
+                      const eventDate = isDraggingThis ? compDragState.currentDate : ev.date;
+                      const eventEndDate = isDraggingThis ? (compDragState.currentEndDate || compDragState.currentDate) : (ev.endDate || ev.date);
+                      if (dayStr < eventDate || dayStr > eventEndDate) return false;
                       if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
                       return true;
                     }) : [];
@@ -2190,17 +2278,21 @@ export function CalendarPanel() {
                                   borderLeft: `2.5px solid ${cat.color}`,
                                   color: cat.color,
                                   touchAction: "none",
+                                  position: "relative"
                                 }}
-                                onPointerDown={() => {
+                                onPointerDown={(e) => {
+                                  if ((e.target as HTMLElement).closest(".cal-monthly-event-resize-handle")) return;
                                   const startH = parseHour(ev.startTime);
                                   const endH = parseHour(ev.endTime);
                                   setCompDragState({
                                     type: "month-move",
                                     eventId: ev._id,
                                     originalDate: ev.date,
+                                    originalEndDate: ev.endDate || ev.date,
                                     originalStart: startH,
                                     originalEnd: endH,
                                     currentDate: ev.date,
+                                    currentEndDate: ev.endDate || ev.date,
                                     currentStart: startH,
                                     currentEnd: endH,
                                     grabOffsetY: 0,
@@ -2216,8 +2308,45 @@ export function CalendarPanel() {
                                 }}
                                 title={`${ev.startTime} ${ev.title}`}
                               >
-                                <span className="cal-monthly-event-pill-time">{ev.startTime}</span>
+                                {ev.isAllDay ? (
+                                  <span className="cal-monthly-event-pill-time">Cały dzień</span>
+                                ) : (
+                                  <span className="cal-monthly-event-pill-time">{ev.startTime}</span>
+                                )}
                                 <span className="cal-monthly-event-pill-title">{ev.title}</span>
+                                {!isDraggingThis && ev.type === "company" && dayStr === (ev.endDate || ev.date) && (
+                                  <div
+                                    className="cal-monthly-event-resize-handle"
+                                    style={{
+                                      position: "absolute",
+                                      right: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: "12px",
+                                      cursor: "ew-resize",
+                                    }}
+                                    onPointerDown={(e) => {
+                                      e.stopPropagation();
+                                      const startH = parseHour(ev.startTime);
+                                      const endH = parseHour(ev.endTime);
+                                      setCompDragState({
+                                        type: "month-resize",
+                                        eventId: ev._id,
+                                        originalDate: ev.date,
+                                        originalEndDate: ev.endDate || ev.date,
+                                        originalStart: startH,
+                                        originalEnd: endH,
+                                        currentDate: ev.date,
+                                        currentEndDate: ev.endDate || ev.date,
+                                        currentStart: startH,
+                                        currentEnd: endH,
+                                        grabOffsetY: 0,
+                                        grabOffsetX: 0,
+                                        didMove: false,
+                                      });
+                                    }}
+                                  />
+                                )}
                               </button>
                             );
                           })}
@@ -2265,6 +2394,129 @@ export function CalendarPanel() {
                   })}
                 </div>
 
+                {/* All-day and Multi-day Tray */}
+                <div className="cal-weekly-allday-tray" style={{ display: "grid", gridTemplateColumns: "54px repeat(7, 1fr)", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)", position: "sticky", top: "72px", zIndex: 30, minHeight: "32px", paddingBottom: "4px" }}>
+                  <div className="cal-weekly-allday-label" style={{ borderRight: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", color: "var(--text-muted)", padding: "4px" }}>Cały dzień</div>
+                  <div style={{ gridColumn: "2 / -1", position: "relative", display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0", minHeight: "28px" }}>
+                    {/* Background day slots */}
+                    {weekDateStrings.map((dayStr, i) => (
+                      <div key={dayStr} style={{ borderRight: i < 6 ? "1px solid var(--border-subtle)" : "none" }} />
+                    ))}
+                    {/* Events */}
+                    {(() => {
+                      const allDayEvs = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter(ev => {
+                        if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
+                        const evEnd = ev.endDate || ev.date;
+                        return ev.isAllDay || ev.date !== evEnd;
+                      }) : [];
+                      
+                      // For simplicity, we just stack them. A real algorithm would pack them vertically without overlap.
+                      // We will use a simple stacking: assign rows.
+                      const rows: CalEvent[][] = [];
+                      for (const ev of allDayEvs) {
+                        const startIdx = Math.max(0, weekDateStrings.indexOf(ev.date));
+                        const endIdx = ev.endDate ? Math.min(6, weekDateStrings.indexOf(ev.endDate)) : startIdx;
+                        if (startIdx === -1 && ev.date > weekDateStrings[6]) continue;
+                        if (endIdx === -1 && (ev.endDate || ev.date) < weekDateStrings[0]) continue;
+                        
+                        const actualStart = startIdx === -1 ? 0 : startIdx;
+                        const actualEnd = endIdx === -1 ? 6 : endIdx;
+                        
+                        let placed = false;
+                        for (const row of rows) {
+                          const conflict = row.some(r => {
+                            const rStart = Math.max(0, weekDateStrings.indexOf(r.date));
+                            const rEnd = r.endDate ? Math.min(6, weekDateStrings.indexOf(r.endDate)) : rStart;
+                            return !(actualEnd < rStart || actualStart > rEnd);
+                          });
+                          if (!conflict) {
+                            row.push(ev);
+                            placed = true;
+                            break;
+                          }
+                        }
+                        if (!placed) rows.push([ev]);
+                      }
+
+                      return rows.flatMap((row, rowIndex) => row.map(ev => {
+                        let startIdx = weekDateStrings.indexOf(ev.date);
+                        let endIdx = ev.endDate ? weekDateStrings.indexOf(ev.endDate) : startIdx;
+                        if (startIdx === -1 && ev.date < weekDateStrings[0]) startIdx = 0;
+                        if (endIdx === -1 && (ev.endDate || ev.date) > weekDateStrings[6]) endIdx = 6;
+                        
+                        const colStart = startIdx + 1;
+                        const colSpan = endIdx - startIdx + 1;
+                        const cat = getCategoryStyle(ev.category);
+                        
+                        return (
+                          <button
+                            key={ev._id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!suppressCompanyClickRef.current) handleCompanyEventClick(ev);
+                            }}
+                            style={{
+                              gridColumn: `${colStart} / span ${colSpan}`,
+                              gridRow: rowIndex + 1,
+                              background: cat.color,
+                              color: "#fff",
+                              borderRadius: "4px",
+                              margin: "2px 4px",
+                              padding: "2px 6px",
+                              fontSize: "11px",
+                              textAlign: "left",
+                              border: "none",
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              height: "20px",
+                              display: "flex",
+                              alignItems: "center",
+                              position: "relative"
+                            }}
+                          >
+                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{ev.title}</span>
+                            {ev.type === "company" && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  right: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: "8px",
+                                  cursor: "ew-resize",
+                                }}
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  const startH = parseHour(ev.startTime);
+                                  const endH = parseHour(ev.endTime);
+                                  setCompDragState({
+                                    type: "allday-resize",
+                                    eventId: ev._id,
+                                    originalDate: ev.date,
+                                    originalEndDate: ev.endDate || ev.date,
+                                    originalStart: startH,
+                                    originalEnd: endH,
+                                    currentDate: ev.date,
+                                    currentEndDate: ev.endDate || ev.date,
+                                    currentStart: startH,
+                                    currentEnd: endH,
+                                    grabOffsetY: 0,
+                                    grabOffsetX: 0,
+                                    didMove: false,
+                                  });
+                                }}
+                              />
+                            )}
+                          </button>
+                        );
+                      }));
+                    })()}
+                  </div>
+                </div>
+
                 {/* Grid content (scrollable vertically) */}
                 <div ref={weekGridRef} className="cal-weekly-grid-content" style={{ height: HOURS.length * HOUR_HEIGHT }}>
                   {/* Left side: Hour labels */}
@@ -2284,11 +2536,13 @@ export function CalendarPanel() {
                       const hol = getPolishHoliday(y, m, d);
                       const isSunday = new Date(Date.UTC(y, m - 1, d)).getUTCDay() === 0;
                       
-                      // Filter events for this day
+                      // Filter timed events for this day
                       const dayEvents = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter((ev) => {
                         const eventDate = compDragState?.eventId === ev._id ? compDragState.currentDate : ev.date;
                         if (eventDate !== dayStr) return false;
                         if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
+                        const evEnd = ev.endDate || ev.date;
+                        if (ev.isAllDay || ev.date !== evEnd) return false; // Already in all-day tray
                         return true;
                       }) : [];
 

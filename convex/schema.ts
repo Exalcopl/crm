@@ -288,6 +288,8 @@ export default defineSchema({
     date: v.string(),
     startTime: v.string(),
     endTime: v.string(),
+    isAllDay: v.optional(v.boolean()),
+    endDate: v.optional(v.string()),
     color: v.optional(v.string()),
     isPrivate: v.optional(v.boolean()),
     recurrence: v.optional(
