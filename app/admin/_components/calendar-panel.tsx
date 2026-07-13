@@ -383,7 +383,6 @@ function EventDrawer({
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               disabled={isReadOnly}
-              autoFocus={!isReadOnly}
             />
           </div>
           <div className="cal-form-group" style={{ marginTop: 12 }}>
