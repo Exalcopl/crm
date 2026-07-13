@@ -394,6 +394,11 @@ function EventDrawer({
                 type="date"
                 className="cal-input"
                 value={form.date}
+                onClick={(e) => {
+                  try {
+                    e.currentTarget.showPicker();
+                  } catch {}
+                }}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   // Auto-update endDate if it was previously same as start date
@@ -409,6 +414,11 @@ function EventDrawer({
                     className="cal-input"
                     value={form.endDate || form.date}
                     min={form.date}
+                    onClick={(e) => {
+                      try {
+                        e.currentTarget.showPicker();
+                      } catch {}
+                    }}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                     disabled={isReadOnly}
                   />
