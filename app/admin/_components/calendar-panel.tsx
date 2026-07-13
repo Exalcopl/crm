@@ -394,11 +394,6 @@ function EventDrawer({
                 type="date"
                 className="cal-input"
                 value={form.date}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }}
                 onChange={(e) => {
                   const newDate = e.target.value;
                   // Auto-update endDate if it was previously same as start date
@@ -414,11 +409,6 @@ function EventDrawer({
                     className="cal-input"
                     value={form.endDate || form.date}
                     min={form.date}
-                    onClick={(e) => {
-                      try {
-                        e.currentTarget.showPicker();
-                      } catch {}
-                    }}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
                     disabled={isReadOnly}
                   />
@@ -570,11 +560,6 @@ function EventDrawer({
                     className="cal-input"
                     value={form.recurrenceEndDate}
                     min={form.date}
-                    onClick={(e) => {
-                      try {
-                        e.currentTarget.showPicker();
-                      } catch {}
-                    }}
                     onChange={(e) =>
                       setForm({ ...form, recurrenceEndDate: e.target.value })
                     }
@@ -882,11 +867,6 @@ function TaskDrawer({
                 type="date"
                 className="cal-input"
                 value={form.dueDate}
-                onClick={(e) => {
-                  try {
-                    e.currentTarget.showPicker();
-                  } catch {}
-                }}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
                 disabled={saving}
               />
@@ -3369,22 +3349,6 @@ export function CalendarPanel() {
           border-radius: 7px;
           outline: none;
           transition: border-color 0.15s, box-shadow 0.15s;
-        }
-
-        input[type="date"].cal-input {
-          position: relative;
-        }
-        
-        input[type="date"].cal-input::-webkit-calendar-picker-indicator {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          width: 100%;
-          height: 100%;
-          opacity: 0;
-          cursor: pointer;
         }
 
         .cal-input:focus,
