@@ -542,7 +542,7 @@ function EventDrawer({
                     <label className="cal-label">&nbsp;</label>
                     <select
                       className="cal-select"
-                      value={form.recurrence === "none" ? "weekly" : form.recurrence}
+                      value={form.recurrence}
                       onChange={(e) =>
                         setForm({
                           ...form,
