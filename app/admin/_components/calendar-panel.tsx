@@ -3576,7 +3576,6 @@ export function CalendarPanel() {
           opacity: 0.75;
           z-index: 100 !important;
           box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
-          pointer-events: none;
           transform: scale(1.02);
         }
 
@@ -3599,7 +3598,6 @@ export function CalendarPanel() {
           opacity: 0.75;
           z-index: 100 !important;
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-          pointer-events: none;
           transform: scale(1.04);
         }
 
