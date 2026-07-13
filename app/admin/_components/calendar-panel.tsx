@@ -3221,15 +3221,15 @@ export function CalendarPanel() {
           box-shadow: -10px 0 36px rgba(0, 0, 0, 0.4);
           display: flex;
           flex-direction: column;
-          transform: translateX(100%);
+          right: -400px;
           visibility: hidden;
-          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+          transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
         }
 
         .cal-drawer--open {
-          transform: translateX(0);
+          right: 0;
           visibility: visible;
-          transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .cal-drawer-header {
@@ -3466,13 +3466,13 @@ export function CalendarPanel() {
           box-shadow: -10px 0 36px rgba(0, 0, 0, 0.6);
           display: flex;
           flex-direction: column;
-          transform: translateX(100%);
-          transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          right: -75vw;
+          transition: right 0.32s cubic-bezier(0.16, 1, 0.3, 1);
           overflow: hidden;
         }
 
         .cal-company-panel--open {
-          transform: translateX(0);
+          right: 0;
         }
 
         .cal-company-nav-bar {
