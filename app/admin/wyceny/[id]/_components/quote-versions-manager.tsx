@@ -724,8 +724,8 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
           <VersionDetail
             version={activeVersion}
             archived={archived}
-            onAccept={() => acceptVersion({ id: activeVersion._id })}
-            onReject={() => rejectVersion({ id: activeVersion._id })}
+            onAccept={async () => { await acceptVersion({ id: activeVersion._id }); }}
+            onReject={async () => { await rejectVersion({ id: activeVersion._id }); }}
             onDelete={async () => {
               await deleteVersion({ id: activeVersion._id });
               setActiveId(versions.find((v) => v._id !== activeVersion._id)?._id ?? null);
