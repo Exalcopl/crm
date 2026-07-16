@@ -1657,7 +1657,7 @@ export function CalendarPanel() {
           });
         } else if (e.altKey) {
           // Alt/Option drag: copy event to target date
-          const origEvent = companyEvents.find(ev => ev._id === compDragState.eventId);
+          const origEvent = companyEvents.find((ev: any) => ev._id === compDragState.eventId);
           if (origEvent) {
             createEvent({
               title: origEvent.title,

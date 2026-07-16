@@ -1,0 +1,7 @@
+.next
+node_modules
+.convex
+.git
+.vercel
+*.tsbuildinfo
+.env*
