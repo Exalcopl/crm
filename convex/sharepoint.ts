@@ -1171,10 +1171,15 @@ async function createQuoteSubfolders(
   driveId: string,
   parentPath: string,
   quoteFolderName: string,
-): Promise<void> {
+): Promise<{ wycenaFolderId: string | null }> {
+  let wycenaFolderId: string | null = null;
   for (const folderName of QUOTE_SUBFOLDERS) {
-    await ensureFolder(token, driveId, `${parentPath}/${quoteFolderName}`, folderName);
+    const folder = await ensureFolder(token, driveId, `${parentPath}/${quoteFolderName}`, folderName);
+    if (folderName === "Wycena") {
+      wycenaFolderId = folder.id;
+    }
   }
+  return { wycenaFolderId };
 }
 
 export const createFolderForQuote = internalAction({
@@ -1261,7 +1266,7 @@ export const createFolderForQuote = internalAction({
           quoteFolderName,
         );
 
-        await createQuoteSubfolders(
+        const { wycenaFolderId } = await createQuoteSubfolders(
           token,
           driveId,
           `${parentPath}/${clientFolderName}`,
@@ -1275,6 +1280,25 @@ export const createFolderForQuote = internalAction({
           driveId,
           webUrl: quoteWebUrl,
         });
+
+        // Trigger SharePoint webhook registration
+        if (wycenaFolderId) {
+          const siteUrl = process.env.CONVEX_SITE_URL;
+          if (siteUrl && !siteUrl.includes("127.0.0.1") && !siteUrl.includes("localhost")) {
+            const notificationUrl = `${siteUrl}/api/sharepoint/webhook`;
+            console.log(`[sharepoint] Rejestracja webhooka dla folderu Wycena: ${wycenaFolderId}`);
+            await ctx.scheduler.runAfter(0, internal.sharepointWebhook.subscribeToWycenaFolder, {
+              quoteId,
+              driveId,
+              itemId: wycenaFolderId,
+              notificationUrl,
+            });
+          } else {
+            console.warn(
+              `[sharepoint] Pomijam rejestrację webhooka dla localhost/brak siteUrl (${siteUrl}).`,
+            );
+          }
+        }
 
         console.log(
           `[sharepoint] Folder wyceny: ${quoteFolderName} → ${quoteWebUrl} (próba ${attempt})`,
