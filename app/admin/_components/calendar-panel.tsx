@@ -1404,10 +1404,10 @@ export function CalendarPanel() {
   );
 
   const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
-  const currentUser = allUsersRaw.find((u) => u.isCurrentUser);
+  const currentUser = allUsersRaw.find((u: any) => u.isCurrentUser);
   const currentUserId = currentUser?._id;
 
-  const allUsers = [...allUsersRaw].sort((a, b) => {
+  const allUsers = [...allUsersRaw].sort((a: any, b: any) => {
     if (a.isCurrentUser) return -1;
     if (b.isCurrentUser) return 1;
     return (a.name || a.email || "").localeCompare(b.name || b.email || "");
