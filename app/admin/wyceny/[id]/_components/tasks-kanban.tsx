@@ -19,8 +19,6 @@ const STATUS_CYCLE: Record<TaskStatus, TaskStatus> = {
   done: "todo",
 };
 
-const TODAY = new Date("2026-05-25");
-
 function parseDate(iso: string | undefined): Date | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -30,7 +28,8 @@ function parseDate(iso: string | undefined): Date | null {
 function daysFromToday(iso: string | undefined): number | null {
   const d = parseDate(iso);
   if (!d) return null;
-  const t = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+  const today = new Date();
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return Math.round((x.getTime() - t.getTime()) / 86_400_000);
 }

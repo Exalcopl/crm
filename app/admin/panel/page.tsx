@@ -33,8 +33,6 @@ const COLUMNS: { id: TaskStatus; label: string; accent: string }[] = [
   { id: "done", label: "DONE", accent: "#3fb950" },
 ];
 
-const TODAY = new Date("2026-05-25");
-
 function parseDate(iso: string | undefined): Date | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -43,8 +41,9 @@ function parseDate(iso: string | undefined): Date | null {
 
 function daysFromToday(iso: string | undefined): number | null {
   const d = parseDate(iso);
-  if (d === null) return null;
-  const t = new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate());
+  if (!d) return null;
+  const now = new Date();
+  const t = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   return Math.round((x.getTime() - t.getTime()) / 86_400_000);
 }

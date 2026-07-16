@@ -100,8 +100,6 @@ export function getProjectTypeStyle(
 }
 
 
-const TODAY = new Date("2026-05-11");
-
 export function formatDeadline(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" });
@@ -109,7 +107,7 @@ export function formatDeadline(iso: string): string {
 
 export function deadlineTone(iso: string): "overdue" | "soon" | "ok" {
   const d = new Date(iso);
-  const diff = Math.round((d.getTime() - TODAY.getTime()) / 86_400_000);
+  const diff = Math.round((d.getTime() - new Date().getTime()) / 86_400_000);
   if (diff < 0) return "overdue";
   if (diff <= 7) return "soon";
   return "ok";
@@ -117,7 +115,7 @@ export function deadlineTone(iso: string): "overdue" | "soon" | "ok" {
 
 export function deadlineDaysFromToday(iso: string): number {
   const d = new Date(iso);
-  return Math.round((d.getTime() - TODAY.getTime()) / 86_400_000);
+  return Math.round((d.getTime() - new Date().getTime()) / 86_400_000);
 }
 
 export function ownerInitials(name: string | null | undefined): string {
