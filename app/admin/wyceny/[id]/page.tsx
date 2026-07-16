@@ -25,7 +25,7 @@ import { TasksKanban } from "./_components/tasks-kanban";
 import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFileBrowser } from "./_components/quote-file-browser";
-import { WycenaOcrSection } from "./_components/wycena-ocr";
+import { QuoteVersionsManager } from "./_components/quote-versions-manager";
 import { QuoteConfiguration } from "./_components/quote-configuration";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
@@ -480,7 +480,7 @@ function QuoteDetailLayout({
           </div>
         ) : (
           <div className="quote-detail-main">
-            {activeTab === "pozycje" && <TabPozycje quote={quote} />}
+            {activeTab === "pozycje" && <TabPozycje quote={quote} archived={archived} />}
             {activeTab === "pomiary" && <TabPomiary quote={quote} />}
             {activeTab === "aktywnosc" && <TabAktywnosc quote={quote} />}
             {activeTab === "powiazane" && <TabPowiazane />}
@@ -1352,8 +1352,8 @@ function TabSzczegoly({
   );
 }
 
-function TabPozycje({ quote }: { quote: Quote }) {
-  return <WycenaOcrSection quote={quote} />;
+function TabPozycje({ quote, archived }: { quote: Quote; archived: boolean }) {
+  return <QuoteVersionsManager quote={quote} archived={archived} />;
 }
 
 function TabPomiary({ quote }: { quote: Quote }) {

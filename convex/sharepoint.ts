@@ -929,18 +929,62 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
     const rawText =
       anthropicData.content.find((c) => c.type === "text")?.text ?? "";
 
-    let ocrJson: unknown;
+    let ocrJson: Record<string, unknown> & {
+      podsumowanie?: { netto?: number | null; vat?: number | null; brutto?: number | null; waluta?: string | null } | null;
+      pozycje?: Array<{
+        lp?: number | null;
+        opis?: string | null;
+        ilosc?: string | number | null;
+        jednostka?: string | null;
+        cena_netto?: number | null;
+        wartosc_netto?: number | null;
+      }> | null;
+    };
     try {
-      ocrJson = JSON.parse(rawText);
+      ocrJson = JSON.parse(rawText) as typeof ocrJson;
     } catch {
       ocrJson = { raw: rawText };
     }
 
+    // Save raw OCR result (legacy table kept for backward compat)
     await ctx.runMutation(internal.quoteOcr._saveResult, {
       quoteId,
       fileItemId,
       fileName,
       ocrJson,
+    });
+
+    // Build structured quoteVersion entry
+    const podsumowanie = ocrJson.podsumowanie ?? null;
+    const vatRate = 23; // default VAT rate for Stolarka Aluminiowa
+    const valueNetto = typeof podsumowanie?.netto === "number" ? podsumowanie.netto : 0;
+    const valueBrutto = typeof podsumowanie?.brutto === "number"
+      ? podsumowanie.brutto
+      : valueNetto * (1 + vatRate / 100);
+    const valueVat = valueBrutto - valueNetto;
+
+    const items = (ocrJson.pozycje ?? []).map((p, idx) => ({
+      lp: typeof p.lp === "number" ? p.lp : idx + 1,
+      description: p.opis ?? "",
+      quantity: typeof p.ilosc === "number" ? p.ilosc : (p.ilosc != null ? parseFloat(String(p.ilosc)) || null : null),
+      unit: p.jednostka ?? undefined,
+      priceNetto: typeof p.cena_netto === "number" ? p.cena_netto : null,
+      valueNetto: typeof p.wartosc_netto === "number" ? p.wartosc_netto : null,
+    }));
+
+    // Extract additional structured data (supplier info, scope, etc.)
+    const { pozycje: _p, podsumowanie: _s, ...additionalData } = ocrJson;
+
+    await ctx.runMutation(internal.quoteVersions._saveOcrVersion, {
+      quoteId,
+      fileItemId,
+      fileName,
+      valueNetto,
+      valueVat,
+      valueBrutto,
+      vatRate,
+      items,
+      additionalData,
     });
 
     return ocrJson;
@@ -1249,3 +1293,52 @@ export const createFolderForQuote = internalAction({
     });
   },
 });
+
+// ─── Internal variants for webhook-triggered OCR ──────────────────────────────
+
+// Internal version of listWycenaSubfolderFiles (no auth check)
+export const listWycenaSubfolderFilesInternal = internalAction({
+  args: { quoteId: v.id("quotes") },
+  handler: async (ctx, { quoteId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId || sp.status !== "created") return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) return [];
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Wycena:/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (res.status === 404) return [];
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as {
+      value: Array<{ id: string; name: string; size: number; lastModifiedDateTime: string; file?: { mimeType: string } }>;
+    };
+
+    return data.value
+      .filter((item) => !!item.file && item.name.toLowerCase().endsWith(".pdf"))
+      .map((item) => ({ id: item.id, name: item.name }));
+  },
+});
+
+// Internal version of runOcrForFile (called from webhook handler)
+export const runOcrForFileInternal = internalAction({
+  args: {
+    quoteId: v.id("quotes"),
+    fileItemId: v.string(),
+    fileName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Delegate to the public action — it has all the logic
+    return await ctx.runAction(api.sharepoint.runOcrForFile, args);
+  },
+});
+

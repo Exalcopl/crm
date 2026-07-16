@@ -233,4 +233,65 @@ http.route({
   }),
 });
 
+// ─── SharePoint Webhook ────────────────────────────────────────────────────────
+
+// SharePoint sends a GET with validationToken to verify the endpoint during subscription
+// Then sends POST notifications when items change.
+http.route({
+  path: "/api/sharepoint/webhook",
+  method: "GET",
+  handler: httpAction(async (_ctx, request) => {
+    const url = new URL(request.url);
+    const validationToken = url.searchParams.get("validationToken");
+    if (validationToken) {
+      // Respond with the validation token as plain text to confirm endpoint ownership
+      return new Response(validationToken, {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+    return new Response("OK", { status: 200 });
+  }),
+});
+
+http.route({
+  path: "/api/sharepoint/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    // Parse notification payload
+    let body: {
+      value?: Array<{
+        clientState?: string;
+        subscriptionId?: string;
+        changeType?: string;
+      }>;
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return new Response("Bad request", { status: 400 });
+    }
+
+    const notifications = body.value ?? [];
+
+    for (const notification of notifications) {
+      const clientState = notification.clientState ?? "";
+      // clientState = "quoteId:<id>"
+      const match = clientState.match(/^quoteId:(.+)$/);
+      if (!match) continue;
+
+      const quoteId = match[1] as string;
+      // Schedule handling asynchronously — SharePoint requires fast response
+      await ctx.scheduler.runAfter(
+        0,
+        internal.sharepointWebhook.handleWycenaFolderChanged,
+        { quoteId: quoteId as any },
+      );
+    }
+
+    // Must respond 202 within a few seconds for SharePoint to accept
+    return new Response(null, { status: 202 });
+  }),
+});
+
 export default http;

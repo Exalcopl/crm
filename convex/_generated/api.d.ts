@@ -26,10 +26,13 @@ import type * as quoteActivity from "../quoteActivity.js";
 import type * as quoteAnswers from "../quoteAnswers.js";
 import type * as quoteNotes from "../quoteNotes.js";
 import type * as quoteOcr from "../quoteOcr.js";
+import type * as quoteVersions from "../quoteVersions.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
 import type * as sharepoint from "../sharepoint.js";
+import type * as sharepointWebhook from "../sharepointWebhook.js";
+import type * as sharepointWebhookDb from "../sharepointWebhookDb.js";
 import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 
@@ -58,10 +61,13 @@ declare const fullApi: ApiFromModules<{
   quoteAnswers: typeof quoteAnswers;
   quoteNotes: typeof quoteNotes;
   quoteOcr: typeof quoteOcr;
+  quoteVersions: typeof quoteVersions;
   quotes: typeof quotes;
   roles: typeof roles;
   seed: typeof seed;
   sharepoint: typeof sharepoint;
+  sharepointWebhook: typeof sharepointWebhook;
+  sharepointWebhookDb: typeof sharepointWebhookDb;
   tasks: typeof tasks;
   users: typeof users;
 }>;

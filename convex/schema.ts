@@ -327,4 +327,60 @@ export default defineSchema({
   })
     .index("by_projectType", ["projectTypeId"])
     .index("by_projectType_order", ["projectTypeId", "order"]),
+
+  quoteVersions: defineTable({
+    quoteId: v.id("quotes"),
+    versionNumber: v.number(),
+    // source: "ocr" = from SharePoint PDF, "manual" = manual calculator
+    source: v.union(v.literal("ocr"), v.literal("manual")),
+    // For OCR versions
+    fileItemId: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    // Display title, e.g. "Wersja z pliku: Oferta_V2.pdf"
+    title: v.string(),
+    // Financials
+    valueNetto: v.number(),
+    valueVat: v.number(),
+    valueBrutto: v.number(),
+    vatRate: v.number(), // e.g. 23 for 23%
+    // Line items
+    items: v.array(
+      v.object({
+        lp: v.number(),
+        description: v.string(),
+        quantity: v.union(v.number(), v.null()),
+        unit: v.optional(v.string()),
+        priceNetto: v.union(v.number(), v.null()),
+        valueNetto: v.union(v.number(), v.null()),
+      }),
+    ),
+    // Additional structured data from OCR (supplier, scope, etc.)
+    additionalData: v.optional(v.any()),
+    // Version notes
+    notes: v.optional(v.string()),
+    // Status
+    status: v.union(
+      v.literal("draft"),
+      v.literal("accepted"),
+      v.literal("rejected"),
+    ),
+    createdAt: v.number(),
+    createdBy: v.optional(v.id("users")),
+  })
+    .index("by_quote", ["quoteId"])
+    .index("by_quote_status", ["quoteId", "status"])
+    .index("by_quote_file", ["quoteId", "fileItemId"]),
+
+  // Tracks SharePoint webhook subscriptions per drive/folder
+  sharepointWebhookSubscriptions: defineTable({
+    subscriptionId: v.string(),
+    driveId: v.string(),
+    // itemId of the folder being watched (quote's subfolderItemId)
+    itemId: v.string(),
+    quoteId: v.id("quotes"),
+    expirationDateTime: v.string(), // ISO string
+    createdAt: v.number(),
+  })
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_quote", ["quoteId"]),
 });
