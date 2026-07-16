@@ -52,10 +52,10 @@ export const _listFileIds = internalQuery({
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
 async function nextVersionNumber(
-  ctx: Parameters<typeof mutation>[0]["ctx"] | Parameters<typeof internalMutation>[0]["ctx"],
+  ctx: any,
   quoteId: string,
 ) {
-  const existing = await (ctx as any).db
+  const existing = await ctx.db
     .query("quoteVersions")
     .withIndex("by_quote", (q: any) => q.eq("quoteId", quoteId))
     .collect();

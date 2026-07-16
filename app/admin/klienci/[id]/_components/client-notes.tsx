@@ -107,7 +107,7 @@ export function ClientNotes({ clientId }: { clientId: Id<"clients"> }) {
           notes
             .slice()
             .reverse()
-            .map((n) => (
+            .map((n: any) => (
               <article key={n._id} className="client-detail-note">
                 <div className="client-detail-note-avatar" aria-hidden>
                   {ownerInitials(n.authorName)}

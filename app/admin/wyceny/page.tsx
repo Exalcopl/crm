@@ -150,7 +150,7 @@ function WycenyKanbanBoard({
   const originalStatusRef = useRef<QuoteStatus | null>(null);
 
   const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
-  const currentUserId = allUsersRaw.find((u) => u.isCurrentUser)?._id;
+  const currentUserId = allUsersRaw.find((u: any) => u.isCurrentUser)?._id;
   const allUsers = useMemo(() => {
     return [...allUsersRaw].sort((a, b) => {
       if (a.isCurrentUser) return -1;

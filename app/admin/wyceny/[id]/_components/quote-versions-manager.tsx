@@ -551,7 +551,7 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
         onClick={() => setExpanded((v) => !v)}
       >
         Dane ze skanowania
-        <I.up s={12} style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+        <span style={{ display: "inline-flex", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><I.up s={12} /></span>
       </button>
       {expanded && (
         <div className="qvm-additional">
@@ -622,11 +622,11 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
       setScanError(null);
       try {
         const files = await listFiles({ quoteId: quote._id });
-        const pdfFiles = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+        const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
         if (pdfFiles.length === 0) { setScanning(false); return; }
 
         const processedIds = new Set(versions.map((v) => v.fileItemId).filter(Boolean));
-        const newFiles = pdfFiles.filter((f) => !processedIds.has(f.id));
+        const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
 
         for (const file of newFiles) {
           await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
@@ -676,9 +676,9 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
             title="Sprawdź nowe pliki"
             onClick={() => { scannedRef.current = false; setScanning(true); setScanError(null); scannedRef.current = false;
               void listFiles({ quoteId: quote._id }).then(async (files) => {
-                const pdfFiles = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+                const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
                 const processedIds = new Set(versions.map((v) => v.fileItemId).filter(Boolean));
-                const newFiles = pdfFiles.filter((f) => !processedIds.has(f.id));
+                const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
                 for (const file of newFiles) {
                   await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name }).catch(console.error);
                 }

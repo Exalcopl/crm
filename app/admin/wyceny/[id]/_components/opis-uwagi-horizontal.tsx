@@ -43,7 +43,7 @@ export function OpisUwagiHorizontalSection({
         </div>
       ) : (
         <div className="quote-detail-notes-track" role="list">
-          {notes.map((n) => (
+          {notes.map((n: any) => (
             <article
               key={n._id as unknown as string}
               className="quote-detail-note-card"

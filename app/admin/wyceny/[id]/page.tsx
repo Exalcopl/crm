@@ -604,7 +604,7 @@ function SharepointRibbonBtn({
 
 function QuoteClientNoteBanner({ quote }: { quote: Quote }) {
   const notes = useQuery(api.quoteNotes.list, { quoteId: quote._id }) ?? [];
-  const clientNotes = notes.filter((n) => n.authorId === null);
+  const clientNotes = notes.filter((n: any) => n.authorId === null);
   if (clientNotes.length === 0) return null;
 
   return (
@@ -614,7 +614,7 @@ function QuoteClientNoteBanner({ quote }: { quote: Quote }) {
       </span>
       <div className="quote-client-note-banner-body">
         <span className="quote-client-note-banner-label">Notatka od klienta</span>
-        {clientNotes.map((n) => (
+        {clientNotes.map((n: any) => (
           <p key={n._id as unknown as string} className="quote-client-note-banner-text">
             {n.text}
           </p>
@@ -1403,7 +1403,7 @@ function TabAktywnosc({ quote }: { quote: Quote }) {
           </div>
         ) : (
           <div className="quote-detail-activity">
-            {events.map((e) => (
+            {events.map((e: any) => (
               <div key={e._id} className="quote-detail-activity-item">
                 <div className="quote-detail-activity-icon">{activityIcon(e.type)}</div>
                 <div className="quote-detail-activity-body">

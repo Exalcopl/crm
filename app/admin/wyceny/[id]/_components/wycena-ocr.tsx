@@ -505,7 +505,7 @@ export function WycenaOcrSection({ quote }: { quote: Quote }) {
             <div className="ocr-file-list">
               {files.map((file) => {
                 const result = ocrResults?.find(
-                  (r) => r.fileItemId === file.id,
+                  (r: any) => r.fileItemId === file.id,
                 );
                 const isProcessing = processingIds.has(file.id);
                 const fileError = fileErrors.get(file.id);

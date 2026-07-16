@@ -117,7 +117,7 @@ export default function UsersPage() {
         >
           <option value="all">Wszystkie role</option>
           <option value="none">Bez roli</option>
-          {allRoles.map((r) => (
+          {allRoles.map((r: any) => (
             <option key={r._id} value={r._id as unknown as string}>
               {r.displayName}
             </option>

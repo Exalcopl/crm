@@ -1360,9 +1360,9 @@ export const runOcrForFileInternal = internalAction({
     fileItemId: v.string(),
     fileName: v.string(),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<void> => {
     // Delegate to the public action — it has all the logic
-    return await ctx.runAction(api.sharepoint.runOcrForFile, args);
+    await ctx.runAction(api.sharepoint.runOcrForFile, args);
   },
 });
 
