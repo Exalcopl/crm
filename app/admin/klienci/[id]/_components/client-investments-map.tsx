@@ -37,7 +37,7 @@ export function ClientInvestmentsMap({
 
   const pins = useMemo<Pinable[]>(() => {
     if (!quotes) return [];
-    return quotes.flatMap((q) => {
+    return quotes.flatMap((q: any) => {
       const inv = q.investment;
       if (
         !inv ||
