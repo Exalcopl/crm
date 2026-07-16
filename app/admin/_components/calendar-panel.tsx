@@ -1386,7 +1386,7 @@ export function CalendarPanel() {
     }
   }, [seedCategories]);
 
-  const companyCategories: CategoryStyle[] = categoriesRaw.map((c) => ({
+  const companyCategories: CategoryStyle[] = categoriesRaw.map((c: any) => ({
     id: c.code || c._id,
     label: c.name,
     color: c.color,
