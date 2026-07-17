@@ -185,7 +185,7 @@ export const rejectVersion = mutation({
   handler: async (ctx, { id }) => {
     const version = await ctx.db.get(id);
     if (!version) throw new Error("Wersja nie istnieje");
-    await ctx.db.patch(id, { status: "rejected" });
+    await ctx.db.patch(id, { status: "draft" });
 
     // If this was the accepted version, also null the quote value
     if (version.status === "accepted") {
@@ -200,7 +200,7 @@ export const deleteVersion = mutation({
     const version = await ctx.db.get(id);
     if (!version) throw new Error("Wersja nie istnieje");
     if (version.status === "accepted") {
-      throw new Error("Nie można usunąć zaakceptowanej wyceny. Najpierw ją odrzuć.");
+      throw new Error("Nie można usunąć zaakceptowanej wyceny. Najpierw cofnij jej akceptację.");
     }
     await ctx.db.delete(id);
   },

@@ -47,6 +47,40 @@ export const listByDateAndUsers = query({
   },
 });
 
+export const listPrivateEventsByRange = query({
+  args: { startDate: v.string(), endDate: v.string(), userIds: v.array(v.id("users")) },
+  handler: async (ctx, { startDate, endDate, userIds }) => {
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId || userIds.length === 0) return [];
+
+    const maxPastDate = addDays(startDate, -60);
+
+    const allInRange = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", endDate))
+      .collect();
+
+    const filtered = allInRange.filter((e) => {
+      if (!userIds.includes(e.createdBy)) return false;
+      if (e.type === "company") return false;
+      const eventEnd = e.endDate || e.date;
+      return eventEnd >= startDate && e.date <= endDate;
+    });
+
+    return filtered.map((e) => {
+      const isOwner = e.createdBy === currentUserId;
+      if (e.isPrivate && !isOwner) {
+        return {
+          ...e,
+          title: "🔒 Zajęty",
+          description: undefined,
+        };
+      }
+      return e;
+    });
+  },
+});
+
 export const listCompanyEventsByRange = query({
   args: { startDate: v.string(), endDate: v.string() },
   handler: async (ctx, { startDate, endDate }) => {
@@ -298,6 +332,154 @@ export const remove = mutation({
           await ctx.db.delete(ev._id);
         }
       }
+    }
+  },
+});
+
+// ─── Terminy zlecenia (wydarzenia powiązane ze zleceniem) ───────────────────────
+
+async function categoryMeta(ctx: { db: { query: (t: "calendarCategories") => any } }, code: string | undefined) {
+  if (!code) return { name: undefined as string | undefined, color: undefined as string | undefined };
+  const cat = await ctx.db
+    .query("calendarCategories")
+    .withIndex("by_code", (q: any) => q.eq("code", code))
+    .first();
+  return { name: cat?.name as string | undefined, color: cat?.color as string | undefined };
+}
+
+export const listByOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const events = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .collect();
+    return events.sort((a, b) =>
+      `${a.date}${a.startTime ?? ""}`.localeCompare(`${b.date}${b.startTime ?? ""}`),
+    );
+  },
+});
+
+export const createForOrder = mutation({
+  args: {
+    orderId: v.id("orders"),
+    category: v.string(),
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie istnieje");
+
+    // jedno wydarzenie na kategorię w obrębie zlecenia
+    const existing = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .collect();
+    if (existing.some((e) => e.category === args.category)) {
+      throw new Error("Dla tej kategorii istnieje już wydarzenie w tym zleceniu");
+    }
+
+    const { name: catName, color } = await categoryMeta(ctx, args.category);
+    const title = `${order.orderNumber} – ${catName ?? args.category}${order.clientName ? ` (${order.clientName})` : ""}`;
+
+    const id = await ctx.db.insert("calendarEvents", {
+      title,
+      description: args.description?.trim() || undefined,
+      date: args.date,
+      startTime: args.startTime,
+      endTime: args.endTime,
+      color,
+      isPrivate: false,
+      recurrence: "none",
+      type: "company",
+      category: args.category,
+      orderId: args.orderId,
+      quoteId: order.quoteId,
+      createdBy: order.ownerId ?? userId,
+      createdAt: Date.now(),
+    });
+
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("quoteActivity", {
+      quoteId: order.quoteId,
+      type: "order_event_added",
+      title: "Dodano termin",
+      detail: `${catName ?? args.category}: ${args.date} ${args.startTime}`,
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
+    return id;
+  },
+});
+
+export const updateForOrder = mutation({
+  args: {
+    id: v.id("calendarEvents"),
+    date: v.optional(v.string()),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { id, ...fields }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+    const event = await ctx.db.get(id);
+    if (!event || !event.orderId) throw new Error("Wydarzenie nie istnieje");
+    const order = await ctx.db.get(event.orderId);
+    if (!order) throw new Error("Zlecenie nie istnieje");
+
+    const patch: Record<string, unknown> = {};
+    if (fields.date !== undefined) patch.date = fields.date;
+    if (fields.startTime !== undefined) patch.startTime = fields.startTime;
+    if (fields.endTime !== undefined) patch.endTime = fields.endTime;
+    if (fields.description !== undefined)
+      patch.description = fields.description === null ? undefined : fields.description.trim() || undefined;
+    await ctx.db.patch(id, patch);
+
+    const { name: catName } = await categoryMeta(ctx, event.category);
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("quoteActivity", {
+      quoteId: order.quoteId,
+      type: "order_event_updated",
+      title: "Zmieniono termin",
+      detail: `${catName ?? event.category ?? "termin"}: ${fields.date ?? event.date} ${fields.startTime ?? event.startTime}`,
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
+    return id;
+  },
+});
+
+export const removeForOrder = mutation({
+  args: { id: v.id("calendarEvents") },
+  handler: async (ctx, { id }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+    const event = await ctx.db.get(id);
+    if (!event) throw new Error("Wydarzenie nie istnieje");
+    const order = event.orderId ? await ctx.db.get(event.orderId) : null;
+    await ctx.db.delete(id);
+    if (order) {
+      const { name: catName } = await categoryMeta(ctx, event.category);
+      const user = await ctx.db.get(userId);
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_event_removed",
+        title: "Usunięto termin",
+        detail: `${catName ?? event.category ?? "termin"}: ${event.date}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
     }
   },
 });

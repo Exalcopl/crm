@@ -62,6 +62,53 @@ http.route({
   }),
 });
 
+// CORS preflight for configurator endpoint
+http.route({
+  pathPrefix: "/api/configurator/",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }),
+});
+
+// Public configurator structure: GET /api/configurator/{slug}
+// Jedno źródło prawdy dla konfiguratora na stronie www.
+http.route({
+  pathPrefix: "/api/configurator/",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    // pathParts = ["api", "configurator", "slug"]
+    const slug = decodeURIComponent(pathParts[2] || "").toLowerCase();
+
+    if (!slug) {
+      return new Response(
+        JSON.stringify({ error: "Missing configurator slug in URL" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const result = await ctx.runQuery(internal.configurator.getStructureInternal, { slug });
+
+    if (!result) {
+      return new Response(
+        JSON.stringify({ error: `Configurator "${slug}" not found` }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=60",
+        ...corsHeaders,
+      },
+    });
+  }),
+});
+
 /* ── Lead API (website → CRM integration) ──────────────────────── */
 
 const leadCorsHeaders = {

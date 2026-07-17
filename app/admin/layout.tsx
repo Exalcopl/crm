@@ -27,7 +27,7 @@ type TabDef = {
   action?: string;
 };
 
-const ADMIN_SECTION_PREFIXES = ["/admin/users", "/admin/roles", "/admin/projekt"] as const;
+const ADMIN_SECTION_PREFIXES = ["/admin/users", "/admin/roles", "/admin/projekt", "/admin/konfigurator"] as const;
 
 const isAdminSection = (p: string) =>
   ADMIN_SECTION_PREFIXES.some((prefix) => p.startsWith(prefix));
@@ -44,6 +44,14 @@ const TABS: TabDef[] = [
     label: "Wyceny",
     href: "/admin/wyceny",
     match: (p) => p === "/admin/wyceny" || p.startsWith("/admin/wyceny/"),
+    resource: "wyceny",
+    action: "read",
+  },
+  {
+    id: "zlecenia",
+    label: "Zlecenia",
+    href: "/admin/zlecenia",
+    match: (p) => p.startsWith("/admin/zlecenia"),
     resource: "wyceny",
     action: "read",
   },

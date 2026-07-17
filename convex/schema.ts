@@ -174,6 +174,8 @@ export default defineSchema({
     archived: v.optional(v.boolean()),
     source: v.optional(v.union(v.literal("admin"), v.literal("public"))),
     configuration: v.optional(v.any()),
+    // Stan kalkulatora konfiguratora (override cen grup, własne pozycje, stawka VAT)
+    calculator: v.optional(v.any()),
     notes: v.optional(v.string()),
     publicUploadToken: v.optional(v.string()),
     publicUploadTokenExpiresAt: v.optional(v.number()),
@@ -307,12 +309,16 @@ export default defineSchema({
     parentEventId: v.optional(v.id("calendarEvents")),
     type: v.optional(v.union(v.literal("private"), v.literal("company"))),
     category: v.optional(v.string()),
+    // Powiązanie ze zleceniem (terminy zlecenia = wydarzenia kalendarza)
+    orderId: v.optional(v.id("orders")),
+    quoteId: v.optional(v.id("quotes")),
     createdBy: v.id("users"),
     createdAt: v.number(),
   })
     .index("by_date", ["date"])
     .index("by_createdBy", ["createdBy"])
-    .index("by_createdBy_date", ["createdBy", "date"]),
+    .index("by_createdBy_date", ["createdBy", "date"])
+    .index("by_order", ["orderId"]),
 
   calendarCategories: defineTable({
     name: v.string(),
@@ -334,6 +340,8 @@ export default defineSchema({
     versionNumber: v.number(),
     // source: "ocr" = from SharePoint PDF, "manual" = manual calculator
     source: v.union(v.literal("ocr"), v.literal("manual")),
+    // true = wersja generowana z konfiguratora (kalkulator); upsertowana
+    isConfigurator: v.optional(v.boolean()),
     // For OCR versions
     fileItemId: v.optional(v.string()),
     fileName: v.optional(v.string()),
@@ -372,6 +380,56 @@ export default defineSchema({
     .index("by_quote_status", ["quoteId", "status"])
     .index("by_quote_file", ["quoteId", "fileItemId"]),
 
+  // ─── Configurator structure (source of truth for CRM + website) ──────────────
+  // Produkty konfiguratora (Pergola, Zadaszenia). Na razie bez dodawania nowych z UI.
+  configuratorProducts: defineTable({
+    slug: v.string(), // "pergola" | "zadaszenia"
+    name: v.string(), // "Pergola"
+    order: v.number(),
+    isActive: v.boolean(),
+  }).index("by_slug", ["slug"]),
+
+  // Generyczne pola produktu (rodzaj, wymiary, kolory, oświetlenie, dodatki…)
+  configuratorFields: defineTable({
+    productId: v.id("configuratorProducts"),
+    key: v.string(), // stabilny klucz zgodny z JSON konfiguracji, np. "rodzajPergoli"
+    label: v.string(),
+    type: v.union(
+      v.literal("select"), // pojedynczy wybór
+      v.literal("multiselect"), // wielokrotny wybór (np. dodatki, zabudowy zadaszeń)
+      v.literal("number"),
+      v.literal("dimensions"), // złożenie kilku liczb (szer × wysięg × wys)
+      v.literal("color"), // wybór koloru (opcje ze swatchem)
+    ),
+    section: v.string(), // grupa wyświetlania, np. "Podstawowe", "Oświetlenie"
+    order: v.number(),
+    isRequired: v.boolean(),
+    isActive: v.boolean(),
+    // Konfiguracja zależna od typu (np. subFields dla dimensions, unit, group dla oświetlenia)
+    config: v.optional(v.any()),
+    // Zależność: pokaż pole tylko gdy inne pole = wartość (Faza 2)
+    visibleWhen: v.optional(v.object({ fieldKey: v.string(), equals: v.string() })),
+  })
+    .index("by_product", ["productId"])
+    .index("by_product_order", ["productId", "order"]),
+
+  // Opcje pól wyboru; parentOptionId pozwala na pod-opcje / warianty (np. wariant zależny od typu)
+  configuratorOptions: defineTable({
+    fieldId: v.id("configuratorFields"),
+    parentOptionId: v.optional(v.id("configuratorOptions")),
+    key: v.string(),
+    label: v.string(),
+    order: v.number(),
+    isActive: v.boolean(),
+    price: v.optional(v.number()), // Faza 2
+    swatch: v.optional(v.string()), // kolor (oklch/hex) dla pól color
+    group: v.optional(v.string()), // grupa koloru: standard/nonstandard/decor
+    imageId: v.optional(v.id("_storage")), // Faza 3 (zdjęcia/ikony)
+  })
+    .index("by_field", ["fieldId"])
+    .index("by_field_order", ["fieldId", "order"])
+    .index("by_parent", ["parentOptionId"]),
+
   // Tracks SharePoint webhook subscriptions per drive/folder
   sharepointWebhookSubscriptions: defineTable({
     subscriptionId: v.string(),
@@ -384,4 +442,48 @@ export default defineSchema({
   })
     .index("by_subscription", ["subscriptionId"])
     .index("by_quote", ["quoteId"]),
+
+  orders: defineTable({
+    quoteId: v.id("quotes"),
+    quoteVersionId: v.id("quoteVersions"),
+    orderNumber: v.string(), // np. ZL/2026/0001
+    status: v.union(
+      v.literal("nowe"),
+      v.literal("produkcja"),
+      v.literal("montaz"),
+      v.literal("gotowe"),
+      v.literal("wstrzymane")
+    ),
+    clientId: v.optional(v.id("clients")),
+    valueNetto: v.number(),
+    valueVat: v.number(),
+    valueBrutto: v.number(),
+    vatRate: v.number(),
+    items: v.array(
+      v.object({
+        lp: v.number(),
+        description: v.string(),
+        quantity: v.union(v.number(), v.null()),
+        unit: v.optional(v.string()),
+        priceNetto: v.union(v.number(), v.null()),
+        valueNetto: v.union(v.number(), v.null()),
+      })
+    ),
+    clientName: v.string(),
+    clientEmail: v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
+    deadline: v.string(), // Termin realizacji w formacie YYYY-MM-DD
+    ownerId: v.optional(v.id("users")),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_quote", ["quoteId"])
+    .index("by_client", ["clientId"])
+    .index("by_orderNumber", ["orderNumber"]),
+
+  orderCounters: defineTable({
+    year: v.number(),
+    seq: v.number(),
+  }).index("by_year", ["year"]),
 });

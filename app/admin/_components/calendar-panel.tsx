@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -283,6 +284,8 @@ type CalEvent = {
   parentEventId?: Id<"calendarEvents">;
   type?: "private" | "company";
   category?: string;
+  orderId?: Id<"orders">;
+  quoteId?: Id<"quotes">;
   createdBy: Id<"users">;
   createdAt: number;
 };
@@ -303,6 +306,7 @@ type FormState = {
   isPrivate: boolean;
   type?: "private" | "company";
   category?: string;
+  orderId?: Id<"orders">;
   createdBy?: Id<"users">;
 };
 
@@ -319,6 +323,7 @@ function EventDrawer({
   saving,
   currentUserId,
   categories,
+  onOpenOrder,
 }: {
   isOpen: boolean;
   form: FormState;
@@ -330,6 +335,7 @@ function EventDrawer({
   saving: boolean;
   currentUserId?: Id<"users">;
   categories: CategoryStyle[];
+  onOpenOrder?: (orderId: Id<"orders">) => void;
 }) {
   const isReadOnly =
     form.mode === "edit" &&
@@ -343,6 +349,7 @@ function EventDrawer({
   ]).concat(["17:00"]);
 
   const durationText = formatDurationLabel(form.startTime, form.endTime);
+  const router = useRouter();
 
   return (
     <div className={`cal-drawer ${isOpen ? "cal-drawer--open" : ""}`}>
@@ -368,6 +375,20 @@ function EventDrawer({
         <div className="cal-drawer-date-pill">
           📅 {formatDateLabel(selectedDate)}
         </div>
+        {form.orderId && (
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
+            style={{ marginTop: 8, width: "100%", justifyContent: "center" }}
+            onClick={() => {
+              const oid = form.orderId!;
+              if (onOpenOrder) onOpenOrder(oid);
+              else router.push(`/admin/zlecenia/${oid}`);
+            }}
+          >
+            ➜ Otwórz zlecenie
+          </button>
+        )}
       </div>
 
       {/* Body cards */}
@@ -1293,6 +1314,7 @@ function DayView({
                     : ` 🔄 co ${ev.recurrence === "daily" ? "dzień" : ev.recurrence === "weekly" ? "tydzień" : ev.recurrence === "monthly" ? "miesiąc" : "rok"}`
                 )}
                 {ev.isPrivate && " 🔒"}
+                {ev.orderId && " 🔗"}
               </span>
               <span className="cal-event-title">{ev.title}</span>
 
@@ -1356,6 +1378,14 @@ class CalErrorBoundary extends React.Component<
 export function CalendarPanel() {
   const [open, setOpen] = useState(false);
   const [isCompanyOpen, setIsCompanyOpen] = useState(false);
+  const router = useRouter();
+
+  function handleOpenOrder(orderId: Id<"orders">) {
+    setIsDrawerOpen(false);
+    setOpen(false);
+    setIsCompanyOpen(false);
+    router.push(`/admin/zlecenia/${orderId}`);
+  }
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
   const [taskForm, setTaskForm] = useState({
@@ -1450,6 +1480,13 @@ export function CalendarPanel() {
 
   const weekDateStrings = getWeekDateStrings(selectedDate);
   const monthGridDays = getMonthGridDays(selectedDate);
+
+  const privateMonthEvents = useQuery(
+    api.calendarEvents.listPrivateEventsByRange,
+    open && selectedUserIds.length > 0
+      ? { startDate: monthGridDays[0], endDate: monthGridDays[41], userIds: selectedUserIds }
+      : "skip"
+  ) ?? (EMPTY_ARRAY as CalEvent[]);
 
   const startDate = companyViewMode === "week" ? weekDateStrings[0] : monthGridDays[0];
   const endDate = companyViewMode === "week" ? weekDateStrings[6] : monthGridDays[41];
@@ -1806,6 +1843,7 @@ export function CalendarPanel() {
       isPrivate: !!ev.isPrivate,
       type: ev.type || "private",
       category: ev.category || "spotkanie",
+      orderId: ev.orderId,
       createdBy: ev.createdBy,
     });
     setIsDrawerOpen(true);
@@ -1841,6 +1879,7 @@ export function CalendarPanel() {
       isPrivate: !!ev.isPrivate,
       type: ev.type || "company",
       category: ev.category || "spotkanie",
+      orderId: ev.orderId,
       createdBy: ev.createdBy,
     });
     setIsDrawerOpen(true);
@@ -2037,7 +2076,31 @@ export function CalendarPanel() {
                       <CalendarCell
                         date={date}
                         className={`cal-month-cell ${hol ? "cal-month-cell--holiday" : ""} ${isSunday ? "cal-month-cell--sunday" : ""}`}
-                      />
+                      >
+                        {({ formattedDate }) => {
+                          const cellDateStr = `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
+                          const dayEvents = privateMonthEvents.filter((ev) => {
+                            const evEnd = ev.endDate || ev.date;
+                            return cellDateStr >= ev.date && cellDateStr <= evEnd;
+                          });
+                          return (
+                            <div className="cal-month-cell-inner">
+                              <span className="cal-month-cell-num">{formattedDate}</span>
+                              {dayEvents.length > 0 && (
+                                <div className="cal-month-cell-bars">
+                                  {dayEvents.slice(0, 3).map((ev, idx) => (
+                                    <span
+                                      key={ev._id || idx}
+                                      className="cal-month-cell-bar"
+                                      title={ev.title}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }}
+                      </CalendarCell>
                     );
                   }}
                 </CalendarGridBody>
@@ -2070,6 +2133,7 @@ export function CalendarPanel() {
           saving={saving}
           currentUserId={currentUserId}
           categories={companyCategories}
+          onOpenOrder={handleOpenOrder}
         />
       </aside>
 
@@ -2306,7 +2370,7 @@ export function CalendarPanel() {
                                 ) : (
                                   <span className="cal-monthly-event-pill-time">{ev.startTime}</span>
                                 )}
-                                <span className="cal-monthly-event-pill-title">{ev.title}</span>
+                                <span className="cal-monthly-event-pill-title">{ev.orderId ? "🔗 " : ""}{ev.title}</span>
                                 {!isDraggingThis && ev.type === "company" && dayStr === (ev.endDate || ev.date) && (
                                   <div
                                     className="cal-monthly-event-resize-handle"
@@ -2646,7 +2710,7 @@ export function CalendarPanel() {
                                 <div className="cal-weekly-event-time" style={{ color: cat.color }}>
                                   {isDraggingThis ? `${formatHour(startH)} - ${formatHour(endH)}` : `${ev.startTime} - ${ev.endTime}`}
                                 </div>
-                                <div className="cal-weekly-event-title">{ev.title}</div>
+                                <div className="cal-weekly-event-title">{ev.orderId ? "🔗 " : ""}{ev.title}</div>
                                 {height > 40 && ev.description && (
                                   <div className="cal-weekly-event-desc">{ev.description}</div>
                                 )}
@@ -2735,6 +2799,7 @@ export function CalendarPanel() {
           saving={saving}
           currentUserId={currentUserId}
           categories={companyCategories}
+          onOpenOrder={handleOpenOrder}
         />
       </aside>
 
@@ -3009,7 +3074,8 @@ export function CalendarPanel() {
         .cal-month-cell--holiday::after {
           content: '';
           position: absolute;
-          bottom: 3px;
+          top: 3px;
+          right: 3px;
           width: 4px;
           height: 4px;
           border-radius: 50%;
@@ -3035,6 +3101,39 @@ export function CalendarPanel() {
           outline: none;
         }
 
+        .cal-month-cell-inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          width: 100%;
+          height: 100%;
+          padding-top: 5px;
+          position: relative;
+        }
+
+        .cal-month-cell-num {
+          line-height: 14px;
+          font-size: 13.5px;
+        }
+
+        .cal-month-cell-bars {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          width: 18px;
+          margin-top: 3px;
+        }
+
+        .cal-month-cell-bar {
+          width: 100%;
+          height: 2.5px;
+          border-radius: 1.5px;
+          background-color: #d41d3c;
+          flex-shrink: 0;
+        }
+
         .cal-month-cell[data-hovered] {
           background: #222832;
           color: #ffffff;
@@ -3045,6 +3144,10 @@ export function CalendarPanel() {
           color: #ffffff;
           font-weight: 600;
           box-shadow: 0 2px 10px rgba(212, 29, 60, 0.45);
+        }
+
+        .cal-month-cell[data-selected] .cal-month-cell-bar {
+          background-color: #ffffff;
         }
 
         .cal-month-cell[data-focused] {

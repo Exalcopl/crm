@@ -26,8 +26,8 @@ import { QuoteValueSummary } from "./_components/quote-value-summary";
 import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFileBrowser } from "./_components/quote-file-browser";
 import { QuoteVersionsManager } from "./_components/quote-versions-manager";
-import { QuoteConfiguration } from "./_components/quote-configuration";
-import { QuoteSimpleNotes } from "./_components/quote-simple-notes";
+import { QuoteConfigurator } from "./_components/quote-configurator";
+import { QuoteNotesFeed } from "./_components/quote-notes-feed";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
@@ -51,10 +51,43 @@ export default function QuoteDetailPage({
   const archiveQuote = useMutation(api.quotes.archive);
   const restoreQuote = useMutation(api.quotes.restore);
   const router = useRouter();
+
+  const versions = useQuery(
+    api.quoteVersions.listByQuote,
+    quote ? { quoteId: quote._id } : "skip"
+  ) ?? [];
+  const order = useQuery(
+    api.orders.getByQuote,
+    quote ? { quoteId: quote._id } : "skip"
+  );
+  const createOrder = useMutation(api.orders.create);
+
   const [activeTab, setActiveTab] = useState<DetailTab>("szczegoly");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [confirmOrderOpen, setConfirmOrderOpen] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+
   const isArchived = quote?.archived === true;
+  const acceptedVersion = versions.find((v: any) => v.status === "accepted");
+
+  async function confirmCreateOrder() {
+    if (!quote || !acceptedVersion) return;
+    setIsCreatingOrder(true);
+    try {
+      await createOrder({
+        quoteId: quote._id,
+        quoteVersionId: acceptedVersion._id,
+      });
+      toast.success("Pomyślnie utworzono zlecenie!");
+      setConfirmOrderOpen(false);
+      router.push("/admin/zlecenia");
+    } catch (err: any) {
+      toast.error(err.message || "Błąd podczas tworzenia zlecenia");
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  }
 
   async function confirmDelete() {
     if (!quote) return;
@@ -143,6 +176,9 @@ export default function QuoteDetailPage({
         onArchive={toggleArchive}
         quote={quote}
         archived={isArchived}
+        order={order}
+        acceptedVersion={acceptedVersion}
+        onCreateOrder={() => setConfirmOrderOpen(true)}
       />
       <main className="fluent-content">
         <QuoteDetailLayout
@@ -166,6 +202,16 @@ export default function QuoteDetailPage({
           clientName={quote.contact.name}
           onCancel={() => setConfirmArchiveOpen(false)}
           onConfirm={() => void confirmArchive()}
+        />
+      )}
+      {confirmOrderOpen && acceptedVersion && (
+        <ConfirmOrderModal
+          quoteId={quote.id}
+          clientName={quote.contact.name}
+          orderValue={acceptedVersion.valueNetto}
+          onCancel={() => setConfirmOrderOpen(false)}
+          onConfirm={() => void confirmCreateOrder()}
+          isLoading={isCreatingOrder}
         />
       )}
     </>
@@ -378,6 +424,9 @@ function QuoteDetailRibbon({
   quote,
   archived,
   disabled,
+  order,
+  acceptedVersion,
+  onCreateOrder,
 }: {
   onBack: () => void;
   activeTab: DetailTab;
@@ -387,7 +436,11 @@ function QuoteDetailRibbon({
   quote?: Quote | null;
   archived: boolean;
   disabled?: boolean;
+  order?: any;
+  acceptedVersion?: any;
+  onCreateOrder?: () => void;
 }) {
+  const router = useRouter();
   return (
     <div className="fluent-ribbon">
       <RibbonGroup label="Nawigacja">
@@ -405,8 +458,26 @@ function QuoteDetailRibbon({
           />
         ))}
       </RibbonGroup>
+      {quote && order && (
+        <RibbonGroup label="Powiązane">
+          <RibbonBtn
+            icon={<I.box s={22} />}
+            label="Zlecenie"
+            disabled={disabled}
+            onClick={() => router.push(`/admin/zlecenia/${order._id}`)}
+          />
+        </RibbonGroup>
+      )}
       <RibbonGroup label="Operacje">
         {quote && <SharepointRibbonBtn quote={quote} disabled={disabled} />}
+        {quote && !order && (
+          <RibbonBtn
+            icon={<I.box s={22} />}
+            label="Stwórz zlecenie"
+            disabled={disabled || !acceptedVersion}
+            onClick={onCreateOrder}
+          />
+        )}
         <RibbonBtn
           icon={archived ? <I.arrowLeft s={22} /> : <I.archive s={22} />}
           label={archived ? "Przywróć" : "Archiwizuj"}
@@ -442,51 +513,29 @@ function QuoteDetailLayout({
         <QuoteDetailHeader quote={quote} archived={archived} />
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
-            {(() => {
-              const isStolarka = quote.projectType.includes("Stolarka") ||
-                                 quote.projectType.includes("Stolarka aluminiowa") ||
-                                 quote.id.startsWith("ST-");
-              return (
-                <>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 14 }}
-                  >
-                    <div className="quote-widget-item">
-                      <TasksKanban quote={quote} archived={archived} />
-                    </div>
-                    <div className="quote-widget-item">
-                      <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-                        <HelperQuestionsSection quoteId={quote._id} />
-                      </Section>
-                    </div>
-                    <div className="quote-widget-item">
-                      <Section title="Notatki" icon={<I.doc s={14} />}>
-                        <QuoteSimpleNotes
-                          quoteId={quote._id}
-                          initialNotes={quote.notes || ""}
-                          archived={archived}
-                        />
-                      </Section>
-                    </div>
-                  </div>
-                  {quote.configuration && (quote.projectType.includes("Pergola") || quote.projectType.includes("Zadaszenia")) && (
-                    <div className="quote-widget-item quote-widget-span-2">
-                      <QuoteConfiguration
-                        quoteId={quote._id}
-                        configuration={quote.configuration}
-                        archived={archived}
-                      />
-                    </div>
-                  )}
-                  <div
-                    className="quote-widget-item quote-widget-span-1"
-                    style={isStolarka ? { gridColumnStart: 4 } : undefined}
-                  >
-                    <QuoteFileBrowser quote={quote} archived={archived} />
-                  </div>
-                </>
-              );
-            })()}
+            {/* Kolumna 1: zadania + pytania pomocnicze */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="quote-widget-item">
+                <TasksKanban quote={quote} archived={archived} />
+              </div>
+              <div className="quote-widget-item">
+                <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                  <HelperQuestionsSection quoteId={quote._id} />
+                </Section>
+              </div>
+            </div>
+
+            {/* Kolumny 2-3 (środek): Notatki */}
+            <div className="quote-widget-item quote-widget-span-2">
+              <Section title="Notatki" icon={<I.doc s={14} />}>
+                <QuoteNotesFeed quoteId={quote._id} archived={archived} />
+              </Section>
+            </div>
+
+            {/* Kolumna 4: Pliki */}
+            <div className="quote-widget-item quote-widget-span-1">
+              <QuoteFileBrowser quote={quote} archived={archived} />
+            </div>
           </div>
         ) : (
           <div className="quote-detail-main">
@@ -1363,7 +1412,52 @@ function TabSzczegoly({
 }
 
 function TabPozycje({ quote, archived }: { quote: Quote; archived: boolean }) {
-  return <QuoteVersionsManager quote={quote} archived={archived} />;
+  const norm = quote.projectType.map((t) => t.toLowerCase());
+  const hasStolarka = norm.some((t) => t.includes("stolarka")) || quote.id.startsWith("ST-");
+  const hasPergola = norm.some((t) => t.includes("pergola"));
+  const hasZadaszenia = norm.some((t) => t.includes("zadasz"));
+
+  if (!hasStolarka && !hasPergola && !hasZadaszenia) {
+    return (
+      <div className="quote-detail-stack">
+        <Section title="Wycena" icon={<I.box s={14} />}>
+          <div className="quote-detail-empty">
+            <div className="quote-detail-empty-title">Wybierz typ projektu</div>
+            <div className="quote-detail-empty-text">
+              Ta wycena nie ma typu z konfiguratorem ani ze skanowaniem. Ustaw typ projektu w zakładce „Szczegóły”,
+              aby skonfigurować wycenę (Pergola / Zadaszenia) lub wczytać ofertę przez OCR (Stolarka aluminiowa).
+            </div>
+          </div>
+        </Section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="quote-detail-stack">
+      {hasPergola && (
+        <QuoteConfigurator
+          quoteId={quote._id}
+          slug="pergola"
+          typeName="Pergola"
+          configuration={quote.configuration}
+          calculator={(quote as { calculator?: unknown }).calculator}
+          archived={archived}
+        />
+      )}
+      {hasZadaszenia && (
+        <QuoteConfigurator
+          quoteId={quote._id}
+          slug="zadaszenia"
+          typeName="Zadaszenia"
+          configuration={quote.configuration}
+          calculator={(quote as { calculator?: unknown }).calculator}
+          archived={archived}
+        />
+      )}
+      {hasStolarka && <QuoteVersionsManager quote={quote} archived={archived} />}
+    </div>
+  );
 }
 
 function TabPomiary({ quote }: { quote: Quote }) {
@@ -1442,6 +1536,95 @@ function TabPowiazane() {
           </div>
         </div>
       </Section>
+    </div>
+  );
+}
+
+function ConfirmOrderModal({
+  quoteId,
+  clientName,
+  orderValue,
+  onCancel,
+  onConfirm,
+  isLoading,
+}: {
+  quoteId: string;
+  clientName: string;
+  orderValue: number;
+  onCancel: () => void;
+  onConfirm: () => void;
+  isLoading: boolean;
+}) {
+  return (
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Potwierdź stworzenie zlecenia"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isLoading) onCancel();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-sm">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon">
+              <I.box s={16} sw={2.2} />
+            </span>
+            <span>Stwórz zlecenie</span>
+          </div>
+          <button
+            type="button"
+            className="fluent-modal-close"
+            onClick={onCancel}
+            aria-label="Zamknij"
+            disabled={isLoading}
+          >
+            ×
+          </button>
+        </header>
+        <div className="fluent-modal-body">
+          <p className="fluent-modal-text" style={{ marginBottom: 12 }}>
+            Czy na pewno chcesz stworzyć zlecenie z wyceny <strong>{quoteId}</strong> dla klienta <strong>{clientName}</strong>?
+          </p>
+          <div style={{ padding: "8px 12px", background: "rgba(255,255,255,0.05)", borderRadius: 6, fontSize: 13, display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#8b949e" }}>Wartość zlecenia (netto):</span>
+            <strong style={{ color: "#58a6ff" }}>{orderValue.toLocaleString("pl-PL", { minimumFractionDigits: 2 })} zł</strong>
+          </div>
+          <p className="fluent-modal-text" style={{ marginTop: 12, fontSize: 11.5, color: "#8b949e" }}>
+            Uwaga: Powoduje to zmianę statusu wyceny na <strong>Zrobione</strong>.
+          </p>
+        </div>
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onCancel}
+            autoFocus
+            disabled={isLoading}
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
+            onClick={onConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner-small" aria-hidden="true" />
+                <span>Tworzenie…</span>
+              </>
+            ) : (
+              <>
+                <I.plus s={14} sw={2.2} />
+                <span>Stwórz zlecenie</span>
+              </>
+            )}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

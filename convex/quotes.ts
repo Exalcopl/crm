@@ -935,6 +935,72 @@ export const updateConfiguration = mutation({
   },
 });
 
+// Zapis stanu konfiguratora + kalkulatora (autozapis z widoku "Wycena")
+export const saveConfiguratorState = mutation({
+  args: {
+    id: v.id("quotes"),
+    configuration: v.any(),
+    calculator: v.any(),
+    vatRate: v.number(),
+    valueNetto: v.number(),
+    valueVat: v.number(),
+    valueBrutto: v.number(),
+    items: v.array(
+      v.object({
+        lp: v.number(),
+        description: v.string(),
+        quantity: v.union(v.number(), v.null()),
+        unit: v.optional(v.string()),
+        priceNetto: v.union(v.number(), v.null()),
+        valueNetto: v.union(v.number(), v.null()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(args.id, {
+      configuration: args.configuration,
+      calculator: args.calculator,
+      value: args.valueNetto,
+    });
+
+    // Upsert wersji generowanej z konfiguratora
+    const versions = await ctx.db
+      .query("quoteVersions")
+      .withIndex("by_quote", (q) => q.eq("quoteId", args.id))
+      .collect();
+    const existing = versions.find((v) => v.isConfigurator === true);
+
+    const versionFields = {
+      title: "Wycena z konfiguratora",
+      valueNetto: args.valueNetto,
+      valueVat: args.valueVat,
+      valueBrutto: args.valueBrutto,
+      vatRate: args.vatRate,
+      items: args.items,
+    };
+
+    if (existing) {
+      // Edycja po akceptacji wymusza ponowną akceptację (bezpieczeństwo przed "Stwórz zlecenie")
+      const statusPatch = existing.status === "accepted" ? { status: "draft" as const } : {};
+      await ctx.db.patch(existing._id, { ...versionFields, ...statusPatch });
+    } else {
+      await ctx.db.insert("quoteVersions", {
+        quoteId: args.id,
+        versionNumber: versions.length + 1,
+        source: "manual",
+        isConfigurator: true,
+        ...versionFields,
+        status: "draft",
+        createdAt: Date.now(),
+        createdBy: callerId,
+      });
+    }
+  },
+});
+
 export const resetCounterToMax = mutation({
   args: {},
   handler: async (ctx): Promise<{ previousSeq: number; newSeq: number }> => {

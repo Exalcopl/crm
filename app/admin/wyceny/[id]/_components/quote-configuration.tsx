@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -68,7 +68,93 @@ const ZABUDOWY_WARIANTY: Record<string, string[]> = {
 const DODATKI_PERGOLA = ["Czujnik deszczu", "Czujnik wiatru", "Promiennik ciepła"];
 const RODZAJE_ZADASZEN = ["Przyścienne", "Wolnostojące"];
 const RODZAJE_DACHU = ["Szkło", "Poliwęglan", "Panel nieprzezierny", "Inne"];
-const DODATKI_ZADASZENIA = ["Promiennik ciepła", "COŚTAM1", "COŚTAM2"];
+const DODATKI_ZADASZENIA = ["Promiennik ciepła"];
+
+// ─── Listy opcji z bazy (źródło prawdy) z fallbackiem do stałych powyżej ────────
+
+type LightingRec = Record<string, { label: string; opcje: string[] }>;
+type Lists = {
+  KOLORY: string[];
+  RODZAJE_PERGOLI: string[];
+  ORIENTACJE: string[];
+  OSWIETLENIE_PERGOLA: LightingRec;
+  ZABUDOWY_TYPY: string[];
+  ZABUDOWY_WARIANTY: Record<string, string[]>;
+  DODATKI_PERGOLA: string[];
+  RODZAJE_ZADASZEN: string[];
+  RODZAJE_DACHU: string[];
+  OSWIETLENIE_ZADASZENIA: LightingRec;
+  DODATKI_ZADASZENIA: string[];
+};
+
+const FALLBACK_LISTS: Lists = {
+  KOLORY, RODZAJE_PERGOLI, ORIENTACJE, OSWIETLENIE_PERGOLA,
+  ZABUDOWY_TYPY, ZABUDOWY_WARIANTY, DODATKI_PERGOLA,
+  RODZAJE_ZADASZEN, RODZAJE_DACHU, OSWIETLENIE_ZADASZENIA, DODATKI_ZADASZENIA,
+};
+
+// Kształty zwracane przez api.configurator.getStructure
+type CfgOption = { key: string; label: string; children: CfgOption[] };
+type CfgField = { key: string; label: string; type: string; section: string; config?: unknown; options: CfgOption[] };
+type CfgStructure = { fields: CfgField[] } | null | undefined;
+
+function fieldByKey(s: CfgStructure, key: string): CfgField | undefined {
+  return s?.fields.find((f) => f.key === key);
+}
+function labelsOf(s: CfgStructure, key: string): string[] | null {
+  const f = fieldByKey(s, key);
+  return f ? f.options.map((o) => o.label) : null;
+}
+function lightingRecordOf(s: CfgStructure): LightingRec | null {
+  const rec: LightingRec = {};
+  for (const f of s?.fields ?? []) {
+    const grp = (f.config as { group?: string } | undefined)?.group;
+    if (f.section === "Oświetlenie" && grp === "oswietlenie") {
+      rec[f.key] = { label: f.label, opcje: f.options.map((o) => o.label) };
+    }
+  }
+  return Object.keys(rec).length > 0 ? rec : null;
+}
+function enclosuresOf(s: CfgStructure): { typy: string[]; warianty: Record<string, string[]> } | null {
+  const f = fieldByKey(s, "zabudowyBoczne");
+  if (!f) return null;
+  const warianty: Record<string, string[]> = {};
+  for (const o of f.options) warianty[o.label] = o.children.map((c) => c.label);
+  return { typy: f.options.map((o) => o.label), warianty };
+}
+
+function useConfiguratorLists(slug: "pergola" | "zadaszenia" | null): Lists {
+  const structure = useQuery(
+    api.configurator.getStructure,
+    slug ? { slug } : "skip",
+  ) as CfgStructure;
+
+  return useMemo(() => {
+    const L: Lists = { ...FALLBACK_LISTS };
+    if (!structure) return L;
+
+    const kolory = labelsOf(structure, "kolorKonstrukcji");
+    if (kolory && kolory.length) L.KOLORY = kolory;
+
+    const enc = enclosuresOf(structure);
+    if (enc) { L.ZABUDOWY_TYPY = enc.typy; L.ZABUDOWY_WARIANTY = enc.warianty; }
+
+    const light = lightingRecordOf(structure);
+
+    if (slug === "pergola") {
+      const rp = labelsOf(structure, "rodzajPergoli"); if (rp?.length) L.RODZAJE_PERGOLI = rp;
+      const or = labelsOf(structure, "orientacja"); if (or?.length) L.ORIENTACJE = or;
+      if (light) L.OSWIETLENIE_PERGOLA = light;
+      const dod = labelsOf(structure, "dodatki"); if (dod?.length) L.DODATKI_PERGOLA = dod;
+    } else if (slug === "zadaszenia") {
+      const rz = labelsOf(structure, "rodzajZadaszenia"); if (rz?.length) L.RODZAJE_ZADASZEN = rz;
+      const rd = labelsOf(structure, "dach"); if (rd?.length) L.RODZAJE_DACHU = rd;
+      if (light) L.OSWIETLENIE_ZADASZENIA = light;
+      const dod = labelsOf(structure, "dodatki"); if (dod?.length) L.DODATKI_ZADASZENIA = dod;
+    }
+    return L;
+  }, [structure, slug]);
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -197,10 +283,11 @@ function AddonRow({ name, checked, editing, onChange }: {
 
 // ─── Pergola display / edit ───────────────────────────────────────────────────
 
-function PergolaView({ editing, draft, setDraft }: {
+function PergolaView({ editing, draft, setDraft, lists }: {
   editing: boolean;
   draft: PergolaConfig;
   setDraft: (d: PergolaConfig) => void;
+  lists: Lists;
 }) {
   const wymDisplay = `${draft.wymiary.szerokosc} × ${draft.wymiary.wysieg} × ${draft.wymiary.wysokosc} cm`;
 
@@ -209,12 +296,12 @@ function PergolaView({ editing, draft, setDraft }: {
       <SectionLabel>Podstawowe</SectionLabel>
 
       <Row label="Rodzaj pergoli" value={draft.rodzajPergoli} editing={editing}>
-        <SelectInput value={draft.rodzajPergoli} options={RODZAJE_PERGOLI}
+        <SelectInput value={draft.rodzajPergoli} options={lists.RODZAJE_PERGOLI}
           onChange={(v) => setDraft({ ...draft, rodzajPergoli: v ?? "" })} />
       </Row>
 
       <Row label="Orientacja" value={draft.orientacja} editing={editing}>
-        <SelectInput value={draft.orientacja} options={ORIENTACJE}
+        <SelectInput value={draft.orientacja} options={lists.ORIENTACJE}
           onChange={(v) => setDraft({ ...draft, orientacja: v ?? "" })} />
       </Row>
 
@@ -242,17 +329,17 @@ function PergolaView({ editing, draft, setDraft }: {
       </Row>
 
       <Row label="Kolor konstrukcji" value={draft.kolorKonstrukcji} editing={editing}>
-        <SelectInput value={draft.kolorKonstrukcji} options={KOLORY}
+        <SelectInput value={draft.kolorKonstrukcji} options={lists.KOLORY}
           onChange={(v) => setDraft({ ...draft, kolorKonstrukcji: v ?? "" })} />
       </Row>
 
       <Row label="Kolor dachu" value={draft.kolorDachu} editing={editing}>
-        <SelectInput value={draft.kolorDachu} options={KOLORY}
+        <SelectInput value={draft.kolorDachu} options={lists.KOLORY}
           onChange={(v) => setDraft({ ...draft, kolorDachu: v ?? "" })} />
       </Row>
 
       <SectionLabel>Oświetlenie</SectionLabel>
-      {Object.entries(OSWIETLENIE_PERGOLA).map(([key, { label, opcje }]) => {
+      {Object.entries(lists.OSWIETLENIE_PERGOLA).map(([key, { label, opcje }]) => {
         const val = draft.oswietlenie[key] ?? null;
         return (
           <Row key={key} label={label} value={val ?? ""} editing={editing}>
@@ -264,18 +351,18 @@ function PergolaView({ editing, draft, setDraft }: {
 
       <SectionLabel>Zabudowy boczne</SectionLabel>
       <Row label="Typ" value={draft.zabudowyBoczne.typ ?? ""} editing={editing}>
-        <SelectInput value={draft.zabudowyBoczne.typ} options={ZABUDOWY_TYPY}
+        <SelectInput value={draft.zabudowyBoczne.typ} options={lists.ZABUDOWY_TYPY}
           onChange={(v) => setDraft({ ...draft, zabudowyBoczne: { typ: v, wariant: null } })} />
       </Row>
       <Row label="Wariant" value={draft.zabudowyBoczne.wariant ?? ""} editing={editing}>
         <SelectInput
           value={draft.zabudowyBoczne.wariant}
-          options={draft.zabudowyBoczne.typ ? (ZABUDOWY_WARIANTY[draft.zabudowyBoczne.typ] ?? []) : []}
+          options={draft.zabudowyBoczne.typ ? (lists.ZABUDOWY_WARIANTY[draft.zabudowyBoczne.typ] ?? []) : []}
           onChange={(v) => setDraft({ ...draft, zabudowyBoczne: { ...draft.zabudowyBoczne, wariant: v } })} />
       </Row>
 
       <SectionLabel>Dodatki</SectionLabel>
-      {DODATKI_PERGOLA.map((name) => {
+      {lists.DODATKI_PERGOLA.map((name) => {
         const checked = draft.dodatki.includes(name);
         return (
           <AddonRow key={name} name={name} checked={checked} editing={editing}
@@ -308,10 +395,11 @@ function normalizeZabudowyList(val: unknown): { typ: string; wariant: string | n
   return [];
 }
 
-function ZadaszeniaView({ editing, draft, setDraft }: {
+function ZadaszeniaView({ editing, draft, setDraft, lists }: {
   editing: boolean;
   draft: ZadaszeniaConfig;
   setDraft: (d: ZadaszeniaConfig) => void;
+  lists: Lists;
 }) {
   const zabudowyList = normalizeZabudowyList(draft.zabudowyBoczne);
   const wymDisplay =
@@ -323,7 +411,7 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
       <SectionLabel>Podstawowe</SectionLabel>
 
       <Row label="Rodzaj zadaszenia" value={draft.rodzajZadaszenia} editing={editing}>
-        <SelectInput value={draft.rodzajZadaszenia} options={RODZAJE_ZADASZEN}
+        <SelectInput value={draft.rodzajZadaszenia} options={lists.RODZAJE_ZADASZEN}
           onChange={(v) => setDraft({ ...draft, rodzajZadaszenia: v ?? "" })} />
       </Row>
 
@@ -346,17 +434,17 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
       </Row>
 
       <Row label="Dach" value={draft.dach} editing={editing}>
-        <SelectInput value={draft.dach} options={RODZAJE_DACHU}
+        <SelectInput value={draft.dach} options={lists.RODZAJE_DACHU}
           onChange={(v) => setDraft({ ...draft, dach: v ?? "" })} />
       </Row>
 
       <Row label="Kolor konstrukcji" value={draft.kolorKonstrukcji} editing={editing}>
-        <SelectInput value={draft.kolorKonstrukcji} options={KOLORY}
+        <SelectInput value={draft.kolorKonstrukcji} options={lists.KOLORY}
           onChange={(v) => setDraft({ ...draft, kolorKonstrukcji: v ?? "" })} />
       </Row>
 
       <SectionLabel>Oświetlenie</SectionLabel>
-      {Object.entries(OSWIETLENIE_ZADASZENIA).map(([key, { label, opcje }]) => {
+      {Object.entries(lists.OSWIETLENIE_ZADASZENIA).map(([key, { label, opcje }]) => {
         const val = draft.oswietlenie[key] ?? null;
         return (
           <Row key={key} label={label} value={val ?? ""} editing={editing}>
@@ -371,7 +459,7 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
         <div style={{ padding: "8px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 12, color: "var(--text-muted)", marginRight: 4 }}>Typy:</span>
-            {ZABUDOWY_TYPY.map((t) => {
+            {lists.ZABUDOWY_TYPY.map((t) => {
               const exists = zabudowyList.some((z) => z.typ === t);
               return (
                 <button
@@ -403,7 +491,7 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
             })}
           </div>
           {zabudowyList.map((item) => {
-            const warianty = ZABUDOWY_WARIANTY[item.typ] ?? [];
+            const warianty = lists.ZABUDOWY_WARIANTY[item.typ] ?? [];
             if (warianty.length === 0) return null;
             return (
               <Row key={item.typ} label={`Wariant – ${item.typ}`} value={item.wariant ?? ""} editing={true}>
@@ -435,7 +523,7 @@ function ZadaszeniaView({ editing, draft, setDraft }: {
       )}
 
       <SectionLabel>Dodatki</SectionLabel>
-      {DODATKI_ZADASZENIA.map((name) => {
+      {lists.DODATKI_ZADASZENIA.map((name) => {
         const checked = draft.dodatki.includes(name);
         return (
           <AddonRow key={name} name={name} checked={checked} editing={editing}
@@ -464,6 +552,8 @@ export function QuoteConfiguration({
 }) {
   const cfg = configuration as QuoteConfig | null | undefined;
   const updateConfiguration = useMutation(api.quotes.updateConfiguration);
+  const slug = cfg?.type === "pergola" || cfg?.type === "zadaszenia" ? cfg.type : null;
+  const lists = useConfiguratorLists(slug);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<QuoteConfig | null>(null);
@@ -570,12 +660,14 @@ export function QuoteConfiguration({
             editing={editing}
             draft={currentDraft as PergolaConfig}
             setDraft={(d) => setDraft(d)}
+            lists={lists}
           />
         ) : (
           <ZadaszeniaView
             editing={editing}
             draft={currentDraft as ZadaszeniaConfig}
             setDraft={(d) => setDraft(d)}
+            lists={lists}
           />
         )}
       </div>

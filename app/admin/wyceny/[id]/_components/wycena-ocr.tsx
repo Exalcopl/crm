@@ -63,6 +63,34 @@ function Val({ v }: { v: string | number | null | undefined }) {
   return <span className="ocr-view-val">{String(v)}</span>;
 }
 
+function getTargetedDodatkowe(dodatkowe?: Record<string, unknown> | null, data?: Record<string, unknown> | null) {
+  let terminWaznosci: unknown = null;
+  let warunkiPlatnosci: unknown = null;
+  let terminRealizacji: unknown = null;
+
+  const sources = [dodatkowe, data];
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+    for (const [key, val] of Object.entries(src)) {
+      if (val == null || val === "" || typeof val === "object") continue;
+      const k = key.toLowerCase().replace(/_/g, " ");
+      if (k.includes("wazno") || k.includes("ważno")) {
+        if (!terminWaznosci) terminWaznosci = val;
+      } else if (k.includes("platno") || k.includes("płatno") || k.includes("zaliczka")) {
+        if (!warunkiPlatnosci) warunkiPlatnosci = val;
+      } else if (k.includes("realizac") || k.includes("wykonan") || k.includes("termin dostawy") || k.includes("czas realizacji")) {
+        if (!terminRealizacji) terminRealizacji = val;
+      }
+    }
+  }
+
+  return [
+    { label: "Termin ważności oferty", value: terminWaznosci ?? "—" },
+    { label: "Warunki płatności", value: warunkiPlatnosci ?? "—" },
+    { label: "Termin realizacji", value: terminRealizacji ?? "—" },
+  ];
+}
+
 function OcrResultView({ data }: { data: OcrJson }) {
   if (data.raw) {
     return (
@@ -70,78 +98,42 @@ function OcrResultView({ data }: { data: OcrJson }) {
     );
   }
 
-  const { dokument, dostawca, odbiorca, zakres_oferty, pozycje, podsumowanie, uwagi, dodatkowe } = data;
+  const { odbiorca, pozycje, podsumowanie, uwagi, dodatkowe } = data;
   const waluta = podsumowanie?.waluta;
 
   return (
     <div className="ocr-view">
-      {dokument && (
-        <div className="ocr-view-section">
-          <div className="ocr-view-section-title">Dokument</div>
-          <div className="ocr-view-doc-fields">
-            {dokument.numer != null && (
-              <div className="ocr-view-doc-field">
-                <span className="ocr-view-key">Numer</span>
-                <Val v={dokument.numer} />
+      <div className="ocr-view-section">
+        <div className="ocr-view-grid-2">
+          {odbiorca && (
+            <div className="ocr-view-card">
+              <div className="ocr-view-card-title">Odbiorca</div>
+              <div className="ocr-view-field">
+                <span className="ocr-view-key">Nazwa</span>
+                <Val v={odbiorca.nazwa} />
               </div>
-            )}
-            {dokument.data != null && (
-              <div className="ocr-view-doc-field">
-                <span className="ocr-view-key">Data</span>
-                <Val v={dokument.data} />
+              <div className="ocr-view-field">
+                <span className="ocr-view-key">NIP</span>
+                <Val v={odbiorca.nip} />
               </div>
-            )}
-            {dokument.tytul != null && (
-              <div className="ocr-view-doc-field">
-                <span className="ocr-view-key">Tytuł</span>
-                <Val v={dokument.tytul} />
+              <div className="ocr-view-field">
+                <span className="ocr-view-key">Adres</span>
+                <Val v={odbiorca.adres} />
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      {(dostawca ?? odbiorca) && (
-        <div className="ocr-view-section">
-          <div className="ocr-view-section-title">Strony</div>
-          <div className="ocr-view-grid-2">
-            {dostawca && (
-              <div className="ocr-view-card">
-                <div className="ocr-view-card-title">Dostawca</div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">Nazwa</span>
-                  <Val v={dostawca.nazwa} />
-                </div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">NIP</span>
-                  <Val v={dostawca.nip} />
-                </div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">Adres</span>
-                  <Val v={dostawca.adres} />
-                </div>
+          <div className="ocr-view-card" style={{ gap: 6 }}>
+            <div className="ocr-view-card-title">Dodatkowe informacje</div>
+            {getTargetedDodatkowe(dodatkowe, data as Record<string, unknown>).map((item) => (
+              <div key={item.label} className="ocr-view-field">
+                <span className="ocr-view-key" style={{ minWidth: 150 }}>{item.label}</span>
+                <span className="ocr-view-val">{String(item.value)}</span>
               </div>
-            )}
-            {odbiorca && (
-              <div className="ocr-view-card">
-                <div className="ocr-view-card-title">Odbiorca</div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">Nazwa</span>
-                  <Val v={odbiorca.nazwa} />
-                </div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">NIP</span>
-                  <Val v={odbiorca.nip} />
-                </div>
-                <div className="ocr-view-field">
-                  <span className="ocr-view-key">Adres</span>
-                  <Val v={odbiorca.adres} />
-                </div>
-              </div>
-            )}
+            ))}
           </div>
         </div>
-      )}
+      </div>
 
       {pozycje && pozycje.length > 0 && (
         <div className="ocr-view-section">
@@ -152,18 +144,18 @@ function OcrResultView({ data }: { data: OcrJson }) {
                 <th style={{ width: 28 }}>Lp.</th>
                 <th>Opis</th>
                 <th className="num" style={{ width: 60 }}>Ilość</th>
-                <th style={{ width: 40 }}>Jm.</th>
+                <th style={{ width: 44 }}>j.m.</th>
                 <th className="num" style={{ width: 90 }}>Cena netto</th>
-                <th className="num" style={{ width: 90 }}>Wart. netto</th>
+                <th className="num" style={{ width: 90 }}>Wartość netto</th>
               </tr>
             </thead>
             <tbody>
               {pozycje.map((p, i) => (
                 <tr key={i}>
-                  <td>{p.lp ?? i + 1}</td>
-                  <td>{p.opis ?? <span className="ocr-view-val-null">—</span>}</td>
-                  <td className="num">{p.ilosc ?? <span className="ocr-view-val-null">—</span>}</td>
-                  <td>{p.jednostka ?? <span className="ocr-view-val-null">—</span>}</td>
+                  <td className="text-muted">{p.lp ?? i + 1}</td>
+                  <td>{p.opis ?? "—"}</td>
+                  <td className="num">{p.ilosc ?? "—"}</td>
+                  <td>{p.jednostka ?? "—"}</td>
                   <td className="num">{formatCurrency(p.cena_netto, waluta)}</td>
                   <td className="num">{formatCurrency(p.wartosc_netto, waluta)}</td>
                 </tr>
@@ -176,132 +168,19 @@ function OcrResultView({ data }: { data: OcrJson }) {
       {podsumowanie && (
         <div className="ocr-view-section">
           <div className="ocr-view-section-title">Podsumowanie</div>
-          <div className="ocr-view-summary">
-            <div className="ocr-view-summary-row">
+          <div className="ocr-view-summary-grid">
+            <div className="ocr-view-summary-item">
               <span className="ocr-view-summary-label">Netto</span>
               <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.netto, waluta)}</span>
             </div>
-            <div className="ocr-view-summary-row">
+            <div className="ocr-view-summary-item">
               <span className="ocr-view-summary-label">VAT</span>
               <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.vat, waluta)}</span>
             </div>
-            <hr className="ocr-view-summary-divider" />
-            <div className="ocr-view-summary-row brutto">
+            <div className="ocr-view-summary-item ocr-view-summary-item--main">
               <span className="ocr-view-summary-label">Brutto</span>
               <span className="ocr-view-summary-val">{formatCurrency(podsumowanie.brutto, waluta)}</span>
             </div>
-          </div>
-        </div>
-      )}
-
-      {zakres_oferty && Object.values(zakres_oferty).some((v) => v != null) && (
-        <div className="ocr-view-section">
-          <div className="ocr-view-section-title">Zakres oferty</div>
-          <div className="ocr-view-card" style={{ gap: 5 }}>
-            {zakres_oferty.zawiera && zakres_oferty.zawiera.length > 0 && (
-              <div className="ocr-view-field">
-                <span className="ocr-view-key">Zawiera</span>
-                <span className="ocr-view-val">{zakres_oferty.zawiera.join(", ")}</span>
-              </div>
-            )}
-            {zakres_oferty.systemy_aluminiowe && zakres_oferty.systemy_aluminiowe.length > 0 && (
-              <div className="ocr-view-field" style={{ alignItems: "flex-start" }}>
-                <span className="ocr-view-key">Systemy</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  {zakres_oferty.systemy_aluminiowe.map((s, i) => (
-                    <div key={i} style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                      {s.system && <span className="ocr-view-val">{s.system}</span>}
-                      {s.producent && <span className="ocr-view-val-null">{s.producent}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 16px", marginTop: 4 }}>
-              {zakres_oferty.ilosc_pozycji != null && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Poz.</span>
-                  <Val v={zakres_oferty.ilosc_pozycji} />
-                </div>
-              )}
-              {zakres_oferty.ilosc_konstrukcji != null && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Konstr.</span>
-                  <Val v={zakres_oferty.ilosc_konstrukcji} />
-                </div>
-              )}
-              {zakres_oferty.calkowita_powierzchnia_m2 != null && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Pow. m²</span>
-                  <Val v={zakres_oferty.calkowita_powierzchnia_m2} />
-                </div>
-              )}
-              {zakres_oferty.calkowity_obwod_m != null && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Obwód m</span>
-                  <Val v={zakres_oferty.calkowity_obwod_m} />
-                </div>
-              )}
-              {zakres_oferty.kolor_profili && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Kolor profili</span>
-                  <Val v={zakres_oferty.kolor_profili} />
-                </div>
-              )}
-              {zakres_oferty.kolor_okuc && (
-                <div className="ocr-view-doc-field">
-                  <span className="ocr-view-key">Kolor okuć</span>
-                  <Val v={zakres_oferty.kolor_okuc} />
-                </div>
-              )}
-            </div>
-            {zakres_oferty.szyby_rodzaje && zakres_oferty.szyby_rodzaje.length > 0 && (
-              <div className="ocr-view-field" style={{ marginTop: 4 }}>
-                <span className="ocr-view-key">Szyby</span>
-                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {zakres_oferty.szyby_rodzaje.map((s, i) => (
-                    <span key={i} className="ocr-view-val">{s}</span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {zakres_oferty.statyka && Object.values(zakres_oferty.statyka).some((v) => v != null) && (
-              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--border-subtle)" }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Statyka</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 16px" }}>
-                  {zakres_oferty.statyka.norma && (
-                    <div className="ocr-view-doc-field" style={{ gridColumn: "span 3" }}>
-                      <span className="ocr-view-key">Norma</span>
-                      <Val v={zakres_oferty.statyka.norma} />
-                    </div>
-                  )}
-                  {zakres_oferty.statyka.strefa && (
-                    <div className="ocr-view-doc-field">
-                      <span className="ocr-view-key">Strefa</span>
-                      <Val v={zakres_oferty.statyka.strefa} />
-                    </div>
-                  )}
-                  {zakres_oferty.statyka.teren && (
-                    <div className="ocr-view-doc-field">
-                      <span className="ocr-view-key">Teren</span>
-                      <Val v={zakres_oferty.statyka.teren} />
-                    </div>
-                  )}
-                  {zakres_oferty.statyka.budynek_z && (
-                    <div className="ocr-view-doc-field">
-                      <span className="ocr-view-key">Wys. bud.</span>
-                      <Val v={zakres_oferty.statyka.budynek_z} />
-                    </div>
-                  )}
-                  {zakres_oferty.statyka.pk && (
-                    <div className="ocr-view-doc-field">
-                      <span className="ocr-view-key">pk</span>
-                      <Val v={zakres_oferty.statyka.pk} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -313,25 +192,6 @@ function OcrResultView({ data }: { data: OcrJson }) {
         </div>
       )}
 
-      {dodatkowe && Object.keys(dodatkowe).length > 0 && (
-        <div className="ocr-view-section">
-          <div className="ocr-view-section-title">Pozostałe dane</div>
-          <div className="ocr-view-card" style={{ gap: 4 }}>
-            {Object.entries(dodatkowe).map(([key, val]) => (
-              <div key={key} className="ocr-view-field">
-                <span className="ocr-view-key" style={{ minWidth: 120 }}>{key.replace(/_/g, " ")}</span>
-                <span className="ocr-view-val">
-                  {Array.isArray(val)
-                    ? val.join(", ")
-                    : typeof val === "object" && val !== null
-                      ? <pre className="ocr-result-pre" style={{ margin: 0, fontSize: 10 }}>{JSON.stringify(val, null, 2)}</pre>
-                      : String(val ?? "—")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

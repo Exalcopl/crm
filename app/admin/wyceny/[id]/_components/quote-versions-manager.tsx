@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -70,13 +70,13 @@ function base64ToBytes(base64: string): Uint8Array {
 const STATUS_LABELS: Record<QuoteVersion["status"], string> = {
   draft: "Szkic",
   accepted: "Zaakceptowana",
-  rejected: "Odrzucona",
+  rejected: "Szkic",
 };
 
 const STATUS_COLORS: Record<QuoteVersion["status"], string> = {
   draft: "oklch(0.6 0.05 220)",
   accepted: "oklch(0.72 0.18 145)",
-  rejected: "oklch(0.55 0.18 25)",
+  rejected: "oklch(0.6 0.05 220)",
 };
 
 // ─── Scanning indicator ───────────────────────────────────────────────────────
@@ -140,6 +140,134 @@ type EditableItem = {
   valueNetto: number | null;
 };
 
+function AddItemModal({
+  isOpen,
+  onClose,
+  onAdd,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (item: Omit<EditableItem, "lp">) => void;
+}) {
+  const [desc, setDesc] = useState("");
+  const [qty, setQty] = useState("");
+  const [unit, setUnit] = useState("szt.");
+  const [price, setPrice] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setDesc(""); setQty(""); setUnit("szt."); setPrice("");
+    }
+  }, [isOpen]);
+
+  const valNetto = useMemo(() => {
+    const q = parseFloat(qty.replace(",", "."));
+    const p = parseFloat(price.replace(",", "."));
+    if (!isNaN(q) && !isNaN(p)) return Math.round(q * p * 100) / 100;
+    return null;
+  }, [qty, price]);
+
+  const isValid = desc.trim().length > 0;
+
+  function handleSave() {
+    if (!isValid) return;
+    const q = parseFloat(qty.replace(",", "."));
+    const p = parseFloat(price.replace(",", "."));
+
+    onAdd({
+      description: desc,
+      quantity: isNaN(q) ? null : q,
+      unit: unit,
+      priceNetto: isNaN(p) ? null : p,
+      valueNetto: valNetto,
+    });
+    onClose();
+  }
+
+  return (
+    <>
+      {isOpen && (
+        <div 
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50 }} 
+          onClick={onClose} 
+        />
+      )}
+      <div className={`side-drawer ${isOpen ? "side-drawer--open" : ""}`}>
+        <div className="side-drawer-header">
+          <div className="side-drawer-header-top">
+            <button type="button" className="side-drawer-back" onClick={onClose}>
+              ← Powrót
+            </button>
+            <span className="side-drawer-title">Nowa pozycja</span>
+          </div>
+        </div>
+
+        <div className="side-drawer-body">
+          <div className="side-card">
+            <div className="side-form-group">
+              <label className="side-label">Opis *</label>
+              <textarea 
+                className="side-input" 
+                style={{ resize: "vertical", minHeight: 64 }}
+                value={desc} 
+                onChange={e => setDesc(e.target.value)} 
+                placeholder="Podaj nazwę lub opis pozycji..."
+              />
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+              <div className="side-form-group">
+                <label className="side-label">Ilość</label>
+                <input 
+                  type="number" 
+                  className="side-input" 
+                  value={qty} 
+                  onChange={e => setQty(e.target.value)} 
+                />
+              </div>
+              <div className="side-form-group">
+                <label className="side-label">Jednostka</label>
+                <input 
+                  className="side-input" 
+                  value={unit} 
+                  onChange={e => setUnit(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 }}>
+              <div className="side-form-group">
+                <label className="side-label">Cena netto</label>
+                <input 
+                  type="number" 
+                  className="side-input" 
+                  value={price} 
+                  onChange={e => setPrice(e.target.value)} 
+                />
+              </div>
+              <div className="side-form-group">
+                <label className="side-label">Wartość netto</label>
+                <div style={{ padding: "9px 12px", background: "#0d1117", border: "1px solid #30363d", borderRadius: 7, color: "#8b949e", fontSize: 13.5 }}>
+                  {valNetto !== null ? formatCurrency(valNetto) : "—"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="side-drawer-footer">
+          <button type="button" className="side-drawer-back" onClick={onClose} style={{ padding: "8px 16px" }}>
+            Anuluj
+          </button>
+          <button type="button" className="side-btn-save" onClick={handleSave} disabled={!isValid}>
+            Zapisz pozycję
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ItemsTable({
   items,
   editable,
@@ -161,6 +289,8 @@ function ItemsTable({
       valueNetto: it.valueNetto,
     })),
   );
+
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
   // sync when items prop changes (e.g. after re-fetch)
   useEffect(() => {
@@ -212,9 +342,44 @@ function ItemsTable({
     recalcTotals(updated);
   }
 
+  function handleAdd(item: Omit<EditableItem, "lp">) {
+    const nextLp = rows.length > 0 ? Math.max(...rows.map(r => r.lp)) + 1 : 1;
+    const newRow = { ...item, lp: nextLp };
+    const updated = [...rows, newRow];
+    setRows(updated);
+    recalcTotals(updated);
+  }
+
+  function handleDelete(idx: number) {
+    const updated = rows.filter((_, i) => i !== idx);
+    // Renumber Lp so there are no gaps
+    const renumbered = updated.map((r, i) => ({ ...r, lp: i + 1 }));
+    setRows(renumbered);
+    recalcTotals(renumbered);
+  }
+
   if (rows.length === 0) {
     return (
-      <div className="qvm-items-empty">Brak pozycji do wyświetlenia.</div>
+      <div className="qvm-items-wrap">
+        <div className="qvm-items-empty" style={{ marginBottom: 12 }}>Brak pozycji do wyświetlenia.</div>
+        {editable && (
+          <div style={{ padding: "12px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-primary"
+              style={{ padding: "4px 12px", fontSize: 12 }}
+              onClick={() => setIsAddOpen(true)}
+            >
+              <I.plus s={12} /> Dodaj pozycję
+            </button>
+          </div>
+        )}
+        <AddItemModal 
+          isOpen={isAddOpen} 
+          onClose={() => setIsAddOpen(false)} 
+          onAdd={handleAdd} 
+        />
+      </div>
     );
   }
 
@@ -229,6 +394,7 @@ function ItemsTable({
             <th className="qvm-th qvm-th-unit">Jedn.</th>
             <th className="qvm-th qvm-th-price">Cena netto</th>
             <th className="qvm-th qvm-th-total">Wartość netto</th>
+            {editable && <th className="qvm-th qvm-th-action" style={{ width: 36 }}></th>}
           </tr>
         </thead>
         <tbody>
@@ -285,10 +451,39 @@ function ItemsTable({
               <td className="qvm-td qvm-td-total">
                 {row.valueNetto != null ? formatCurrency(row.valueNetto) : "—"}
               </td>
+              {editable && (
+                <td className="qvm-td qvm-td-action" style={{ textAlign: "center", verticalAlign: "middle" }}>
+                  <button
+                    type="button"
+                    style={{ background: "transparent", border: "none", color: "#f85149", cursor: "pointer", padding: 4 }}
+                    onClick={() => handleDelete(idx)}
+                    title="Usuń pozycję"
+                  >
+                    <I.trash s={14} />
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
+      {editable && (
+        <div style={{ padding: "12px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
+            style={{ padding: "4px 12px", fontSize: 12 }}
+            onClick={() => setIsAddOpen(true)}
+          >
+            <I.plus s={12} /> Dodaj pozycję
+          </button>
+        </div>
+      )}
+      <AddItemModal 
+        isOpen={isAddOpen} 
+        onClose={() => setIsAddOpen(false)} 
+        onAdd={handleAdd} 
+      />
     </div>
   );
 }
@@ -565,6 +760,34 @@ function asText(v: unknown): string {
   return String(v).trim();
 }
 
+function getTargetedDodatkowe(dodatkowe?: Record<string, unknown> | null, data?: Record<string, unknown> | null) {
+  let terminWaznosci: unknown = null;
+  let warunkiPlatnosci: unknown = null;
+  let terminRealizacji: unknown = null;
+
+  const sources = [dodatkowe, data];
+  for (const src of sources) {
+    if (!src || typeof src !== "object") continue;
+    for (const [key, val] of Object.entries(src)) {
+      if (val == null || val === "" || typeof val === "object") continue;
+      const k = key.toLowerCase().replace(/_/g, " ");
+      if (k.includes("wazno") || k.includes("ważno")) {
+        if (!terminWaznosci) terminWaznosci = val;
+      } else if (k.includes("platno") || k.includes("płatno") || k.includes("zaliczka")) {
+        if (!warunkiPlatnosci) warunkiPlatnosci = val;
+      } else if (k.includes("realizac") || k.includes("wykonan") || k.includes("termin dostawy") || k.includes("czas realizacji")) {
+        if (!terminRealizacji) terminRealizacji = val;
+      }
+    }
+  }
+
+  return [
+    { label: "Termin ważności oferty", value: terminWaznosci ?? "—" },
+    { label: "Warunki płatności", value: warunkiPlatnosci ?? "—" },
+    { label: "Termin realizacji", value: terminRealizacji ?? "—" },
+  ];
+}
+
 // Wiersz etykieta → wartość
 function InfoRow({ label, value }: { label: string; value: unknown }) {
   if (!hasVal(value)) return null;
@@ -607,15 +830,10 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
   const [expanded, setExpanded] = useState(true);
 
   const d = data as Record<string, any>;
-  const dokument = d.dokument as Record<string, any> | undefined;
-  const dostawca = d.dostawca as Record<string, any> | undefined;
   const odbiorca = d.odbiorca as Record<string, any> | undefined;
   const zakres = (d.zakres_oferty ?? {}) as Record<string, any>;
   const dodatkowe = d.dodatkowe as Record<string, any> | undefined;
 
-  const zawiera: unknown[] = Array.isArray(zakres.zawiera)
-    ? zakres.zawiera.filter(hasVal)
-    : hasVal(zakres.zawiera) ? [zakres.zawiera] : [];
   const systemy: Array<Record<string, any>> = Array.isArray(zakres.systemy_aluminiowe)
     ? zakres.systemy_aluminiowe.filter(hasVal)
     : [];
@@ -634,40 +852,29 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
         className="qvm-section-title qvm-section-title--toggle"
         onClick={() => setExpanded((v) => !v)}
       >
-        Dane ze skanowania
+        Szczegóły
         <span style={{ display: "inline-flex", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><I.up s={12} /></span>
       </button>
 
       {expanded && (
         <div className="qvm-scan">
-          {/* Nagłówek dokumentu */}
-          {dokument && hasVal(dokument) && (
-            <div className="qvm-scan-doc">
-              {hasVal(dokument.tytul) && <span className="qvm-scan-doc-title">{asText(dokument.tytul)}</span>}
-              {hasVal(dokument.numer) && <span className="qvm-scan-doc-chip">{asText(dokument.numer)}</span>}
-              {hasVal(dokument.data) && <span className="qvm-scan-doc-chip"><I.cal s={11} /> {asText(dokument.data)}</span>}
-            </div>
-          )}
-
-          {/* Kontrahenci */}
-          {(hasVal(dostawca) || hasVal(odbiorca)) && (
+          {/* Kontrahent - Odbiorca */}
+          {hasVal(odbiorca) && (
             <div className="qvm-scan-cards">
-              <PartyCard title="Dostawca" party={dostawca} />
               <PartyCard title="Odbiorca" party={odbiorca} />
             </div>
           )}
 
-          {/* Co zawiera oferta */}
-          {zawiera.length > 0 && (
-            <div className="qvm-scan-block">
-              <div className="qvm-scan-block-title"><I.check s={12} /> Zakres oferty</div>
-              <div className="qvm-scan-chips">
-                {zawiera.map((z, i) => (
-                  <span key={i} className="qvm-scan-chip">{asText(z)}</span>
-                ))}
+          {/* Dodatkowe informacje z dokumentu */}
+          <div className="qvm-scan-block">
+            <div className="qvm-scan-block-title"><I.doc s={12} /> Dodatkowe informacje</div>
+            {getTargetedDodatkowe(dodatkowe, d).map((item) => (
+              <div key={item.label} className="qvm-additional-row">
+                <span className="qvm-additional-key">{item.label}</span>
+                <span className="qvm-additional-val">{asText(item.value)}</span>
               </div>
-            </div>
-          )}
+            ))}
+          </div>
 
           {/* Kluczowe liczby */}
           {hasStats && (
@@ -722,16 +929,6 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
             <div className="qvm-scan-block">
               <div className="qvm-scan-block-title"><I.doc s={12} /> Uwagi</div>
               <div className="qvm-scan-note">{asText(d.uwagi)}</div>
-            </div>
-          )}
-
-          {/* Dodatkowe informacje z dokumentu */}
-          {dodatkowe && hasVal(dodatkowe) && (
-            <div className="qvm-scan-block">
-              <div className="qvm-scan-block-title"><I.doc s={12} /> Dodatkowe informacje</div>
-              {Object.entries(dodatkowe).map(([k, v]) => (
-                <InfoRow key={k} label={k.replace(/_/g, " ")} value={v} />
-              ))}
             </div>
           )}
         </div>
