@@ -60,6 +60,13 @@ function formatDate(ts: number) {
   });
 }
 
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const bytes = atob(base64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mimeType });
+}
+
 const STATUS_LABELS: Record<QuoteVersion["status"], string> = {
   draft: "Szkic",
   accepted: "Zaakceptowana",
@@ -296,6 +303,7 @@ function VersionDetail({
   onDelete,
   onSaveItems,
   onSaveNotes,
+  onPreview,
 }: {
   version: QuoteVersion;
   archived: boolean;
@@ -309,6 +317,7 @@ function VersionDetail({
     brutto: number,
   ) => Promise<void>;
   onSaveNotes: (notes: string) => Promise<void>;
+  onPreview?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [pendingItems, setPendingItems] = useState<EditableItem[] | null>(null);
@@ -381,6 +390,17 @@ function VersionDetail({
           </div>
         </div>
         <div className="qvm-detail-actions">
+          {version.fileItemId && onPreview && !editing && (
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-ghost"
+              onClick={onPreview}
+              disabled={actionBusy}
+              title="Podgląd pliku PDF"
+            >
+              <I.doc s={13} /> Podgląd PDF
+            </button>
+          )}
           {canEdit && !editing && (
             <button
               type="button"
@@ -727,6 +747,9 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   const [activeId, setActiveId] = useState<Id<"quoteVersions"> | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<
+    { fileName: string; blobUrl: string | null; error: string | null; loading: boolean } | null
+  >(null);
   const scannedRef = useRef(false);
 
   const acceptVersion = useMutation(api.quoteVersions.acceptVersion);
@@ -736,6 +759,40 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   const updateNotes = useMutation(api.quoteVersions.updateNotes);
   const listFiles = useAction(api.sharepoint.listWycenaSubfolderFiles);
   const runOcr = useAction(api.sharepoint.runOcrForFile);
+  const getFileContent = useAction(api.sharepoint.getFileForPreview);
+
+  // Revoke blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
+    };
+  }, [preview?.blobUrl]);
+
+  async function openPreview(fileItemId: string, fileName: string) {
+    if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
+    setPreview({ fileName, blobUrl: null, error: null, loading: true });
+    try {
+      const { base64, contentType } = await getFileContent({ quoteId: quote._id, fileId: fileItemId });
+      setPreview({
+        fileName,
+        blobUrl: URL.createObjectURL(base64ToBlob(base64, contentType)),
+        error: null,
+        loading: false,
+      });
+    } catch (e) {
+      setPreview({
+        fileName,
+        blobUrl: null,
+        error: e instanceof Error ? e.message : "Błąd podglądu",
+        loading: false,
+      });
+    }
+  }
+
+  function closePreview() {
+    if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
+    setPreview(null);
+  }
 
   // Select first version by default
   useEffect(() => {
@@ -899,6 +956,11 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
             onSaveNotes={async (notes) => {
               await updateNotes({ id: activeVersion._id, notes });
             }}
+            onPreview={
+              activeVersion.fileItemId
+                ? () => void openPreview(activeVersion.fileItemId!, activeVersion.fileName ?? "Podgląd PDF")
+                : undefined
+            }
           />
         ) : (
           <div className="qvm-main-empty">
@@ -907,6 +969,30 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
           </div>
         )}
       </div>
+
+      {/* Wysuwany podgląd PDF */}
+      {preview && (
+        <>
+          <div className="pdf-drawer-overlay" onClick={closePreview} />
+          <div className="pdf-drawer">
+            <div className="pdf-drawer-header">
+              <span className="pdf-drawer-filename">{preview.fileName}</span>
+              <button className="pdf-drawer-close" onClick={closePreview}>
+                <I.x s={16} />
+              </button>
+            </div>
+            <div className="pdf-drawer-body">
+              {preview.loading && <div className="pdf-drawer-state">Ładowanie podglądu…</div>}
+              {preview.error && (
+                <div className="pdf-drawer-state pdf-drawer-error">{preview.error}</div>
+              )}
+              {preview.blobUrl && (
+                <iframe src={preview.blobUrl} className="pdf-drawer-iframe" title={preview.fileName} />
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
