@@ -27,6 +27,7 @@ import { HelperQuestionsSection } from "./_components/helper-questions";
 import { QuoteFileBrowser } from "./_components/quote-file-browser";
 import { QuoteVersionsManager } from "./_components/quote-versions-manager";
 import { QuoteConfiguration } from "./_components/quote-configuration";
+import { QuoteSimpleNotes } from "./_components/quote-simple-notes";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
@@ -456,6 +457,15 @@ function QuoteDetailLayout({
                     <div className="quote-widget-item">
                       <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
                         <HelperQuestionsSection quoteId={quote._id} />
+                      </Section>
+                    </div>
+                    <div className="quote-widget-item">
+                      <Section title="Notatki" icon={<I.doc s={14} />}>
+                        <QuoteSimpleNotes
+                          quoteId={quote._id}
+                          initialNotes={quote.notes || ""}
+                          archived={archived}
+                        />
                       </Section>
                     </div>
                   </div>

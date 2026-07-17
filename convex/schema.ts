@@ -174,6 +174,7 @@ export default defineSchema({
     archived: v.optional(v.boolean()),
     source: v.optional(v.union(v.literal("admin"), v.literal("public"))),
     configuration: v.optional(v.any()),
+    notes: v.optional(v.string()),
     publicUploadToken: v.optional(v.string()),
     publicUploadTokenExpiresAt: v.optional(v.number()),
     sharepoint: v.optional(

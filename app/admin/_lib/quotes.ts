@@ -57,6 +57,7 @@ export type Quote = {
   sharepoint?: SharepointInfo;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   configuration?: any;
+  notes?: string;
 };
 
 export const QUOTE_STATUSES: QuoteStatus[] = [

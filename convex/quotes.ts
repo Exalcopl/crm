@@ -1125,6 +1125,19 @@ export const updateCustomLabel = mutation({
   },
 });
 
+export const updateNotes = mutation({
+  args: {
+    id: v.id("quotes"),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, notes }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(id, { notes: notes?.trim() || undefined });
+  },
+});
+
 export const updateValue = mutation({
   args: {
     id: v.id("quotes"),
