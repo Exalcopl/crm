@@ -823,10 +823,12 @@ export const runOcrForFile = action({
     const base64 = Buffer.from(buffer).toString("base64");
 
     const modelsToTry = [
-      "claude-3-5-sonnet-20240620",
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-5-20250929",
+      "claude-haiku-4-5-20251001",
       "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-20240620",
       "claude-3-5-sonnet-latest",
-      "claude-3-5-haiku-20241022",
       "claude-3-haiku-20240307",
     ];
 
@@ -898,17 +900,17 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
     let anthropicRes: Response | null = null;
     let lastErrorText = "";
 
-    for (const model of modelsToTry) {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+    async function tryModel(modelName: string): Promise<Response> {
+      return await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "x-api-key": anthropicKey,
+          "x-api-key": anthropicKey!,
           "anthropic-version": "2023-06-01",
           "anthropic-beta": "pdfs-2024-09-25",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: modelName,
           max_tokens: 4096,
           messages: [
             {
@@ -931,7 +933,10 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
           ],
         }),
       });
+    }
 
+    for (const model of modelsToTry) {
+      const res = await tryModel(model);
       if (res.ok) {
         anthropicRes = res;
         break;
@@ -942,12 +947,50 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
           console.warn(`Model ${model} niedostępny, próbuję kolejny...`);
           continue;
         }
-        throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 200)}`);
+        throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 250)}`);
       }
     }
 
+    // If all standard models returned 404, check available models dynamically from Anthropic API
     if (!anthropicRes || !anthropicRes.ok) {
-      throw new Error(`Żaden z modeli Claude nie jest dostępny dla Twojego klucza API. Ostatni błąd: ${lastErrorText.slice(0, 200)}`);
+      const modelsListRes = await fetch("https://api.anthropic.com/v1/models", {
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+      });
+
+      let availableModelsInfo = "";
+      if (modelsListRes.ok) {
+        const modelsJson = (await modelsListRes.json()) as { data?: Array<{ id: string }> };
+        const availableIds = (modelsJson.data ?? []).map((m) => m.id);
+        if (availableIds.length > 0) {
+          // Try the first available model that hasn't been tried yet
+          for (const dynModel of availableIds) {
+            if (modelsToTry.includes(dynModel)) continue;
+            const res = await tryModel(dynModel);
+            if (res.ok) {
+              anthropicRes = res;
+              break;
+            } else {
+              lastErrorText = await res.text();
+            }
+          }
+          if (!anthropicRes || !anthropicRes.ok) {
+            availableModelsInfo = `Dostępne modele dla tego klucza w API to: [${availableIds.join(", ")}].`;
+          }
+        } else {
+          availableModelsInfo = "API Anthropic zwróciło 0 dostępnych modeli dla Twojego klucza API.";
+        }
+      } else {
+        availableModelsInfo = `Nie udało się pobrać listy modeli (${modelsListRes.status}): ${await modelsListRes.text()}`;
+      }
+
+      if (!anthropicRes || !anthropicRes.ok) {
+        throw new Error(
+          `Klucz API Anthropic nie ma dostępu do modeli lub konto nie ma aktywnych środków (Credits/Billing). ${availableModelsInfo} Ostatni błąd API: ${lastErrorText.slice(0, 200)}`
+        );
+      }
     }
 
     const anthropicData = (await anthropicRes.json()) as {
@@ -1422,6 +1465,25 @@ export const runOcrForFileInternal = internalAction({
   handler: async (ctx, args): Promise<void> => {
     // Delegate to the public action — it has all the logic
     await ctx.runAction(api.sharepoint.runOcrForFile, args);
+  },
+});
+
+export const listAvailableAnthropicModels = action({
+  args: {},
+  handler: async (ctx) => {
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!anthropicKey) return { error: "Brak ANTHROPIC_API_KEY w konfiguracji Convex" };
+    const res = await fetch("https://api.anthropic.com/v1/models", {
+      headers: {
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+      },
+    });
+    if (!res.ok) {
+      return { status: res.status, errorText: await res.text() };
+    }
+    const data = (await res.json()) as { data?: Array<{ id: string; display_name?: string; created_at?: string }> };
+    return { status: res.status, models: data.data ?? [] };
   },
 });
 

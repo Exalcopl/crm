@@ -629,7 +629,12 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
         const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
 
         for (const file of newFiles) {
-          await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
+          try {
+            await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
+          } catch (ocrErr: any) {
+            console.error("Błąd OCR podczas auto-skanowania:", ocrErr);
+            setScanError(ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+          }
         }
       } catch (err) {
         setScanError(err instanceof Error ? err.message : "Błąd skanowania");
@@ -674,15 +679,34 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
             type="button"
             className="fluent-btn fluent-btn-ghost qvm-sidebar-refresh"
             title="Sprawdź nowe pliki"
-            onClick={() => { scannedRef.current = false; setScanning(true); setScanError(null); scannedRef.current = false;
-              void listFiles({ quoteId: quote._id }).then(async (files) => {
-                const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
-                const processedIds = new Set(versions.map((v) => v.fileItemId).filter(Boolean));
-                const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
-                for (const file of newFiles) {
-                  await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name }).catch(console.error);
-                }
-              }).catch((e) => setScanError(e instanceof Error ? e.message : "Błąd")).finally(() => setScanning(false));
+            onClick={() => {
+              scannedRef.current = false;
+              setScanning(true);
+              setScanError(null);
+              void listFiles({ quoteId: quote._id })
+                .then(async (files) => {
+                  const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
+                  const processedIds = new Set(versions.map((v) => v.fileItemId).filter(Boolean));
+                  const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
+                  if (newFiles.length === 0) {
+                    if (pdfFiles.length === 0) {
+                      setScanError("Brak plików PDF w folderze Wycena w SharePoint.");
+                    } else {
+                      setScanError("Wszystkie pliki PDF w folderze Wycena zostały już przeanalizowane.");
+                    }
+                    return;
+                  }
+                  for (const file of newFiles) {
+                    try {
+                      await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
+                    } catch (ocrErr: any) {
+                      console.error("Błąd OCR:", ocrErr);
+                      setScanError(ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+                    }
+                  }
+                })
+                .catch((e) => setScanError(e instanceof Error ? e.message : "Błąd skanowania"))
+                .finally(() => setScanning(false));
             }}
             disabled={scanning}
           >
