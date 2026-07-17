@@ -830,7 +830,7 @@ export const runOcrForFile = action({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 4096,
         messages: [
           {
@@ -929,22 +929,53 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
     const rawText =
       anthropicData.content.find((c) => c.type === "text")?.text ?? "";
 
-    let ocrJson: Record<string, unknown> & {
-      podsumowanie?: { netto?: number | null; vat?: number | null; brutto?: number | null; waluta?: string | null } | null;
+    function cleanAndParseJson(raw: string): any {
+      try {
+        return JSON.parse(raw);
+      } catch {}
+
+      let cleaned = raw
+        .replace(/^```[a-z]*\s*/im, "")
+        .replace(/\s*```$/im, "")
+        .trim();
+      try {
+        return JSON.parse(cleaned);
+      } catch {}
+
+      const firstBrace = raw.indexOf("{");
+      const lastBrace = raw.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const substring = raw.slice(firstBrace, lastBrace + 1);
+        try {
+          return JSON.parse(substring);
+        } catch {}
+      }
+
+      return { raw };
+    }
+
+    function parseNumeric(val: unknown): number | null {
+      if (typeof val === "number" && !isNaN(val)) return val;
+      if (val == null) return null;
+      const str = String(val)
+        .replace(/\s+/g, "")
+        .replace(/PLN|EUR|USD|zł|szt\.|szt|m2|kg|m/gi, "")
+        .replace(/,/g, ".");
+      const num = parseFloat(str);
+      return isNaN(num) ? null : num;
+    }
+
+    const ocrJson = cleanAndParseJson(rawText) as Record<string, unknown> & {
+      podsumowanie?: { netto?: unknown; vat?: unknown; brutto?: unknown; waluta?: string | null } | null;
       pozycje?: Array<{
-        lp?: number | null;
-        opis?: string | null;
-        ilosc?: string | number | null;
-        jednostka?: string | null;
-        cena_netto?: number | null;
-        wartosc_netto?: number | null;
+        lp?: unknown;
+        opis?: unknown;
+        ilosc?: unknown;
+        jednostka?: unknown;
+        cena_netto?: unknown;
+        wartosc_netto?: unknown;
       }> | null;
     };
-    try {
-      ocrJson = JSON.parse(rawText) as typeof ocrJson;
-    } catch {
-      ocrJson = { raw: rawText };
-    }
 
     // Save raw OCR result (legacy table kept for backward compat)
     await ctx.runMutation(internal.quoteOcr._saveResult, {
@@ -957,20 +988,20 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
     // Build structured quoteVersion entry
     const podsumowanie = ocrJson.podsumowanie ?? null;
     const vatRate = 23; // default VAT rate for Stolarka Aluminiowa
-    const valueNetto = typeof podsumowanie?.netto === "number" ? podsumowanie.netto : 0;
-    const valueBrutto = typeof podsumowanie?.brutto === "number"
-      ? podsumowanie.brutto
-      : valueNetto * (1 + vatRate / 100);
-    const valueVat = valueBrutto - valueNetto;
+    const valueNetto = parseNumeric(podsumowanie?.netto) ?? 0;
+    const valueBrutto = parseNumeric(podsumowanie?.brutto) ?? valueNetto * (1 + vatRate / 100);
+    const valueVat = parseNumeric(podsumowanie?.vat) ?? (valueBrutto - valueNetto);
 
-    const items = (ocrJson.pozycje ?? []).map((p, idx) => ({
-      lp: typeof p.lp === "number" ? p.lp : idx + 1,
-      description: p.opis ?? "",
-      quantity: typeof p.ilosc === "number" ? p.ilosc : (p.ilosc != null ? parseFloat(String(p.ilosc)) || null : null),
-      unit: p.jednostka ?? undefined,
-      priceNetto: typeof p.cena_netto === "number" ? p.cena_netto : null,
-      valueNetto: typeof p.wartosc_netto === "number" ? p.wartosc_netto : null,
-    }));
+    const items = Array.isArray(ocrJson.pozycje)
+      ? ocrJson.pozycje.map((p, idx) => ({
+          lp: parseNumeric(p.lp) ?? idx + 1,
+          description: p.opis != null ? String(p.opis) : "",
+          quantity: parseNumeric(p.ilosc),
+          unit: p.jednostka != null ? String(p.jednostka) : undefined,
+          priceNetto: parseNumeric(p.cena_netto),
+          valueNetto: parseNumeric(p.wartosc_netto),
+        }))
+      : [];
 
     // Extract additional structured data (supplier info, scope, etc.)
     const { pozycje: _p, podsumowanie: _s, ...additionalData } = ocrJson;
