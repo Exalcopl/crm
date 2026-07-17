@@ -530,18 +530,84 @@ function VersionDetail({
 
 // ─── Additional OCR data (supplier, scope etc.) ────────────────────────────────
 
+// True jeśli wartość zawiera cokolwiek sensownego do pokazania.
+function hasVal(v: unknown): boolean {
+  if (v == null) return false;
+  if (typeof v === "string") return v.trim() !== "" && v.trim().toLowerCase() !== "null";
+  if (Array.isArray(v)) return v.some(hasVal);
+  if (typeof v === "object") return Object.values(v as Record<string, unknown>).some(hasVal);
+  return true;
+}
+
+function asText(v: unknown): string {
+  if (v == null) return "—";
+  if (typeof v === "number") return String(v);
+  return String(v).trim();
+}
+
+// Wiersz etykieta → wartość
+function InfoRow({ label, value }: { label: string; value: unknown }) {
+  if (!hasVal(value)) return null;
+  return (
+    <div className="qvm-additional-row">
+      <span className="qvm-additional-key">{label}</span>
+      <span className="qvm-additional-val">{asText(value)}</span>
+    </div>
+  );
+}
+
+// Karta kontrahenta (dostawca / odbiorca)
+function PartyCard({ title, party }: { title: string; party: Record<string, unknown> | undefined }) {
+  if (!party || !hasVal(party)) return null;
+  return (
+    <div className="qvm-scan-card">
+      <div className="qvm-scan-card-title">{title}</div>
+      {hasVal(party.nazwa) && <div className="qvm-scan-card-name">{asText(party.nazwa)}</div>}
+      {hasVal(party.adres) && <div className="qvm-scan-card-line">{asText(party.adres)}</div>}
+      {hasVal(party.nip) && <div className="qvm-scan-card-line">NIP: {asText(party.nip)}</div>}
+    </div>
+  );
+}
+
+// Kafelek z liczbą (powierzchnia, obwód, ilości)
+function StatTile({ value, unit, label }: { value: unknown; unit?: string; label: string }) {
+  if (!hasVal(value)) return null;
+  return (
+    <div className="qvm-scan-stat">
+      <div className="qvm-scan-stat-val">
+        {asText(value)}
+        {unit && <span className="qvm-scan-stat-unit"> {unit}</span>}
+      </div>
+      <div className="qvm-scan-stat-label">{label}</div>
+    </div>
+  );
+}
+
 function AdditionalData({ data }: { data: Record<string, unknown> }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [techOpen, setTechOpen] = useState(false);
 
-  const renderVal = (val: unknown): string => {
-    if (val == null) return "—";
-    if (Array.isArray(val)) return val.map((v) => renderVal(v)).join(", ");
-    if (typeof val === "object") return JSON.stringify(val);
-    return String(val);
-  };
+  const d = data as Record<string, any>;
+  const dokument = d.dokument as Record<string, any> | undefined;
+  const dostawca = d.dostawca as Record<string, any> | undefined;
+  const odbiorca = d.odbiorca as Record<string, any> | undefined;
+  const zakres = (d.zakres_oferty ?? {}) as Record<string, any>;
+  const statyka = zakres.statyka as Record<string, any> | undefined;
+  const dodatkowe = d.dodatkowe as Record<string, any> | undefined;
 
-  const relevantKeys = ["dokument", "dostawca", "odbiorca", "zakres_oferty", "uwagi"] as const;
-  const docData = data as Record<string, unknown>;
+  const zawiera: unknown[] = Array.isArray(zakres.zawiera)
+    ? zakres.zawiera.filter(hasVal)
+    : hasVal(zakres.zawiera) ? [zakres.zawiera] : [];
+  const systemy: Array<Record<string, any>> = Array.isArray(zakres.systemy_aluminiowe)
+    ? zakres.systemy_aluminiowe.filter(hasVal)
+    : [];
+  const szyby: unknown[] = Array.isArray(zakres.szyby_rodzaje)
+    ? zakres.szyby_rodzaje.filter(hasVal)
+    : hasVal(zakres.szyby_rodzaje) ? [zakres.szyby_rodzaje] : [];
+
+  const hasStats = hasVal(zakres.calkowita_powierzchnia_m2) || hasVal(zakres.calkowity_obwod_m)
+    || hasVal(zakres.ilosc_konstrukcji) || hasVal(zakres.ilosc_pozycji);
+  const hasKolory = hasVal(zakres.kolor_profili) || hasVal(zakres.kolor_okuc);
 
   return (
     <div className="qvm-section">
@@ -553,34 +619,126 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
         Dane ze skanowania
         <span style={{ display: "inline-flex", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><I.up s={12} /></span>
       </button>
+
       {expanded && (
-        <div className="qvm-additional">
-          {relevantKeys.map((key) => {
-            const val = docData[key];
-            if (val == null) return null;
-            if (typeof val === "object" && !Array.isArray(val)) {
-              const obj = val as Record<string, unknown>;
-              return (
-                <div key={key} className="qvm-additional-group">
-                  <div className="qvm-additional-group-title">{key.replace(/_/g, " ")}</div>
-                  {Object.entries(obj).map(([k, v]) => (
-                    v != null && (
-                      <div key={k} className="qvm-additional-row">
-                        <span className="qvm-additional-key">{k.replace(/_/g, " ")}</span>
-                        <span className="qvm-additional-val">{renderVal(v)}</span>
-                      </div>
-                    )
-                  ))}
-                </div>
-              );
-            }
-            return (
-              <div key={key} className="qvm-additional-row">
-                <span className="qvm-additional-key">{key.replace(/_/g, " ")}</span>
-                <span className="qvm-additional-val">{renderVal(val)}</span>
+        <div className="qvm-scan">
+          {/* Nagłówek dokumentu */}
+          {dokument && hasVal(dokument) && (
+            <div className="qvm-scan-doc">
+              {hasVal(dokument.tytul) && <span className="qvm-scan-doc-title">{asText(dokument.tytul)}</span>}
+              {hasVal(dokument.numer) && <span className="qvm-scan-doc-chip">{asText(dokument.numer)}</span>}
+              {hasVal(dokument.data) && <span className="qvm-scan-doc-chip"><I.cal s={11} /> {asText(dokument.data)}</span>}
+            </div>
+          )}
+
+          {/* Kontrahenci */}
+          {(hasVal(dostawca) || hasVal(odbiorca)) && (
+            <div className="qvm-scan-cards">
+              <PartyCard title="Dostawca" party={dostawca} />
+              <PartyCard title="Odbiorca" party={odbiorca} />
+            </div>
+          )}
+
+          {/* Co zawiera oferta */}
+          {zawiera.length > 0 && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.check s={12} /> Zakres oferty</div>
+              <div className="qvm-scan-chips">
+                {zawiera.map((z, i) => (
+                  <span key={i} className="qvm-scan-chip">{asText(z)}</span>
+                ))}
               </div>
-            );
-          })}
+            </div>
+          )}
+
+          {/* Kluczowe liczby */}
+          {hasStats && (
+            <div className="qvm-scan-stats">
+              <StatTile value={zakres.calkowita_powierzchnia_m2} unit="m²" label="Powierzchnia" />
+              <StatTile value={zakres.calkowity_obwod_m} unit="mb" label="Obwód" />
+              <StatTile value={zakres.ilosc_konstrukcji} label="Konstrukcje" />
+              <StatTile value={zakres.ilosc_pozycji} label="Pozycje" />
+            </div>
+          )}
+
+          {/* Kolorystyka */}
+          {hasKolory && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.box s={12} /> Kolorystyka</div>
+              <InfoRow label="Profile" value={zakres.kolor_profili} />
+              <InfoRow label="Okucia" value={zakres.kolor_okuc} />
+            </div>
+          )}
+
+          {/* Systemy aluminiowe */}
+          {systemy.length > 0 && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.layers s={12} /> Systemy aluminiowe</div>
+              <div className="qvm-scan-list">
+                {systemy.map((s, i) => (
+                  <div key={i} className="qvm-scan-list-item">
+                    <span className="qvm-scan-list-main">{asText(s.system)}</span>
+                    {hasVal(s.producent) && <span className="qvm-scan-list-sub">{asText(s.producent)}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Szyby */}
+          {szyby.length > 0 && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.glass s={12} /> Szyby</div>
+              <div className="qvm-scan-list">
+                {szyby.map((s, i) => (
+                  <div key={i} className="qvm-scan-list-item">
+                    <span className="qvm-scan-list-main">{asText(s)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Uwagi */}
+          {hasVal(d.uwagi) && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.doc s={12} /> Uwagi</div>
+              <div className="qvm-scan-note">{asText(d.uwagi)}</div>
+            </div>
+          )}
+
+          {/* Dane techniczne — statyka, zwinięte domyślnie */}
+          {statyka && hasVal(statyka) && (
+            <div className="qvm-scan-block qvm-scan-block--tech">
+              <button
+                type="button"
+                className="qvm-scan-tech-toggle"
+                onClick={() => setTechOpen((v) => !v)}
+              >
+                <span><I.wrench s={12} /> Dane techniczne (statyka)</span>
+                <span style={{ display: "inline-flex", transform: techOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><I.up s={11} /></span>
+              </button>
+              {techOpen && (
+                <div className="qvm-scan-tech-body">
+                  <InfoRow label="Norma" value={statyka.norma} />
+                  <InfoRow label="Strefa" value={statyka.strefa} />
+                  <InfoRow label="Teren" value={statyka.teren} />
+                  <InfoRow label="Wysokość budynku" value={statyka.budynek_z} />
+                  <InfoRow label="Obciążenie (pk)" value={statyka.pk} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Dodatkowe informacje z dokumentu */}
+          {dodatkowe && hasVal(dodatkowe) && (
+            <div className="qvm-scan-block">
+              <div className="qvm-scan-block-title"><I.doc s={12} /> Dodatkowe informacje</div>
+              {Object.entries(dodatkowe).map(([k, v]) => (
+                <InfoRow key={k} label={k.replace(/_/g, " ")} value={v} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

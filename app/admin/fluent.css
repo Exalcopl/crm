@@ -7835,3 +7835,232 @@ select.fluent-input {
   word-break: break-word;
 }
 
+/* ── Dane ze skanowania (sprzedażowy układ) ───────────────────────── */
+
+.qvm-scan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Nagłówek dokumentu */
+.qvm-scan-doc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qvm-scan-doc-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e6edf3);
+  margin-right: 2px;
+}
+
+.qvm-scan-doc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary, #c9d1d9);
+  background: rgba(255, 255, 255, .05);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Karty kontrahentów */
+.qvm-scan-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.qvm-scan-card {
+  background: var(--surface-1, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.qvm-scan-card-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8b949e);
+  margin-bottom: 3px;
+}
+
+.qvm-scan-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e6edf3);
+}
+
+.qvm-scan-card-line {
+  font-size: 12px;
+  color: var(--text-secondary, #c9d1d9);
+  line-height: 1.4;
+}
+
+/* Bloki tematyczne */
+.qvm-scan-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qvm-scan-block-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8b949e);
+}
+
+.qvm-scan-block-title svg {
+  color: var(--accent-primary, #d41d3c);
+}
+
+/* Chipy zakresu */
+.qvm-scan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.qvm-scan-chip {
+  font-size: 12px;
+  color: var(--text-primary, #e6edf3);
+  background: var(--accent-soft, rgba(212, 29, 60, .16));
+  border: 1px solid var(--accent-line, rgba(212, 29, 60, .45));
+  border-radius: 6px;
+  padding: 3px 10px;
+  text-transform: capitalize;
+}
+
+/* Kafelki liczbowe */
+.qvm-scan-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.qvm-scan-stat {
+  background: var(--surface-1, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.qvm-scan-stat-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #e6edf3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.qvm-scan-stat-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted, #8b949e);
+}
+
+.qvm-scan-stat-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8b949e);
+}
+
+/* Listy (systemy, szyby) */
+.qvm-scan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.qvm-scan-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 12px;
+  background: var(--surface-1, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-line, rgba(212, 29, 60, .45));
+}
+
+.qvm-scan-list-main {
+  font-size: 12px;
+  color: var(--text-primary, #e6edf3);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.qvm-scan-list-sub {
+  font-size: 11px;
+  color: var(--text-muted, #8b949e);
+}
+
+/* Uwagi */
+.qvm-scan-note {
+  font-size: 12px;
+  color: var(--text-secondary, #c9d1d9);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  padding: 10px 12px;
+  background: var(--surface-1, #161b22);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, .08));
+  border-radius: 8px;
+}
+
+/* Dane techniczne */
+.qvm-scan-block--tech {
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, .06));
+  padding-top: 12px;
+}
+
+.qvm-scan-tech-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #8b949e);
+}
+
+.qvm-scan-tech-toggle > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qvm-scan-tech-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
