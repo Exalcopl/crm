@@ -1047,26 +1047,6 @@ function ClientContactStrip({ quote }: { quote: Quote }) {
             <I.arrow s={11} sw={2} />
           </span>
         </span>
-        <span className="quote-detail-client-meta">
-          {contact.phone ? (
-            <span className="quote-detail-client-link">
-              <I.phone s={11} />
-              <span>{contact.phone}</span>
-            </span>
-          ) : null}
-          {contact.email ? (
-            <span className="quote-detail-client-link">
-              <I.mail s={11} />
-              <span>{contact.email}</span>
-            </span>
-          ) : null}
-          {address ? (
-            <span className="quote-detail-client-addr">
-              <I.pin s={11} />
-              <span>{address}</span>
-            </span>
-          ) : null}
-        </span>
       </span>
     </button>
   );

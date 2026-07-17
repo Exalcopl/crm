@@ -306,11 +306,6 @@ function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote
           {name}
           <span className="quote-detail-client-arrow" aria-hidden><I.arrow s={11} sw={2} /></span>
         </span>
-        <span className="quote-detail-client-meta">
-          {phone ? <span className="quote-detail-client-link"><I.phone s={11} /><span>{phone}</span></span> : null}
-          {email ? <span className="quote-detail-client-link"><I.mail s={11} /><span>{email}</span></span> : null}
-          {address ? <span className="quote-detail-client-addr"><I.pin s={11} /><span>{address}</span></span> : null}
-        </span>
       </span>
     </button>
   );
