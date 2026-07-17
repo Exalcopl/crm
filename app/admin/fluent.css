@@ -4279,6 +4279,30 @@ select.fluent-input {
   color: var(--danger);
 }
 
+/* === Podgląd PDF renderowany przez pdf.js === */
+.pdf-viewer {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--bg-base, #0d1117);
+}
+
+.pdf-viewer-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.pdf-viewer-page {
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .4);
+}
+
 /* === Hero w nagłówku wyceny === */
 .quote-detail-hero {
   display: flex;

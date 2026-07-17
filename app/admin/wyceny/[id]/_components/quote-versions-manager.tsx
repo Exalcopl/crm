@@ -60,11 +60,11 @@ function formatDate(ts: number) {
   });
 }
 
-function base64ToBlob(base64: string, mimeType: string): Blob {
+function base64ToBytes(base64: string): Uint8Array {
   const bytes = atob(base64);
   const arr = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-  return new Blob([arr], { type: mimeType });
+  return arr;
 }
 
 const STATUS_LABELS: Record<QuoteVersion["status"], string> = {
@@ -740,6 +740,85 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
   );
 }
 
+// ─── PDF viewer (pdf.js → canvas) ──────────────────────────────────────────────
+// Renderujemy PDF na <canvas> przez pdf.js. Dzięki temu podgląd działa niezależnie
+// od ustawień przeglądarki (np. "Pobieraj pliki PDF") i nigdy nie pobiera pliku.
+
+function PdfViewer({ data }: { data: Uint8Array }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [rendering, setRendering] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    let pdfDoc: { numPages: number; getPage: (n: number) => Promise<any>; destroy?: () => void } | null = null;
+
+    void (async () => {
+      try {
+        setRendering(true);
+        setError(null);
+
+        const pdfjs = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+          "pdfjs-dist/build/pdf.worker.min.mjs",
+          import.meta.url,
+        ).toString();
+
+        // pdf.js może przejąć (detach) bufor — pracujemy na kopii.
+        const bytes = data.slice();
+        pdfDoc = await pdfjs.getDocument({ data: bytes }).promise;
+        if (cancelled || !pdfDoc) return;
+
+        const container = containerRef.current;
+        if (!container) return;
+        container.innerHTML = "";
+
+        const dpr = window.devicePixelRatio || 1;
+        const scale = 1.5;
+
+        for (let n = 1; n <= pdfDoc.numPages; n++) {
+          const page = await pdfDoc.getPage(n);
+          if (cancelled) return;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement("canvas");
+          canvas.className = "pdf-viewer-page";
+          canvas.width = Math.floor(viewport.width * dpr);
+          canvas.height = Math.floor(viewport.height * dpr);
+          canvas.style.width = `${Math.floor(viewport.width)}px`;
+          canvas.style.height = `${Math.floor(viewport.height)}px`;
+          container.appendChild(canvas);
+          await page.render({
+            canvas,
+            viewport,
+            transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
+          }).promise;
+          if (cancelled) return;
+        }
+
+        if (!cancelled) setRendering(false);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Błąd renderowania PDF");
+          setRendering(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try { pdfDoc?.destroy?.(); } catch { /* noop */ }
+    };
+  }, [data]);
+
+  return (
+    <div className="pdf-viewer">
+      {rendering && <div className="pdf-drawer-state">Renderowanie PDF…</div>}
+      {error && <div className="pdf-drawer-state pdf-drawer-error">{error}</div>}
+      <div ref={containerRef} className="pdf-viewer-pages" />
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archived: boolean }) {
@@ -748,7 +827,7 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [preview, setPreview] = useState<
-    { fileName: string; blobUrl: string | null; error: string | null; loading: boolean } | null
+    { fileName: string; data: Uint8Array | null; error: string | null; loading: boolean } | null
   >(null);
   const scannedRef = useRef(false);
 
@@ -761,28 +840,15 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   const runOcr = useAction(api.sharepoint.runOcrForFile);
   const getFileContent = useAction(api.sharepoint.getFileForPreview);
 
-  // Revoke blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
-    };
-  }, [preview?.blobUrl]);
-
   async function openPreview(fileItemId: string, fileName: string) {
-    if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
-    setPreview({ fileName, blobUrl: null, error: null, loading: true });
+    setPreview({ fileName, data: null, error: null, loading: true });
     try {
-      const { base64, contentType } = await getFileContent({ quoteId: quote._id, fileId: fileItemId });
-      setPreview({
-        fileName,
-        blobUrl: URL.createObjectURL(base64ToBlob(base64, contentType)),
-        error: null,
-        loading: false,
-      });
+      const { base64 } = await getFileContent({ quoteId: quote._id, fileId: fileItemId });
+      setPreview({ fileName, data: base64ToBytes(base64), error: null, loading: false });
     } catch (e) {
       setPreview({
         fileName,
-        blobUrl: null,
+        data: null,
         error: e instanceof Error ? e.message : "Błąd podglądu",
         loading: false,
       });
@@ -790,7 +856,6 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   }
 
   function closePreview() {
-    if (preview?.blobUrl) URL.revokeObjectURL(preview.blobUrl);
     setPreview(null);
   }
 
@@ -986,9 +1051,7 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
               {preview.error && (
                 <div className="pdf-drawer-state pdf-drawer-error">{preview.error}</div>
               )}
-              {preview.blobUrl && (
-                <iframe src={preview.blobUrl} className="pdf-drawer-iframe" title={preview.fileName} />
-              )}
+              {preview.data && <PdfViewer data={preview.data} />}
             </div>
           </div>
         </>
