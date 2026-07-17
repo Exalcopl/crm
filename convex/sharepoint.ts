@@ -822,31 +822,15 @@ export const runOcrForFile = action({
     }
     const base64 = Buffer.from(buffer).toString("base64");
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "document",
-                source: {
-                  type: "base64",
-                  media_type: "application/pdf",
-                  data: base64,
-                },
-              },
-              {
-                type: "text",
-                text: `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij WSZYSTKIE dostępne dane.
+    const modelsToTry = [
+      "claude-3-5-sonnet-20240620",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-sonnet-latest",
+      "claude-3-5-haiku-20241022",
+      "claude-3-haiku-20240307",
+    ];
+
+    const promptText = `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij WSZYSTKIE dostępne dane.
 
 Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej strukturze. Pola których nie znajdziesz ustaw na null. Nie pomijaj żadnych danych z dokumentu — wszystko co nie pasuje do standardowych pól umieść w "dodatkowe".
 
@@ -909,17 +893,61 @@ Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej stru
   "dodatkowe": {}
 }
 
-Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieściły się w powyższych polach (np. warunki płatności, terminy realizacji, gwarancja, certyfikaty, warunki handlowe itp.).`,
-              },
-            ],
-          },
-        ],
-      }),
-    });
+Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieściły się w powyższych polach (np. warunki płatności, terminy realizacji, gwarancja, certyfikaty, warunki handlowe itp.).`;
 
-    if (!anthropicRes.ok) {
-      const text = await anthropicRes.text();
-      throw new Error(`Błąd API Claude (${anthropicRes.status}): ${text.slice(0, 200)}`);
+    let anthropicRes: Response | null = null;
+    let lastErrorText = "";
+
+    for (const model of modelsToTry) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-beta": "pdfs-2024-09-25",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4096,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "document",
+                  source: {
+                    type: "base64",
+                    media_type: "application/pdf",
+                    data: base64,
+                  },
+                },
+                {
+                  type: "text",
+                  text: promptText,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+      if (res.ok) {
+        anthropicRes = res;
+        break;
+      } else {
+        const text = await res.text();
+        lastErrorText = text;
+        if (res.status === 404 || text.includes("not_found_error")) {
+          console.warn(`Model ${model} niedostępny, próbuję kolejny...`);
+          continue;
+        }
+        throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 200)}`);
+      }
+    }
+
+    if (!anthropicRes || !anthropicRes.ok) {
+      throw new Error(`Żaden z modeli Claude nie jest dostępny dla Twojego klucza API. Ostatni błąd: ${lastErrorText.slice(0, 200)}`);
     }
 
     const anthropicData = (await anthropicRes.json()) as {
