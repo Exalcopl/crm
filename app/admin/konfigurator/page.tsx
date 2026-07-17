@@ -501,9 +501,9 @@ export default function KonfiguratorPage() {
 
       {error && <div className="users-error" style={{ marginTop: 10 }}>{error}</div>}
 
-      {structure === undefined ? (
+      {products === undefined || (activeSlug && structure === undefined) ? (
         <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 16 }}>Ładowanie…</div>
-      ) : structure === null ? (
+      ) : (products.length === 0 || structure === null) ? (
         <div style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 16 }}>
           Brak danych. Uruchom seed: <code>npx convex run configurator:seed</code>
         </div>
