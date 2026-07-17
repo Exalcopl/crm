@@ -585,14 +585,12 @@ function StatTile({ value, unit, label }: { value: unknown; unit?: string; label
 
 function AdditionalData({ data }: { data: Record<string, unknown> }) {
   const [expanded, setExpanded] = useState(true);
-  const [techOpen, setTechOpen] = useState(false);
 
   const d = data as Record<string, any>;
   const dokument = d.dokument as Record<string, any> | undefined;
   const dostawca = d.dostawca as Record<string, any> | undefined;
   const odbiorca = d.odbiorca as Record<string, any> | undefined;
   const zakres = (d.zakres_oferty ?? {}) as Record<string, any>;
-  const statyka = zakres.statyka as Record<string, any> | undefined;
   const dodatkowe = d.dodatkowe as Record<string, any> | undefined;
 
   const zawiera: unknown[] = Array.isArray(zakres.zawiera)
@@ -704,29 +702,6 @@ function AdditionalData({ data }: { data: Record<string, unknown> }) {
             <div className="qvm-scan-block">
               <div className="qvm-scan-block-title"><I.doc s={12} /> Uwagi</div>
               <div className="qvm-scan-note">{asText(d.uwagi)}</div>
-            </div>
-          )}
-
-          {/* Dane techniczne — statyka, zwinięte domyślnie */}
-          {statyka && hasVal(statyka) && (
-            <div className="qvm-scan-block qvm-scan-block--tech">
-              <button
-                type="button"
-                className="qvm-scan-tech-toggle"
-                onClick={() => setTechOpen((v) => !v)}
-              >
-                <span><I.wrench s={12} /> Dane techniczne (statyka)</span>
-                <span style={{ display: "inline-flex", transform: techOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}><I.up s={11} /></span>
-              </button>
-              {techOpen && (
-                <div className="qvm-scan-tech-body">
-                  <InfoRow label="Norma" value={statyka.norma} />
-                  <InfoRow label="Strefa" value={statyka.strefa} />
-                  <InfoRow label="Teren" value={statyka.teren} />
-                  <InfoRow label="Wysokość budynku" value={statyka.budynek_z} />
-                  <InfoRow label="Obciążenie (pk)" value={statyka.pk} />
-                </div>
-              )}
             </div>
           )}
 
