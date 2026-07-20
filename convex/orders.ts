@@ -39,7 +39,7 @@ export const getByQuote = query({
 export const create = mutation({
   args: {
     quoteId: v.id("quotes"),
-    quoteVersionId: v.id("quoteVersions"),
+    quoteVersionId: v.optional(v.id("quoteVersions")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -59,8 +59,11 @@ export const create = mutation({
     const quote = await ctx.db.get(args.quoteId);
     if (!quote) throw new Error("Wycena nie istnieje.");
 
-    const version = await ctx.db.get(args.quoteVersionId);
-    if (!version) throw new Error("Wersja wyceny nie istnieje.");
+    let version;
+    if (args.quoteVersionId) {
+      version = await ctx.db.get(args.quoteVersionId);
+      if (!version) throw new Error("Wersja wyceny nie istnieje.");
+    }
 
     const orderNumber = quote.code;
 
@@ -70,11 +73,11 @@ export const create = mutation({
       orderNumber,
       status: "nowe",
       clientId: quote.clientId,
-      valueNetto: version.valueNetto,
-      valueVat: version.valueVat,
-      valueBrutto: version.valueBrutto,
-      vatRate: version.vatRate,
-      items: version.items,
+      valueNetto: version ? version.valueNetto : (quote.value || 0),
+      valueVat: version ? version.valueVat : 0,
+      valueBrutto: version ? version.valueBrutto : (quote.value || 0),
+      vatRate: version ? version.vatRate : 23,
+      items: version ? version.items : [],
       clientName: quote.contact.name,
       clientEmail: quote.contact.email,
       clientPhone: quote.contact.phone,

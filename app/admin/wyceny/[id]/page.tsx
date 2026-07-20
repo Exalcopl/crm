@@ -72,12 +72,12 @@ export default function QuoteDetailPage({
   const acceptedVersion = versions.find((v: any) => v.status === "accepted");
 
   async function confirmCreateOrder() {
-    if (!quote || !acceptedVersion) return;
+    if (!quote || (!acceptedVersion && quote.value == null)) return;
     setIsCreatingOrder(true);
     try {
       await createOrder({
         quoteId: quote._id,
-        quoteVersionId: acceptedVersion._id,
+        quoteVersionId: acceptedVersion?._id,
       });
       toast.success("Pomyślnie utworzono zlecenie!");
       setConfirmOrderOpen(false);
@@ -204,11 +204,11 @@ export default function QuoteDetailPage({
           onConfirm={() => void confirmArchive()}
         />
       )}
-      {confirmOrderOpen && acceptedVersion && (
+      {confirmOrderOpen && (acceptedVersion || quote.value != null) && (
         <ConfirmOrderModal
           quoteId={quote.id}
           clientName={quote.contact.name}
-          orderValue={acceptedVersion.valueNetto}
+          orderValue={acceptedVersion?.valueNetto ?? quote.value ?? 0}
           onCancel={() => setConfirmOrderOpen(false)}
           onConfirm={() => void confirmCreateOrder()}
           isLoading={isCreatingOrder}
@@ -474,7 +474,7 @@ function QuoteDetailRibbon({
           <RibbonBtn
             icon={<I.box s={22} />}
             label="Stwórz zlecenie"
-            disabled={disabled || !acceptedVersion}
+            disabled={disabled || (!acceptedVersion && quote.value == null)}
             onClick={onCreateOrder}
           />
         )}

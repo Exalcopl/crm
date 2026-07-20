@@ -445,7 +445,7 @@ export default defineSchema({
 
   orders: defineTable({
     quoteId: v.id("quotes"),
-    quoteVersionId: v.id("quoteVersions"),
+    quoteVersionId: v.optional(v.id("quoteVersions")),
     orderNumber: v.string(), // np. ZL/2026/0001
     status: v.union(
       v.literal("nowe"),
