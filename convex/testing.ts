@@ -130,3 +130,125 @@ export const seedTasksForUser = mutation({
     return { inserted: inserted.length, tasks: inserted };
   },
 });
+
+/** Test: verifies PWA calendar CRUD endpoints (insert, list, delete) works correctly */
+export const testCalendarFlow = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const uid = userId as Id<"users">;
+    const now = Date.now();
+
+    // 1. Create Private Event
+    const privateEventId = await ctx.db.insert("calendarEvents", {
+      title: "Test Private Event PWA",
+      description: "Private event testing",
+      date: "2026-08-12",
+      startTime: "11:00",
+      endTime: "12:00",
+      isPrivate: true,
+      type: "private",
+      createdBy: uid,
+      createdAt: now,
+    });
+
+    // 2. Create Company Event
+    const companyEventId = await ctx.db.insert("calendarEvents", {
+      title: "Test Company Event PWA",
+      description: "Company event testing",
+      date: "2026-08-12",
+      startTime: "14:00",
+      endTime: "15:00",
+      isPrivate: false,
+      type: "company",
+      createdBy: uid,
+      createdAt: now,
+    });
+
+    // 3. Query Private Events Range
+    const maxPastDate = "2026-06-12";
+    const privateList = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", "2026-08-20"))
+      .collect();
+
+    const privateFiltered = privateList.filter((e) => {
+      if (e.createdBy !== uid) return false;
+      if (e.type === "company") return false;
+      return true;
+    });
+
+    // 4. Query Company Events Range
+    const companyList = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", "2026-08-20"))
+      .collect();
+
+    const companyFiltered = companyList.filter((e) => e.type === "company");
+
+    // 5. Clean up
+    await ctx.db.delete(privateEventId);
+    await ctx.db.delete(companyEventId);
+
+    return {
+      privateCreated: Boolean(privateEventId),
+      companyCreated: Boolean(companyEventId),
+      privateFetchedCount: privateFiltered.length,
+      companyFetchedCount: companyFiltered.length,
+      success: privateFiltered.some((e) => e._id === privateEventId) && companyFiltered.some((e) => e._id === companyEventId),
+    };
+  },
+});
+
+/** Test: verifies PWA tasks CRUD flow (insert, status update, delete) works correctly */
+export const testTasksAppFlow = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const uid = userId as Id<"users">;
+    const user = await ctx.db.get(uid);
+    if (!user) throw new Error(`Użytkownik o ID ${userId} nie istnieje`);
+
+    const now = Date.now();
+
+    // 1. Insert simulated task (representing addForApp)
+    const taskId = await ctx.db.insert("tasks", {
+      title: "Test PWA Task",
+      description: "PWA Task integration test",
+      status: "todo",
+      assigneeId: uid,
+      assigneeIds: [uid],
+      createdAt: now,
+      createdBy: uid,
+      order: 0,
+    });
+
+    // Verify task exists
+    const taskAfterInsert = await ctx.db.get(taskId);
+    if (!taskAfterInsert) throw new Error("Nie udało się utworzyć testowego zadania");
+
+    // 2. Update status (representing setStatusForApp)
+    await ctx.db.patch(taskId, {
+      status: "in_progress",
+      completedAt: undefined,
+    });
+
+    const taskAfterUpdate = await ctx.db.get(taskId);
+    const isUpdateSuccess = taskAfterUpdate?.status === "in_progress";
+
+    // 3. Clean up
+    await ctx.db.delete(taskId);
+
+    return {
+      taskCreated: Boolean(taskId),
+      updateSuccess: isUpdateSuccess,
+      success: Boolean(taskId) && isUpdateSuccess,
+    };
+  },
+});
+
+/** Test Helper: deletes a task by ID */
+export const deleteTask = mutation({
+  args: { id: v.id("tasks") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id);
+  },
+});

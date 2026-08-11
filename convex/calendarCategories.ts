@@ -22,12 +22,18 @@ export const checkAndSeed = mutation({
   },
 });
 
-// ─── Queries ──────────────────────────────────────────────────────────────────
 export const list = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
+    return await ctx.db.query("calendarCategories").collect();
+  },
+});
+
+export const listForApp = query({
+  args: {},
+  handler: async (ctx) => {
     return await ctx.db.query("calendarCategories").collect();
   },
 });

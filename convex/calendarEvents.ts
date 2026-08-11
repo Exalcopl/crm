@@ -483,3 +483,153 @@ export const removeForOrder = mutation({
     }
   },
 });
+
+// ─── PWA Mobilna Aplikacja (/app) Integracja ──────────────────────────────────
+
+export const listPrivateEventsByRangeForApp = query({
+  args: {
+    startDate: v.string(),
+    endDate: v.string(),
+    userIds: v.array(v.id("users")),
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, { startDate, endDate, userIds, currentUserId }) => {
+    if (userIds.length === 0) return [];
+    const maxPastDate = addDays(startDate, -60);
+
+    const allInRange = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", endDate))
+      .collect();
+
+    const filtered = allInRange.filter((e) => {
+      if (!userIds.includes(e.createdBy)) return false;
+      if (e.type === "company") return false;
+      const eventEnd = e.endDate || e.date;
+      return eventEnd >= startDate && e.date <= endDate;
+    });
+
+    return filtered.map((e) => {
+      const isOwner = e.createdBy === currentUserId;
+      if (e.isPrivate && !isOwner) {
+        return {
+          ...e,
+          title: "🔒 Zajęty",
+          description: undefined,
+        };
+      }
+      return e;
+    });
+  },
+});
+
+export const listCompanyEventsByRangeForApp = query({
+  args: { startDate: v.string(), endDate: v.string(), currentUserId: v.string() },
+  handler: async (ctx, { startDate, endDate }) => {
+    const maxPastDate = addDays(startDate, -60);
+
+    const events = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_date", (q) => q.gte("date", maxPastDate).lte("date", endDate))
+      .collect();
+
+    return events.filter((e) => {
+      if (e.type !== "company") return false;
+      const eventEnd = e.endDate || e.date;
+      return eventEnd >= startDate && e.date <= endDate;
+    });
+  },
+});
+
+export const createEventForApp = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    isAllDay: v.optional(v.boolean()),
+    endDate: v.optional(v.string()),
+    color: v.optional(v.string()),
+    isPrivate: v.optional(v.boolean()),
+    type: v.optional(v.union(v.literal("private"), v.literal("company"))),
+    category: v.optional(v.string()),
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const title = args.title.trim();
+    if (!title) throw new Error("Tytuł nie może być pusty");
+
+    const now = Date.now();
+    const userId = args.currentUserId as Id<"users">;
+
+    const parentId = await ctx.db.insert("calendarEvents", {
+      title,
+      description: args.description?.trim() || undefined,
+      date: args.date,
+      startTime: args.startTime,
+      endTime: args.endTime,
+      isAllDay: args.isAllDay,
+      endDate: args.endDate,
+      color: args.color || undefined,
+      isPrivate: !!args.isPrivate,
+      recurrence: "none",
+      type: args.type || "private",
+      category: args.category || undefined,
+      createdBy: userId,
+      createdAt: now,
+    });
+
+    return parentId;
+  },
+});
+
+export const updateEventForApp = mutation({
+  args: {
+    id: v.id("calendarEvents"),
+    title: v.string(),
+    description: v.optional(v.union(v.string(), v.null())),
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    isPrivate: v.optional(v.boolean()),
+    color: v.optional(v.union(v.string(), v.null())),
+    category: v.optional(v.union(v.string(), v.null())),
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, { id, currentUserId, ...fields }) => {
+    const event = await ctx.db.get(id);
+    if (!event) throw new Error("Wydarzenie nie istnieje");
+    if (event.createdBy !== currentUserId && event.type !== "company") {
+      throw new Error("Brak uprawnień do edycji tego wydarzenia");
+    }
+
+    const patch: Record<string, unknown> = {
+      title: fields.title.trim(),
+      date: fields.date,
+      startTime: fields.startTime,
+      endTime: fields.endTime,
+      isPrivate: !!fields.isPrivate,
+      description: fields.description === null ? undefined : fields.description?.trim() || undefined,
+      color: fields.color === null ? undefined : fields.color,
+      category: fields.category === null ? undefined : fields.category,
+    };
+
+    if (!patch.title) throw new Error("Tytuł nie może być pusty");
+
+    await ctx.db.patch(id, patch);
+  },
+});
+
+export const removeEventForApp = mutation({
+  args: { id: v.id("calendarEvents"), currentUserId: v.string() },
+  handler: async (ctx, { id, currentUserId }) => {
+    const event = await ctx.db.get(id);
+    if (!event) throw new Error("Wydarzenie nie istnieje");
+    if (event.createdBy !== currentUserId && event.type !== "company") {
+      throw new Error("Brak uprawnień do usunięcia tego wydarzenia");
+    }
+
+    await ctx.db.delete(id);
+  },
+});

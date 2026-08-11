@@ -228,6 +228,55 @@ export const add = mutation({
   },
 });
 
+export const addForApp = mutation({
+  args: {
+    quoteId: v.optional(v.id("quotes")),
+    title: v.string(),
+    description: v.optional(v.string()),
+    assigneeId: v.optional(v.union(v.id("users"), v.null())),
+    assigneeIds: v.optional(v.array(v.id("users"))),
+    dueDate: v.optional(v.string()),
+    status: v.optional(TASK_STATUS),
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const callerId = args.currentUserId as Id<"users">;
+    const user = await ctx.db.get(callerId);
+    if (!user) throw new Error("Nieprawidłowy użytkownik");
+
+    const title = args.title.trim();
+    if (!title) throw new Error("Tytuł zadania nie może być pusty");
+
+    const status = args.status ?? "todo";
+    
+    let maxOrder = -1;
+    if (args.quoteId) {
+      const existing = await ctx.db
+        .query("tasks")
+        .withIndex("by_quote_status", (q) =>
+          q.eq("quoteId", args.quoteId!).eq("status", status),
+        )
+        .collect();
+      maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    }
+
+    const ids = args.assigneeIds ?? (args.assigneeId ? [args.assigneeId] : []);
+
+    return await ctx.db.insert("tasks", {
+      quoteId: args.quoteId,
+      title,
+      description: args.description?.trim() || undefined,
+      status,
+      assigneeId: args.assigneeId ?? null,
+      assigneeIds: ids,
+      dueDate: args.dueDate || undefined,
+      createdAt: Date.now(),
+      createdBy: callerId,
+      order: maxOrder + 1,
+    });
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("tasks"),
@@ -264,6 +313,40 @@ export const setStatus = mutation({
   handler: async (ctx, { id, status }) => {
     const callerId = await getAuthUserId(ctx);
     if (!callerId) throw new Error("Brak autoryzacji");
+
+    const task = await ctx.db.get(id);
+    if (!task) throw new Error("Zadanie nie istnieje");
+
+    if (task.status === status) return;
+
+    let maxOrder = -1;
+    if (task.quoteId) {
+      const existing = await ctx.db
+        .query("tasks")
+        .withIndex("by_quote_status", (q) =>
+          q.eq("quoteId", task.quoteId!).eq("status", status),
+        )
+        .collect();
+      maxOrder = existing.reduce((acc, t) => Math.max(acc, t.order), -1);
+    }
+
+    await ctx.db.patch(id, {
+      status,
+      order: maxOrder + 1,
+      completedAt: status === "done" ? Date.now() : undefined,
+    });
+  },
+});
+
+export const setStatusForApp = mutation({
+  args: {
+    id: v.id("tasks"),
+    status: TASK_STATUS,
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, { id, status, currentUserId }) => {
+    const user = await ctx.db.get(currentUserId as Id<"users">);
+    if (!user) throw new Error("Nieprawidłowy użytkownik");
 
     const task = await ctx.db.get(id);
     if (!task) throw new Error("Zadanie nie istnieje");
