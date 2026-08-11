@@ -9,14 +9,16 @@ import { ownerInitials } from "../../_lib/quotes";
 import { UserFilterBar } from "../../_components/user-filter-bar";
 import "../panel.css";
 
+import { usePermissions } from "../../_lib/permissions";
+
 export default function ArchivedTasksPage() {
   const users = useQuery(api.users.list);
   const tasks = useQuery(api.tasks.listArchived);
-  const currentUser = useQuery(api.users.me);
+  const { user: currentUser, isLoading } = usePermissions();
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
-  if (tasks === undefined || users === undefined || currentUser === undefined) {
+  if (tasks === undefined || users === undefined || isLoading) {
     return (
       <main className="fluent-content panel-page">
         <div style={{ padding: 40, textAlign: "center", color: "var(--fg-muted)" }}>
