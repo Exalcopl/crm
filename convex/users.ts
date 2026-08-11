@@ -128,6 +128,28 @@ export const listAllAssignable = query({
   },
 });
 
+export const listAllAssignableForApp = query({
+  args: { currentUserId: v.string() },
+  handler: async (ctx, { currentUserId }) => {
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => {
+        if ((u.isActive ?? true) === false) return false;
+        if ((u.isAssignable ?? true) === false) return false;
+        return true;
+      })
+      .map((u) => ({
+        _id: u._id,
+        name: u.name ?? null,
+        email: u.email ?? null,
+        isCurrentUser: (u._id as unknown as string) === currentUserId,
+      }))
+      .sort((a, b) =>
+        (a.name ?? a.email ?? "").localeCompare(b.name ?? b.email ?? ""),
+      );
+  },
+});
+
 export const getByIds = query({
   args: { userIds: v.array(v.id("users")) },
   handler: async (ctx, { userIds }) => {

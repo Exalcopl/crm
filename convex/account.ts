@@ -13,9 +13,9 @@ import {
   retrieveAccount,
 } from "@convex-dev/auth/server";
 
-export async function hashPin(userId: string, pin: string): Promise<string> {
+export async function hashPinString(pin: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(`${userId}:${pin}:exalco-pin-salt`);
+  const data = encoder.encode(`exalco-pin-v1:${pin}`);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -33,11 +33,14 @@ export const updateProfile = mutation({
 });
 
 export const _internalMarkPinSet = internalMutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { pinHash: v.string() },
+  handler: async (ctx, { pinHash }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Nie zalogowano");
-    await ctx.db.patch(userId, { pinSetAt: Date.now() });
+    await ctx.db.patch(userId, {
+      pinHash,
+      pinSetAt: Date.now(),
+    });
   },
 });
 
@@ -46,7 +49,10 @@ export const _internalMarkPinRemoved = internalMutation({
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Nie zalogowano");
-    await ctx.db.patch(userId, { pinSetAt: undefined });
+    await ctx.db.patch(userId, {
+      pinHash: undefined,
+      pinSetAt: undefined,
+    });
   },
 });
 
@@ -63,6 +69,8 @@ export const setPin = action({
     );
     if (!email) throw new Error("Nie zalogowano");
 
+    const pinHash = await hashPinString(trimmed);
+
     try {
       await modifyAccountCredentials(ctx, {
         provider: "pin",
@@ -78,7 +86,7 @@ export const setPin = action({
       });
     }
 
-    await ctx.runMutation(internal.account._internalMarkPinSet, {});
+    await ctx.runMutation(internal.account._internalMarkPinSet, { pinHash });
   },
 });
 

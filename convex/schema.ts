@@ -25,7 +25,8 @@ export default defineSchema({
   })
     .index("email", ["email"])
     .index("phone", ["phone"])
-    .index("by_role", ["roleId"]),
+    .index("by_role", ["roleId"])
+    .index("by_pinHash", ["pinHash"]),
 
   roles: defineTable({
     name: v.string(),

@@ -5,8 +5,12 @@ import {
 } from "@convex-dev/auth/nextjs/server";
 
 const isSignInRoute = createRouteMatcher(["/signin"]);
-const isPublicRoute = createRouteMatcher(["/signin", "/api/auth(.*)"]);
-
+const isPublicRoute = createRouteMatcher([
+  "/signin",
+  "/api/auth(.*)",
+  "/app",        // Mobile PWA – manages its own PIN session
+  "/app/(.*)",   // All sub-routes of /app
+]);
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   const authed = await convexAuth.isAuthenticated();
 

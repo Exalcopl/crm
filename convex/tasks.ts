@@ -112,6 +112,76 @@ export const listMine = query({
   },
 });
 
+/**
+ * Fetch tasks for a specific user by userId.
+ * Used exclusively by /app (mobile PWA) which manages its own PIN session
+ * independently from Convex Auth. Treats super_admin as seeing all tasks.
+ */
+export const listForUser = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId as Id<"users">);
+    if (!user) return [];
+
+    const role = user.roleId ? await ctx.db.get(user.roleId) : null;
+    const isSuperAdmin = role?.name === "super_admin";
+
+    let tasks;
+    if (isSuperAdmin) {
+      tasks = await ctx.db
+        .query("tasks")
+        .filter((q) => q.neq(q.field("archived"), true))
+        .collect();
+    } else {
+      const allTasks = await ctx.db
+        .query("tasks")
+        .filter((q) => q.neq(q.field("archived"), true))
+        .collect();
+      tasks = allTasks.filter((t) => {
+        const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+        return ids.includes(userId as Id<"users">);
+      });
+    }
+
+    if (tasks.length === 0) return [];
+
+    const uniqueQuoteIds = Array.from(
+      new Set(tasks.map((t) => t.quoteId).filter(Boolean) as string[]),
+    );
+    const quotes = await Promise.all(
+      uniqueQuoteIds.map((id) => ctx.db.get(id as Id<"quotes">)),
+    );
+    const quoteById = new Map<string, { code: string; contactName: string }>();
+    for (const q of quotes) {
+      if (!q || q.archived) continue;
+      quoteById.set(q._id as unknown as string, {
+        code: q.code,
+        contactName: q.contact?.name ?? "—",
+      });
+    }
+
+    const enriched = tasks
+      .map((t) => {
+        const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+        if (!t.quoteId) return { ...t, assigneeIds: ids, quote: null };
+        const ctxQuote = quoteById.get(t.quoteId as unknown as string);
+        if (!ctxQuote) return null;
+        return { ...t, assigneeIds: ids, quote: ctxQuote };
+      })
+      .filter((t) => t !== null);
+
+    return enriched.sort((a, b) => {
+      if (a!.status !== b!.status) {
+        const order = { todo: 0, in_progress: 1, done: 2 } as const;
+        return order[a!.status as keyof typeof order] - order[b!.status as keyof typeof order];
+      }
+      return (a!.order ?? 0) - (b!.order ?? 0);
+    });
+  },
+});
+
+
+
 export const add = mutation({
   args: {
     quoteId: v.optional(v.id("quotes")),
