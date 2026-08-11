@@ -169,26 +169,24 @@ export default function PanelPage() {
 
   return (
     <main className="fluent-content panel-page">
-      <header className="panel-greeting" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 className="panel-greeting-title">{greetingLine}</h1>
-          <p className="panel-greeting-sub">
-            {subTitle}
-          </p>
-        </div>
-        <div>
+      <header className="panel-greeting">
+        <h1 className="panel-greeting-title">{greetingLine}</h1>
+        <p className="panel-greeting-sub">
+          {subTitle}
+        </p>
+        <div style={{ marginTop: "12px" }}>
           <Link
             href="/admin/panel/archiwum"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "8px 16px",
+              padding: "6px 12px",
               backgroundColor: "var(--bg-card-hover)",
               color: "var(--fg-muted)",
               borderRadius: "6px",
               textDecoration: "none",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
               fontWeight: 500,
               border: "1px solid var(--border)",
             }}
