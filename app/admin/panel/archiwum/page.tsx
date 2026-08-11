@@ -39,28 +39,33 @@ export default function ArchivedTasksPage() {
     .filter((u) => u.isAssignable)
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
+  const isSuperAdmin = currentUser?.role?.name === "super_admin";
+  const subTitle = isSuperAdmin
+    ? "Wszystkie zadania przypisane do użytkowników w systemie."
+    : "Twoje zadania przypisane bezpośrednio do Ciebie oraz z powiązanych wycen.";
+
+  const greetingLine = "Dobry wieczór, " + (currentUser?.name?.split(" ")[0] || "Super") + "!";
+
   return (
     <main className="fluent-content panel-page">
-      <header className="panel-greeting" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h1 className="panel-greeting-title">Archiwum zadań</h1>
-          <p className="panel-greeting-sub">
-            Historia zakończonych zadań (status DONE).
-          </p>
-        </div>
-        <div>
+      <header className="panel-greeting">
+        <h1 className="panel-greeting-title">{greetingLine}</h1>
+        <p className="panel-greeting-sub">
+          {subTitle}
+        </p>
+        <div style={{ marginTop: "12px" }}>
           <Link
             href="/admin/panel"
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "8px 16px",
+              padding: "6px 12px",
               backgroundColor: "var(--bg-card-hover)",
               color: "var(--fg-muted)",
               borderRadius: "6px",
               textDecoration: "none",
-              fontSize: "0.9rem",
+              fontSize: "0.85rem",
               fontWeight: 500,
               border: "1px solid var(--border)",
             }}
@@ -97,56 +102,77 @@ export default function ArchivedTasksPage() {
           </div>
           <div className="panel-empty-title">Archiwum puste</div>
           <div className="panel-empty-sub">
-            Nie znaleziono żadnych archiwalnych zadań.
+            Brak zarchiwizowanych zadań spełniających kryteria.
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: "10px" }}>
-          {filteredTasks.map((task) => (
-            <ArchivedTaskCard key={task._id} task={task} users={users} />
-          ))}
+        <div className="archive-list">
+          <table className="archive-list-table">
+            <thead>
+              <tr>
+                <th style={{ width: "40%" }}>Zadanie</th>
+                <th style={{ width: "25%" }}>Wycena / Klient</th>
+                <th style={{ width: "20%" }}>Przypisani</th>
+                <th style={{ width: "15%", textAlign: "right" }}>Zakończono</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTasks.map((task) => (
+                <ArchivedTaskRow key={task._id} task={task} users={users} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </main>
   );
 }
 
-function ArchivedTaskCard({ task, users }: { task: any; users: any[] }) {
+function ArchivedTaskRow({ task, users }: { task: any; users: any[] }) {
   return (
-    <div className="panel-card" style={{ padding: "16px", opacity: 0.8, cursor: "default" }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <h4 className="panel-card-title">{task.title}</h4>
-        <span style={{ fontSize: "0.8rem", color: "var(--fg-muted)" }}>
-          {task.completedAt ? new Date(task.completedAt).toLocaleDateString() : ""}
-        </span>
-      </div>
-      {task.description && (
-        <p className="panel-card-desc">{task.description}</p>
-      )}
-      <div className="panel-card-footer" style={{ marginTop: "12px" }}>
-        {task.quote && (
-          <Link href={`/admin/wyceny/${task.quote.code}`} className="panel-card-quote">
-            {task.quote.code} • {task.quote.contactName}
-          </Link>
+    <tr>
+      <td>
+        <div className="archive-task-title">{task.title}</div>
+        {task.description && (
+          <div className="archive-task-desc">
+            {task.description}
+          </div>
         )}
-        {!task.quote && <div />}
-        <div className="panel-card-assignees">
-          {task.assigneeIds && task.assigneeIds.length > 0 ? (
-            task.assigneeIds.map((aid: string) => {
+      </td>
+      <td>
+        {task.quote ? (
+          <Link
+            href={`/admin/wyceny/${task.quote.code}`}
+            className="panel-task-card-quote"
+            title={`${task.quote.code} · ${task.quote.contactName}`}
+          >
+            <span className="panel-task-card-quote-code">🏷️ {task.quote.code}</span>
+            <span className="panel-task-card-quote-sep">•</span>
+            <span className="panel-task-card-quote-client">{task.quote.contactName}</span>
+          </Link>
+        ) : (
+          <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>Zadanie wewnętrzne</span>
+        )}
+      </td>
+      <td>
+        {task.assigneeIds && task.assigneeIds.length > 0 ? (
+          <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+            {task.assigneeIds.map((aid: string) => {
               const u = users.find((x) => x._id === aid);
               return u ? (
-                <div key={aid} className="panel-assignee-avatar">
+                <div key={aid} className="kanban-card-owner-avatar" title={u.name || u.email}>
                   {ownerInitials(u.name || u.email)}
                 </div>
               ) : null;
-            })
-          ) : (
-            <div className="panel-card-unassigned">
-              <I.user s={14} /> Brak przypisania
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+            })}
+          </div>
+        ) : (
+          <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>Brak przypisania</span>
+        )}
+      </td>
+      <td style={{ textAlign: "right", color: "var(--text-muted)", fontSize: "12px" }}>
+        {task.completedAt ? new Date(task.completedAt).toLocaleDateString("pl-PL") : "—"}
+      </td>
+    </tr>
   );
 }

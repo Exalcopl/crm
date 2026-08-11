@@ -314,7 +314,7 @@ function PanelTaskCard({
   });
 
   const updateTask = useMutation(api.tasks.update);
-  const removeTask = useMutation(api.tasks.remove);
+  const archiveTask = useMutation(api.tasks.archive);
   const assignTask = useMutation(api.tasks.assign);
   const [editing, setEditing] = useState(false);
 
@@ -435,10 +435,11 @@ function PanelTaskCard({
             className="quote-detail-task-card-remove"
             style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "4px" }}
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => void removeTask({ id: task._id })}
-            aria-label="Usuń zadanie"
+            onClick={() => void archiveTask({ id: task._id })}
+            aria-label="Archiwizuj zadanie"
+            title="Archiwizuj zadanie"
           >
-            <I.trash s={12} />
+            <I.archive s={12} />
           </button>
         )}
       </div>

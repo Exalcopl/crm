@@ -245,6 +245,15 @@ export const assign = mutation({
   },
 });
 
+export const archive = mutation({
+  args: { id: v.id("tasks") },
+  handler: async (ctx, { id }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+    await ctx.db.patch(id, { archived: true });
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("tasks") },
   handler: async (ctx, { id }) => {
