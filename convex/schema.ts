@@ -233,9 +233,11 @@ export default defineSchema({
     createdBy: v.union(v.id("users"), v.null()),
     completedAt: v.optional(v.number()),
     order: v.number(),
+    archived: v.optional(v.boolean()),
   })
     .index("by_quote", ["quoteId"])
-    .index("by_quote_status", ["quoteId", "status"]),
+    .index("by_quote_status", ["quoteId", "status"])
+    .index("by_archived", ["archived"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),

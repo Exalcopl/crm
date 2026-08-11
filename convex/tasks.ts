@@ -15,6 +15,7 @@ export const list = query({
     const docs = await ctx.db
       .query("tasks")
       .withIndex("by_quote", (q) => q.eq("quoteId", quoteId))
+      .filter((q) => q.neq(q.field("archived"), true))
       .collect();
     const mapped = docs.map((t) => ({
       ...t,
@@ -42,9 +43,15 @@ export const listMine = query({
 
     let tasks;
     if (isSuperAdmin) {
-      tasks = await ctx.db.query("tasks").collect();
+      tasks = await ctx.db
+        .query("tasks")
+        .filter((q) => q.neq(q.field("archived"), true))
+        .collect();
     } else {
-      const allTasks = await ctx.db.query("tasks").collect();
+      const allTasks = await ctx.db
+        .query("tasks")
+        .filter((q) => q.neq(q.field("archived"), true))
+        .collect();
       tasks = allTasks.filter((t) => {
         const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
         return ids.includes(callerId);
@@ -244,5 +251,91 @@ export const remove = mutation({
     const callerId = await getAuthUserId(ctx);
     if (!callerId) throw new Error("Brak autoryzacji");
     await ctx.db.delete(id);
+  },
+});
+
+export const listArchived = query({
+  args: {},
+  handler: async (ctx) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) return [];
+
+    const caller = await ctx.db.get(callerId);
+    const role = caller?.roleId ? await ctx.db.get(caller.roleId) : null;
+    const isSuperAdmin = role?.name === "super_admin";
+
+    let tasks;
+    if (isSuperAdmin) {
+      tasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_archived", (q) => q.eq("archived", true))
+        .collect();
+    } else {
+      const allTasks = await ctx.db
+        .query("tasks")
+        .withIndex("by_archived", (q) => q.eq("archived", true))
+        .collect();
+      tasks = allTasks.filter((t) => {
+        const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+        return ids.includes(callerId);
+      });
+    }
+
+    if (tasks.length === 0) return [];
+
+    const uniqueQuoteIds = Array.from(
+      new Set(tasks.map((t) => t.quoteId).filter(Boolean) as string[]),
+    );
+    const quotes = await Promise.all(
+      uniqueQuoteIds.map((id) =>
+        ctx.db.get(id as Id<"quotes">).then((q) => (q ? { id: q._id, code: q.code, contactName: q.contact.name } : null)),
+      ),
+    );
+    const quoteMap = new Map(quotes.filter(Boolean).map((q) => [q!.id, q]));
+
+    const mapped = tasks.map((t) => ({
+      ...t,
+      assigneeIds: t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []),
+      quote: t.quoteId ? quoteMap.get(t.quoteId) : undefined,
+    }));
+
+    return mapped.sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+  },
+});
+
+export const archiveOldTasks = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_archived")
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
+    const now = Date.now();
+    const FIVE_DAYS = 5 * 24 * 60 * 60 * 1000;
+
+    for (const task of tasks) {
+      if (task.status === "done" && task.completedAt && now - task.completedAt >= FIVE_DAYS) {
+        await ctx.db.patch(task._id, { archived: true });
+      }
+    }
+  },
+});
+
+export const archiveAllDoneNow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_archived")
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
+    for (const task of tasks) {
+      if (task.status === "done") {
+        await ctx.db.patch(task._id, { archived: true });
+      }
+    }
   },
 });

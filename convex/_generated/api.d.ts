@@ -17,6 +17,7 @@ import type * as clientNotes from "../clientNotes.js";
 import type * as clients from "../clients.js";
 import type * as configurator from "../configurator.js";
 import type * as contacts from "../contacts.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as orders from "../orders.js";
 import type * as permissions from "../permissions.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   configurator: typeof configurator;
   contacts: typeof contacts;
+  crons: typeof crons;
   http: typeof http;
   orders: typeof orders;
   permissions: typeof permissions;

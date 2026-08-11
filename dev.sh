@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# GitHub authentication for Exalcopl
-GITHUB_ACCOUNT="exalcopl"
-echo "Checking GitHub account..."
-CURRENT_ACCOUNT=$(gh api user --jq '.login' 2>/dev/null || echo "")
+# GitHub authentication for Exalcopl (Commented out to avoid blocking dev)
+# GITHUB_ACCOUNT="exalcopl"
+# echo "Checking GitHub account..."
+# CURRENT_ACCOUNT=$(gh api user --jq '.login' 2>/dev/null || echo "")
 
-if [ "$CURRENT_ACCOUNT" != "$GITHUB_ACCOUNT" ]; then
-  if [ -z "$CURRENT_ACCOUNT" ]; then
-    echo "❌ Not logged in to GitHub"
-  else
-    echo "⚠️  Currently logged in as: $CURRENT_ACCOUNT"
-  fi
-  echo "📝 Logging in to GitHub account: $GITHUB_ACCOUNT"
-  gh auth login
-else
-  echo "✅ Logged in as: $CURRENT_ACCOUNT"
-fi
-echo ""
+# if [ "$CURRENT_ACCOUNT" != "$GITHUB_ACCOUNT" ]; then
+#   if [ -z "$CURRENT_ACCOUNT" ]; then
+#     echo "❌ Not logged in to GitHub"
+#   else
+#     echo "⚠️  Currently logged in as: $CURRENT_ACCOUNT"
+#   fi
+#   echo "📝 Logging in to GitHub account: $GITHUB_ACCOUNT"
+#   # gh auth login
+# else
+#   echo "✅ Logged in as: $CURRENT_ACCOUNT"
+# fi
+# echo ""
 
 PORT=3000
 
