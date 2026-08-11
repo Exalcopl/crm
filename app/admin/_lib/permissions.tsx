@@ -10,6 +10,7 @@ export type CurrentUser = {
   name: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
+  pinSetAt?: number | null;
   role: {
     _id: string;
     name: string;

@@ -7,10 +7,19 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
+  createAccount,
   getAuthUserId,
   modifyAccountCredentials,
   retrieveAccount,
 } from "@convex-dev/auth/server";
+
+export async function hashPin(userId: string, pin: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`${userId}:${pin}:exalco-pin-salt`);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export const updateProfile = mutation({
   args: { name: v.string() },
@@ -20,6 +29,78 @@ export const updateProfile = mutation({
     const trimmed = name.trim();
     if (trimmed.length < 1) throw new Error("Imię nie może być puste");
     await ctx.db.patch(userId, { name: trimmed });
+  },
+});
+
+export const _internalMarkPinSet = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Nie zalogowano");
+    await ctx.db.patch(userId, { pinSetAt: Date.now() });
+  },
+});
+
+export const _internalMarkPinRemoved = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Nie zalogowano");
+    await ctx.db.patch(userId, { pinSetAt: undefined });
+  },
+});
+
+export const setPin = action({
+  args: { pin: v.string() },
+  handler: async (ctx, { pin }) => {
+    const trimmed = pin.trim();
+    if (!/^\d{4,6}$/.test(trimmed)) {
+      throw new Error("Kod PIN musi składać się z 4 do 6 cyfr");
+    }
+    const email: string | null = await ctx.runQuery(
+      internal.account._internalGetAuthEmail,
+      {},
+    );
+    if (!email) throw new Error("Nie zalogowano");
+
+    try {
+      await modifyAccountCredentials(ctx, {
+        provider: "pin",
+        account: { id: email, secret: trimmed },
+      });
+    } catch (err) {
+      // If account for "pin" provider doesn't exist yet, link it via email
+      await createAccount(ctx, {
+        provider: "pin",
+        account: { id: email, secret: trimmed },
+        profile: { email },
+        shouldLinkViaEmail: true,
+      });
+    }
+
+    await ctx.runMutation(internal.account._internalMarkPinSet, {});
+  },
+});
+
+export const removePin = action({
+  args: {},
+  handler: async (ctx) => {
+    const email: string | null = await ctx.runQuery(
+      internal.account._internalGetAuthEmail,
+      {},
+    );
+    if (!email) throw new Error("Nie zalogowano");
+
+    try {
+      await modifyAccountCredentials(ctx, {
+        provider: "pin",
+        account: { id: email, secret: `disabled_${Date.now()}_${Math.random()}` },
+      });
+    } catch {
+      // If account didn't exist, ignore error
+    }
+
+    await ctx.runMutation(internal.account._internalMarkPinRemoved, {});
   },
 });
 

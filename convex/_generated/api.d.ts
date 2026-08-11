@@ -37,6 +37,7 @@ import type * as sharepoint from "../sharepoint.js";
 import type * as sharepointWebhook from "../sharepointWebhook.js";
 import type * as sharepointWebhookDb from "../sharepointWebhookDb.js";
 import type * as tasks from "../tasks.js";
+import type * as testing from "../testing.js";
 import type * as users from "../users.js";
 
 import type {
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   sharepointWebhook: typeof sharepointWebhook;
   sharepointWebhookDb: typeof sharepointWebhookDb;
   tasks: typeof tasks;
+  testing: typeof testing;
   users: typeof users;
 }>;
 

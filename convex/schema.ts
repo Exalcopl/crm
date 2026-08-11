@@ -20,6 +20,8 @@ export default defineSchema({
     isActive: v.optional(v.boolean()),
     mustChangePassword: v.optional(v.boolean()),
     isAssignable: v.optional(v.boolean()),
+    pinHash: v.optional(v.string()),
+    pinSetAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("phone", ["phone"])

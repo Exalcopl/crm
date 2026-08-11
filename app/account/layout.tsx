@@ -66,6 +66,16 @@ function AccountShell({ children }: { children: ReactNode }) {
           </Link>
           <Link
             role="tab"
+            aria-selected={pathname === "/account/pin"}
+            className={`fluent-tab ${
+              pathname === "/account/pin" ? "active" : ""
+            }`}
+            href="/account/pin"
+          >
+            Kod PIN
+          </Link>
+          <Link
+            role="tab"
             aria-selected={pathname === "/account/change-password"}
             className={`fluent-tab ${
               pathname === "/account/change-password" ? "active" : ""

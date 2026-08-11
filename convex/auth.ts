@@ -55,6 +55,33 @@ const PasswordProvider = Password<DataModel>({
   },
 });
 
+const PinProvider = Password<DataModel>({
+  id: "pin",
+  profile(params) {
+    try {
+      const email = (params.email as string | undefined)?.trim().toLowerCase();
+      if (!email) throw new Error("Email jest wymagany");
+
+      const flow = params.flow as string | undefined;
+      if (flow === "signIn") {
+        checkAndIncrementRateLimit(email);
+      }
+
+      return {
+        email,
+      };
+    } catch (err) {
+      console.error("PIN provider profile error:", err);
+      throw err;
+    }
+  },
+  validatePasswordRequirements(pin) {
+    if (!/^\d{4,6}$/.test(pin)) {
+      throw new Error("Kod PIN musi składać się z 4 do 6 cyfr");
+    }
+  },
+});
+
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [PasswordProvider],
+  providers: [PasswordProvider, PinProvider],
 });

@@ -98,6 +98,7 @@ export const me = query({
       name: user.name ?? null,
       isActive: user.isActive ?? true,
       mustChangePassword: user.mustChangePassword ?? false,
+      pinSetAt: user.pinSetAt ?? null,
       role: role ? { _id: role._id, name: role.name, displayName: role.displayName, isSystem: role.isSystem } : null,
       permissions,
     };
