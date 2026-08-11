@@ -19,6 +19,7 @@ export function AdministracjaRibbon() {
   const projectTypesActive = pathname.startsWith("/admin/projekt/typy");
   const calendarCategoriesActive = pathname.startsWith("/admin/projekt/kategorie");
   const configuratorActive = pathname.startsWith("/admin/konfigurator");
+  const settingsActive = pathname.startsWith("/admin/ustawienia");
 
   return (
     <div className="fluent-ribbon">
@@ -87,6 +88,21 @@ export function AdministracjaRibbon() {
           </Link>
         </div>
         <div className="ribbon-group-label">Konfigurator</div>
+      </div>
+
+      <div className="ribbon-group">
+        <div className="ribbon-group-content">
+          <Link
+            href="/admin/ustawienia"
+            className={`ribbon-btn ${settingsActive ? "active" : ""}`}
+          >
+            <span className="ribbon-icon">
+              <I.wrench s={22} />
+            </span>
+            <span className="ribbon-label">Ustawienia</span>
+          </Link>
+        </div>
+        <div className="ribbon-group-label">System</div>
       </div>
     </div>
   );

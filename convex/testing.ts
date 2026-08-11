@@ -252,3 +252,55 @@ export const deleteTask = mutation({
     await ctx.db.delete(id);
   },
 });
+
+/** Test: verifies OCR provider setting CRUD flow */
+export const testOcrProviderSetting = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Get current provider (should be default or whatever is in db)
+    const initial = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "ocr_provider"))
+      .first();
+
+    const providerValue = initial?.value || "anthropic";
+
+    // 2. Set to gemini
+    const existing = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "ocr_provider"))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { value: "gemini" });
+    } else {
+      await ctx.db.insert("systemSettings", {
+        key: "ocr_provider",
+        value: "gemini",
+      });
+    }
+
+    const updated = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "ocr_provider"))
+      .first();
+
+    const checkGemini = updated?.value === "gemini";
+
+    // 3. Reset back to original
+    if (existing) {
+      await ctx.db.patch(existing._id, { value: providerValue });
+    } else {
+      // If there was no setting, delete the inserted one
+      if (updated) {
+        await ctx.db.delete(updated._id);
+      }
+    }
+
+    return {
+      initialProvider: providerValue,
+      geminiSetSuccess: checkGemini,
+      success: checkGemini,
+    };
+  },
+});

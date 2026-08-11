@@ -27,7 +27,7 @@ type TabDef = {
   action?: string;
 };
 
-const ADMIN_SECTION_PREFIXES = ["/admin/users", "/admin/roles", "/admin/projekt", "/admin/konfigurator"] as const;
+const ADMIN_SECTION_PREFIXES = ["/admin/users", "/admin/roles", "/admin/projekt", "/admin/konfigurator", "/admin/ustawienia"] as const;
 
 const isAdminSection = (p: string) =>
   ADMIN_SECTION_PREFIXES.some((prefix) => p.startsWith(prefix));

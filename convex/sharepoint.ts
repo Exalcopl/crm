@@ -798,13 +798,22 @@ export const runOcrForFile = action({
     const tenantId = process.env.MS_TENANT_ID;
     const clientId = process.env.MS_CLIENT_ID;
     const clientSecret = process.env.MS_CLIENT_SECRET;
+    const ocrProvider = await ctx.runQuery(api.systemSettings.getOcrProvider);
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY;
 
     if (!tenantId || !clientId || !clientSecret) {
       throw new Error("SharePoint nie jest skonfigurowany");
     }
-    if (!anthropicKey) {
-      throw new Error("Brak klucza ANTHROPIC_API_KEY w konfiguracji Convex");
+
+    if (ocrProvider === "gemini") {
+      if (!geminiKey) {
+        throw new Error("Brak klucza GEMINI_API_KEY w konfiguracji Convex");
+      }
+    } else {
+      if (!anthropicKey) {
+        throw new Error("Brak klucza ANTHROPIC_API_KEY w konfiguracji Convex");
+      }
     }
 
     const token = await getGraphToken(tenantId, clientId, clientSecret);
@@ -897,108 +906,153 @@ Zwróć TYLKO czysty JSON (bez znaczników markdown, bez \`\`\`json), w tej stru
 
 Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieściły się w powyższych polach (np. warunki płatności, terminy realizacji, gwarancja, certyfikaty, warunki handlowe itp.).`;
 
-    let anthropicRes: Response | null = null;
-    let lastErrorText = "";
+    let rawText = "";
 
-    async function tryModel(modelName: string): Promise<Response> {
-      return await fetch("https://api.anthropic.com/v1/messages", {
+    if (ocrProvider === "gemini") {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+      const geminiRes = await fetch(url, {
         method: "POST",
         headers: {
-          "x-api-key": anthropicKey!,
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "pdfs-2024-09-25",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: modelName,
-          max_tokens: 4096,
-          messages: [
+          contents: [
             {
-              role: "user",
-              content: [
+              parts: [
                 {
-                  type: "document",
-                  source: {
-                    type: "base64",
-                    media_type: "application/pdf",
+                  inlineData: {
+                    mimeType: "application/pdf",
                     data: base64,
                   },
                 },
                 {
-                  type: "text",
                   text: promptText,
                 },
               ],
             },
           ],
+          generationConfig: {
+            responseMimeType: "application/json",
+          },
         }),
       });
-    }
 
-    for (const model of modelsToTry) {
-      const res = await tryModel(model);
-      if (res.ok) {
-        anthropicRes = res;
-        break;
-      } else {
-        const text = await res.text();
-        lastErrorText = text;
-        if (res.status === 404 || text.includes("not_found_error")) {
-          console.warn(`Model ${model} niedostępny, próbuję kolejny...`);
-          continue;
-        }
-        throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 250)}`);
+      if (!geminiRes.ok) {
+        throw new Error(`Błąd API Gemini (${geminiRes.status}): ${await geminiRes.text()}`);
       }
-    }
 
-    // If all standard models returned 404, check available models dynamically from Anthropic API
-    if (!anthropicRes || !anthropicRes.ok) {
-      const modelsListRes = await fetch("https://api.anthropic.com/v1/models", {
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-        },
-      });
+      const geminiData = (await geminiRes.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string }>;
+          };
+        }>;
+      };
 
-      let availableModelsInfo = "";
-      if (modelsListRes.ok) {
-        const modelsJson = (await modelsListRes.json()) as { data?: Array<{ id: string }> };
-        const availableIds = (modelsJson.data ?? []).map((m) => m.id);
-        if (availableIds.length > 0) {
-          // Try the first available model that hasn't been tried yet
-          for (const dynModel of availableIds) {
-            if (modelsToTry.includes(dynModel)) continue;
-            const res = await tryModel(dynModel);
-            if (res.ok) {
-              anthropicRes = res;
-              break;
-            } else {
-              lastErrorText = await res.text();
-            }
+      rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    } else {
+      let anthropicRes: Response | null = null;
+      let lastErrorText = "";
+
+      async function tryModel(modelName: string): Promise<Response> {
+        return await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": anthropicKey!,
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "pdfs-2024-09-25",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: modelName,
+            max_tokens: 4096,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "document",
+                    source: {
+                      type: "base64",
+                      media_type: "application/pdf",
+                      data: base64,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: promptText,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+
+      for (const model of modelsToTry) {
+        const res = await tryModel(model);
+        if (res.ok) {
+          anthropicRes = res;
+          break;
+        } else {
+          const text = await res.text();
+          lastErrorText = text;
+          if (res.status === 404 || text.includes("not_found_error")) {
+            console.warn(`Model ${model} niedostępny, próbuję kolejny...`);
+            continue;
           }
-          if (!anthropicRes || !anthropicRes.ok) {
-            availableModelsInfo = `Dostępne modele dla tego klucza w API to: [${availableIds.join(", ")}].`;
+          throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 250)}`);
+        }
+      }
+
+      // If all standard models returned 404, check available models dynamically from Anthropic API
+      if (!anthropicRes || !anthropicRes.ok) {
+        const modelsListRes = await fetch("https://api.anthropic.com/v1/models", {
+          headers: {
+            "x-api-key": anthropicKey!,
+            "anthropic-version": "2023-06-01",
+          },
+        });
+
+        let availableModelsInfo = "";
+        if (modelsListRes.ok) {
+          const modelsJson = (await modelsListRes.json()) as { data?: Array<{ id: string }> };
+          const availableIds = (modelsJson.data ?? []).map((m) => m.id);
+          if (availableIds.length > 0) {
+            // Try the first available model that hasn't been tried yet
+            for (const dynModel of availableIds) {
+              if (modelsToTry.includes(dynModel)) continue;
+              const res = await tryModel(dynModel);
+              if (res.ok) {
+                anthropicRes = res;
+                break;
+              } else {
+                lastErrorText = await res.text();
+              }
+            }
+            if (!anthropicRes || !anthropicRes.ok) {
+              availableModelsInfo = `Dostępne modele dla tego klucza w API to: [${availableIds.join(", ")}].`;
+            }
+          } else {
+            availableModelsInfo = "API Anthropic zwróciło 0 dostępnych modeli dla Twojego klucza API.";
           }
         } else {
-          availableModelsInfo = "API Anthropic zwróciło 0 dostępnych modeli dla Twojego klucza API.";
+          availableModelsInfo = `Nie udało się pobrać listy modeli (${modelsListRes.status}): ${await modelsListRes.text()}`;
         }
-      } else {
-        availableModelsInfo = `Nie udało się pobrać listy modeli (${modelsListRes.status}): ${await modelsListRes.text()}`;
+
+        if (!anthropicRes || !anthropicRes.ok) {
+          throw new Error(
+            `Klucz API Anthropic nie ma dostępu do modeli lub konto nie ma aktywnych środków (Credits/Billing). ${availableModelsInfo} Ostatni błąd API: ${lastErrorText.slice(0, 200)}`
+          );
+        }
       }
 
-      if (!anthropicRes || !anthropicRes.ok) {
-        throw new Error(
-          `Klucz API Anthropic nie ma dostępu do modeli lub konto nie ma aktywnych środków (Credits/Billing). ${availableModelsInfo} Ostatni błąd API: ${lastErrorText.slice(0, 200)}`
-        );
-      }
+      const anthropicData = (await anthropicRes.json()) as {
+        content: Array<{ type: string; text: string }>;
+      };
+
+      rawText = anthropicData.content.find((c) => c.type === "text")?.text ?? "";
     }
-
-    const anthropicData = (await anthropicRes.json()) as {
-      content: Array<{ type: string; text: string }>;
-    };
-
-    const rawText =
-      anthropicData.content.find((c) => c.type === "text")?.text ?? "";
 
     function cleanAndParseJson(raw: string): any {
       try {

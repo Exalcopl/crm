@@ -491,4 +491,9 @@ export default defineSchema({
     year: v.number(),
     seq: v.number(),
   }).index("by_year", ["year"]),
+
+  systemSettings: defineTable({
+    key: v.string(),
+    value: v.any(),
+  }).index("by_key", ["key"]),
 });
