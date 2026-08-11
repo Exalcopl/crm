@@ -12,7 +12,7 @@ import "../panel.css";
 import { usePermissions } from "../../_lib/permissions";
 
 export default function ArchivedTasksPage() {
-  const users = useQuery(api.users.list);
+  const users = useQuery(api.users.list, {});
   const tasks = useQuery(api.tasks.listArchived);
   const { user: currentUser, isLoading } = usePermissions();
 
