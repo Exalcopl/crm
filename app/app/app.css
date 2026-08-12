@@ -1132,3 +1132,97 @@ input[type="date"].mobile-sheet-input::-webkit-calendar-picker-indicator {
 .mobile-toast--error svg {
   color: #ef4444;
 }
+
+/* ── PWA Install Modal ──────────────────────────────────────────────────── */
+
+.pwa-install-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 16px;
+  z-index: 9999;
+  pointer-events: none; /* Pozwala klikać to co jest pod overlayem */
+  display: flex;
+  justify-content: center;
+}
+
+.pwa-install-modal {
+  pointer-events: auto; /* Aktywuje kliknięcia wewnątrz modala */
+  background: var(--bg-elevated, #1e293b);
+  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  border-radius: 16px;
+  padding: 16px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.pwa-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.pwa-modal-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pwa-app-icon {
+  border-radius: 12px;
+  border: 1px solid var(--border-default, rgba(255,255,255,0.1));
+}
+
+.pwa-modal-text h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+}
+
+.pwa-modal-text p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary, #cbd5e1);
+  line-height: 1.4;
+}
+
+.pwa-install-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  background: #d41d3c;
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.pwa-install-btn:active {
+  opacity: 0.8;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
