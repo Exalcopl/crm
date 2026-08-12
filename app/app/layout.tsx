@@ -7,7 +7,6 @@ import { InstallPWAModal } from "./InstallPWAModal";
 export const metadata: Metadata = {
   title: "Exalco Tasks",
   description: "Mobilna aplikacja do zarządzania zadaniami Exalco CRM",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
