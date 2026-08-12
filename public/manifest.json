@@ -4,7 +4,7 @@
   "description": "Exalco CRM Mobile Task Manager",
   "id": "/app",
   "start_url": "/app",
-  "scope": "/app",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0b0f19",
