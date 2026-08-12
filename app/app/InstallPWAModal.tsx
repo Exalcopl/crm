@@ -27,19 +27,15 @@ export function InstallPWAModal() {
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(isIosDevice);
 
-    if (isIosDevice) {
-      // iOS nie obsługuje beforeinstallprompt, po prostu pokazujemy instrukcję
-      // Opóźniamy lekko pokazanie modalu, by nie wyskakiwał agresywnie
-      const timer = setTimeout(() => setShowModal(true), 2000);
-      return () => clearTimeout(timer);
-    }
+    // Pokazujemy modal zawsze po 2 sekundach (dla iOS oraz jako fallback dla Androida)
+    const timer = setTimeout(() => setShowModal(true), 2500);
 
     // Przechwycenie eventu instalacji w Android/Chrome
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setIsInstallPromptSupported(true);
-      setShowModal(true);
+      setShowModal(true); // wymuś pokazanie od razu jeśli event nadejdzie szybciej
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -75,12 +71,14 @@ export function InstallPWAModal() {
         </button>
         <div className="pwa-modal-body">
           <Image src="/icon-192.png" alt="App Icon" width={56} height={56} className="pwa-app-icon" />
-          <div className="pwa-modal-text">
+        <div className="pwa-modal-text">
             <h3>Zainstaluj Zadania Exalco</h3>
             <p>
               {isIOS
                 ? "Aby używać jako natywnej aplikacji, dotknij ikony 'Udostępnij' i wybierz 'Do ekranu początkowego'."
-                : "Zainstaluj aplikację na ekranie głównym telefonu dla pełnego komfortu i pracy w trybie pełnoekranowym."}
+                : isInstallPromptSupported
+                ? "Zainstaluj aplikację na ekranie głównym telefonu dla pełnego komfortu i pracy w trybie pełnoekranowym."
+                : "Kliknij ikonę menu (trzy kropki) w prawym górnym rogu przeglądarki i wybierz 'Dodaj do ekranu głównego'."}
             </p>
           </div>
         </div>
