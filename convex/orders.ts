@@ -604,32 +604,37 @@ export const createFromPartnerApi = internalMutation({
     clientPhone: v.optional(v.string()),
     projectType: v.array(v.string()),
     valueNetto: v.number(),
-    vatRate: v.number(),
+    margin: v.number(),
   },
   handler: async (ctx, args): Promise<{ orderId: Id<"orders">; orderNumber: string }> => {
     const createdAt = Date.now();
     const orderNumber = await generateCode(ctx as any, args.projectType, createdAt);
 
-    const valueVat = Math.round(args.valueNetto * (args.vatRate / 100) * 100) / 100;
-    const valueBrutto = Math.round((args.valueNetto + valueVat) * 100) / 100;
+    // Oblicz wartość netto uwzględniając marżę partnera
+    const finalValueNetto = Math.round(args.valueNetto * (1 + args.margin / 100) * 100) / 100;
+    
+    // Zlecenia z API mają standardową stawkę VAT 23%
+    const vatRate = 23;
+    const valueVat = Math.round(finalValueNetto * (vatRate / 100) * 100) / 100;
+    const valueBrutto = Math.round((finalValueNetto + valueVat) * 100) / 100;
 
     const orderId: Id<"orders"> = await ctx.db.insert("orders", {
       orderNumber,
       status: "nowe",
       clientId: args.clientId,
       projectType: args.projectType,
-      valueNetto: args.valueNetto,
+      valueNetto: finalValueNetto,
       valueVat,
       valueBrutto,
-      vatRate: args.vatRate,
+      vatRate,
       items: [
         {
           lp: 1,
           description: "Konstrukcje aluminiowe",
           quantity: 1,
           unit: "kpl",
-          priceNetto: args.valueNetto,
-          valueNetto: args.valueNetto,
+          priceNetto: finalValueNetto,
+          valueNetto: finalValueNetto,
         },
       ],
       clientName: args.clientName,
@@ -651,7 +656,7 @@ export const createFromPartnerApi = internalMutation({
       orderId,
       type: "order_created",
       title: "Zlecenie utworzone przez API Partnera",
-      detail: `Partner ID: ${args.partnerId} | Wartość: ${args.valueNetto.toLocaleString("pl-PL")} PLN netto`,
+      detail: `Partner ID: ${args.partnerId} | Marża: ${args.margin}% | Wartość końcowa: ${finalValueNetto.toLocaleString("pl-PL")} PLN netto`,
       authorId: "system" as any,
       authorName: "API Partner",
       createdAt,

@@ -614,7 +614,7 @@ export default defineSchema({
     clientId: v.id("clients"),          // Powiązany klient CRM
     clientName: v.string(),             // Denormalizacja – do wyświetlania
     projectType: v.array(v.string()),   // Typ projektu, np. ["Standard"]
-    vatRate: v.number(),                // Stawka VAT (domyślnie 23)
+    margin: v.number(),                 // Marża dla partnera w % (np. 10 dla 10%)
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

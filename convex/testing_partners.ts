@@ -43,7 +43,7 @@ export const testPartnerApi = mutation({
       clientId,
       clientName: "Klient Partnera Test",
       projectType: ["Standard"],
-      vatRate: 23,
+      margin: 10,
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -74,21 +74,22 @@ export const testPartnerApi = mutation({
     // 5. Tworzenie zlecenia przez API Partnera
     const createdAt = Date.now();
     const orderNumber = await generateCode(ctx as any, foundPartner.projectType, createdAt);
-    const valueNetto = 8500;
+    const apiValueNetto = 8500;
+    const expectedValueNetto = Math.round(apiValueNetto * (1 + foundPartner.margin / 100) * 100) / 100;
     const vatRate = 23;
-    const valueVat = Math.round(valueNetto * (vatRate / 100) * 100) / 100;
-    const valueBrutto = Math.round((valueNetto + valueVat) * 100) / 100;
+    const valueVat = Math.round(expectedValueNetto * (vatRate / 100) * 100) / 100;
+    const valueBrutto = Math.round((expectedValueNetto + valueVat) * 100) / 100;
 
     const orderId: Id<"orders"> = await ctx.db.insert("orders", {
       orderNumber,
       status: "nowe",
       clientId: foundPartner.clientId,
       projectType: foundPartner.projectType,
-      valueNetto,
+      valueNetto: expectedValueNetto,
       valueVat,
       valueBrutto,
       vatRate,
-      items: [{ lp: 1, description: "Konstrukcje aluminiowe", quantity: 1, unit: "kpl", priceNetto: valueNetto, valueNetto }],
+      items: [{ lp: 1, description: "Konstrukcje aluminiowe", quantity: 1, unit: "kpl", priceNetto: expectedValueNetto, valueNetto: expectedValueNetto }],
       clientName: foundPartner.clientName,
       createdAt,
       sharepoint: { status: "pending", attempts: 0, lastTriedAt: 0 },
@@ -98,9 +99,9 @@ export const testPartnerApi = mutation({
     const order = await ctx.db.get(orderId);
     if (!order) throw new Error("FAIL: Zlecenie nie zostało zapisane");
     if (order.status !== "nowe") throw new Error(`FAIL: Zły status: ${order.status}`);
-    if (order.valueNetto !== valueNetto) throw new Error(`FAIL: Zła wartość netto: ${order.valueNetto}`);
+    if (order.valueNetto !== expectedValueNetto) throw new Error(`FAIL: Zła wartość netto: ${order.valueNetto}`);
     if (order.valueBrutto !== valueBrutto) throw new Error(`FAIL: Zła wartość brutto: ${order.valueBrutto}`);
-    console.log(`[test-partner] ✓ Zlecenie: ${orderNumber} | netto=${valueNetto} | brutto=${valueBrutto}`);
+    console.log(`[test-partner] ✓ Zlecenie: ${orderNumber} | netto=${expectedValueNetto} | brutto=${valueBrutto}`);
 
     // 7. Cleanup
     await ctx.db.delete(orderId);
@@ -110,7 +111,7 @@ export const testPartnerApi = mutation({
     return {
       status: "SUCCESS",
       orderNumber,
-      valueNetto,
+      valueNetto: expectedValueNetto,
       valueVat,
       valueBrutto,
       clientId,

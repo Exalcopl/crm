@@ -61,7 +61,7 @@ export const create = mutation({
     clientId: v.id("clients"),
     clientName: v.string(),
     projectType: v.array(v.string()),
-    vatRate: v.optional(v.number()),
+    margin: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -79,7 +79,7 @@ export const create = mutation({
       clientId: args.clientId,
       clientName: args.clientName,
       projectType: args.projectType,
-      vatRate: args.vatRate ?? 23,
+      margin: args.margin ?? 0,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -98,7 +98,7 @@ export const update = mutation({
     clientId: v.optional(v.id("clients")),
     clientName: v.optional(v.string()),
     projectType: v.optional(v.array(v.string())),
-    vatRate: v.optional(v.number()),
+    margin: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {

@@ -445,7 +445,7 @@ http.route({
         clientPhone: client.phoneRaw,
         projectType: partner.projectType,
         valueNetto,
-        vatRate: partner.vatRate,
+        margin: partner.margin,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Błąd wewnętrzny serwera.";

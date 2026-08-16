@@ -80,18 +80,19 @@ function PartnerForm({
     clientId: Id<"clients">;
     clientName: string;
     projectType: string[];
-    vatRate: number;
+    margin: number;
   };
   onSave: (data: any) => Promise<void>;
   onCancel: () => void;
 }) {
   const clients = useQuery(api.clients.list, {}) ?? [];
+  const projectTypes = useQuery(api.projectTypes.listActive) ?? [];
 
   const [form, setForm] = useState({
     name: initial?.name ?? "",
     clientId: initial?.clientId ?? ("" as any),
-    projectType: initial?.projectType.join(", ") ?? "Standard",
-    vatRate: initial?.vatRate ?? 23,
+    projectType: initial?.projectType[0] ?? "",
+    margin: initial?.margin ?? 0,
   });
   const [busy, setBusy] = useState(false);
 
@@ -100,17 +101,17 @@ function PartnerForm({
   async function handleSave() {
     if (!form.name.trim()) { toast.error("Podaj nazwę Partnera"); return; }
     if (!form.clientId) { toast.error("Wybierz klienta CRM"); return; }
-    if (!form.projectType.trim()) { toast.error("Podaj typ projektu"); return; }
+    if (!form.projectType) { toast.error("Wybierz typ projektu"); return; }
 
     setBusy(true);
     try {
-      const projectType = form.projectType.split(",").map((s) => s.trim()).filter(Boolean);
+      const projectType = [form.projectType];
       await onSave({
         name: form.name.trim(),
         clientId: form.clientId,
         clientName: selectedClient?.name ?? form.name,
         projectType,
-        vatRate: form.vatRate,
+        margin: form.margin,
       });
     } finally {
       setBusy(false);
@@ -147,14 +148,36 @@ function PartnerForm({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12 }}>
         <label style={{ fontSize: 12, color: "#8b949e", display: "flex", flexDirection: "column", gap: 4 }}>
-          Typ projektu * <span style={{ fontSize: 11 }}>(oddziel przecinkami jeśli wiele)</span>
-          <input type="text" value={form.projectType} onChange={(e) => setForm({ ...form, projectType: e.target.value })} style={inputStyle} disabled={busy} placeholder="np. Standard" />
+          Typ projektu *
+          <select
+            value={form.projectType}
+            onChange={(e) => setForm({ ...form, projectType: e.target.value })}
+            style={inputStyle}
+            disabled={busy}
+          >
+            <option value="">— Wybierz typ projektu —</option>
+            {projectTypes.map((pt) => (
+              <option key={pt._id} value={pt.name}>{pt.name}</option>
+            ))}
+          </select>
+          {projectTypes.length === 0 && (
+            <span style={{ fontSize: 11, color: "#f85149", marginTop: 2 }}>
+              Brak aktywnych typów projektów. Dodaj je w Konfigurator → Typy projektów.
+            </span>
+          )}
         </label>
         <label style={{ fontSize: 12, color: "#8b949e", display: "flex", flexDirection: "column", gap: 4 }}>
-          Stawka VAT *
-          <select value={form.vatRate} onChange={(e) => setForm({ ...form, vatRate: parseInt(e.target.value) })} style={inputStyle} disabled={busy}>
-            {VAT_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
-          </select>
+          Marża (%) *
+          <input
+            type="number"
+            min="0"
+            step="0.1"
+            value={form.margin}
+            onChange={(e) => setForm({ ...form, margin: parseFloat(e.target.value) || 0 })}
+            style={inputStyle}
+            disabled={busy}
+            placeholder="np. 10"
+          />
         </label>
       </div>
 
@@ -294,7 +317,7 @@ export default function PartnerzyPage() {
                 clientId: editingPartner.clientId,
                 clientName: editingPartner.clientName,
                 projectType: editingPartner.projectType,
-                vatRate: editingPartner.vatRate,
+                margin: editingPartner.margin,
               } : undefined}
               onSave={editId ? handleUpdate : handleCreate}
               onCancel={() => { setShowForm(false); setEditId(null); }}
@@ -356,7 +379,7 @@ export default function PartnerzyPage() {
                       📁 {partner.projectType.join(", ")}
                     </span>
                     <span style={{ fontSize: 12, color: "#8b949e" }}>
-                      VAT: {partner.vatRate}%
+                      📈 Marża: {partner.margin}%
                     </span>
                     {partner.ordersCount !== undefined && partner.ordersCount > 0 && (
                       <span style={{ fontSize: 12, color: "#8b949e" }}>
