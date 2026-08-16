@@ -101,12 +101,14 @@ export function getProjectTypeStyle(
 }
 
 
-export function formatDeadline(iso: string): string {
+export function formatDeadline(iso?: string): string {
+  if (!iso) return "—";
   const d = new Date(iso);
   return d.toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export function deadlineTone(iso: string): "overdue" | "soon" | "ok" {
+export function deadlineTone(iso?: string): "overdue" | "soon" | "ok" {
+  if (!iso) return "ok";
   const d = new Date(iso);
   const diff = Math.round((d.getTime() - new Date().getTime()) / 86_400_000);
   if (diff < 0) return "overdue";

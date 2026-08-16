@@ -20,10 +20,11 @@ import {
   type Quote,
 } from "../../_lib/quotes";
 
-type OrderStatus = "nowe" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
+type OrderStatus = "nowe" | "akceptacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   nowe: { label: "Nowe", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
+  akceptacja: { label: "Akceptacja", color: "#8250df", bg: "rgba(130, 80, 223, 0.15)" },
   produkcja: { label: "W produkcji", color: "#d41d3c", bg: "rgba(212, 29, 60, 0.15)" },
   montaz: { label: "Do montażu", color: "#d29922", bg: "rgba(210, 153, 34, 0.15)" },
   gotowe: { label: "Zrealizowane", color: "#3fb950", bg: "rgba(63, 185, 80, 0.15)" },
@@ -420,7 +421,8 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
     }
   }
 
-  const investmentLabel = quote?.investment?.name || quote?.investment?.address || "Ustaw lokalizację";
+  const investmentLabel = quote?.investment?.name || quote?.investment?.address || order.investment?.address || "Ustaw lokalizację";
+  const pTypes = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
 
   return (
     <div className="quote-detail-header">
@@ -435,16 +437,17 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
               <span className="quote-detail-id-icon" aria-hidden>{copied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}</span>
             </button>
             <OrderClientStrip order={order} quote={quote ?? null} />
-            {quote && (
-              <button type="button" className="quote-detail-investment-trigger" onClick={() => setIsInvestmentOpen(true)}
-                title="Pokaż lokalizację inwestycji" aria-label="Lokalizacja inwestycji">
+            {(quote || order.investment?.address) && (
+              <button type="button" className="quote-detail-investment-trigger" onClick={() => { if(quote) setIsInvestmentOpen(true); }}
+                title="Pokaż lokalizację inwestycji" aria-label="Lokalizacja inwestycji"
+                style={{ cursor: quote ? "pointer" : "default" }}>
                 <span className="quote-detail-investment-trigger-icon"><I.pin s={14} sw={2} /></span>
                 <span className="quote-detail-investment-trigger-value">{investmentLabel}</span>
               </button>
             )}
-            {quote && quote.projectType.length > 0 && (
+            {pTypes.length > 0 && (
               <div className="quote-detail-hero-types">
-                {quote.projectType.map((t) => {
+                {pTypes.map((t) => {
                   const s = getProjectTypeStyle(projectTypes, t);
                   return (
                     <span key={t} className="kanban-chip kanban-chip-type" style={{ background: s.bg, color: s.fg, borderColor: s.border }}>
@@ -697,12 +700,12 @@ export default function OrderDetailPage({
 
   const quote = useQuery(
     api.quotes.get,
-    order ? { id: order.quoteId } : "skip"
+    order && order.quoteId ? { id: order.quoteId } : "skip"
   );
 
   const activities = useQuery(
     api.quoteActivity.list,
-    order ? { quoteId: order.quoteId } : "skip"
+    order && order.quoteId ? { quoteId: order.quoteId } : "skip"
   ) ?? [];
 
   const [updating, setUpdating] = useState(false);
@@ -784,30 +787,40 @@ export default function OrderDetailPage({
           updating={updating}
         />
 
-        {/* Two column layout */}
-        <div className="order-details-columns">
-          {/* Main Area */}
-          <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Grid 4-kolumnowy (taki sam jak wycena) */}
+        <div className="quote-detail-grid-customizable">
+          {/* Kolumna 1: Terminy + Historia */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="quote-widget-item">
+              <OrderDeadlines orderId={orderId} />
+            </div>
             
+            {/* Historia i Aktywność została przeniesiona do kolumny 4 */}
+          </div>
 
-
-            {/* Terminy (wydarzenia kalendarza) */}
-            <OrderDeadlines orderId={orderId} />
-
-            {/* Order Items Table */}
+          {/* Kolumny 2-3: Notatki + Pozycje */}
+          <div className="quote-widget-item quote-widget-span-2" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="cal-card">
+              <div className="cal-card-title">Notatki</div>
+              <OrderSimpleNotes orderId={orderId} initialNotes={order.notes || ""} />
+            </div>
+            
             <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
               <div style={{ padding: "16px 16px 8px", fontSize: 12, fontWeight: 600, color: "#8b949e", textTransform: "uppercase" }}>
                 Pozycje zlecenia
               </div>
-              <table className="qvm-items-table">
+              {(() => {
+                const hasItemPrices = order.items.some((row) => (row.priceNetto != null && row.priceNetto !== 0) || (row.valueNetto != null && row.valueNetto !== 0));
+                return (
+                  <table className="qvm-items-table">
                 <thead>
                   <tr>
                     <th className="qvm-th">Lp.</th>
                     <th className="qvm-th">Opis</th>
                     <th className="qvm-th">Ilość</th>
                     <th className="qvm-th">Jedn.</th>
-                    <th className="qvm-th">Cena netto</th>
-                    <th className="qvm-th">Wartość netto</th>
+                    {hasItemPrices && <th className="qvm-th">Cena netto</th>}
+                    {hasItemPrices && <th className="qvm-th">Wartość netto</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -817,12 +830,14 @@ export default function OrderDetailPage({
                       <td className="qvm-td">{row.description}</td>
                       <td className="qvm-td">{row.quantity ?? "—"}</td>
                       <td className="qvm-td">{row.unit ?? "—"}</td>
-                      <td className="qvm-td">{row.priceNetto != null ? formatCurrency(row.priceNetto) : "—"}</td>
-                      <td className="qvm-td">{row.valueNetto != null ? formatCurrency(row.valueNetto) : "—"}</td>
+                      {hasItemPrices && <td className="qvm-td">{(row.priceNetto != null && row.priceNetto !== 0) ? formatCurrency(row.priceNetto) : "—"}</td>}
+                      {hasItemPrices && <td className="qvm-td">{(row.valueNetto != null && row.valueNetto !== 0) ? formatCurrency(row.valueNetto) : "—"}</td>}
                     </tr>
                   ))}
                 </tbody>
               </table>
+              );
+              })()}
               <div style={{ padding: 16, background: "#161b22", borderTop: "1px solid #30363d", display: "flex", justifyContent: "flex-end", gap: 24, fontSize: 13 }}>
                 <div>Netto: <strong>{formatCurrency(order.valueNetto)}</strong></div>
                 <div>VAT ({order.vatRate}%): <strong>{formatCurrency(order.valueVat)}</strong></div>
@@ -831,36 +846,29 @@ export default function OrderDetailPage({
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* Kolumna 4: Pliki + Historia */}
+          <div className="quote-widget-item quote-widget-span-1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {quote && (
               <QuoteFileBrowser quote={quote} archived={false} />
             )}
-
-            {/* Notes Section */}
-            <div className="cal-card">
-              <div className="cal-card-title">Notatki</div>
-              <OrderSimpleNotes orderId={orderId} initialNotes={order.notes || ""} />
-            </div>
-
-            {/* History / Activity Log */}
+            
             <CollapsibleSection title="Historia i Aktywność" icon={<I.clock s={14} />}>
               <div className="order-activities-list">
                 {activities.length === 0 ? (
                   <div style={{ color: "#8b949e", fontSize: 12, textAlign: "center", padding: "12px 0" }}>
-                    Brak aktywności do wyświetlenia.
+                    Brak wpisów w historii
                   </div>
                 ) : (
-                  activities.map((act) => (
-                    <div key={act._id} className="order-activity-item">
-                      <div className="order-activity-header">
-                        <span className="order-activity-author">{act.authorName}</span>
-                        <span className="order-activity-time">{formatDate(act.createdAt)}</span>
-                      </div>
-                      <div className="order-activity-title">{act.title}</div>
-                      {act.detail && <div className="order-activity-detail">{act.detail}</div>}
+                activities.map((act: any) => (
+                  <div key={act._id} className="order-activity-item">
+                    <div className="order-activity-header">
+                      <span className="order-activity-author">{act.authorName}</span>
+                      <span className="order-activity-time">{formatDate(act.createdAt)}</span>
                     </div>
-                  ))
+                    <div className="order-activity-title">{act.title}</div>
+                    {act.detail && <div className="order-activity-detail">{act.detail}</div>}
+                  </div>
+                ))
                 )}
               </div>
             </CollapsibleSection>

@@ -1474,6 +1474,119 @@ export const createFolderForQuote = internalAction({
   },
 });
 
+export const createFolderForOrder = internalAction({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    const driveId = process.env.MS_GRAPH_DRIVE_ID;
+    const parentPath = process.env.SHAREPOINT_PARENT_PATH ?? "Klienci";
+
+    if (!tenantId || !clientId || !clientSecret || !driveId) {
+      console.warn(
+        "[sharepoint] Brak konfiguracji env — pomijam tworzenie folderu dla zlecenia",
+      );
+      return;
+    }
+
+    const order = (await ctx.runQuery(internal.orders._getInternal, { orderId })) as {
+      _id: Id<"orders">;
+      orderNumber: string;
+      clientName: string;
+      clientId?: Id<"clients">;
+      createdAt: number;
+    } | null;
+
+    if (!order) {
+      console.warn(`[sharepoint] Zlecenie ${orderId} nie istnieje — pomijam`);
+      return;
+    }
+
+    let lastError = "";
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        if (attempt > 1) {
+          await new Promise((r) => setTimeout(r, BACKOFF_MS[attempt - 2]));
+        }
+
+        const token = await getGraphToken(tenantId, clientId, clientSecret);
+
+        let client = null;
+        if (order.clientId) {
+          client = (await ctx.runQuery(api.clients.get, { id: order.clientId })) as {
+            name: string;
+            type?: string;
+            nip?: string;
+          } | null;
+        }
+
+        let clientFolderName;
+        if (client && client.type === "business" && client.nip) {
+          const cleanNip = client.nip.replace(/\D/g, "");
+          clientFolderName = `${sanitizeFolderName(client.name)}_${cleanNip}`;
+        } else {
+          clientFolderName = buildClientFolderName(order.clientName);
+        }
+
+        const { id: clientFolderId, webUrl: clientWebUrl } = await ensureFolder(
+          token,
+          driveId,
+          parentPath,
+          clientFolderName,
+        );
+
+        if (order.clientId) {
+          await ctx.runMutation(internal.clients._attachSharepointFolder, {
+            clientId: order.clientId,
+            itemId: clientFolderId,
+            driveId,
+            webUrl: clientWebUrl,
+          });
+        }
+
+        const orderFolderName = buildQuoteSubfolderName(
+          order.orderNumber,
+          order.createdAt,
+          client && client.type === "business" ? client.name : order.clientName,
+        );
+        const { id: orderFolderId, webUrl: orderWebUrl } = await ensureFolder(
+          token,
+          driveId,
+          `${parentPath}/${clientFolderName}`,
+          orderFolderName,
+        );
+
+        // Tworzymy podfoldery, chociaż może nie potrzebujemy folderu 'Wycena' dla samodzielnego zlecenia. Użyjmy tej samej struktury,
+        // albo pomińmy podfoldery, ale SharePoint UI zależy od wyceny. Przynajmniej podfolder zlecenia jest utworzony.
+        
+        await ctx.runMutation(internal.orders._attachSharepoint, {
+          orderId,
+          parentFolderItemId: clientFolderId,
+          subfolderItemId: orderFolderId,
+          driveId,
+          webUrl: orderWebUrl,
+        });
+
+        console.log(
+          `[sharepoint] Folder zlecenia: ${orderFolderName} → ${orderWebUrl} (próba ${attempt})`,
+        );
+        return;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        console.error(`[sharepoint] Próba ${attempt}/${MAX_ATTEMPTS} nieudana dla zlecenia:`, lastError);
+      }
+    }
+
+    await ctx.runMutation(internal.orders._markSharepointFailed, {
+      orderId,
+      error: lastError,
+      attempts: MAX_ATTEMPTS,
+    });
+  },
+});
+
 // ─── Internal variants for webhook-triggered OCR ──────────────────────────────
 
 // Internal version of listWycenaSubfolderFiles (no auth check)

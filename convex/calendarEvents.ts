@@ -406,16 +406,18 @@ export const createForOrder = mutation({
       createdAt: Date.now(),
     });
 
-    const user = await ctx.db.get(userId);
-    await ctx.db.insert("quoteActivity", {
-      quoteId: order.quoteId,
-      type: "order_event_added",
-      title: "Dodano termin",
-      detail: `${catName ?? args.category}: ${args.date} ${args.startTime}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (order.quoteId) {
+      const user = await ctx.db.get(userId);
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_event_added",
+        title: "Dodano termin",
+        detail: `${catName ?? args.category}: ${args.date} ${args.startTime}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
     return id;
   },
 });
@@ -444,17 +446,19 @@ export const updateForOrder = mutation({
       patch.description = fields.description === null ? undefined : fields.description.trim() || undefined;
     await ctx.db.patch(id, patch);
 
-    const { name: catName } = await categoryMeta(ctx, event.category);
-    const user = await ctx.db.get(userId);
-    await ctx.db.insert("quoteActivity", {
-      quoteId: order.quoteId,
-      type: "order_event_updated",
-      title: "Zmieniono termin",
-      detail: `${catName ?? event.category ?? "termin"}: ${fields.date ?? event.date} ${fields.startTime ?? event.startTime}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (order.quoteId) {
+      const { name: catName } = await categoryMeta(ctx, event.category);
+      const user = await ctx.db.get(userId);
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_event_updated",
+        title: "Zmieniono termin",
+        detail: `${catName ?? event.category ?? "termin"}: ${fields.date ?? event.date} ${fields.startTime ?? event.startTime}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
     return id;
   },
 });
@@ -468,7 +472,7 @@ export const removeForOrder = mutation({
     if (!event) throw new Error("Wydarzenie nie istnieje");
     const order = event.orderId ? await ctx.db.get(event.orderId) : null;
     await ctx.db.delete(id);
-    if (order) {
+    if (order && order.quoteId) {
       const { name: catName } = await categoryMeta(ctx, event.category);
       const user = await ctx.db.get(userId);
       await ctx.db.insert("quoteActivity", {

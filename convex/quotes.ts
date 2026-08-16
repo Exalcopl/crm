@@ -91,7 +91,7 @@ async function createDefaultTasksForQuote(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generateCode(
+export async function generateCode(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ctx: { db: any },
   projectTypeNames: string[],

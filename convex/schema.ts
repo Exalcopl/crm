@@ -449,17 +449,28 @@ export default defineSchema({
     .index("by_quote", ["quoteId"]),
 
   orders: defineTable({
-    quoteId: v.id("quotes"),
+    quoteId: v.optional(v.id("quotes")),
     quoteVersionId: v.optional(v.id("quoteVersions")),
     orderNumber: v.string(), // np. ZL/2026/0001
+    projectType: v.optional(v.array(v.string())),
     status: v.union(
       v.literal("nowe"),
+      v.literal("akceptacja"),
       v.literal("produkcja"),
       v.literal("montaz"),
       v.literal("gotowe"),
       v.literal("wstrzymane")
     ),
     clientId: v.optional(v.id("clients")),
+    investment: v.optional(
+      v.object({
+        address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+        notes: v.optional(v.string()),
+      })
+    ),
     valueNetto: v.number(),
     valueVat: v.number(),
     valueBrutto: v.number(),
@@ -477,9 +488,23 @@ export default defineSchema({
     clientName: v.string(),
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
-    deadline: v.string(), // Termin realizacji w formacie YYYY-MM-DD
+    deadline: v.optional(v.string()), // Termin realizacji w formacie YYYY-MM-DD
+    deliveryDate: v.optional(v.string()), // Data dostawy YYYY-MM-DD
+    acceptanceDate: v.optional(v.string()), // Data akceptacji YYYY-MM-DD
     ownerId: v.optional(v.id("users")),
     notes: v.optional(v.string()),
+    sharepoint: v.optional(
+      v.object({
+        parentFolderItemId: v.optional(v.string()),
+        subfolderItemId: v.optional(v.string()),
+        driveId: v.optional(v.string()),
+        webUrl: v.optional(v.string()),
+        status: v.union(v.literal("pending"), v.literal("created"), v.literal("failed")),
+        error: v.optional(v.string()),
+        attempts: v.number(),
+        lastTriedAt: v.number(),
+      })
+    ),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])

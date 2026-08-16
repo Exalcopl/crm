@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useId } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Id } from "@/convex/_generated/dataModel";
+import type { Id, Doc } from "@/convex/_generated/dataModel";
 import { I } from "../_lib/icons";
 import { RibbonBtn, RibbonGroup, RibbonToggleGroup } from "../_components/ribbon";
 import { toast } from "sonner";
@@ -42,10 +42,11 @@ import {
 } from "../_components/project-type-filter";
 
 type ZleceniaViewMode = "kanban" | "lista";
-type OrderStatus = "nowe" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
+type OrderStatus = "nowe" | "akceptacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   nowe: { label: "Nowe", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
+  akceptacja: { label: "Akceptacja", color: "#8250df", bg: "rgba(130, 80, 223, 0.15)" },
   produkcja: { label: "W produkcji", color: "#d41d3c", bg: "rgba(212, 29, 60, 0.15)" },
   montaz: { label: "Do montażu", color: "#d29922", bg: "rgba(210, 153, 34, 0.15)" },
   gotowe: { label: "Zrealizowane", color: "#3fb950", bg: "rgba(63, 185, 80, 0.15)" },
@@ -67,12 +68,13 @@ function ZleceniaRibbon({
     <div className="fluent-ribbon">
       <RibbonGroup label="Nawigacja">
         <RibbonBtn
-          icon={<I.arrowLeft s={22} />}
-          label="Do wycen"
+          icon={<I.plus s={22} />}
+          label="Nowe zlecenie"
           onClick={() => {
-            window.location.href = "/admin/wyceny";
+            window.location.href = "/admin/zlecenia/nowe";
           }}
         />
+
       </RibbonGroup>
       <RibbonGroup label="Widok">
         <RibbonToggleGroup
@@ -115,17 +117,17 @@ export default function ZleceniaPage() {
     });
   }, [allUsersRaw]);
 
-  const quotesMap = useMemo(() => new Map(quotes.map(q => [q._id, q])), [quotes]);
-  const usersMap = useMemo(() => new Map(allUsersRaw.map(u => [u._id, u.name || u.email || ""])), [allUsersRaw]);
+  const quotesMap = useMemo(() => new Map<Id<"quotes">, Doc<"quotes">>(quotes.map((q: Doc<"quotes">) => [q._id, q])), [quotes]);
+  const usersMap = useMemo(() => new Map<Id<"users">, string>(allUsersRaw.map((u: any) => [u._id, u.name || u.email || ""])), [allUsersRaw]);
 
   const [filter, setFilter] = useState<ProjectTypeFilter>("Wszystkie");
 
   const ordersWithTypes = useMemo(() => {
     return localOrders.map((o) => {
-      const q = quotesMap.get(o.quoteId);
+      const q = o.quoteId ? quotesMap.get(o.quoteId) : undefined;
       return {
         ...o,
-        projectType: q?.projectType || [],
+        projectType: o.projectType || q?.projectType || [],
       };
     });
   }, [localOrders, quotesMap]);
@@ -220,7 +222,7 @@ export default function ZleceniaPage() {
                           <div style={{ fontSize: 11, color: "#8b949e" }}>{order.clientPhone || order.clientEmail}</div>
                         </td>
                         <td className="qvm-td">{formatCurrency(order.valueNetto)}</td>
-                        <td className="qvm-td">{order.deadline}</td>
+                        <td className="qvm-td">{order.deadline ? formatDeadline(order.deadline) : "—"}</td>
                         <td className="qvm-td">
                           <span
                             style={{
@@ -310,6 +312,7 @@ function ZleceniaKanbanBoard({
   const byStatus = useMemo(() => {
     const map: Record<OrderStatus, any[]> = {
       nowe: [],
+      akceptacja: [],
       produkcja: [],
       montaz: [],
       gotowe: [],
@@ -587,7 +590,7 @@ function KanbanCardContent({
   usersMap: Map<string, string>;
 }) {
   const quote = quotesMap.get(order.quoteId);
-  const projectType = quote?.projectType || [];
+  const projectType = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
   const primaryType = projectType[0];
   const primaryStyle = primaryType ? getProjectTypeStyle(projectTypes, primaryType) : null;
   const tone = deadlineTone(order.deadline);

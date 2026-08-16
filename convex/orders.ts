@@ -1,7 +1,20 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import { generateCode } from "./quotes";
+
+const CONTACT_VALUE = v.object({
+  name: v.string(),
+  street: v.optional(v.string()),
+  postalCity: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  email: v.optional(v.string()),
+  nip: v.optional(v.string()),
+  clientType: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+  contactPerson: v.optional(v.string()),
+});
 
 export const list = query({
   args: {},
@@ -90,15 +103,17 @@ export const create = mutation({
     await ctx.db.patch(args.quoteId, { status: "Zrobione" });
 
     // Zapisz aktywność w historii wyceny
-    await ctx.db.insert("quoteActivity", {
-      quoteId: args.quoteId,
-      type: "order_created",
-      title: "Utworzono zlecenie",
-      detail: `Utworzono zlecenie o numerze ${orderNumber}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (args.quoteId) {
+      await ctx.db.insert("quoteActivity", {
+        quoteId: args.quoteId,
+        type: "order_created",
+        title: "Utworzono zlecenie",
+        detail: `Utworzono zlecenie o numerze ${orderNumber}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
 
     return orderId;
   },
@@ -109,6 +124,7 @@ export const updateStatus = mutation({
     id: v.id("orders"),
     status: v.union(
       v.literal("nowe"),
+      v.literal("akceptacja"),
       v.literal("produkcja"),
       v.literal("montaz"),
       v.literal("gotowe"),
@@ -134,15 +150,17 @@ export const updateStatus = mutation({
       wstrzymane: "Wstrzymane",
     };
 
-    await ctx.db.insert("quoteActivity", {
-      quoteId: order.quoteId,
-      type: "order_status_updated",
-      title: "Zmiana statusu zlecenia",
-      detail: `Zmieniono status zlecenia ${order.orderNumber} na: ${statusLabels[args.status]}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (order.quoteId) {
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_status_updated",
+        title: "Zmiana statusu zlecenia",
+        detail: `Zmieniono status zlecenia ${order.orderNumber} na: ${statusLabels[args.status]}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
 
     return args.id;
   },
@@ -181,15 +199,17 @@ export const setOwner = mutation({
 
     const user = await ctx.db.get(userId);
     const newOwner = ownerId ? await ctx.db.get(ownerId) : null;
-    await ctx.db.insert("quoteActivity", {
-      quoteId: order.quoteId,
-      type: "order_owner_updated",
-      title: "Zmiana opiekuna zlecenia",
-      detail: `Opiekun zlecenia ${order.orderNumber}: ${newOwner?.name ?? "brak"}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (order.quoteId) {
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_owner_updated",
+        title: "Zmiana opiekuna zlecenia",
+        detail: `Opiekun zlecenia ${order.orderNumber}: ${newOwner?.name ?? "brak"}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
     return id;
   },
 });
@@ -216,15 +236,139 @@ export const updateValueNetto = mutation({
 
     const fmt = (v: number) => `${v.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN`;
     const user = await ctx.db.get(userId);
-    await ctx.db.insert("quoteActivity", {
-      quoteId: order.quoteId,
-      type: "order_value_updated",
-      title: "Wartość zlecenia zaktualizowana",
-      detail: `Wartość netto zlecenia ${order.orderNumber}: ${fmt(order.valueNetto)} → ${fmt(netto)}`,
-      authorId: userId,
-      authorName: user?.name || "System",
-      createdAt: Date.now(),
-    });
+    if (order.quoteId) {
+      await ctx.db.insert("quoteActivity", {
+        quoteId: order.quoteId,
+        type: "order_value_updated",
+        title: "Wartość zlecenia zaktualizowana",
+        detail: `Wartość netto zlecenia ${order.orderNumber}: ${fmt(order.valueNetto)} → ${fmt(netto)}`,
+        authorId: userId,
+        authorName: user?.name || "System",
+        createdAt: Date.now(),
+      });
+    }
     return id;
+  },
+});
+
+export const createStandalone = mutation({
+  args: {
+    contact: CONTACT_VALUE,
+    projectType: v.array(v.string()),
+    investment: v.optional(
+      v.object({
+        address: v.optional(v.string()),
+        placeId: v.optional(v.string()),
+        lat: v.optional(v.number()),
+        lng: v.optional(v.number()),
+        notes: v.optional(v.string()),
+      }),
+    ),
+    deadline: v.optional(v.string()),
+    deliveryDate: v.optional(v.string()),
+    acceptanceDate: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        lp: v.number(),
+        description: v.string(),
+        quantity: v.union(v.number(), v.null()),
+        unit: v.optional(v.string()),
+        priceNetto: v.union(v.number(), v.null()),
+        valueNetto: v.union(v.number(), v.null()),
+      })
+    ),
+    valueNetto: v.number(),
+    valueVat: v.number(),
+    valueBrutto: v.number(),
+    vatRate: v.number(),
+  },
+  handler: async (ctx, args): Promise<Id<"orders">> => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const createdAt = Date.now();
+    const orderNumber = await generateCode(ctx as any, args.projectType, createdAt);
+    const clientId: Id<"clients"> = await ctx.runMutation(internal.clients.getOrCreate, {
+      contact: args.contact,
+    });
+
+    const orderId: Id<"orders"> = await ctx.db.insert("orders", {
+      orderNumber,
+      status: "nowe",
+      clientId,
+      projectType: args.projectType,
+      investment: args.investment,
+      valueNetto: args.valueNetto,
+      valueVat: args.valueVat,
+      valueBrutto: args.valueBrutto,
+      vatRate: args.vatRate,
+      items: args.items,
+      clientName: args.contact.name,
+      clientEmail: args.contact.email,
+      clientPhone: args.contact.phone,
+      deadline: args.deadline,
+      deliveryDate: args.deliveryDate,
+      acceptanceDate: args.acceptanceDate,
+      ownerId: userId,
+      createdAt,
+      sharepoint: {
+        status: "pending",
+        attempts: 0,
+        lastTriedAt: 0,
+      }
+    });
+
+    // Uruchomienie schedulera do tworzenia folderu SharePoint dla zlecenia
+    await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
+
+    return orderId;
+  },
+});
+
+export const _getInternal = internalQuery({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.orderId);
+  },
+});
+
+export const _attachSharepoint = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    parentFolderItemId: v.string(),
+    subfolderItemId: v.string(),
+    driveId: v.string(),
+    webUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.orderId, {
+      sharepoint: {
+        parentFolderItemId: args.parentFolderItemId,
+        subfolderItemId: args.subfolderItemId,
+        driveId: args.driveId,
+        webUrl: args.webUrl,
+        status: "created",
+        attempts: 1,
+        lastTriedAt: Date.now(),
+      },
+    });
+  },
+});
+
+export const _markSharepointFailed = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    error: v.string(),
+    attempts: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.orderId, {
+      sharepoint: {
+        status: "failed",
+        error: args.error,
+        attempts: args.attempts,
+        lastTriedAt: Date.now(),
+      },
+    });
   },
 });
