@@ -665,3 +665,32 @@ export const createFromPartnerApi = internalMutation({
     return { orderId, orderNumber };
   },
 });
+
+export const getByOrderNumberInternal = internalQuery({
+  args: { orderNumber: v.string() },
+  handler: async (ctx, args) => {
+    return ctx.db
+      .query("orders")
+      .withIndex("by_orderNumber", (q) => q.eq("orderNumber", args.orderNumber))
+      .first();
+  },
+});
+
+export const logFileActivity = internalMutation({
+  args: {
+    orderId: v.id("orders"),
+    title: v.string(),
+    detail: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("orderActivity", {
+      orderId: args.orderId,
+      type: "comment",
+      title: args.title,
+      detail: args.detail,
+      authorId: "system" as any,
+      authorName: "API Partner",
+      createdAt: Date.now(),
+    });
+  },
+});

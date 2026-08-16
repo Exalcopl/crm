@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { action, mutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { generateCode } from "./quotes";
@@ -117,5 +117,32 @@ export const testPartnerApi = mutation({
       clientId,
       partnerId,
     };
+  },
+});
+
+// Test sprawdzający walidację przesyłania plików przez API
+export const testPartnerFileUploadValidation = action({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[test-partner-file] Uruchamianie walidacji uploadu pliku...");
+
+    // Powinien rzucić błąd, bo zlecenie o takim numerze nie istnieje
+    try {
+      await ctx.runAction(internal.sharepoint.uploadPartnerFileToOrder, {
+        orderIdOrNumber: "ZL-NIEISTNIEJE-999999",
+        fileType: "RW",
+        fileName: "test.pdf",
+        fileBase64: "JVBERi0xLjQK",
+      });
+      throw new Error("FAIL: Oczekiwano błędu o braku zlecenia");
+    } catch (e: any) {
+      if (e.message.includes("Nie znaleziono zlecenia.")) {
+        console.log("[test-partner-file] ✓ Poprawna walidacja braku zlecenia: OK");
+      } else {
+        throw e;
+      }
+    }
+
+    return { status: "SUCCESS" };
   },
 });

@@ -471,5 +471,137 @@ http.route({
   }),
 });
 
+// ─── Partner API: OPTIONS for upload-file ─────────────────────────────────────
+http.route({
+  path: "/api/partner/orders/upload-file",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: partnerCorsHeaders });
+  }),
+});
+
+// ─── Partner API: POST /api/partner/orders/upload-file ─────────────────────────
+//
+// Przesyła plik do folderu "Dokumentacja" danego zlecenia.
+// Uwierzytelnienie: nagłówek X-Api-Key.
+//
+// Request body:
+// {
+//   "orderIdOrNumber": "ZL/2026/042",
+//   "fileType": "RW" | "Rysunek",
+//   "fileName": "rysunek_techniczny.dwg",
+//   "fileBase64": "JVBERi0xLjQK..." // base64 encoded string
+// }
+//
+http.route({
+  path: "/api/partner/orders/upload-file",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const jsonHeaders = {
+      "Content-Type": "application/json",
+      ...partnerCorsHeaders,
+    };
+
+    // 1. Uwierzytelnienie: X-Api-Key
+    const rawKey = request.headers.get("X-Api-Key");
+    if (!rawKey || !rawKey.startsWith("pk_live_")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Brak lub nieprawidłowy nagłówek X-Api-Key." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    // 2. Hash klucza i wyszukanie Partnera
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawKey);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const partner = await ctx.runQuery(internal.partners.getByApiKeyHash, { hash: keyHash });
+
+    if (!partner) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieznany klucz API." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    if (!partner.isActive) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Konto Partnera jest nieaktywne." }),
+        { status: 403, headers: jsonHeaders }
+      );
+    }
+
+    // 3. Parsowanie body
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieprawidłowy JSON w body requestu." }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    const { orderIdOrNumber, fileType, fileName, fileBase64 } = body;
+
+    if (!orderIdOrNumber || typeof orderIdOrNumber !== "string") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'orderIdOrNumber' jest wymagane i musi być ciągiem znaków." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    if (fileType !== "RW" && fileType !== "Rysunek") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'fileType' musi mieć wartość 'RW' lub 'Rysunek'." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    if (!fileName || typeof fileName !== "string") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'fileName' jest wymagane i musi być ciągiem znaków." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    if (!fileBase64 || typeof fileBase64 !== "string") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'fileBase64' jest wymagane i musi zawierać zakodowaną zawartość pliku." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    // 4. Wywołanie akcji SharePoint (przesłanie pliku)
+    try {
+      const result = await ctx.runAction(internal.sharepoint.uploadPartnerFileToOrder, {
+        orderIdOrNumber,
+        fileType,
+        fileName,
+        fileBase64,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          fileId: result.fileId,
+          fileName: result.fileName,
+          webUrl: result.webUrl,
+        }),
+        { status: 201, headers: jsonHeaders }
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Błąd serwera przy przesłaniu pliku.";
+      return new Response(
+        JSON.stringify({ success: false, error: message }),
+        { status: 500, headers: jsonHeaders }
+      );
+    }
+  }),
+});
+
 export default http;
 

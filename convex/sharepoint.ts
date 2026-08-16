@@ -1869,3 +1869,88 @@ export const createOrderUploadSessionInFolder = action({
   },
 });
 
+export const uploadPartnerFileToOrder = internalAction({
+  args: {
+    orderIdOrNumber: v.string(),
+    fileType: v.union(v.literal("RW"), v.literal("Rysunek")),
+    fileName: v.string(),
+    fileBase64: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // 1. Find the order by ID or orderNumber
+    let order = await ctx.runQuery(api.orders.get, { id: args.orderIdOrNumber as any }).catch(() => null);
+    if (!order) {
+      // Try by orderNumber
+      order = await ctx.runQuery(internal.orders.getByOrderNumberInternal, { orderNumber: args.orderIdOrNumber });
+    }
+    if (!order) throw new Error("Nie znaleziono zlecenia.");
+
+    const sp = order.sharepoint;
+    if (!sp?.driveId || !sp?.subfolderItemId) {
+      throw new Error("Zlecenie nie ma utworzonego folderu SharePoint.");
+    }
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) {
+      throw new Error("SharePoint nie jest skonfigurowany w zmiennych środowiskowych.");
+    }
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+
+    // 2. Find the ID of the "Dokumentacja" subfolder
+    const folderRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Dokumentacja`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!folderRes.ok) {
+      const txt = await folderRes.text();
+      throw new Error(`Nie można odnaleźć podfolderu Dokumentacja: ${folderRes.status} - ${txt}`);
+    }
+    const folderData = await folderRes.json() as { id: string };
+    const targetFolderId = folderData.id;
+
+    // 3. Upload file content to SharePoint under targetFolderId
+    const binaryBuffer = Buffer.from(args.fileBase64, "base64");
+
+    // Format the filename: e.g. "RW_specyfikacja.pdf" or "Rysunek_layout.png"
+    const prefixedName = `${args.fileType}_${args.fileName.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+    const encodedName = encodeURIComponent(prefixedName);
+
+    const uploadRes = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${targetFolderId}:/${encodedName}:/content`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/octet-stream",
+        },
+        body: binaryBuffer,
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const txt = await uploadRes.text();
+      throw new Error(`Graph file upload failed ${uploadRes.status}: ${txt}`);
+    }
+
+    const uploadData = await uploadRes.json() as { id: string; name: string; webUrl: string };
+
+    // 4. Log order activity
+    await ctx.runMutation(internal.orders.logFileActivity, {
+      orderId: order._id,
+      title: "Przesłano dokument przez API",
+      detail: `Dodano plik ${prefixedName} do folderu Dokumentacja`,
+    });
+
+    return {
+      success: true,
+      fileId: uploadData.id,
+      fileName: uploadData.name,
+      webUrl: uploadData.webUrl,
+    };
+  },
+});
+
+
