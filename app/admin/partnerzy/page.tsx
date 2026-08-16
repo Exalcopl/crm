@@ -238,6 +238,10 @@ export default function PartnerzyPage() {
 
   const editingPartner = editId ? partners.find((p: any) => p._id === editId) : null;
 
+  const convexSiteUrl = process.env.NEXT_PUBLIC_CONVEX_SITE_URL || 
+    process.env.NEXT_PUBLIC_CONVEX_URL?.replace(".convex.cloud", ".convex.site") || 
+    "https://twoja-domena.convex.site";
+
   async function handleCreate(data: any) {
     try {
       const result = await createPartner(data);
@@ -322,16 +326,43 @@ export default function PartnerzyPage() {
         </div>
 
         {/* Endpoint info */}
-        <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, color: "#8b949e", marginBottom: 3 }}>Endpoint API (POST)</div>
-            <code style={{ fontSize: 12, color: "#58a6ff", fontFamily: "monospace" }}>
-              {typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname.replace("localhost:3000", "twoja-domena.convex.site")}` : "https://..."}/api/partner/orders
-            </code>
+        <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "14px 18px", marginBottom: 20, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#f0f6fc", marginBottom: 4 }}>Adresy URL Partner API</div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "#8b949e", marginBottom: 3 }}>Tworzenie zlecenia (POST)</div>
+              <code style={{ fontSize: 12, color: "#58a6ff", fontFamily: "monospace" }}>
+                {convexSiteUrl}/api/partner/orders
+              </code>
+            </div>
+            <div style={{ fontSize: 11, color: "#8b949e", textAlign: "right" }}>
+              Nagłówek: <code style={{ color: "#f0f6fc" }}>X-Api-Key</code>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "#8b949e", textAlign: "right" as const }}>
-            <div>Nagłówek: <code style={{ color: "#f0f6fc" }}>X-Api-Key</code></div>
-            <div>Body: <code style={{ color: "#f0f6fc" }}>{"{ valueNetto: number }"}</code></div>
+
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "#8b949e", marginBottom: 3 }}>Przesyłanie plików (POST)</div>
+              <code style={{ fontSize: 12, color: "#58a6ff", fontFamily: "monospace" }}>
+                {convexSiteUrl}/api/partner/orders/upload-file
+              </code>
+            </div>
+            <div style={{ fontSize: 11, color: "#8b949e", textAlign: "right" }}>
+              Nagłówek: <code style={{ color: "#f0f6fc" }}>X-Api-Key</code>
+            </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, display: "flex", alignItems: "center", gap: 12, justifyContent: "space-between" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "#8b949e", marginBottom: 3 }}>Dodawanie notatek (POST)</div>
+              <code style={{ fontSize: 12, color: "#58a6ff", fontFamily: "monospace" }}>
+                {convexSiteUrl}/api/partner/orders/add-note
+              </code>
+            </div>
+            <div style={{ fontSize: 11, color: "#8b949e", textAlign: "right" }}>
+              Nagłówek: <code style={{ color: "#f0f6fc" }}>X-Api-Key</code>
+            </div>
           </div>
         </div>
 
