@@ -1,6 +1,7 @@
 import { action, mutation } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { v } from "convex/values";
 import { generateCode } from "./quotes";
 
 // ─── SHA-256 helper (identyczny jak w partners.ts) ────────────────────────────
@@ -183,14 +184,40 @@ export const registerAdkPartner = mutation({
       clientName: "ADK Partner Client",
       projectType: ["Standard"],
       margin: 10, // 10% marży
+      webhookUrl: "https://httpbin.org/post", // endpoint zwracający odebrany request do testów
+      webhookSecret: "adk_secret_key_123",
       isActive: true,
       createdAt: Date.now(),
       updatedAt: Date.now(),
       ordersCount: 0,
     });
 
-    console.log(`[test-adk] Partner ADK zarejestrowany. ID: ${partnerId}, Prefix klucza: ${prefix}`);
+    console.log(`[test-adk] Partner ADK zarejestrowany z webhookiem. ID: ${partnerId}, Prefix klucza: ${prefix}`);
     return { partnerId, prefix, clientId };
+  },
+});
+
+// Mutacja pomocnicza do zmiany statusu zlecenia w testach i wywołania webhooka
+export const updateStatusForTest = mutation({
+  args: { orderId: v.id("orders"), status: v.string() },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Nie znaleziono zlecenia.");
+    const oldStatus = order.status;
+    await ctx.db.patch(args.orderId, { status: args.status as any });
+
+    if (order.partnerId) {
+      const partner = await ctx.db.get(order.partnerId);
+      if (partner?.webhookUrl && partner.isActive) {
+        await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
+          partnerId: partner._id,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          oldStatus: oldStatus || "nowe",
+          newStatus: args.status,
+        });
+      }
+    }
   },
 });
 
@@ -294,6 +321,14 @@ export const testAdkPartnerApiIntegration = action({
       const fileData = await fileRes.json() as { success: boolean; fileName: string };
       console.log(`[test-adk-http] ✓ Sukces: Plik przesłany do SharePoint: ${fileData.fileName}`);
     }
+
+    // 4. Test zmiany statusu i wysyłki Webhooka
+    console.log("[test-adk-http] Zmiana statusu zlecenia w celu przetestowania Webhooka...");
+    await ctx.runMutation(api.testing_partners.updateStatusForTest as any, {
+      orderId: orderData.orderId as any,
+      status: "akceptacja",
+    });
+    console.log("[test-adk-http] ✓ Sukces: Zlecono wysłanie webhooka po zmianie statusu.");
 
     return {
       status: "SUCCESS",

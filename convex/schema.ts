@@ -519,13 +519,15 @@ export default defineSchema({
       })
     ),
     archived: v.optional(v.boolean()),
+    partnerId: v.optional(v.id("partners")),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])
     .index("by_quote", ["quoteId"])
     .index("by_client", ["clientId"])
     .index("by_orderNumber", ["orderNumber"])
-    .index("by_archived", ["archived"]),
+    .index("by_archived", ["archived"])
+    .index("by_partner", ["partnerId"]),
 
   orderCounters: defineTable({
     year: v.number(),
@@ -606,7 +608,6 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_order", ["orderId"]),
 
-  // Partnerzy zewnętrzni (API)
   partners: defineTable({
     name: v.string(),                   // Nazwa partnera
     apiKeyHash: v.string(),             // SHA-256 hash pełnego klucza
@@ -615,6 +616,8 @@ export default defineSchema({
     clientName: v.string(),             // Denormalizacja – do wyświetlania
     projectType: v.array(v.string()),   // Typ projektu, np. ["Standard"]
     margin: v.number(),                 // Marża dla partnera w % (np. 10 dla 10%)
+    webhookUrl: v.optional(v.string()), // Adres URL webhooka partnera do wysyłania powiadomień
+    webhookSecret: v.optional(v.string()), // Klucz HMAC do weryfikacji powiadomień
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

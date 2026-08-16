@@ -62,6 +62,8 @@ export const create = mutation({
     clientName: v.string(),
     projectType: v.array(v.string()),
     margin: v.optional(v.number()),
+    webhookUrl: v.optional(v.string()),
+    webhookSecret: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -80,6 +82,8 @@ export const create = mutation({
       clientName: args.clientName,
       projectType: args.projectType,
       margin: args.margin ?? 0,
+      webhookUrl: args.webhookUrl,
+      webhookSecret: args.webhookSecret,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -99,6 +103,8 @@ export const update = mutation({
     clientName: v.optional(v.string()),
     projectType: v.optional(v.array(v.string())),
     margin: v.optional(v.number()),
+    webhookUrl: v.optional(v.union(v.string(), v.null())),
+    webhookSecret: v.optional(v.union(v.string(), v.null())),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -107,7 +113,14 @@ export const update = mutation({
     const { id, ...rest } = args;
     const partner = await ctx.db.get(id);
     if (!partner) throw new Error("Partner nie istnieje.");
-    await ctx.db.patch(id, { ...rest, updatedAt: Date.now() });
+    // Filter out undefined and convert nulls to undefined to clear values in db if needed
+    const patch: any = {};
+    for (const [key, val] of Object.entries(rest)) {
+      if (val !== undefined) {
+        patch[key] = val === null ? undefined : val;
+      }
+    }
+    await ctx.db.patch(id, { ...patch, updatedAt: Date.now() });
   },
 });
 
@@ -159,3 +172,11 @@ export const recordApiUsage = internalMutation({
     });
   },
 });
+
+export const getInternal = internalQuery({
+  args: { id: v.id("partners") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.id);
+  },
+});
+

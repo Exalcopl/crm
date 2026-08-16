@@ -148,6 +148,20 @@ export const updateStatus = mutation({
     
     await ctx.db.patch(args.id, patch);
 
+    // Wyślij webhook do partnera o zmianie statusu
+    if (order.partnerId && order.status !== args.status) {
+      const partner = await ctx.db.get(order.partnerId);
+      if (partner?.webhookUrl && partner.isActive) {
+        await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
+          partnerId: partner._id,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          oldStatus: order.status || "nowe",
+          newStatus: args.status,
+        });
+      }
+    }
+
     // Dodanie aktywności do powiązanej wyceny
     const user = await ctx.db.get(userId);
     const statusLabels: Record<string, string> = {
@@ -640,6 +654,7 @@ export const createFromPartnerApi = internalMutation({
       clientName: args.clientName,
       clientEmail: args.clientEmail,
       clientPhone: args.clientPhone,
+      partnerId: args.partnerId,
       createdAt,
       sharepoint: {
         status: "pending",

@@ -81,6 +81,8 @@ function PartnerForm({
     clientName: string;
     projectType: string[];
     margin: number;
+    webhookUrl?: string;
+    webhookSecret?: string;
   };
   onSave: (data: any) => Promise<void>;
   onCancel: () => void;
@@ -93,6 +95,8 @@ function PartnerForm({
     clientId: initial?.clientId ?? ("" as any),
     projectType: initial?.projectType[0] ?? "",
     margin: initial?.margin ?? 0,
+    webhookUrl: initial?.webhookUrl ?? "",
+    webhookSecret: initial?.webhookSecret ?? "",
   });
   const [busy, setBusy] = useState(false);
 
@@ -112,6 +116,8 @@ function PartnerForm({
         clientName: selectedClient?.name ?? form.name,
         projectType,
         margin: form.margin,
+        webhookUrl: form.webhookUrl.trim() || null,
+        webhookSecret: form.webhookSecret.trim() || null,
       });
     } finally {
       setBusy(false);
@@ -177,6 +183,31 @@ function PartnerForm({
             style={inputStyle}
             disabled={busy}
             placeholder="np. 10"
+          />
+        </label>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <label style={{ fontSize: 12, color: "#8b949e", display: "flex", flexDirection: "column", gap: 4 }}>
+          Adres URL Webhooka (opcjonalnie)
+          <input
+            type="text"
+            value={form.webhookUrl}
+            onChange={(e) => setForm({ ...form, webhookUrl: e.target.value })}
+            style={inputStyle}
+            disabled={busy}
+            placeholder="https://api.partner.com/webhook"
+          />
+        </label>
+        <label style={{ fontSize: 12, color: "#8b949e", display: "flex", flexDirection: "column", gap: 4 }}>
+          Klucz HMAC Webhooka (opcjonalnie)
+          <input
+            type="text"
+            value={form.webhookSecret}
+            onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })}
+            style={inputStyle}
+            disabled={busy}
+            placeholder="Klucz podpisujący powiadomienia"
           />
         </label>
       </div>
@@ -318,6 +349,8 @@ export default function PartnerzyPage() {
                 clientName: editingPartner.clientName,
                 projectType: editingPartner.projectType,
                 margin: editingPartner.margin,
+                webhookUrl: editingPartner.webhookUrl,
+                webhookSecret: editingPartner.webhookSecret,
               } : undefined}
               onSave={editId ? handleUpdate : handleCreate}
               onCancel={() => { setShowForm(false); setEditId(null); }}
@@ -384,6 +417,11 @@ export default function PartnerzyPage() {
                     {partner.ordersCount !== undefined && partner.ordersCount > 0 && (
                       <span style={{ fontSize: 12, color: "#8b949e" }}>
                         📋 {partner.ordersCount} zleceń
+                      </span>
+                    )}
+                    {partner.webhookUrl && (
+                      <span style={{ fontSize: 12, color: "#3fb950" }}>
+                        🔗 Webhook: <code style={{ color: "#3fb950" }}>{partner.webhookUrl}</code>
                       </span>
                     )}
                     {partner.lastUsedAt && (
