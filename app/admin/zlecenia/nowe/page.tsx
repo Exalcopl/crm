@@ -26,34 +26,8 @@ function clientFromDoc(c: Doc<"clients">): Client {
   };
 }
 
-function isoFromOffsetDays(days: number): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
 
-function formatDeadlineLabel(iso: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
-  const d = new Date(iso);
-  return d.toLocaleDateString("pl-PL", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-}
 
-const DEADLINE_QUICK: { label: string; days: number }[] = [
-  { label: "Dziś", days: 0 },
-  { label: "+3 dni", days: 3 },
-  { label: "+7 dni", days: 7 },
-  { label: "+14 dni", days: 14 },
-  { label: "+30 dni", days: 30 },
-];
 
 type RankedClient = { client: Client; count: number; saved: boolean };
 
@@ -97,10 +71,7 @@ export default function NoweZleceniePage() {
   // ─── Typ projektu ────────────────────────────────────────────────────────────
   const [projectType, setProjectType] = useState<string | null>(null);
 
-  // ─── Terminy ──────────────────────────────────────────────────────────────────
-  const [deadline, setDeadline] = useState(isoFromOffsetDays(7));
-  const [deliveryDate, setDeliveryDate] = useState("");
-  const [acceptanceDate, setAcceptanceDate] = useState("");
+  // ─── Terminy usunięte z formularza zgodnie z prośbą ───────────
 
   // ─── Wartość i Pozycje ──────────────────────────────────────────────────────────────────
   const [items, setItems] = useState([{ lp: 1, description: "Konstrukcje aluminiowe", quantity: 1, unit: "kpl", priceNetto: 0, valueNetto: 0 }]);
@@ -188,9 +159,7 @@ export default function NoweZleceniePage() {
 
   const nameValid = name.trim().length > 0;
   const projectTypeValid = projectType !== null;
-  const deadlineValid = deadline === "" || /^\d{4}-\d{2}-\d{2}$/.test(deadline);
-
-  const canSubmit = (selectedClient || nameValid) && projectTypeValid && deadlineValid;
+  const canSubmit = (selectedClient || nameValid) && projectTypeValid;
 
   async function submitForm() {
     if (!canSubmit) {
@@ -214,9 +183,9 @@ export default function NoweZleceniePage() {
           address: investmentAddress.trim() || undefined,
           notes: investmentNotes.trim() || undefined,
         },
-        deadline: deadline || undefined,
-        deliveryDate: deliveryDate || undefined,
-        acceptanceDate: acceptanceDate || undefined,
+        deadline: undefined,
+        deliveryDate: undefined,
+        acceptanceDate: undefined,
         items,
         valueNetto,
         vatRate,
@@ -343,69 +312,8 @@ export default function NoweZleceniePage() {
               )}
             </FormBox>
 
-            {/* ─── Terminy ──────────────────────────────────────────── */}
-            <FormBox
-              title="Terminy"
-              icon={<I.cal s={14} />}
-              required
-              span={6}
-              tag={deadlineValid ? <span className="quote-new-v2-hint">{formatDeadlineLabel(deadline)}</span> : null}
-            >
-              <div className="quote-new-v2-quickrow">
-                {DEADLINE_QUICK.map((q) => {
-                  const iso = isoFromOffsetDays(q.days);
-                  const active = deadline === iso;
-                  return (
-                    <button
-                      type="button"
-                      key={q.label}
-                      className={`quote-new-v2-quick${active ? " is-active" : ""}`}
-                      onClick={() => setDeadline(iso)}
-                    >
-                      {q.label}
-                    </button>
-                  );
-                })}
-              </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "12px" }}>
-                <label className="fluent-field fluent-field-full">
-                  <span className="fluent-field-label">Termin realizacji (Deadline) - opcjonalnie</span>
-                  <input
-                    className="fluent-input"
-                    type="date"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                  />
-                  {touched && !deadlineValid && (
-                    <span className="fluent-field-error">Wybierz datę.</span>
-                  )}
-                </label>
-                <div style={{ display: "flex", gap: "12px" }}>
-                  <label className="fluent-field" style={{ flex: 1 }}>
-                    <span className="fluent-field-label">Data dostawy</span>
-                    <input
-                      className="fluent-input"
-                      type="date"
-                      value={deliveryDate}
-                      onChange={(e) => setDeliveryDate(e.target.value)}
-                    />
-                  </label>
-                  <label className="fluent-field" style={{ flex: 1 }}>
-                    <span className="fluent-field-label">Data akceptacji</span>
-                    <input
-                      className="fluent-input"
-                      type="date"
-                      value={acceptanceDate}
-                      onChange={(e) => setAcceptanceDate(e.target.value)}
-                    />
-                  </label>
-                </div>
-              </div>
-            </FormBox>
-
             {/* ─── Wartość zlecenia ──────────────────────────────────────────── */}
-            <FormBox title="Wartość zlecenia" icon={<I.pln s={14} />} span={6}>
+            <FormBox title="Wartość zlecenia" icon={<I.pln s={14} />} span={12}>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <label className="fluent-field fluent-field-full">
                   <span className="fluent-field-label">Wartość Netto</span>

@@ -10,6 +10,7 @@ import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { toast } from "sonner";
 import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
+import { OrderFileBrowser } from "./_components/order-file-browser";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
 import {
   getProjectTypeStyle,
@@ -488,18 +489,6 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Najbliższy termin</div>
-            {nextDate ? (
-              <div className={`quote-detail-meta-value tone-${tone}`}>
-                <span className="quote-detail-meta-num">{formatDeadline(nextDate)}</span>
-                <span className="quote-detail-meta-unit">{deadlineRelative(nextDate)}</span>
-              </div>
-            ) : (
-              <div className="quote-detail-meta-value"><span className="quote-detail-meta-empty">— brak —</span></div>
-            )}
-          </div>
-          <div className="quote-detail-meta-divider" />
-          <div className="quote-detail-meta-item">
             <div className="quote-detail-meta-label">Opiekun</div>
             <OrderOwnerEditor order={order} ownerName={ownerName} />
           </div>
@@ -532,7 +521,11 @@ function formatEventDate(iso: string): string {
   return new Date(iso + "T00:00:00").toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
+function formatEventDateTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString("pl-PL", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any }) {
   const events = (useQuery(api.calendarEvents.listByOrder, { orderId }) as CalEvent[] | undefined) ?? [];
   const categories = (useQuery(api.calendarCategories.list, {}) as CalCategory[] | undefined) ?? [];
   const createForOrder = useMutation(api.calendarEvents.createForOrder);
@@ -540,6 +533,8 @@ function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
   const removeForOrder = useMutation(api.calendarEvents.removeForOrder);
 
   const [adding, setAdding] = useState(false);
+  const [addingOrderDate, setAddingOrderDate] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [editId, setEditId] = useState<Id<"calendarEvents"> | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ category: "", date: "", startTime: "09:00", endTime: "10:00", description: "" });
@@ -555,11 +550,19 @@ function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
   function startAdd() {
     setEditId(null);
     setForm({ category: availableCats[0]?.code ?? "", date: "", startTime: "09:00", endTime: "10:00", description: "" });
+    setAddingOrderDate(false);
     setAdding(true);
+  }
+
+  function startAddOrderDate() {
+    setEditId(null);
+    setAdding(false);
+    setAddingOrderDate(true);
   }
 
   function startEdit(ev: CalEvent) {
     setAdding(false);
+    setAddingOrderDate(false);
     setEditId(ev._id);
     setForm({ category: ev.category ?? "", date: ev.date, startTime: ev.startTime, endTime: ev.endTime, description: ev.description ?? "" });
   }
@@ -586,7 +589,18 @@ function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
     try { await removeForOrder({ id }); } catch (e) { toast.error(e instanceof Error ? e.message : "Błąd"); }
   }
 
-  const editing = adding || editId !== null;
+  const updateDates = useMutation(api.orders.updateDates);
+  async function delOrderDate(type: "deadline" | "deliveryDate" | "acceptanceDate") {
+    try {
+      await updateDates({ id: orderId, [type]: null });
+      toast.success("Usunięto termin");
+    } catch(e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Błąd usuwania terminu");
+    }
+  }
+
+  const editing = adding || addingOrderDate || editId !== null;
 
   return (
     <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
@@ -595,16 +609,80 @@ function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
           <I.cal s={14} /> Terminy
         </div>
         {!editing && (
-          <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={startAdd} disabled={availableCats.length === 0}
-            title={availableCats.length === 0 ? "Wszystkie kategorie mają już termin" : undefined}>
-            <I.plus s={13} /> Dodaj wydarzenie
-          </button>
+          <div style={{ position: "relative" }}>
+            <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={() => setMenuOpen(!menuOpen)}>
+              <I.plus s={13} /> Dodaj wydarzenie
+            </button>
+            {menuOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#161b22", border: "1px solid #30363d", borderRadius: 6, zIndex: 10, width: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", padding: 4 }}>
+                <button type="button" style={{ background: "transparent", border: "none", color: "#f0f6fc", textAlign: "left", padding: "8px 12px", fontSize: 13, cursor: "pointer", borderRadius: 4 }} onClick={() => { setMenuOpen(false); startAdd(); }} onMouseEnter={e => e.currentTarget.style.background = "#21262d"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  Wydarzenie w kalendarzu
+                </button>
+                <button type="button" style={{ background: "transparent", border: "none", color: "#f0f6fc", textAlign: "left", padding: "8px 12px", fontSize: 13, cursor: "pointer", borderRadius: 4 }} onClick={() => { setMenuOpen(false); startAddOrderDate(); }} onMouseEnter={e => e.currentTarget.style.background = "#21262d"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                  Termin ze zlecenia
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {events.length === 0 && !editing && (
+        {events.length === 0 && !editing && !order.deadline && !order.deliveryDate && !order.acceptanceDate && (
           <div style={{ color: "#8b949e", fontSize: 13 }}>Brak terminów. Dodaj wydarzenie (Pomiary, Montaż…) — trafi do kalendarza firmowego.</div>
+        )}
+
+        {(() => {
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #8b949e`, borderRadius: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#8b949e", flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+                  Utworzenie zlecenia
+                  <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDateTime(order.createdAt)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {order.deadline && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #f85149`, borderRadius: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f85149", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+                Termin realizacji
+                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.deadline)}</span>
+              </div>
+            </div>
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deadline")}><I.trash s={13} /></button>
+          </div>
+        )}
+
+        {order.deliveryDate && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d29922`, borderRadius: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d29922", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+                Data dostawy
+                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.deliveryDate)}</span>
+              </div>
+            </div>
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deliveryDate")}><I.trash s={13} /></button>
+          </div>
+        )}
+
+        {order.acceptanceDate && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #2ea043`, borderRadius: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#2ea043", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+                Data akceptacji
+                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.acceptanceDate)}</span>
+              </div>
+            </div>
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("acceptanceDate")}><I.trash s={13} /></button>
+          </div>
         )}
 
         {events.map((ev) => {
@@ -629,6 +707,10 @@ function OrderDeadlines({ orderId }: { orderId: Id<"orders"> }) {
 
         {adding && (
           <EventForm form={form} setForm={setForm} categories={availableCats} busy={busy} onSave={save} onCancel={() => { setAdding(false); resetForm(); }} />
+        )}
+
+        {addingOrderDate && (
+          <OrderDateForm orderId={orderId} order={order} busy={busy} onCancel={() => setAddingOrderDate(false)} />
         )}
       </div>
     </div>
@@ -703,10 +785,17 @@ export default function OrderDetailPage({
     order && order.quoteId ? { id: order.quoteId } : "skip"
   );
 
-  const activities = useQuery(
+  const quoteActivities = useQuery(
     api.quoteActivity.list,
     order && order.quoteId ? { quoteId: order.quoteId } : "skip"
   ) ?? [];
+
+  const orderActivities = useQuery(
+    api.orderActivity.list,
+    order ? { orderId: order._id } : "skip"
+  ) ?? [];
+
+  const activities = [...quoteActivities, ...orderActivities].sort((a, b) => b.createdAt - a.createdAt);
 
   const [updating, setUpdating] = useState(false);
 
@@ -760,22 +849,6 @@ export default function OrderDetailPage({
             onClick={() => router.push("/admin/zlecenia")}
           />
         </RibbonGroup>
-        <RibbonGroup label="Powiązane">
-          {quote && (
-            <RibbonBtn
-              icon={<I.doc s={22} />}
-              label="Pokaż wycenę"
-              onClick={() => router.push(`/admin/wyceny/${encodeURIComponent(quote.code)}`)}
-            />
-          )}
-          {quote?.sharepoint?.status === "created" && quote.sharepoint.webUrl && (
-            <RibbonBtn
-              icon={<I.link s={22} />}
-              label="SharePoint"
-              onClick={() => window.open(quote.sharepoint!.webUrl, "_blank")}
-            />
-          )}
-        </RibbonGroup>
       </div>
 
       <main className="fluent-content" style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -789,12 +862,15 @@ export default function OrderDetailPage({
 
         {/* Grid 4-kolumnowy (taki sam jak wycena) */}
         <div className="quote-detail-grid-customizable">
-          {/* Kolumna 1: Terminy + Historia */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div className="quote-widget-item">
-              <OrderDeadlines orderId={orderId} />
+              <OrderDeadlines orderId={orderId} order={order} />
             </div>
-            
+            {quote?.sharepoint ? (
+              <QuoteFileBrowser quote={quote} archived={false} />
+            ) : order.sharepoint ? (
+              <OrderFileBrowser order={order} archived={false} />
+            ) : null}
             {/* Historia i Aktywność została przeniesiona do kolumny 4 */}
           </div>
 
@@ -846,12 +922,8 @@ export default function OrderDetailPage({
             </div>
           </div>
 
-          {/* Kolumna 4: Pliki + Historia */}
+          {/* Kolumna 4: Historia */}
           <div className="quote-widget-item quote-widget-span-1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {quote && (
-              <QuoteFileBrowser quote={quote} archived={false} />
-            )}
-            
             <CollapsibleSection title="Historia i Aktywność" icon={<I.clock s={14} />}>
               <div className="order-activities-list">
                 {activities.length === 0 ? (
@@ -941,5 +1013,62 @@ export default function OrderDetailPage({
         }
       `}</style>
     </>
+  );
+}
+function OrderDateForm({ orderId, order, busy, onCancel }: { orderId: Id<"orders">, order: any, busy: boolean, onCancel: () => void }) {
+  const updateDates = useMutation(api.orders.updateDates);
+  const [type, setType] = useState<"deadline" | "deliveryDate" | "acceptanceDate">("deadline");
+  const [date, setDate] = useState(order[type] || "");
+  const [localBusy, setLocalBusy] = useState(false);
+
+  useEffect(() => {
+    setDate(order[type] || "");
+  }, [type, order]);
+
+  async function save() {
+    if (!date) {
+      toast.error("Wybierz datę");
+      return;
+    }
+    setLocalBusy(true);
+    try {
+      await updateDates({ id: orderId, [type]: date });
+      onCancel();
+      toast.success("Zapisano termin ze zlecenia");
+    } catch(e) {
+      toast.error("Błąd zapisu terminów");
+    } finally {
+      setLocalBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, background: "#161b22", borderRadius: 6, border: "1px solid #30363d" }}>
+      <div style={{ display: "flex", gap: 10 }}>
+        <select
+          className="fluent-input"
+          style={{ flex: 1 }}
+          value={type}
+          onChange={(e) => setType(e.target.value as any)}
+          disabled={busy || localBusy}
+        >
+          <option value="deadline">Termin realizacji</option>
+          <option value="deliveryDate">Data dostawy</option>
+          <option value="acceptanceDate">Data akceptacji</option>
+        </select>
+        <input
+          type="date"
+          className="fluent-input"
+          style={{ flex: 1 }}
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          disabled={busy || localBusy}
+        />
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button type="button" className="fluent-btn fluent-btn-ghost fluent-btn-sm" onClick={onCancel} disabled={busy || localBusy}>Anuluj</button>
+        <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={save} disabled={busy || localBusy}>Zapisz termin</button>
+      </div>
+    </div>
   );
 }

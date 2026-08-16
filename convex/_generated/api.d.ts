@@ -20,6 +20,7 @@ import type * as configurator from "../configurator.js";
 import type * as contacts from "../contacts.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as orderActivity from "../orderActivity.js";
 import type * as orders from "../orders.js";
 import type * as permissions from "../permissions.js";
 import type * as projectTypeDefaultTasks from "../projectTypeDefaultTasks.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   contacts: typeof contacts;
   crons: typeof crons;
   http: typeof http;
+  orderActivity: typeof orderActivity;
   orders: typeof orders;
   permissions: typeof permissions;
   projectTypeDefaultTasks: typeof projectTypeDefaultTasks;

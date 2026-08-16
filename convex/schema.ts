@@ -279,6 +279,18 @@ export default defineSchema({
     .index("by_quote", ["quoteId"])
     .index("by_quote_created", ["quoteId", "createdAt"]),
 
+  orderActivity: defineTable({
+    orderId: v.id("orders"),
+    type: v.string(),
+    title: v.string(),
+    detail: v.optional(v.string()),
+    authorId: v.union(v.id("users"), v.null()),
+    authorName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_order_created", ["orderId", "createdAt"]),
+
   projectTypeGalleryImages: defineTable({
     projectTypeId: v.id("projectTypes"),
     storageId: v.id("_storage"),

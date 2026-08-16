@@ -138,12 +138,19 @@ export const updateStatus = mutation({
     const order = await ctx.db.get(args.id);
     if (!order) throw new Error("Zlecenie nie istnieje.");
 
-    await ctx.db.patch(args.id, { status: args.status });
+    const patch: any = { status: args.status };
+    if (args.status === "akceptacja" && !order.acceptanceDate) {
+      const d = new Date();
+      patch.acceptanceDate = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+    }
+    
+    await ctx.db.patch(args.id, patch);
 
     // Dodanie aktywności do powiązanej wyceny
     const user = await ctx.db.get(userId);
     const statusLabels: Record<string, string> = {
       nowe: "Nowe",
+      akceptacja: "Akceptacja",
       produkcja: "W produkcji",
       montaz: "Do montażu",
       gotowe: "Zrealizowane",
@@ -161,6 +168,16 @@ export const updateStatus = mutation({
         createdAt: Date.now(),
       });
     }
+
+    await ctx.db.insert("orderActivity", {
+      orderId: args.id,
+      type: "order_status_updated",
+      title: "Zmiana statusu zlecenia",
+      detail: `Zmieniono status na: ${statusLabels[args.status]}`,
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
 
     return args.id;
   },
@@ -321,6 +338,17 @@ export const createStandalone = mutation({
     // Uruchomienie schedulera do tworzenia folderu SharePoint dla zlecenia
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
 
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("orderActivity", {
+      orderId,
+      type: "order_created",
+      title: "Zlecenie utworzone pomyślnie",
+      detail: `Wartość zlecenia: ${args.valueNetto.toLocaleString("pl-PL")} PLN (netto)`,
+      authorId: userId,
+      authorName: user?.name || "Nieznany użytkownik",
+      createdAt,
+    });
+
     return orderId;
   },
 });
@@ -369,6 +397,46 @@ export const _markSharepointFailed = internalMutation({
         attempts: args.attempts,
         lastTriedAt: Date.now(),
       },
+    });
+  },
+});
+
+export const updateDates = mutation({
+  args: {
+    id: v.id("orders"),
+    deadline: v.optional(v.union(v.string(), v.null())),
+    deliveryDate: v.optional(v.union(v.string(), v.null())),
+    acceptanceDate: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+    const order = await ctx.db.get(args.id);
+    if (!order) throw new Error("Zlecenie nie istnieje.");
+
+    if (args.deadline !== undefined) {
+      if (args.deadline === null) delete order.deadline;
+      else order.deadline = args.deadline;
+    }
+    if (args.deliveryDate !== undefined) {
+      if (args.deliveryDate === null) delete order.deliveryDate;
+      else order.deliveryDate = args.deliveryDate;
+    }
+    if (args.acceptanceDate !== undefined) {
+      if (args.acceptanceDate === null) delete order.acceptanceDate;
+      else order.acceptanceDate = args.acceptanceDate;
+    }
+
+    await ctx.db.replace(args.id, order);
+
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("orderActivity", {
+      orderId: args.id,
+      type: "order_dates_updated",
+      title: "Terminy zlecenia zaktualizowane",
+      authorId: userId,
+      authorName: user?.name || "Nieznany użytkownik",
+      createdAt: Date.now(),
     });
   },
 });
