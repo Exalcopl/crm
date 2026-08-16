@@ -173,8 +173,8 @@ export default function ArchiwumPage() {
                         </td>
                       </tr>
                     ) : (
-                      archivedOrders.map((order) => {
-                        const statusObj = STATUS_CONFIG[order.status] || { label: order.status, color: "#8b949e", bg: "rgba(139, 148, 158, 0.15)" };
+                      archivedOrders.map((order: any) => {
+                        const statusObj = STATUS_CONFIG[order.status as keyof typeof STATUS_CONFIG] || { label: order.status, color: "#8b949e", bg: "rgba(139, 148, 158, 0.15)" };
                         return (
                           <tr key={order._id} className="qvm-tr">
                             <td className="qvm-td" style={{ fontWeight: 600 }}>

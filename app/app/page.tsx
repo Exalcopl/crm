@@ -288,7 +288,7 @@ export default function MobileAppPage() {
           startTime: eventStartTime,
           endTime: eventEndTime,
           isPrivate: eventIsPrivate,
-          color: categories.find((c) => c.code === eventCategory)?.color || "#64748b",
+          color: categories.find((c: any) => c.code === eventCategory)?.color || "#64748b",
           type: calendarType,
           category: eventCategory,
           currentUserId: session.userId,
@@ -1001,7 +1001,7 @@ export default function MobileAppPage() {
                   paddingRight: "40px"
                 }}
               >
-                {categories.map((c) => (
+                {categories.map((c: any) => (
                   <option key={c.code} value={c.code} style={{ background: "var(--bg-surface, #141b2d)" }}>
                     {c.name}
                   </option>

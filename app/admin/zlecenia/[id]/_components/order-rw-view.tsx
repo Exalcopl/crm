@@ -122,7 +122,7 @@ function MaterialPickerModal({
               <span style={{ fontSize: 12 }}>Dodaj materiały w module Materiały/Cennik lub zaseed-uj przykładowe dane.</span>
             </div>
           ) : (
-            materials.map((mat) => (
+            materials.map((mat: any) => (
               <button
                 key={mat._id}
                 type="button"

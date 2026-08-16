@@ -147,7 +147,7 @@ export default function MaterialyPage() {
   const removeMaterial = useMutation(api.materials.remove);
   const seedMaterials = useMutation(api.materials.seedSampleMaterials);
 
-  const editingMat = editId ? materials.find((m) => m._id === editId) : null;
+  const editingMat = editId ? materials.find((m: any) => m._id === editId) : null;
 
   async function handleCreate(data: any) {
     try {
@@ -195,8 +195,8 @@ export default function MaterialyPage() {
   // Grupowanie wg kategorii
   const grouped = CATEGORIES.map((cat) => ({
     ...cat,
-    items: materials.filter((m) => m.category === cat.id),
-  })).filter((g) => g.items.length > 0);
+    items: materials.filter((m: any) => m.category === cat.id),
+  })).filter((g: any) => g.items.length > 0);
 
   return (
     <>
@@ -300,7 +300,7 @@ export default function MaterialyPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {grp.items.map((mat) => (
+                    {grp.items.map((mat: any) => (
                       <tr
                         key={mat._id}
                         style={{ borderBottom: "1px solid #21262d", cursor: "pointer" }}

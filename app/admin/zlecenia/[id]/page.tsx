@@ -970,7 +970,7 @@ export default function OrderDetailPage({
                 Pozycje zlecenia
               </div>
               {(() => {
-                const hasItemPrices = order.items.some((row) => (row.priceNetto != null && row.priceNetto !== 0) || (row.valueNetto != null && row.valueNetto !== 0));
+                const hasItemPrices = order.items.some((row: any) => (row.priceNetto != null && row.priceNetto !== 0) || (row.valueNetto != null && row.valueNetto !== 0));
                 return (
                   <table className="qvm-items-table">
                 <thead>
@@ -984,7 +984,7 @@ export default function OrderDetailPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {order.items.map((row) => (
+                  {order.items.map((row: any) => (
                     <tr key={row.lp} className="qvm-tr">
                       <td className="qvm-td">{row.lp}</td>
                       <td className="qvm-td">{row.description}</td>

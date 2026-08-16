@@ -96,7 +96,7 @@ function PartnerForm({
   });
   const [busy, setBusy] = useState(false);
 
-  const selectedClient = clients.find((c) => c._id === form.clientId);
+  const selectedClient = clients.find((c: any) => c._id === form.clientId);
 
   async function handleSave() {
     if (!form.name.trim()) { toast.error("Podaj nazwę Partnera"); return; }
@@ -134,7 +134,7 @@ function PartnerForm({
         Powiązany Klient CRM *
         <select value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value as any })} style={inputStyle} disabled={busy}>
           <option value="">— Wybierz klienta —</option>
-          {clients.map((c) => (
+          {clients.map((c: any) => (
             <option key={c._id} value={c._id}>{c.name}</option>
           ))}
         </select>
@@ -156,7 +156,7 @@ function PartnerForm({
             disabled={busy}
           >
             <option value="">— Wybierz typ projektu —</option>
-            {projectTypes.map((pt) => (
+            {projectTypes.map((pt: any) => (
               <option key={pt._id} value={pt.name}>{pt.name}</option>
             ))}
           </select>
@@ -205,7 +205,7 @@ export default function PartnerzyPage() {
   const [editId, setEditId] = useState<Id<"partners"> | null>(null);
   const [newApiKey, setNewApiKey] = useState<string | null>(null);
 
-  const editingPartner = editId ? partners.find((p) => p._id === editId) : null;
+  const editingPartner = editId ? partners.find((p: any) => p._id === editId) : null;
 
   async function handleCreate(data: any) {
     try {
@@ -342,7 +342,7 @@ export default function PartnerzyPage() {
         {/* Lista partnerów */}
         {partners.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {partners.map((partner) => (
+            {partners.map((partner: any) => (
               <div
                 key={partner._id}
                 style={{

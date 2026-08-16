@@ -657,7 +657,7 @@ export const createFromPartnerApi = internalMutation({
       type: "order_created",
       title: "Zlecenie utworzone przez API Partnera",
       detail: `Partner ID: ${args.partnerId} | Marża: ${args.margin}% | Wartość końcowa: ${finalValueNetto.toLocaleString("pl-PL")} PLN netto`,
-      authorId: "system" as any,
+      authorId: null,
       authorName: "API Partner",
       createdAt,
     });
@@ -688,7 +688,7 @@ export const logFileActivity = internalMutation({
       type: "comment",
       title: args.title,
       detail: args.detail,
-      authorId: "system" as any,
+      authorId: null,
       authorName: "API Partner",
       createdAt: Date.now(),
     });

@@ -32,12 +32,12 @@ export default function ArchivedTasksPage() {
   
   // Opcjonalne filtrowanie: jeśli zaznaczono kogoś, pokaż tylko przypisane do tych osób
   const filteredTasks = selectedUserIds.length > 0
-    ? tasks.filter((t) => t.assigneeIds?.some((id) => selectedUserIds.includes(id)))
+    ? tasks.filter((t: any) => t.assigneeIds?.some((id: any) => selectedUserIds.includes(id)))
     : tasks;
 
   const allUsers = users
-    .filter((u) => u.isAssignable)
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    .filter((u: any) => u.isAssignable)
+    .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
 
   const isSuperAdmin = currentUser?.role?.name === "super_admin";
   const subTitle = isSuperAdmin
@@ -117,7 +117,7 @@ export default function ArchivedTasksPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredTasks.map((task) => (
+              {filteredTasks.map((task: any) => (
                 <ArchivedTaskRow key={task._id} task={task} users={users} />
               ))}
             </tbody>

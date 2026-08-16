@@ -2079,7 +2079,7 @@ export function CalendarPanel() {
                       >
                         {({ formattedDate }) => {
                           const cellDateStr = `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
-                          const dayEvents = privateMonthEvents.filter((ev) => {
+                          const dayEvents = privateMonthEvents.filter((ev: any) => {
                             const evEnd = ev.endDate || ev.date;
                             return cellDateStr >= ev.date && cellDateStr <= evEnd;
                           });
@@ -2088,7 +2088,7 @@ export function CalendarPanel() {
                               <span className="cal-month-cell-num">{formattedDate}</span>
                               {dayEvents.length > 0 && (
                                 <div className="cal-month-cell-bars">
-                                  {dayEvents.slice(0, 3).map((ev, idx) => (
+                                  {dayEvents.slice(0, 3).map((ev: any, idx: number) => (
                                     <span
                                       key={ev._id || idx}
                                       className="cal-month-cell-bar"

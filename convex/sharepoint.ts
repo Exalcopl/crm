@@ -1878,9 +1878,11 @@ export const uploadPartnerFileToOrder = internalAction({
   },
   handler: async (ctx, args) => {
     // 1. Find the order by ID or orderNumber
-    let order = await ctx.runQuery(api.orders.get, { id: args.orderIdOrNumber as any }).catch(() => null);
+    let order = null;
+    if (args.orderIdOrNumber.length === 32) {
+      order = await ctx.runQuery(internal.orders._getInternal, { orderId: args.orderIdOrNumber as any });
+    }
     if (!order) {
-      // Try by orderNumber
       order = await ctx.runQuery(internal.orders.getByOrderNumberInternal, { orderNumber: args.orderIdOrNumber });
     }
     if (!order) throw new Error("Nie znaleziono zlecenia.");
