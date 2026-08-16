@@ -20,8 +20,11 @@ import type * as configurator from "../configurator.js";
 import type * as contacts from "../contacts.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as materials from "../materials.js";
 import type * as orderActivity from "../orderActivity.js";
+import type * as orderRw from "../orderRw.js";
 import type * as orders from "../orders.js";
+import type * as partners from "../partners.js";
 import type * as permissions from "../permissions.js";
 import type * as projectTypeDefaultTasks from "../projectTypeDefaultTasks.js";
 import type * as projectTypeGallery from "../projectTypeGallery.js";
@@ -42,6 +45,7 @@ import type * as systemSettings from "../systemSettings.js";
 import type * as tasks from "../tasks.js";
 import type * as testing from "../testing.js";
 import type * as testing_orders from "../testing_orders.js";
+import type * as testing_partners from "../testing_partners.js";
 import type * as users from "../users.js";
 
 import type {
@@ -63,8 +67,11 @@ declare const fullApi: ApiFromModules<{
   contacts: typeof contacts;
   crons: typeof crons;
   http: typeof http;
+  materials: typeof materials;
   orderActivity: typeof orderActivity;
+  orderRw: typeof orderRw;
   orders: typeof orders;
+  partners: typeof partners;
   permissions: typeof permissions;
   projectTypeDefaultTasks: typeof projectTypeDefaultTasks;
   projectTypeGallery: typeof projectTypeGallery;
@@ -85,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   testing: typeof testing;
   testing_orders: typeof testing_orders;
+  testing_partners: typeof testing_partners;
   users: typeof users;
 }>;
 

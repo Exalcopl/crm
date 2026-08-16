@@ -64,6 +64,22 @@ const TABS: TabDef[] = [
     action: "read",
   },
   {
+    id: "materialy",
+    label: "Materiały",
+    href: "/admin/materialy",
+    match: (p) => p.startsWith("/admin/materialy"),
+    resource: "wyceny",
+    action: "read",
+  },
+  {
+    id: "partnerzy",
+    label: "Partnerzy API",
+    href: "/admin/partnerzy",
+    match: (p) => p.startsWith("/admin/partnerzy"),
+    resource: "wyceny",
+    action: "read",
+  },
+  {
     id: "administracja",
     label: "Administracja",
     href: "/admin/users",

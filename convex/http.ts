@@ -341,4 +341,135 @@ http.route({
   }),
 });
 
+// ─── Partner API: CORS preflight ───────────────────────────────────────────────
+const partnerCorsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Api-Key",
+  "Access-Control-Max-Age": "86400",
+};
+
+http.route({
+  path: "/api/partner/orders",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: partnerCorsHeaders });
+  }),
+});
+
+// ─── Partner API: POST /api/partner/orders ─────────────────────────────────────
+//
+// Tworzy zlecenie w imieniu zewnętrznego Partnera.
+// Uwierzytelnienie: nagłówek X-Api-Key z kluczem wygenerowanym w panelu CRM.
+//
+// Request body: { "valueNetto": 12500.00 }
+// Response:     { "success": true, "orderNumber": "ZL/2026/042", "orderId": "..." }
+//
+http.route({
+  path: "/api/partner/orders",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const jsonHeaders = {
+      "Content-Type": "application/json",
+      ...partnerCorsHeaders,
+    };
+
+    // 1. Uwierzytelnienie: X-Api-Key
+    const rawKey = request.headers.get("X-Api-Key");
+    if (!rawKey || !rawKey.startsWith("pk_live_")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Brak lub nieprawidłowy nagłówek X-Api-Key." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    // 2. Hash klucza i wyszukanie Partnera
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawKey);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const partner = await ctx.runQuery(internal.partners.getByApiKeyHash, { hash: keyHash });
+
+    if (!partner) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieznany klucz API." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    if (!partner.isActive) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Konto Partnera jest nieaktywne." }),
+        { status: 403, headers: jsonHeaders }
+      );
+    }
+
+    // 3. Parsowanie body
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieprawidłowy JSON w body requestu." }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    const valueNetto = typeof body.valueNetto === "number" ? body.valueNetto : parseFloat(body.valueNetto as string);
+    if (isNaN(valueNetto) || valueNetto <= 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'valueNetto' jest wymagane i musi być liczbą większą od 0." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    // 4. Pobranie danych klienta
+    const client = await ctx.runQuery(internal.clients._getInternal, { id: partner.clientId });
+    if (!client) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Konfiguracja Partnera jest nieprawidłowa — brak klienta." }),
+        { status: 500, headers: jsonHeaders }
+      );
+    }
+
+    // 5. Tworzenie zlecenia
+    let result: { orderId: string; orderNumber: string };
+    try {
+      result = await ctx.runMutation(internal.orders.createFromPartnerApi, {
+        partnerId: partner._id,
+        clientId: partner.clientId,
+        clientName: partner.clientName,
+        clientEmail: client.email,
+        clientPhone: client.phoneRaw,
+        projectType: partner.projectType,
+        valueNetto,
+        vatRate: partner.vatRate,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Błąd wewnętrzny serwera.";
+      return new Response(
+        JSON.stringify({ success: false, error: message }),
+        { status: 500, headers: jsonHeaders }
+      );
+    }
+
+    // 6. Aktualizacja statystyk Partnera (async — nie blokuje odpowiedzi)
+    await ctx.runMutation(internal.partners.recordApiUsage, { id: partner._id });
+
+    // 7. Odpowiedź
+    return new Response(
+      JSON.stringify({
+        success: true,
+        orderNumber: result.orderNumber,
+        orderId: result.orderId,
+        clientName: partner.clientName,
+      }),
+      { status: 201, headers: jsonHeaders }
+    );
+  }),
+});
+
 export default http;
+

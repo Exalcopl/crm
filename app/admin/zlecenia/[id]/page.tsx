@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
 import { OrderFileBrowser } from "./_components/order-file-browser";
+import { OrderRwView } from "./_components/order-rw-view";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
 import {
   getProjectTypeStyle,
@@ -801,6 +802,7 @@ export default function OrderDetailPage({
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"szczegoly" | "rw">("szczegoly");
 
   const archiveOrder = useMutation(api.orders.archive);
   const restoreOrder = useMutation(api.orders.restore);
@@ -894,6 +896,20 @@ export default function OrderDetailPage({
             onClick={() => router.push("/admin/zlecenia")}
           />
         </RibbonGroup>
+        <RibbonGroup label="Widok">
+          <RibbonBtn
+            icon={<I.doc s={22} />}
+            label="Szczegóły"
+            active={activeView === "szczegoly"}
+            onClick={() => setActiveView("szczegoly")}
+          />
+          <RibbonBtn
+            icon={<I.rw s={22} />}
+            label="Rozchód (RW)"
+            active={activeView === "rw"}
+            onClick={() => setActiveView("rw")}
+          />
+        </RibbonGroup>
         <RibbonGroup label="Operacje">
           <RibbonBtn
             icon={<I.link s={22} />}
@@ -914,7 +930,12 @@ export default function OrderDetailPage({
         </RibbonGroup>
       </div>
 
-      <main className="fluent-content" style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+      {activeView === "rw" && (
+        <main className="fluent-content" style={{ padding: "16px 24px" }}>
+          <OrderRwView orderId={orderId} />
+        </main>
+      )}
+      <main className="fluent-content" style={{ padding: "16px 24px", display: activeView === "szczegoly" ? "flex" : "none", flexDirection: "column", gap: 20 }}>
         {/* Nagłówek 1:1 z wyceną */}
         <OrderDetailHeader
           order={order}

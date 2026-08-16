@@ -513,3 +513,12 @@ export const fetchNipData = action({
     }
   },
 });
+
+// Używane przez HTTP action (Partner API) — bez uwierzytelniania użytkownika
+export const _getInternal = internalQuery({
+  args: { id: v.id("clients") },
+  handler: async (ctx, args) => {
+    return ctx.db.get(args.id);
+  },
+});
+

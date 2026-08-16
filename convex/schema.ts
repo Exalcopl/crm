@@ -536,4 +536,93 @@ export default defineSchema({
     key: v.string(),
     value: v.any(),
   }).index("by_key", ["key"]),
+
+  // Baza materiałów / cennik
+  materials: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    unit: v.string(),             // mb., szt., kpl., m², kg
+    priceUnit: v.number(),        // cena jednostkowa netto
+    category: v.string(),         // PROFILE | PROFILE_DODATKOWE | AKCESORIA | OKUCIA | WYPELNIENIA | INNE
+    sku: v.optional(v.string()),  // symbol / indeks materiału
+    supplier: v.optional(v.string()),
+    isActive: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_category", ["category"])
+    .index("by_name", ["name"])
+    .searchIndex("search_name", { searchField: "name", filterFields: ["category"] }),
+
+  // RW (Rozchód Wewnętrzny) dla zlecenia
+  orderRw: defineTable({
+    orderId: v.id("orders"),
+    // Oryginalne pozycje (z pliku RW / OCR) — tylko do odczytu
+    originalSections: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),  // "PROFILE", "OKUCIA" itp.
+        items: v.array(
+          v.object({
+            lp: v.number(),
+            element: v.string(),
+            quantity: v.number(),
+            unit: v.string(),
+            priceUnit: v.number(),
+            priceTotal: v.number(),
+            description: v.optional(v.string()),
+          })
+        ),
+        sectionTotal: v.number(),
+      })
+    ),
+    // Produkcyjne pozycje (edytowalne przez pracownika)
+    productionSections: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        isCustom: v.optional(v.boolean()),
+        items: v.array(
+          v.object({
+            lp: v.number(),
+            element: v.string(),
+            quantity: v.number(),
+            unit: v.string(),
+            priceUnit: v.number(),
+            priceTotal: v.number(),
+            description: v.optional(v.string()),
+            materialId: v.optional(v.string()),  // id z bazy materiałów (jeśli wybrano)
+            originalLp: v.optional(v.number()),  // powiązanie z oryginałem
+            changeType: v.string(),  // "unchanged" | "modified" | "replaced" | "added" | "removed"
+          })
+        ),
+        sectionTotal: v.number(),
+      })
+    ),
+    totalOriginal: v.number(),
+    totalProduction: v.number(),
+    totalSavings: v.number(),
+    importedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_order", ["orderId"]),
+
+  // Partnerzy zewnętrzni (API)
+  partners: defineTable({
+    name: v.string(),                   // Nazwa partnera
+    apiKeyHash: v.string(),             // SHA-256 hash pełnego klucza
+    apiKeyPrefix: v.string(),           // Pierwsze 8 znaków (tylko do wyświetlania)
+    clientId: v.id("clients"),          // Powiązany klient CRM
+    clientName: v.string(),             // Denormalizacja – do wyświetlania
+    projectType: v.array(v.string()),   // Typ projektu, np. ["Standard"]
+    vatRate: v.number(),                // Stawka VAT (domyślnie 23)
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastUsedAt: v.optional(v.number()), // Ostatnie użycie API
+    ordersCount: v.optional(v.number()),// Liczba stworzonych zleceń
+  })
+    .index("by_apiKeyHash", ["apiKeyHash"])
+    .index("by_client", ["clientId"])
+    .index("by_active", ["isActive"]),
 });
+

@@ -594,3 +594,69 @@ export const testArchiveAndDelete = mutation({
   },
 });
 
+// ─── Tworzenie zlecenia przez API Partnera (internal) ──────────────────────────
+export const createFromPartnerApi = internalMutation({
+  args: {
+    partnerId: v.id("partners"),
+    clientId: v.id("clients"),
+    clientName: v.string(),
+    clientEmail: v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
+    projectType: v.array(v.string()),
+    valueNetto: v.number(),
+    vatRate: v.number(),
+  },
+  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; orderNumber: string }> => {
+    const createdAt = Date.now();
+    const orderNumber = await generateCode(ctx as any, args.projectType, createdAt);
+
+    const valueVat = Math.round(args.valueNetto * (args.vatRate / 100) * 100) / 100;
+    const valueBrutto = Math.round((args.valueNetto + valueVat) * 100) / 100;
+
+    const orderId: Id<"orders"> = await ctx.db.insert("orders", {
+      orderNumber,
+      status: "nowe",
+      clientId: args.clientId,
+      projectType: args.projectType,
+      valueNetto: args.valueNetto,
+      valueVat,
+      valueBrutto,
+      vatRate: args.vatRate,
+      items: [
+        {
+          lp: 1,
+          description: "Konstrukcje aluminiowe",
+          quantity: 1,
+          unit: "kpl",
+          priceNetto: args.valueNetto,
+          valueNetto: args.valueNetto,
+        },
+      ],
+      clientName: args.clientName,
+      clientEmail: args.clientEmail,
+      clientPhone: args.clientPhone,
+      createdAt,
+      sharepoint: {
+        status: "pending",
+        attempts: 0,
+        lastTriedAt: 0,
+      },
+    });
+
+    // Uruchomienie schedulera SharePoint
+    await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
+
+    // Zapis aktywności
+    await ctx.db.insert("orderActivity", {
+      orderId,
+      type: "order_created",
+      title: "Zlecenie utworzone przez API Partnera",
+      detail: `Partner ID: ${args.partnerId} | Wartość: ${args.valueNetto.toLocaleString("pl-PL")} PLN netto`,
+      authorId: "system" as any,
+      authorName: "API Partner",
+      createdAt,
+    });
+
+    return { orderId, orderNumber };
+  },
+});
