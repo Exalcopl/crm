@@ -21,12 +21,13 @@ import {
   type Quote,
 } from "../../_lib/quotes";
 
-type OrderStatus = "nowe" | "akceptacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
+type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   nowe: { label: "Nowe", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
   akceptacja: { label: "Akceptacja", color: "#8250df", bg: "rgba(130, 80, 223, 0.15)" },
-  produkcja: { label: "W produkcji", color: "#d41d3c", bg: "rgba(212, 29, 60, 0.15)" },
+  kompletacja: { label: "W kompletacji", color: "#f0883e", bg: "rgba(240, 136, 62, 0.15)" },
+  produkcja: { label: "W produkcji", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
   montaz: { label: "Do montażu", color: "#d29922", bg: "rgba(210, 153, 34, 0.15)" },
   gotowe: { label: "Zrealizowane", color: "#3fb950", bg: "rgba(63, 185, 80, 0.15)" },
   wstrzymane: { label: "Wstrzymane", color: "#8b949e", bg: "rgba(139, 148, 158, 0.15)" },
@@ -533,8 +534,6 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
   const removeForOrder = useMutation(api.calendarEvents.removeForOrder);
 
   const [adding, setAdding] = useState(false);
-  const [addingOrderDate, setAddingOrderDate] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [editId, setEditId] = useState<Id<"calendarEvents"> | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ category: "", date: "", startTime: "09:00", endTime: "10:00", description: "" });
@@ -550,19 +549,11 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
   function startAdd() {
     setEditId(null);
     setForm({ category: availableCats[0]?.code ?? "", date: "", startTime: "09:00", endTime: "10:00", description: "" });
-    setAddingOrderDate(false);
     setAdding(true);
-  }
-
-  function startAddOrderDate() {
-    setEditId(null);
-    setAdding(false);
-    setAddingOrderDate(true);
   }
 
   function startEdit(ev: CalEvent) {
     setAdding(false);
-    setAddingOrderDate(false);
     setEditId(ev._id);
     setForm({ category: ev.category ?? "", date: ev.date, startTime: ev.startTime, endTime: ev.endTime, description: ev.description ?? "" });
   }
@@ -600,7 +591,17 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
     }
   }
 
-  const editing = adding || addingOrderDate || editId !== null;
+  async function setOrderDateInline(type: "deadline" | "deliveryDate" | "acceptanceDate", val: string) {
+    if (!val) return;
+    try {
+      await updateDates({ id: orderId, [type]: val });
+      toast.success("Zapisano termin");
+    } catch(e) {
+      toast.error("Błąd zapisu terminu");
+    }
+  }
+
+  const editing = adding || editId !== null;
 
   return (
     <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
@@ -609,82 +610,87 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
           <I.cal s={14} /> Terminy
         </div>
         {!editing && (
-          <div style={{ position: "relative" }}>
-            <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={() => setMenuOpen(!menuOpen)}>
-              <I.plus s={13} /> Dodaj wydarzenie
-            </button>
-            {menuOpen && (
-              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: "#161b22", border: "1px solid #30363d", borderRadius: 6, zIndex: 10, width: 200, boxShadow: "0 8px 24px rgba(0,0,0,0.2)", display: "flex", flexDirection: "column", padding: 4 }}>
-                <button type="button" style={{ background: "transparent", border: "none", color: "#f0f6fc", textAlign: "left", padding: "8px 12px", fontSize: 13, cursor: "pointer", borderRadius: 4 }} onClick={() => { setMenuOpen(false); startAdd(); }} onMouseEnter={e => e.currentTarget.style.background = "#21262d"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  Wydarzenie w kalendarzu
-                </button>
-                <button type="button" style={{ background: "transparent", border: "none", color: "#f0f6fc", textAlign: "left", padding: "8px 12px", fontSize: 13, cursor: "pointer", borderRadius: 4 }} onClick={() => { setMenuOpen(false); startAddOrderDate(); }} onMouseEnter={e => e.currentTarget.style.background = "#21262d"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  Termin ze zlecenia
-                </button>
-              </div>
-            )}
-          </div>
+          <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={startAdd}>
+            <I.plus s={13} /> Dodaj wydarzenie
+          </button>
         )}
       </div>
 
       <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        {events.length === 0 && !editing && !order.deadline && !order.deliveryDate && !order.acceptanceDate && (
-          <div style={{ color: "#8b949e", fontSize: 13 }}>Brak terminów. Dodaj wydarzenie (Pomiary, Montaż…) — trafi do kalendarza firmowego.</div>
-        )}
-
-        {(() => {
-          return (
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #8b949e`, borderRadius: 6 }}>
-              <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#8b949e", flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
-                  Utworzenie zlecenia
-                  <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDateTime(order.createdAt)}</span>
-                </div>
-              </div>
+        {/* 1. Utworzenie zlecenia */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+              Utworzenie zlecenia
+              <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDateTime(order.createdAt)}</span>
             </div>
-          );
-        })()}
-
-        {order.deadline && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #f85149`, borderRadius: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#f85149", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
-                Termin realizacji
-                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.deadline)}</span>
-              </div>
-            </div>
-            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deadline")}><I.trash s={13} /></button>
           </div>
-        )}
+        </div>
 
-        {order.deliveryDate && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d29922`, borderRadius: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d29922", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
-                Data dostawy
-                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.deliveryDate)}</span>
-              </div>
-            </div>
-            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deliveryDate")}><I.trash s={13} /></button>
-          </div>
-        )}
-
-        {order.acceptanceDate && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #2ea043`, borderRadius: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#2ea043", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
-                Data akceptacji
+        {/* 2. Data akceptacji */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+              Data akceptacji
+              {order.acceptanceDate ? (
                 <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.acceptanceDate)}</span>
-              </div>
+              ) : (
+                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8, fontStyle: "italic" }}>— brak (automatyczna) —</span>
+              )}
             </div>
-            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("acceptanceDate")}><I.trash s={13} /></button>
           </div>
-        )}
+          {order.acceptanceDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("acceptanceDate")}><I.trash s={13} /></button>
+          )}
+        </div>
 
+        {/* 3. Data realizacji */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+              Data realizacji
+            </div>
+            {order.deadline ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.deadline)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("deadline", e.target.value)}
+              />
+            )}
+          </div>
+          {order.deadline && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deadline")}><I.trash s={13} /></button>
+          )}
+        </div>
+
+        {/* 4. Data odbioru */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+              Data odbioru
+            </div>
+            {order.deliveryDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.deliveryDate)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("deliveryDate", e.target.value)}
+              />
+            )}
+          </div>
+          {order.deliveryDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("deliveryDate")}><I.trash s={13} /></button>
+          )}
+        </div>
+
+        {/* Wydarzenia w kalendarzu */}
         {events.map((ev) => {
           const cat = ev.category ? catByCode.get(ev.category) : undefined;
           const color = cat?.color ?? ev.color ?? "#9ca3af";
@@ -707,10 +713,6 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
 
         {adding && (
           <EventForm form={form} setForm={setForm} categories={availableCats} busy={busy} onSave={save} onCancel={() => { setAdding(false); resetForm(); }} />
-        )}
-
-        {addingOrderDate && (
-          <OrderDateForm orderId={orderId} order={order} busy={busy} onCancel={() => setAddingOrderDate(false)} />
         )}
       </div>
     </div>
@@ -1092,64 +1094,6 @@ export default function OrderDetailPage({
     </>
   );
 }
-function OrderDateForm({ orderId, order, busy, onCancel }: { orderId: Id<"orders">, order: any, busy: boolean, onCancel: () => void }) {
-  const updateDates = useMutation(api.orders.updateDates);
-  const [type, setType] = useState<"deadline" | "deliveryDate" | "acceptanceDate">("deadline");
-  const [date, setDate] = useState(order[type] || "");
-  const [localBusy, setLocalBusy] = useState(false);
-
-  useEffect(() => {
-    setDate(order[type] || "");
-  }, [type, order]);
-
-  async function save() {
-    if (!date) {
-      toast.error("Wybierz datę");
-      return;
-    }
-    setLocalBusy(true);
-    try {
-      await updateDates({ id: orderId, [type]: date });
-      onCancel();
-      toast.success("Zapisano termin ze zlecenia");
-    } catch(e) {
-      toast.error("Błąd zapisu terminów");
-    } finally {
-      setLocalBusy(false);
-    }
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 12, background: "#161b22", borderRadius: 6, border: "1px solid #30363d" }}>
-      <div style={{ display: "flex", gap: 10 }}>
-        <select
-          className="fluent-input"
-          style={{ flex: 1 }}
-          value={type}
-          onChange={(e) => setType(e.target.value as any)}
-          disabled={busy || localBusy}
-        >
-          <option value="deadline">Termin realizacji</option>
-          <option value="deliveryDate">Data dostawy</option>
-          <option value="acceptanceDate">Data akceptacji</option>
-        </select>
-        <input
-          type="date"
-          className="fluent-input"
-          style={{ flex: 1 }}
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          disabled={busy || localBusy}
-        />
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <button type="button" className="fluent-btn fluent-btn-ghost fluent-btn-sm" onClick={onCancel} disabled={busy || localBusy}>Anuluj</button>
-        <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={save} disabled={busy || localBusy}>Zapisz termin</button>
-      </div>
-    </div>
-  );
-}
-
 function ConfirmDeleteModal({
   orderId,
   clientName,

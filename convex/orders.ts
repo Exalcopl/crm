@@ -126,6 +126,7 @@ export const updateStatus = mutation({
     status: v.union(
       v.literal("nowe"),
       v.literal("akceptacja"),
+      v.literal("kompletacja"),
       v.literal("produkcja"),
       v.literal("montaz"),
       v.literal("gotowe"),
@@ -415,6 +416,37 @@ export const updateDates = mutation({
     const order = await ctx.db.get(args.id);
     if (!order) throw new Error("Zlecenie nie istnieje.");
 
+    const changes: string[] = [];
+    const labels: Record<string, string> = {
+      deadline: "Termin realizacji",
+      deliveryDate: "Data odbioru",
+      acceptanceDate: "Data akceptacji",
+    };
+
+    const processChange = (field: "deadline" | "deliveryDate" | "acceptanceDate", newValue: string | null | undefined) => {
+      if (newValue === undefined) return;
+      const prevValue = order[field];
+      const label = labels[field];
+
+      if (newValue === null) {
+        if (prevValue) {
+          changes.push(`Usunięto ${label.toLowerCase()} (poprzednio: ${prevValue})`);
+        }
+      } else {
+        if (prevValue) {
+          if (prevValue !== newValue) {
+            changes.push(`Zmieniono ${label.toLowerCase()} z ${prevValue} na ${newValue}`);
+          }
+        } else {
+          changes.push(`Ustawiono ${label.toLowerCase()} na ${newValue}`);
+        }
+      }
+    };
+
+    processChange("deadline", args.deadline);
+    processChange("deliveryDate", args.deliveryDate);
+    processChange("acceptanceDate", args.acceptanceDate);
+
     if (args.deadline !== undefined) {
       if (args.deadline === null) delete order.deadline;
       else order.deadline = args.deadline;
@@ -430,15 +462,18 @@ export const updateDates = mutation({
 
     await ctx.db.replace(args.id, order);
 
-    const user = await ctx.db.get(userId);
-    await ctx.db.insert("orderActivity", {
-      orderId: args.id,
-      type: "order_dates_updated",
-      title: "Terminy zlecenia zaktualizowane",
-      authorId: userId,
-      authorName: user?.name || "Nieznany użytkownik",
-      createdAt: Date.now(),
-    });
+    if (changes.length > 0) {
+      const user = await ctx.db.get(userId);
+      await ctx.db.insert("orderActivity", {
+        orderId: args.id,
+        type: "order_dates_updated",
+        title: "Aktualizacja terminów zlecenia",
+        detail: changes.join(", "),
+        authorId: userId,
+        authorName: user?.name || "Nieznany użytkownik",
+        createdAt: Date.now(),
+      });
+    }
   },
 });
 

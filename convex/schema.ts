@@ -468,6 +468,7 @@ export default defineSchema({
     status: v.union(
       v.literal("nowe"),
       v.literal("akceptacja"),
+      v.literal("kompletacja"),
       v.literal("produkcja"),
       v.literal("montaz"),
       v.literal("gotowe"),
