@@ -619,6 +619,7 @@ export const createFromPartnerApi = internalMutation({
     projectType: v.array(v.string()),
     valueNetto: v.number(),
     margin: v.number(),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ orderId: Id<"orders">; orderNumber: string }> => {
     const createdAt = Date.now();
@@ -655,6 +656,7 @@ export const createFromPartnerApi = internalMutation({
       clientEmail: args.clientEmail,
       clientPhone: args.clientPhone,
       partnerId: args.partnerId,
+      notes: args.notes,
       createdAt,
       sharepoint: {
         status: "pending",
@@ -707,5 +709,45 @@ export const logFileActivity = internalMutation({
       authorName: "API Partner",
       createdAt: Date.now(),
     });
+  },
+});
+
+export const appendNotesFromPartnerApi = internalMutation({
+  args: {
+    orderIdOrNumber: v.string(),
+    notes: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; notes: string }> => {
+    // 1. Znajdź zlecenie po ID lub numerze zlecenia
+    let order: any = null;
+    if (args.orderIdOrNumber.length === 32) {
+      order = await ctx.db.get(args.orderIdOrNumber as any);
+    }
+    if (!order) {
+      order = await ctx.db
+        .query("orders")
+        .withIndex("by_orderNumber", (q) => q.eq("orderNumber", args.orderIdOrNumber))
+        .first();
+    }
+    if (!order) throw new Error("Nie znaleziono zlecenia.");
+
+    // 2. Sklej notatki z zachowaniem struktury textarea
+    const oldNotes = order.notes ? order.notes.trim() : "";
+    const newNotes = oldNotes ? `${oldNotes}\n\n${args.notes.trim()}` : args.notes.trim();
+
+    await ctx.db.patch(order._id, { notes: newNotes });
+
+    // 3. Dodaj wpis do aktywności
+    await ctx.db.insert("orderActivity", {
+      orderId: order._id,
+      type: "comment",
+      title: "Dodano notatkę przez API",
+      detail: args.notes.trim(),
+      authorId: null,
+      authorName: "API Partner",
+      createdAt: Date.now(),
+    });
+
+    return { orderId: order._id, notes: newNotes };
   },
 });

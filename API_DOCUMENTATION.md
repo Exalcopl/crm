@@ -24,7 +24,8 @@ Do ceny netto przesłanej w zapytaniu automatycznie doliczana jest marża partne
 * **Zapytanie (Request Body):**
   ```json
   {
-    "valueNetto": 12500.00
+    "valueNetto": 12500.00,
+    "notes": "Pierwsza linia notatki\nDruga linia z pola textarea" // [Opcjonalnie] tekst z zachowaniem formatowania i nowych linii
   }
   ```
 * **Odpowiedź (Response - 201 Created):**
@@ -69,7 +70,34 @@ Przesyła plik (np. plik RW lub Rysunek techniczny) i zapisuje go w podfolderze 
 
 ---
 
-### 1.3. Powiadomienia Webhook o zmianie statusu (Outbound Webhook)
+### 1.3. Dodanie notatki do zlecenia (`POST /api/partner/orders/add-note`)
+
+Dopisuje nową notatkę do istniejącego zlecenia. Nowe notatki są automatycznie doklejane na końcu pola notatek zlecenia, oddzielone podwójnym znakiem nowej linii.
+
+* **Metoda:** `POST`
+* **Adres:** `/api/partner/orders/add-note`
+* **Nagłówki:**
+  - `X-Api-Key`: `pk_live_xxxxxxxxxxxxxxxxxxxxxxxx`
+  - `Content-Type`: `application/json`
+* **Zapytanie (Request Body):**
+  ```json
+  {
+    "orderIdOrNumber": "ZL-260802516", // ID zlecenia w Convex lub numer zlecenia
+    "notes": "Dodatkowa notatka z zewnętrznego CRM.\nKolejna linia z pola textarea." // tekst z zachowaniem nowych linii
+  }
+  ```
+* **Odpowiedź (Response - 200 OK):**
+  ```json
+  {
+    "success": true,
+    "orderId": "pd79ddwdn...",
+    "notes": "Pierwsza notatka...\n\nDodatkowa notatka z zewnętrznego CRM.\nKolejna linia z pola textarea." // Pełna, połączona zawartość pola notatek
+  }
+  ```
+
+---
+
+### 1.4. Powiadomienia Webhook o zmianie statusu (Outbound Webhook)
 
 Gdy status zlecenia powiązanego z Partnerem ulega zmianie w CRM Exalco, system wysyła żądanie HTTP `POST` pod adres URL skonfigurowany w panelu CRM Partnera.
 

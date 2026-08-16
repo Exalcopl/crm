@@ -247,6 +247,7 @@ export const testAdkPartnerApiIntegration = action({
       },
       body: JSON.stringify({
         valueNetto: 12500.00,
+        notes: "Pierwsza notatka z systemu CRM.\nDruga linia w textarea.",
       }),
     });
 
@@ -329,6 +330,26 @@ export const testAdkPartnerApiIntegration = action({
       status: "akceptacja",
     });
     console.log("[test-adk-http] ✓ Sukces: Zlecono wysłanie webhooka po zmianie statusu.");
+    // 5. Test dodawania/sklejania notatek przez API
+    console.log(`[test-adk-http] Wywołanie POST ${siteUrl}/api/partner/orders/add-note...`);
+    const noteRes = await fetch(`${siteUrl}/api/partner/orders/add-note`, {
+      method: "POST",
+      headers: {
+        "X-Api-Key": rawKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        orderIdOrNumber: orderData.orderId,
+        notes: "Dodatkowa notatka dopisana później.\nKolejna linia z textarea.",
+      }),
+    });
+
+    if (!noteRes.ok) {
+      const txt = await noteRes.text();
+      throw new Error(`FAIL: add note failed with status ${noteRes.status}: ${txt}`);
+    }
+    const noteData = await noteRes.json() as { success: boolean; notes: string };
+    console.log("[test-adk-http] ✓ Sukces: Notatka została dodana i połączona:\n" + noteData.notes);
 
     return {
       status: "SUCCESS",

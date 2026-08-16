@@ -435,6 +435,7 @@ http.route({
     }
 
     // 5. Tworzenie zlecenia
+    const notes = typeof body.notes === "string" ? body.notes : undefined;
     let result: { orderId: string; orderNumber: string };
     try {
       result = await ctx.runMutation(internal.orders.createFromPartnerApi, {
@@ -446,6 +447,7 @@ http.route({
         projectType: partner.projectType,
         valueNetto,
         margin: partner.margin,
+        notes,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Błąd wewnętrzny serwera.";
@@ -595,6 +597,108 @@ http.route({
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Błąd serwera przy przesłaniu pliku.";
+      return new Response(
+        JSON.stringify({ success: false, error: message }),
+        { status: 500, headers: jsonHeaders }
+      );
+    }
+  }),
+});
+
+// ─── Partner API: OPTIONS for add-note ────────────────────────────────────────
+http.route({
+  path: "/api/partner/orders/add-note",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, { status: 204, headers: partnerCorsHeaders });
+  }),
+});
+
+// ─── Partner API: POST /api/partner/orders/add-note ────────────────────────────
+http.route({
+  path: "/api/partner/orders/add-note",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const jsonHeaders = {
+      "Content-Type": "application/json",
+      ...partnerCorsHeaders,
+    };
+
+    // 1. Uwierzytelnienie
+    const rawKey = request.headers.get("X-Api-Key");
+    if (!rawKey || !rawKey.startsWith("pk_live_")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Brak lub nieprawidłowy nagłówek X-Api-Key." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    // 2. Hash klucza i wyszukanie Partnera
+    const encoder = new TextEncoder();
+    const data = encoder.encode(rawKey);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const keyHash = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+    const partner = await ctx.runQuery(internal.partners.getByApiKeyHash, { hash: keyHash });
+    if (!partner) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieznany klucz API." }),
+        { status: 401, headers: jsonHeaders }
+      );
+    }
+
+    if (!partner.isActive) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Konto Partnera jest nieaktywne." }),
+        { status: 403, headers: jsonHeaders }
+      );
+    }
+
+    // 3. Parsowanie body
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ success: false, error: "Nieprawidłowy JSON w body requestu." }),
+        { status: 400, headers: jsonHeaders }
+      );
+    }
+
+    const { orderIdOrNumber, notes } = body;
+
+    if (!orderIdOrNumber || typeof orderIdOrNumber !== "string") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'orderIdOrNumber' jest wymagane i musi być ciągiem znaków." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    if (!notes || typeof notes !== "string" || !notes.trim()) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Pole 'notes' jest wymagane i musi zawierać niepusty ciąg znaków." }),
+        { status: 422, headers: jsonHeaders }
+      );
+    }
+
+    // 4. Dopisywanie notatki do zlecenia
+    try {
+      const result = await ctx.runMutation(internal.orders.appendNotesFromPartnerApi, {
+        orderIdOrNumber,
+        notes,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          orderId: result.orderId,
+          notes: result.notes,
+        }),
+        { status: 200, headers: jsonHeaders }
+      );
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Błąd serwera przy zapisywaniu notatki.";
       return new Response(
         JSON.stringify({ success: false, error: message }),
         { status: 500, headers: jsonHeaders }
