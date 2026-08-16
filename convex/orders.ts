@@ -22,7 +22,8 @@ export const list = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Niezalogowany użytkownik.");
     
-    return await ctx.db.query("orders").collect();
+    const docs = await ctx.db.query("orders").collect();
+    return docs.filter((d) => d.archived !== true);
   },
 });
 
@@ -440,3 +441,121 @@ export const updateDates = mutation({
     });
   },
 });
+
+export const archive = mutation({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(id, { archived: true });
+
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("orderActivity", {
+      orderId: id,
+      type: "order_status_updated", // Or we can use order_archived if we want, status_updated is fine
+      title: "Zlecenie zarchiwizowane",
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const restore = mutation({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+
+    await ctx.db.patch(id, { archived: false });
+
+    const user = await ctx.db.get(userId);
+    await ctx.db.insert("orderActivity", {
+      orderId: id,
+      type: "order_status_updated",
+      title: "Zlecenie przywrócone",
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const remove = mutation({
+  args: { id: v.id("orders") },
+  handler: async (ctx, { id }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+
+    // Usuwanie powiązanych orderActivity
+    const activities = await ctx.db
+      .query("orderActivity")
+      .withIndex("by_order", (q) => q.eq("orderId", id))
+      .collect();
+    await Promise.all(activities.map((a) => ctx.db.delete(a._id)));
+
+    // Usuwanie powiązanych calendarEvents
+    const events = await ctx.db
+      .query("calendarEvents")
+      .withIndex("by_order", (q) => q.eq("orderId", id))
+      .collect();
+    await Promise.all(events.map((e) => ctx.db.delete(e._id)));
+
+    // Usuwanie samego zlecenia
+    await ctx.db.delete(id);
+  },
+});
+
+export const listArchived = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const docs = await ctx.db
+      .query("orders")
+      .order("desc")
+      .collect();
+    return docs.filter((d) => d.archived === true);
+  },
+});
+
+export const testArchiveAndDelete = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Tworzenie testowego zlecenia
+    const orderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-ORDER-123",
+      clientName: "Testowy Klient",
+      valueNetto: 100,
+      valueVat: 23,
+      valueBrutto: 123,
+      vatRate: 23,
+      items: [],
+      status: "nowe",
+      createdAt: Date.now(),
+    });
+
+    let order = await ctx.db.get(orderId);
+    if (!order) throw new Error("Test failed: order not created");
+
+    // 2. Archiwizacja i weryfikacja
+    await ctx.db.patch(orderId, { archived: true });
+    order = await ctx.db.get(orderId);
+    if (order?.archived !== true) throw new Error("Test failed: order not archived");
+
+    // 3. Przywrócenie i weryfikacja
+    await ctx.db.patch(orderId, { archived: false });
+    order = await ctx.db.get(orderId);
+    if (order?.archived !== false) throw new Error("Test failed: order not restored");
+
+    // 4. Usunięcie i weryfikacja
+    await ctx.db.delete(orderId);
+    order = await ctx.db.get(orderId);
+    if (order) throw new Error("Test failed: order not deleted");
+
+    return "SUCCESS";
+  },
+});
+

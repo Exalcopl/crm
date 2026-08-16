@@ -517,12 +517,14 @@ export default defineSchema({
         lastTriedAt: v.number(),
       })
     ),
+    archived: v.optional(v.boolean()),
     createdAt: v.number(),
   })
     .index("by_status", ["status"])
     .index("by_quote", ["quoteId"])
     .index("by_client", ["clientId"])
-    .index("by_orderNumber", ["orderNumber"]),
+    .index("by_orderNumber", ["orderNumber"])
+    .index("by_archived", ["archived"]),
 
   orderCounters: defineTable({
     year: v.number(),

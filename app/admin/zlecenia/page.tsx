@@ -64,6 +64,7 @@ function ZleceniaRibbon({
   view: ZleceniaViewMode;
   onViewChange: (v: ZleceniaViewMode) => void;
 }) {
+  const router = useRouter();
   return (
     <div className="fluent-ribbon">
       <RibbonGroup label="Nawigacja">
@@ -71,10 +72,16 @@ function ZleceniaRibbon({
           icon={<I.plus s={22} />}
           label="Nowe zlecenie"
           onClick={() => {
-            window.location.href = "/admin/zlecenia/nowe";
+            router.push("/admin/zlecenia/nowe");
           }}
         />
-
+        <RibbonBtn
+          icon={<I.archive s={22} />}
+          label="Archiwum"
+          onClick={() => {
+            router.push("/admin/archiwum?tab=zlecenia");
+          }}
+        />
       </RibbonGroup>
       <RibbonGroup label="Widok">
         <RibbonToggleGroup

@@ -797,6 +797,13 @@ export default function OrderDetailPage({
 
   const activities = [...quoteActivities, ...orderActivities].sort((a, b) => b.createdAt - a.createdAt);
 
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+
+  const archiveOrder = useMutation(api.orders.archive);
+  const restoreOrder = useMutation(api.orders.restore);
+  const removeOrder = useMutation(api.orders.remove);
+
   const [updating, setUpdating] = useState(false);
 
   if (order === undefined) {
@@ -834,6 +841,42 @@ export default function OrderDetailPage({
     }
   }
 
+  async function confirmDelete() {
+    if (!order) return;
+    try {
+      await removeOrder({ id: order._id });
+      toast.success("Zlecenie zostało usunięte");
+      router.push("/admin/zlecenia");
+    } catch (e: any) {
+      toast.error(e.message || "Błąd podczas usuwania zlecenia");
+    }
+  }
+
+  async function confirmArchive() {
+    if (!order) return;
+    try {
+      await archiveOrder({ id: order._id });
+      toast.success("Zlecenie zostało zarchiwizowane");
+      router.push("/admin/zlecenia");
+    } catch (e: any) {
+      toast.error(e.message || "Błąd podczas archiwizacji zlecenia");
+    }
+  }
+
+  async function toggleArchive() {
+    if (!order) return;
+    if (order.archived) {
+      try {
+        await restoreOrder({ id: order._id });
+        toast.success("Zlecenie zostało przywrócone");
+      } catch (e: any) {
+        toast.error(e.message || "Błąd podczas przywracania zlecenia");
+      }
+    } else {
+      setConfirmArchiveOpen(true);
+    }
+  }
+
   const currentStatus = order.status as OrderStatus;
   const config = STATUS_CONFIG[currentStatus];
   const statuses = Object.keys(STATUS_CONFIG) as OrderStatus[];
@@ -847,6 +890,24 @@ export default function OrderDetailPage({
             icon={<I.arrowLeft s={22} />}
             label="Wróć"
             onClick={() => router.push("/admin/zlecenia")}
+          />
+        </RibbonGroup>
+        <RibbonGroup label="Operacje">
+          <RibbonBtn
+            icon={<I.link s={22} />}
+            label="Otwórz folder"
+            disabled={!order.sharepoint?.webUrl}
+            onClick={() => order.sharepoint?.webUrl && window.open(order.sharepoint.webUrl, "_blank")}
+          />
+          <RibbonBtn
+            icon={order.archived ? <I.arrowLeft s={22} /> : <I.archive s={22} />}
+            label={order.archived ? "Przywróć" : "Archiwizuj"}
+            onClick={toggleArchive}
+          />
+          <RibbonBtn
+            icon={<I.trash s={22} />}
+            label="Usuń"
+            onClick={() => setConfirmDeleteOpen(true)}
           />
         </RibbonGroup>
       </div>
@@ -1012,6 +1073,22 @@ export default function OrderDetailPage({
           color: #8b949e;
         }
       `}</style>
+      {confirmDeleteOpen && (
+        <ConfirmDeleteModal
+          orderId={order.orderNumber}
+          clientName={order.clientName}
+          onCancel={() => setConfirmDeleteOpen(false)}
+          onConfirm={() => void confirmDelete()}
+        />
+      )}
+      {confirmArchiveOpen && (
+        <ConfirmArchiveModal
+          orderId={order.orderNumber}
+          clientName={order.clientName}
+          onCancel={() => setConfirmArchiveOpen(false)}
+          onConfirm={() => void confirmArchive()}
+        />
+      )}
     </>
   );
 }
@@ -1072,3 +1149,201 @@ function OrderDateForm({ orderId, order, busy, onCancel }: { orderId: Id<"orders
     </div>
   );
 }
+
+function ConfirmDeleteModal({
+  orderId,
+  clientName,
+  onCancel,
+  onConfirm,
+}: {
+  orderId: string;
+  clientName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Usuń zlecenie"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-sm">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon fluent-modal-title-icon-danger">
+              <I.trash s={16} sw={2.2} />
+            </span>
+            <span>Usuń zlecenie</span>
+          </div>
+          <button
+            type="button"
+            className="fluent-modal-close"
+            onClick={onCancel}
+            aria-label="Zamknij"
+          >
+            ×
+          </button>
+        </header>
+        <div className="fluent-modal-body">
+          <p className="fluent-modal-text">
+            Czy na pewno chcesz usunąć zlecenie{" "}
+            <strong>{orderId}</strong>
+            {clientName ? (
+              <>
+                {" "}dla klienta <strong>{clientName}</strong>
+              </>
+            ) : null}
+            ?
+          </p>
+          <p className="fluent-modal-text fluent-modal-text-muted">
+            Tej operacji nie można cofnąć.
+          </p>
+        </div>
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onCancel}
+            autoFocus
+          >
+            Nie
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-danger"
+            onClick={onConfirm}
+          >
+            <I.trash s={14} sw={2.2} />
+            <span>Tak, usuń</span>
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmArchiveModal({
+  orderId,
+  clientName,
+  onCancel,
+  onConfirm,
+}: {
+  orderId: string;
+  clientName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !isLoading) onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onCancel, isLoading]);
+
+  function handleConfirm() {
+    setIsLoading(true);
+    setTimeout(() => {
+      onConfirm();
+      setIsLoading(false);
+    }, 300);
+  }
+
+  return (
+    <div
+      className="fluent-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Archiwizuj zlecenie"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isLoading) onCancel();
+      }}
+    >
+      <div className="fluent-modal fluent-modal-sm">
+        <header className="fluent-modal-head">
+          <div className="fluent-modal-title">
+            <span className="fluent-modal-title-icon">
+              <I.archive s={16} sw={2.2} />
+            </span>
+            <span>Archiwizuj zlecenie</span>
+          </div>
+          <button
+            type="button"
+            className="fluent-modal-close"
+            onClick={onCancel}
+            aria-label="Zamknij"
+            disabled={isLoading}
+          >
+            ×
+          </button>
+        </header>
+        <div className="fluent-modal-body">
+          <p className="fluent-modal-text">
+            Na pewno archiwizować zlecenie{" "}
+            <strong>{orderId}</strong>
+            {clientName ? (
+              <>
+                {" "}dla klienta <strong>{clientName}</strong>
+              </>
+            ) : null}
+            ?
+          </p>
+        </div>
+        <footer className="fluent-modal-foot">
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-ghost"
+            onClick={onCancel}
+            autoFocus
+            disabled={isLoading}
+          >
+            Nie
+          </button>
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-primary"
+            onClick={handleConfirm}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <span className="spinner-small" aria-hidden="true" />
+                <span>Archiwizuję…</span>
+              </>
+            ) : (
+              <>
+                <I.archive s={14} sw={2.2} />
+                <span>Tak, archiwizuj</span>
+              </>
+            )}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
