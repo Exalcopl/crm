@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
@@ -1514,10 +1514,21 @@ export function CalendarPanel() {
   const startDate = companyViewMode === "week" ? weekDateStrings[0] : monthGridDays[0];
   const endDate = companyViewMode === "week" ? weekDateStrings[6] : monthGridDays[41];
 
-  const companyEvents = useQuery(
+  const rawCompanyEvents = useQuery(
     api.calendarEvents.listCompanyEventsByRange,
     isCompanyOpen ? { startDate, endDate } : "skip"
   ) ?? (EMPTY_ARRAY as CalEvent[]);
+
+  const [pendingOptimisticEvents, setPendingOptimisticEvents] = useState<Record<string, Partial<CalEvent>>>({});
+
+  const companyEvents = useMemo(() => {
+    if (!Array.isArray(rawCompanyEvents)) return [];
+    if (Object.keys(pendingOptimisticEvents).length === 0) return rawCompanyEvents as CalEvent[];
+    return (rawCompanyEvents as CalEvent[]).map((ev) => {
+      const opt = pendingOptimisticEvents[ev._id];
+      return opt ? { ...ev, ...opt } : ev;
+    });
+  }, [rawCompanyEvents, pendingOptimisticEvents]);
 
   const createEvent = useMutation(api.calendarEvents.create);
   const updateEvent = useMutation(api.calendarEvents.update);
@@ -1718,11 +1729,29 @@ export function CalendarPanel() {
         }, 150);
 
         if (compDragState.type === "allday-resize" || compDragState.type === "month-resize") {
+          const eventId = compDragState.eventId;
+          const targetEndDate = compDragState.currentEndDate;
+          setPendingOptimisticEvents(prev => ({
+            ...prev,
+            [eventId]: { endDate: targetEndDate }
+          }));
+
           updateEvent({
-            id: compDragState.eventId,
-            endDate: compDragState.currentEndDate,
+            id: eventId,
+            endDate: targetEndDate,
+          }).then(() => {
+            setPendingOptimisticEvents(prev => {
+              const next = { ...prev };
+              delete next[eventId];
+              return next;
+            });
           }).catch((err) => {
             console.error("Failed to resize event:", err);
+            setPendingOptimisticEvents(prev => {
+              const next = { ...prev };
+              delete next[eventId];
+              return next;
+            });
           });
         } else if (e.altKey) {
           // Alt/Option drag: copy event to target date
@@ -1749,18 +1778,43 @@ export function CalendarPanel() {
           }
         } else {
           // Normal drag: move event
+          const eventId = compDragState.eventId;
           const dayDiff = getDaysDiff(compDragState.originalDate, compDragState.currentDate);
           const origEndDate = compDragState.originalEndDate || compDragState.originalDate;
           const finalEndDate = compDragState.currentEndDate || addDays(origEndDate, dayDiff);
+          const newDate = compDragState.currentDate;
+          const newStart = formatHour(compDragState.currentStart);
+          const newEnd = formatHour(compDragState.currentEnd);
+
+          setPendingOptimisticEvents(prev => ({
+            ...prev,
+            [eventId]: {
+              date: newDate,
+              startTime: newStart,
+              endTime: newEnd,
+              endDate: finalEndDate,
+            }
+          }));
 
           updateEvent({
-            id: compDragState.eventId,
-            date: compDragState.currentDate,
-            startTime: formatHour(compDragState.currentStart),
-            endTime: formatHour(compDragState.currentEnd),
+            id: eventId,
+            date: newDate,
+            startTime: newStart,
+            endTime: newEnd,
             endDate: finalEndDate,
+          }).then(() => {
+            setPendingOptimisticEvents(prev => {
+              const next = { ...prev };
+              delete next[eventId];
+              return next;
+            });
           }).catch((err) => {
             console.error("Failed to drag-update event:", err);
+            setPendingOptimisticEvents(prev => {
+              const next = { ...prev };
+              delete next[eventId];
+              return next;
+            });
           });
         }
       }
