@@ -2838,7 +2838,7 @@ export function CalendarPanel() {
           }}
           aria-label="Otwórz harmonogram produkcji"
           aria-expanded={isGanttOpen}
-          title="Harmonogram produkcji (Gantt)"
+          title="Harmonogram produkcji"
         >
           <BarChart3 className="cal-fab-icon" style={{ strokeWidth: 1.5, filter: "none", color: "#fff", transform: "rotate(90deg)" }} />
         </button>

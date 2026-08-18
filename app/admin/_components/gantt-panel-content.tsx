@@ -224,7 +224,7 @@ export function GanttPanelContent({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #30363d", background: "#161b22" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <BarChart3 style={{ color: "#f59e0b", transform: "rotate(90deg)" }} size={20} />
-          <span style={{ fontSize: 15, fontWeight: 600, color: "#f0f6fc" }}>Harmonogram Produkcji (Gantt)</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: "#f0f6fc" }}>Harmonogram Produkcji</span>
           <span style={{ background: "#21262d", color: "#8b949e", fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 500 }}>
             {productionOrders.length} zlecenia w produkcji
           </span>
