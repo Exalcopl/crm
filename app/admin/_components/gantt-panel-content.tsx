@@ -111,6 +111,49 @@ export function GanttPanelContent({
     });
   }
 
+  // Calculate daily load (capacity)
+  const dayCapacity: Record<string, number> = {};
+  for (const day of days) {
+    let count = 0;
+    for (const order of productionOrders) {
+      const dates = localDates[order._id] || (order.productionStartDate && order.productionEndDate ? { start: order.productionStartDate, end: order.productionEndDate } : null);
+      if (dates && day.dateStr >= dates.start && day.dateStr <= dates.end) {
+        count++;
+      }
+    }
+    dayCapacity[day.dateStr] = count;
+  }
+
+  const getCapacityColor = (count: number) => {
+    if (count >= 5) return { bg: "rgba(239, 68, 68, 0.12)", text: "#f85149", badge: "#ef4444", label: "Przeciążenie" };
+    if (count >= 3) return { bg: "rgba(245, 158, 11, 0.1)", text: "#f59e0b", badge: "#f59e0b", label: "Wysokie" };
+    if (count >= 1) return { bg: "rgba(63, 185, 80, 0.08)", text: "#3fb950", badge: "#3fb950", label: "Niskie" };
+    return { bg: "transparent", text: "#8b949e", badge: "transparent", label: "Pusto" };
+  };
+
+  // Helper to calculate maximum concurrency for an order's range
+  const getMaxConcurrency = (startStr: string, endStr: string) => {
+    let maxCount = 0;
+    const startD = new Date(startStr + "T00:00:00");
+    const endD = new Date(endStr + "T00:00:00");
+    const tempD = new Date(startD);
+    while (tempD <= endD) {
+      const dateStr = tempD.toISOString().split("T")[0];
+      let count = 0;
+      for (const o of productionOrders) {
+        const oDates = localDates[o._id] || (o.productionStartDate && o.productionEndDate ? { start: o.productionStartDate, end: o.productionEndDate } : null);
+        if (oDates && dateStr >= oDates.start && dateStr <= oDates.end) {
+          count++;
+        }
+      }
+      if (count > maxCount) {
+        maxCount = count;
+      }
+      tempD.setDate(tempD.getDate() + 1);
+    }
+    return maxCount;
+  };
+
   // Filter orders by search term and selected project types
   const filteredOrders = productionOrders.filter((o) => {
     const matchesSearch =
@@ -375,6 +418,23 @@ export function GanttPanelContent({
         </div>
       </div>
 
+      {/* Capacity Legend Bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory pasków (Obciążenie terminu):</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
+          <span>Zielone: 1-2 zlecenia równolegle (Optymalne)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
+          <span>Pomarańczowe: 3-4 zlecenia równolegle (Wysokie)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
+          <span>Czerwone: 5+ zleceń równolegle (Przeciążenie)</span>
+        </div>
+      </div>
+
       {/* Main Content Area */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         
@@ -516,29 +576,37 @@ export function GanttPanelContent({
             
             {/* Timeline Headers */}
             <div style={{ display: "flex", height: 50, borderBottom: "2px solid #30363d", background: "#161b22", position: "sticky", top: 0, zIndex: 2 }}>
-              {days.map((day) => (
-                <div
-                  key={day.dateStr}
-                  style={{
-                    width: dayWidth,
-                    flexShrink: 0,
-                    borderRight: "1px solid #21262d",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: day.isToday 
-                      ? "rgba(245, 158, 11, 0.1)" 
-                      : day.isWeekend 
-                      ? "#0d1117" 
-                      : "transparent",
-                    color: day.isToday ? "#f59e0b" : day.isWeekend ? "#8b949e" : "#c9d1d9",
-                  }}
-                >
-                  <span style={{ fontSize: 9, textTransform: "uppercase" }}>{day.label}</span>
-                  <span style={{ fontSize: 13, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
-                </div>
-              ))}
+              {days.map((day) => {
+                const loadCount = dayCapacity[day.dateStr] || 0;
+                const cap = getCapacityColor(loadCount);
+                return (
+                  <div
+                    key={day.dateStr}
+                    style={{
+                      width: dayWidth,
+                      flexShrink: 0,
+                      borderRight: "1px solid #21262d",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: day.isToday 
+                        ? "rgba(245, 158, 11, 0.15)" 
+                        : day.isWeekend 
+                        ? "#0d1117" 
+                        : cap.bg !== "transparent"
+                        ? cap.bg
+                        : "transparent",
+                      color: day.isToday ? "#f59e0b" : day.isWeekend ? "#8b949e" : "#c9d1d9",
+                      position: "relative"
+                    }}
+                    title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji (${cap.label})`}
+                  >
+                    <span style={{ fontSize: 9, textTransform: "uppercase" }}>{day.label}</span>
+                    <span style={{ fontSize: 13, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Timeline Grid Rows & Bars */}
@@ -581,20 +649,28 @@ export function GanttPanelContent({
                         position: "relative",
                       }}
                     >
-                      {days.map((day) => (
-                        <div
-                          key={day.dateStr}
-                          style={{
-                            width: dayWidth,
-                            height: "100%",
-                            flexShrink: 0,
-                            borderRight: "1px solid #21262d",
-                            background: day.isWeekend ? "#161b22" : "transparent",
-                            pointerEvents: "none",
-                            opacity: 0.3
-                          }}
-                        />
-                      ))}
+                      {days.map((day) => {
+                        const loadCount = dayCapacity[day.dateStr] || 0;
+                        const cap = getCapacityColor(loadCount);
+                        return (
+                          <div
+                            key={day.dateStr}
+                            style={{
+                              width: dayWidth,
+                              height: "100%",
+                              flexShrink: 0,
+                              borderRight: "1px solid #21262d",
+                              background: day.isWeekend 
+                                ? "#0d1117" 
+                                : cap.bg !== "transparent"
+                                ? cap.bg
+                                : "transparent",
+                              pointerEvents: "none",
+                              opacity: 0.4
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   );
                 }
@@ -609,6 +685,18 @@ export function GanttPanelContent({
                   const left = startOffsetDays * dayWidth;
                   const width = durationDays * dayWidth;
 
+                  const maxConcurrency = getMaxConcurrency(dates.start, dates.end);
+                  let barGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green (Niskie)
+                  let barShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
+
+                  if (maxConcurrency >= 5) {
+                    barGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red (Przeciążenie)
+                    barShadow = "0 2px 8px rgba(248, 81, 73, 0.4)";
+                  } else if (maxConcurrency >= 3) {
+                    barGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange (Wysokie)
+                    barShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
+                  }
+
                   barStyle = {
                     position: "absolute",
                     left: left,
@@ -616,8 +704,8 @@ export function GanttPanelContent({
                     height: 26,
                     top: 9,
                     borderRadius: 4,
-                    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-                    boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+                    background: barGradient,
+                    boxShadow: barShadow,
                     display: "flex",
                     alignItems: "center",
                     padding: "0 10px",
@@ -642,19 +730,27 @@ export function GanttPanelContent({
                     }}
                   >
                     {/* Background day columns styling */}
-                    {days.map((day) => (
-                      <div
-                        key={day.dateStr}
-                        style={{
-                          width: dayWidth,
-                          height: "100%",
-                          flexShrink: 0,
-                          borderRight: "1px solid #21262d",
-                          background: day.isWeekend ? "#161b22" : "transparent",
-                          pointerEvents: "none",
-                        }}
-                      />
-                    ))}
+                    {days.map((day) => {
+                      const loadCount = dayCapacity[day.dateStr] || 0;
+                      const cap = getCapacityColor(loadCount);
+                      return (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #21262d",
+                            background: day.isWeekend 
+                              ? "#161b22" 
+                              : cap.bg !== "transparent"
+                              ? cap.bg
+                              : "transparent",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      );
+                    })}
 
                     {/* Gantt Bar */}
                     {barStyle && (
