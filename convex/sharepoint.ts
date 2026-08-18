@@ -567,6 +567,7 @@ export const listClientFiles = action({
       { headers: { Authorization: `Bearer ${token}` } },
     );
 
+    if (res.status === 404) return [];
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Graph list client files ${res.status}: ${text}`);
