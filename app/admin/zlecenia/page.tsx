@@ -204,6 +204,7 @@ export default function ZleceniaPage() {
                   <tr>
                     <th className="qvm-th">Numer zlecenia</th>
                     <th className="qvm-th">Klient</th>
+                    <th className="qvm-th">Wartość netto</th>
                     <th className="qvm-th">Produkcja</th>
                     <th className="qvm-th">Status</th>
                     <th className="qvm-th" style={{ width: 100 }}>Akcja</th>
@@ -212,7 +213,7 @@ export default function ZleceniaPage() {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "#8b949e" }}>
+                      <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "#8b949e" }}>
                         Brak zleceń do wyświetlenia
                       </td>
                     </tr>
@@ -223,11 +224,36 @@ export default function ZleceniaPage() {
                           <Link href={`/admin/zlecenia/${order._id}`} style={{ color: "#58a6ff", textDecoration: "none" }}>
                             {order.orderNumber}
                           </Link>
+                          {(() => {
+                            const q = quotesMap.get(order.quoteId);
+                            const label = order.customLabel || q?.customLabel;
+                            if (!label) return null;
+                            return (
+                              <div style={{ marginTop: 2 }}>
+                                <span
+                                  style={{
+                                    fontSize: "9px",
+                                    fontWeight: "bold",
+                                    textTransform: "uppercase",
+                                    color: "var(--accent-primary)",
+                                    background: "var(--accent-soft)",
+                                    border: "1px solid var(--accent-line)",
+                                    padding: "1px 5px",
+                                    borderRadius: "4px",
+                                    display: "inline-block"
+                                  }}
+                                >
+                                  🏷️ {label}
+                                </span>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="qvm-td">
                           <div>{order.clientName}</div>
                           <div style={{ fontSize: 11, color: "#8b949e" }}>{order.clientPhone || order.clientEmail}</div>
                         </td>
+                        <td className="qvm-td">{formatCurrency(order.valueNetto)}</td>
 
                         <td className="qvm-td" style={{ fontSize: 11 }}>
                           {order.productionStartDate || order.productionEndDate ? (
@@ -626,6 +652,32 @@ function KanbanCardContent({
       />
       <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
         <span className="kanban-card-id" style={{ color: "#58a6ff" }}>{order.orderNumber}</span>
+        {(() => {
+          const label = order.customLabel || quote?.customLabel;
+          if (!label) return null;
+          return (
+            <span
+              style={{
+                fontSize: "9px",
+                fontWeight: "bold",
+                textTransform: "uppercase",
+                color: "var(--accent-primary)",
+                background: "var(--accent-soft)",
+                border: "1px solid var(--accent-line)",
+                padding: "1px 6px",
+                borderRadius: "4px",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: "120px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+              }}
+              title={label}
+            >
+              🏷️ {label}
+            </span>
+          );
+        })()}
         {ownerName && (
           <div
             className="kanban-card-owner"
@@ -659,6 +711,15 @@ function KanbanCardContent({
       </div>
       <div className="kanban-card-client">{order.clientName}</div>
       <div className="kanban-card-footer">
+        <div className="kanban-card-value">
+          <span className="kanban-card-value-num">
+            {order.valueNetto.toLocaleString("pl-PL", {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
+          </span>
+          <span className="kanban-card-value-unit">PLN</span>
+        </div>
 
         {order.productionStartDate || order.productionEndDate ? (
           <span className={`kanban-chip kanban-chip-deadline tone-${tone}`} style={{ fontSize: 10 }}>

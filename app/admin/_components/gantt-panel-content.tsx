@@ -1067,6 +1067,21 @@ export function GanttPanelContent({
                         <div
                           style={assemblyBarStyle}
                           onMouseDown={(e) => handleAssemblyMouseDown(e, "move", order._id)}
+                          onMouseEnter={(e) => {
+                            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setHoveredOrder(order);
+                            setTooltipPos({
+                              x: rect.left + rect.width / 2 - 130,
+                              y: rect.bottom + window.scrollY + 8
+                            });
+                          }}
+                          onMouseLeave={() => {
+                            closeTimeoutRef.current = setTimeout(() => {
+                              setHoveredOrder(null);
+                              setTooltipPos(null);
+                            }, 250);
+                          }}
                         >
                           {/* Resize left */}
                           <div
@@ -1345,6 +1360,16 @@ export function GanttPanelContent({
                   <span>Produkcja: {formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</span>
                 </div>
               )}
+              {(() => {
+                const aDates = localAssemblyDates[hoveredOrder._id] || (hoveredOrder.assemblyStartDate && hoveredOrder.assemblyEndDate ? { start: hoveredOrder.assemblyStartDate, end: hoveredOrder.assemblyEndDate } : null);
+                if (!aDates) return null;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b5cf6" }}>
+                    <Calendar size={11} style={{ color: "#8b5cf6" }} />
+                    <span>Montaż: <strong style={{ color: "#a78bfa" }}>{formatTooltipDate(aDates.start)} – {formatTooltipDate(aDates.end)}</strong></span>
+                  </div>
+                );
+              })()}
               {hoveredOrder.deliveryDate && (() => {
                 const diff = dates.end ? getDaysDiff(dates.end, hoveredOrder.deliveryDate) : -999;
                 const isWarning = dates.end && (diff > 2 || diff < 0);
@@ -1373,6 +1398,16 @@ export function GanttPanelContent({
                 <Coins size={11} />
                 <span>Wartość Netto: <strong style={{ color: "#3fb950" }}>{formatCurrency(hoveredOrder.valueNetto || 0)}</strong></span>
               </div>
+              {(() => {
+                const q = quotesMap.get(hoveredOrder.quoteId);
+                const label = hoveredOrder.customLabel || q?.customLabel;
+                if (!label) return null;
+                return (
+                  <div style={{ fontSize: 11, color: "#f59e0b", fontWeight: 600, marginTop: 2 }}>
+                    🏷️ Wyróżnik: {label}
+                  </div>
+                );
+              })()}
             </div>
 
             {hoveredOrder.projectType && hoveredOrder.projectType.length > 0 && (

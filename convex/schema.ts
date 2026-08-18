@@ -508,6 +508,7 @@ export default defineSchema({
     assemblyEndDate: v.optional(v.string()),     // Data zakończenia montażu YYYY-MM-DD
     deliveryDate: v.optional(v.string()), // Data dostawy YYYY-MM-DD
     acceptanceDate: v.optional(v.string()), // Data akceptacji YYYY-MM-DD
+    customLabel: v.optional(v.string()), // Tekst własny / wyróżnik B2B
     ownerId: v.optional(v.id("users")),
     notes: v.optional(v.string()),
     sharepoint: v.optional(

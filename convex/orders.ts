@@ -98,6 +98,7 @@ export const create = mutation({
       deadline: quote.deadline,
       productionEndDate: quote.deadline,
       ownerId: quote.ownerId || undefined,
+      customLabel: quote.customLabel || undefined,
       createdAt: Date.now(),
     });
 
@@ -832,5 +833,30 @@ export const updateItems = mutation({
     });
 
     return { valueNetto, valueVat, valueBrutto };
+  },
+});
+
+export const updateCustomLabel = mutation({
+  args: {
+    id: v.id("orders"),
+    customLabel: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, customLabel }) => {
+    const callerId = await getAuthUserId(ctx);
+    if (!callerId) throw new Error("Brak autoryzacji");
+
+    const cleaned = customLabel?.trim() || undefined;
+    await ctx.db.patch(id, { customLabel: cleaned });
+
+    const user = await ctx.db.get(callerId);
+    await ctx.db.insert("orderActivity", {
+      orderId: id,
+      type: "custom_label_updated",
+      title: "Tekst własny zaktualizowany",
+      detail: cleaned || "Wyczyszczono tekst własny",
+      authorId: callerId,
+      authorName: user?.name ?? user?.email ?? "Użytkownik",
+      createdAt: Date.now(),
+    });
   },
 });

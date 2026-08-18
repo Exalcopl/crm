@@ -424,6 +424,28 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
     }
   }
 
+  const updateCustomLabel = useMutation(api.orders.updateCustomLabel);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [tempLabel, setTempLabel] = useState("");
+  const ignoreBlurLabelRef = useRef(false);
+
+  const customLabel = order.customLabel || quote?.customLabel;
+
+  async function handleSaveLabel() {
+    const cleaned = tempLabel.trim() || undefined;
+    if ((cleaned ?? undefined) === (order.customLabel ?? undefined)) {
+      setIsEditingLabel(false);
+      return;
+    }
+    setIsEditingLabel(false);
+    try {
+      await updateCustomLabel({ id: order._id, customLabel: cleaned });
+      toast.success("Zaktualizowano tekst własny");
+    } catch {
+      toast.error("Błąd zapisu");
+    }
+  }
+
   const investmentLabel = quote?.investment?.name || quote?.investment?.address || order.investment?.address || "Ustaw lokalizację";
   const pTypes = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
 
@@ -447,6 +469,81 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
                 <span className="quote-detail-investment-trigger-icon"><I.pin s={14} sw={2} /></span>
                 <span className="quote-detail-investment-trigger-value">{investmentLabel}</span>
               </button>
+            )}
+            {isEditingLabel ? (
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  value={tempLabel}
+                  onChange={(e) => setTempLabel(e.target.value)}
+                  onBlur={() => {
+                    if (ignoreBlurLabelRef.current) return;
+                    void handleSaveLabel();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      ignoreBlurLabelRef.current = true;
+                      void handleSaveLabel();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      ignoreBlurLabelRef.current = true;
+                      setIsEditingLabel(false);
+                    }
+                  }}
+                  placeholder="Wpisz wyróżnik B2B / tekst własny..."
+                  className="fluent-input"
+                  style={{ padding: "4px 10px", fontSize: "12px", width: "240px", borderLeft: "3px solid var(--accent-primary)" }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => {
+                  ignoreBlurLabelRef.current = false;
+                  setTempLabel(customLabel || "");
+                  setIsEditingLabel(true);
+                }}
+                style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+                title="Kliknij, aby edytować tekst własny"
+              >
+                {customLabel ? (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      color: "var(--accent-primary)",
+                      background: "var(--accent-soft)",
+                      border: "1px solid var(--accent-line)",
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    🏷️ Wyróżnik: <strong>{customLabel}</strong>
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      fontStyle: "italic",
+                      padding: "3px 8px",
+                      border: "1px dashed var(--border-color)",
+                      borderRadius: "6px",
+                      background: "rgba(0,0,0,0.02)",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    🏷️ + Dodaj tekst własny (wyróżnik B2B)
+                  </span>
+                )}
+              </div>
             )}
             {pTypes.length > 0 && (
               <div className="quote-detail-hero-types">

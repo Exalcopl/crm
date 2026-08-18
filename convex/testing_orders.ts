@@ -243,3 +243,41 @@ export const testUpdateItems = mutation({
     };
   },
 });
+
+export const testCustomLabelOrder = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[test-custom-label] Tworzenie zlecenia testowego dla customLabel...");
+    const orderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST/LABEL/001",
+      status: "nowe",
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      items: [],
+      clientName: "Test CustomLabel",
+      createdAt: Date.now(),
+    });
+
+    // 1. Zapis customLabel
+    await ctx.db.patch(orderId, { customLabel: "Inwestycja Alfa" });
+    const order1 = await ctx.db.get(orderId);
+    if (order1?.customLabel !== "Inwestycja Alfa") {
+      throw new Error(`FAIL: Oczekiwano 'Inwestycja Alfa', otrzymano '${order1?.customLabel}'`);
+    }
+
+    // 2. Czyszczenie customLabel
+    await ctx.db.patch(orderId, { customLabel: undefined });
+    const order2 = await ctx.db.get(orderId);
+    if (order2?.customLabel !== undefined) {
+      throw new Error(`FAIL: Oczekiwano undefined, otrzymano '${order2?.customLabel}'`);
+    }
+
+    // Cleanup
+    await ctx.db.delete(orderId);
+
+    console.log("[test-custom-label] SUCCESS: Test customLabel zakończony pomyślnie.");
+    return { status: "SUCCESS" };
+  },
+});
