@@ -88,6 +88,14 @@ export function GanttPanelContent({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const closeTimeoutRef = useRef<any>(null);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    };
+  }, []);
 
   const [timelineStart, setTimelineStart] = useState(() => {
     // Default to 5 days before today
@@ -239,7 +247,18 @@ export function GanttPanelContent({
       toast.error("Błąd planowania zlecenia");
     }
   };
-
+  // Remove dates (unplan order)
+  const handleRemoveDates = async (e: React.MouseEvent, orderId: Id<"orders">) => {
+    e.stopPropagation();
+    try {
+      await updateDates({ id: orderId, productionStartDate: null, productionEndDate: null });
+      toast.success("Usunięto termin produkcji (zlecenie wróciło do niezaplanowanych)");
+      setHoveredOrder(null);
+      setTooltipPos(null);
+    } catch (err) {
+      toast.error("Błąd usuwania terminu produkcji");
+    }
+  };
   // Drag handlers
   const handleMouseDown = (
     e: React.MouseEvent,
@@ -782,9 +801,21 @@ export function GanttPanelContent({
                       <div
                         style={barStyle}
                         onMouseDown={(e) => handleMouseDown(e, "move", order._id)}
-                        onMouseEnter={() => setHoveredOrder(order)}
-                        onMouseMove={(e) => setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 })}
-                        onMouseLeave={() => { setHoveredOrder(null); setTooltipPos(null); }}
+                        onMouseEnter={(e) => {
+                          if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredOrder(order);
+                          setTooltipPos({
+                            x: rect.left + rect.width / 2 - 130,
+                            y: rect.bottom + window.scrollY + 8
+                          });
+                        }}
+                        onMouseLeave={() => {
+                          closeTimeoutRef.current = setTimeout(() => {
+                            setHoveredOrder(null);
+                            setTooltipPos(null);
+                          }, 250);
+                        }}
                       >
                         {/* Resize Left Handle */}
                         <div
@@ -827,6 +858,13 @@ export function GanttPanelContent({
         
         return (
           <div
+            onMouseEnter={() => {
+              if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+            }}
+            onMouseLeave={() => {
+              setHoveredOrder(null);
+              setTooltipPos(null);
+            }}
             style={{
               position: "fixed",
               left: tooltipPos.x,
@@ -840,7 +878,7 @@ export function GanttPanelContent({
               zIndex: 1000,
               minWidth: 260,
               maxWidth: 320,
-              pointerEvents: "none",
+              pointerEvents: "auto",
               display: "flex",
               flexDirection: "column",
               gap: 8,
@@ -893,6 +931,42 @@ export function GanttPanelContent({
                 {hoveredOrder.notes}
               </div>
             )}
+
+            {/* Remove production date button */}
+            <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, marginTop: 2 }}>
+              <button
+                type="button"
+                onClick={(e) => handleRemoveDates(e, hoveredOrder._id)}
+                style={{
+                  width: "100%",
+                  background: "rgba(248, 81, 73, 0.1)",
+                  color: "#f85149",
+                  border: "1px solid rgba(248, 81, 73, 0.2)",
+                  borderRadius: 4,
+                  padding: "5px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#f85149";
+                  e.currentTarget.style.color = "#ffffff";
+                  e.currentTarget.style.borderColor = "transparent";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(248, 81, 73, 0.1)";
+                  e.currentTarget.style.color = "#f85149";
+                  e.currentTarget.style.borderColor = "rgba(248, 81, 73, 0.2)";
+                }}
+              >
+                ✕ Usuń termin produkcji
+              </button>
+            </div>
           </div>
         );
       })()}
