@@ -120,17 +120,21 @@ export default function ZgloszeniaItPage() {
         ) : filteredTickets.length === 0 ? (
           <div
             style={{
-              padding: 48,
+              padding: 56,
               textAlign: "center",
               background: "#161b22",
               border: "1px solid #30363d",
               borderRadius: 8,
               color: "#8b949e",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            <CheckCircle2 size={36} style={{ color: "#3fb950", marginBottom: 12 }} />
-            <div style={{ fontSize: 15, fontWeight: 600, color: "#f0f6fc" }}>Brak zgłoszeń w tej kategorii</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Wszystkie błędy i zgłoszenia techniczne zostały rozwiązane!</div>
+            <CheckCircle2 size={44} style={{ color: "#3fb950", marginBottom: 16 }} />
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#f0f6fc" }}>Brak zgłoszeń w tej kategorii</div>
+            <div style={{ fontSize: 13, marginTop: 6, color: "#8b949e" }}>Wszystkie błędy i zgłoszenia techniczne zostały rozwiązane!</div>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
