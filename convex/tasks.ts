@@ -45,12 +45,12 @@ export const listMine = query({
     if (isSuperAdmin) {
       tasks = await ctx.db
         .query("tasks")
-        .filter((q) => q.neq(q.field("archived"), true))
+        .filter((q) => q.and(q.neq(q.field("archived"), true), q.neq(q.field("isItTicket"), true)))
         .collect();
     } else {
       const allTasks = await ctx.db
         .query("tasks")
-        .filter((q) => q.neq(q.field("archived"), true))
+        .filter((q) => q.and(q.neq(q.field("archived"), true), q.neq(q.field("isItTicket"), true)))
         .collect();
       tasks = allTasks.filter((t) => {
         const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
@@ -191,6 +191,7 @@ export const add = mutation({
     assigneeIds: v.optional(v.array(v.id("users"))),
     dueDate: v.optional(v.string()),
     status: v.optional(TASK_STATUS),
+    isItTicket: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const callerId = await getAuthUserId(ctx);
@@ -499,5 +500,95 @@ export const archiveAllDoneNow = mutation({
         await ctx.db.patch(task._id, { archived: true });
       }
     }
+  },
+});
+
+export const listItTickets = query({
+  args: {
+    statusFilter: v.optional(v.union(v.literal("all"), v.literal("open"), v.literal("closed"))),
+  },
+  handler: async (ctx, args) => {
+    const allTickets = await ctx.db
+      .query("tasks")
+      .withIndex("by_it_ticket", (q) => q.eq("isItTicket", true))
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
+    const userIds = new Set<string>();
+    for (const t of allTickets) {
+      if (t.createdBy) userIds.add(t.createdBy);
+      if (t.assigneeId) userIds.add(t.assigneeId);
+      if (t.assigneeIds) t.assigneeIds.forEach((id) => userIds.add(id));
+    }
+
+    const users = await Promise.all(
+      Array.from(userIds).map((id) => ctx.db.get(id as Id<"users">))
+    );
+    const userMap = new Map<string, { name: string; email: string }>();
+    for (const u of users) {
+      if (u) {
+        userMap.set(u._id, {
+          name: u.name || u.email || "Nieznany",
+          email: u.email || "",
+        });
+      }
+    }
+
+    let filtered = allTickets;
+    if (args.statusFilter === "open") {
+      filtered = allTickets.filter((t) => t.status !== "done");
+    } else if (args.statusFilter === "closed") {
+      filtered = allTickets.filter((t) => t.status === "done");
+    }
+
+    const result = filtered.map((t) => {
+      const creator = t.createdBy ? userMap.get(t.createdBy) : null;
+      const ids = t.assigneeIds ?? (t.assigneeId ? [t.assigneeId] : []);
+      const assignees = ids.map((id) => ({
+        id,
+        name: userMap.get(id)?.name || "Opiekun IT",
+      }));
+
+      return {
+        ...t,
+        creatorName: creator?.name || "Użytkownik",
+        creatorEmail: creator?.email || "",
+        assignees,
+      };
+    });
+
+    return result.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+export const updateItTicketStatus = mutation({
+  args: {
+    id: v.id("tasks"),
+    status: TASK_STATUS,
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.id);
+    if (!task) throw new Error("Zgłoszenie nie istnieje");
+    const completedAt = args.status === "done" ? Date.now() : undefined;
+    await ctx.db.patch(args.id, {
+      status: args.status,
+      completedAt,
+    });
+  },
+});
+
+export const assignItTicket = mutation({
+  args: {
+    id: v.id("tasks"),
+    assigneeIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.id);
+    if (!task) throw new Error("Zgłoszenie nie istnieje");
+    const primaryId = args.assigneeIds[0] ?? null;
+    await ctx.db.patch(args.id, {
+      assigneeId: primaryId,
+      assigneeIds: args.assigneeIds,
+    });
   },
 });

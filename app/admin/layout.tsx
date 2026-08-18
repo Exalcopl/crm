@@ -72,6 +72,14 @@ const TABS: TabDef[] = [
     action: "read",
   },
   {
+    id: "zgloszenia-it",
+    label: "Zgłoszenia IT",
+    href: "/admin/zgloszenia-it",
+    match: (p) => p.startsWith("/admin/zgloszenia-it"),
+    resource: "wyceny",
+    action: "read",
+  },
+  {
     id: "administracja",
     label: "Administracja",
     href: "/admin/users",

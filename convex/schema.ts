@@ -237,10 +237,12 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     order: v.number(),
     archived: v.optional(v.boolean()),
+    isItTicket: v.optional(v.boolean()),
   })
     .index("by_quote", ["quoteId"])
     .index("by_quote_status", ["quoteId", "status"])
-    .index("by_archived", ["archived"]),
+    .index("by_archived", ["archived"])
+    .index("by_it_ticket", ["isItTicket"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),

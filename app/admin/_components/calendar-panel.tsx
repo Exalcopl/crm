@@ -691,8 +691,8 @@ function TaskDrawer({
   isOpen: boolean;
   onClose: () => void;
   users: Array<{ _id: Id<"users">; name: string | null; email: string | null }>;
-  form: { title: string; description: string; assigneeIds: string[]; dueDate: string };
-  setForm: (f: { title: string; description: string; assigneeIds: string[]; dueDate: string }) => void;
+  form: { title: string; description: string; assigneeIds: string[]; dueDate: string; isItTicket: boolean };
+  setForm: (f: { title: string; description: string; assigneeIds: string[]; dueDate: string; isItTicket: boolean }) => void;
   currentUserId?: string | null;
 }) {
   const addTask = useMutation(api.tasks.add);
@@ -724,10 +724,11 @@ function TaskDrawer({
         title: t,
         description: form.description.trim() || undefined,
         assigneeIds: form.assigneeIds.length > 0 ? (form.assigneeIds as Id<"users">[]) : undefined,
-        dueDate: form.dueDate || undefined,
+        dueDate: form.isItTicket ? undefined : (form.dueDate || undefined),
         status: "todo",
+        isItTicket: form.isItTicket,
       });
-      toast.success("Zadanie zostało utworzone pomyślnie!");
+      toast.success(form.isItTicket ? "Zgłoszenie IT zostało przesłane!" : "Zadanie zostało utworzone pomyślnie!");
       onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Nie udało się utworzyć zadania");
@@ -789,6 +790,24 @@ function TaskDrawer({
                 rows={3}
               />
             </div>
+          </div>
+
+          {/* Checkbox: Zgłoszenie techniczne */}
+          <div className="cal-card" style={{ background: form.isItTicket ? "rgba(59, 130, 246, 0.12)" : "#161b22", border: form.isItTicket ? "1px solid rgba(59, 130, 246, 0.4)" : "1px solid #30363d", padding: "12px 14px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#f0f6fc", margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={form.isItTicket}
+                onChange={(e) => setForm({ ...form, isItTicket: e.target.checked })}
+                style={{ width: 16, height: 16, accentColor: "#3b82f6", cursor: "pointer" }}
+              />
+              <span>🛠️ Zgłoszenie techniczne (dla zespołu IT)</span>
+            </label>
+            {form.isItTicket && (
+              <div style={{ fontSize: 11, color: "#93c5fd", marginTop: 6, paddingLeft: 26, lineHeight: 1.4 }}>
+                ℹ️ Zgłoszenie trafi bezpośrednio do sekcji <strong>Zgłoszenia IT</strong>. Nie wymaga przypisywania osoby ani terminu i nie pojawi się w zwykłych zadaniach CRM.
+              </div>
+            )}
           </div>
 
           {/* Card 2: Przypisanie i termin */}
@@ -1416,6 +1435,7 @@ export function CalendarPanel() {
     description: "",
     assigneeIds: [] as string[],
     dueDate: "",
+    isItTicket: false,
   });
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -2958,7 +2978,7 @@ export function CalendarPanel() {
             setIsCompanyOpen(false);
             setIsGanttOpen(false);
             setMenuExpanded(false);
-            setTaskForm({ title: "", description: "", assigneeIds: [], dueDate: "" });
+            setTaskForm({ title: "", description: "", assigneeIds: [], dueDate: "", isItTicket: false });
             setIsTaskDrawerOpen(true);
           }}
           aria-label="Utwórz zadanie"
