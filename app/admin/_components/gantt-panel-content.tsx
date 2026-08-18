@@ -59,15 +59,27 @@ export function GanttPanelContent({
 
   const quotesMap = useMemo(() => new Map(quotes.map((q: any) => [q._id, q])), [quotes]);
 
-  // Filter only production orders and resolve projectTypes from quote if undefined
+  // Filter only production orders and resolve projectTypes from quote/order in a robust way
   const productionOrders = useMemo(() => {
     return orders
       .filter((o) => o.status === "produkcja")
       .map((o) => {
         const q = o.quoteId ? quotesMap.get(o.quoteId) : undefined;
+        
+        let resolvedTypes: string[] = [];
+        if (Array.isArray(o.projectType)) {
+          resolvedTypes = o.projectType;
+        } else if (typeof o.projectType === "string" && o.projectType) {
+          resolvedTypes = [o.projectType];
+        } else if (q && Array.isArray(q.projectType)) {
+          resolvedTypes = q.projectType;
+        } else if (q && typeof q.projectType === "string" && q.projectType) {
+          resolvedTypes = [q.projectType];
+        }
+
         return {
           ...o,
-          projectType: o.projectType || q?.projectType || [],
+          projectType: resolvedTypes,
         };
       });
   }, [orders, quotesMap]);
