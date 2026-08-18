@@ -109,7 +109,7 @@ export function GanttPanelContent({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
-  const [hoveredType, setHoveredType] = useState<"production" | "assembly" | null>(null);
+  const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
 
@@ -1283,7 +1283,7 @@ export function GanttPanelContent({
                               top: 14,
                               zIndex: 2,
                               color: deliveryColor,
-                              cursor: "help",
+                              cursor: "pointer",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -1293,7 +1293,23 @@ export function GanttPanelContent({
                               border: `1px solid ${deliveryColor}`,
                               boxShadow: `0 0 6px ${deliveryColor}40`,
                             }}
-                            title={`Data odbioru: ${liveDeliveryDate}${dates ? ` (${diffFromProdEnd} dni od końca produkcji${isWarning ? " - PRZEKROCZONO +2 DNI" : ""})` : ""}`}
+                            onMouseEnter={(e) => {
+                              if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setHoveredOrder(order);
+                              setHoveredType("delivery");
+                              setTooltipPos({
+                                x: rect.left + rect.width / 2 - 130,
+                                y: rect.bottom + window.scrollY + 8
+                              });
+                            }}
+                            onMouseLeave={() => {
+                              closeTimeoutRef.current = setTimeout(() => {
+                                setHoveredOrder(null);
+                                setHoveredType(null);
+                                setTooltipPos(null);
+                              }, 250);
+                            }}
                           >
                             <Truck size={10} style={{ strokeWidth: 2.5 }} />
                           </div>
@@ -1399,11 +1415,21 @@ export function GanttPanelContent({
                 const diff = dates.end ? getDaysDiff(dates.end, hoveredOrder.deliveryDate) : -999;
                 const isWarning = dates.end && (diff > 2 || diff < 0);
                 const color = isWarning ? "#ef4444" : "#10b981";
+                const isSelected = hoveredType === "delivery";
                 return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: isSelected ? "#ffffff" : "#8b949e",
+                    fontWeight: isSelected ? 700 : 400,
+                    background: isSelected ? (isWarning ? "rgba(239, 68, 68, 0.18)" : "rgba(16, 185, 129, 0.18)") : "transparent",
+                    padding: isSelected ? "2px 6px" : "0",
+                    borderRadius: 4,
+                  }}>
                     <Truck size={11} style={{ color }} />
                     <span>
-                      Odbiór: <strong style={{ color }}>{formatTooltipDate(hoveredOrder.deliveryDate)}</strong>
+                      Odbiór: <strong style={{ color, fontWeight: 700 }}>{formatTooltipDate(hoveredOrder.deliveryDate)}</strong>
                       {dates.end && (
                         <span style={{ fontSize: 10, color: isWarning ? "#ff7b72" : "#8b949e", marginLeft: 4 }}>
                           ({diff >= 0 ? `+${diff}` : diff} dni)
