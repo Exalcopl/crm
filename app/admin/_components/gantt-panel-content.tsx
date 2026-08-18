@@ -19,6 +19,20 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+function addWorkingDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  let added = 0;
+  while (added < days) {
+    d.setDate(d.getDate() + 1);
+    const dayOfWeek = d.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    if (!isWeekend) {
+      added++;
+    }
+  }
+  return d.toISOString().split("T")[0];
+}
+
 function getDaysDiff(startStr: string, endStr: string): number {
   const s = new Date(startStr + "T00:00:00");
   const e = new Date(endStr + "T00:00:00");
@@ -257,9 +271,15 @@ export function GanttPanelContent({
   const handleScheduleDefault = async (orderId: Id<"orders">) => {
     const start = todayStr;
     const end = addDays(start, 3); // 3 days default duration
+    const delivery = addWorkingDays(end, 2); // Automatically +2 working days!
     try {
-      await updateDates({ id: orderId, productionStartDate: start, productionEndDate: end });
-      toast.success("Zlecenie zaplanowane (domyślnie 3 dni)");
+      await updateDates({ 
+        id: orderId, 
+        productionStartDate: start, 
+        productionEndDate: end,
+        deliveryDate: delivery
+      });
+      toast.success("Zlecenie zaplanowane (termin produkcji i odbioru)");
     } catch (e) {
       toast.error("Błąd planowania zlecenia");
     }
@@ -268,8 +288,13 @@ export function GanttPanelContent({
   const handleRemoveDates = async (e: React.MouseEvent, orderId: Id<"orders">) => {
     e.stopPropagation();
     try {
-      await updateDates({ id: orderId, productionStartDate: null, productionEndDate: null });
-      toast.success("Usunięto termin produkcji (zlecenie wróciło do niezaplanowanych)");
+      await updateDates({ 
+        id: orderId, 
+        productionStartDate: null, 
+        productionEndDate: null,
+        deliveryDate: null // Clear delivery date as well!
+      });
+      toast.success("Usunięto terminy produkcji i odbioru");
       setHoveredOrder(null);
       setTooltipPos(null);
     } catch (err) {
@@ -342,12 +367,15 @@ export function GanttPanelContent({
 
       if (finalDates && (finalDates.start !== drag.initialStart || finalDates.end !== drag.initialEnd)) {
         try {
+          // Auto-compute deliveryDate as +2 working days from the new production end
+          const newDelivery = addWorkingDays(finalDates.end, 2);
           await updateDates({
             id: mutatingId,
             productionStartDate: finalDates.start,
             productionEndDate: finalDates.end,
+            deliveryDate: newDelivery,
           });
-          toast.success("Zaktualizowano termin produkcji");
+          toast.success("Zaktualizowano termin produkcji i odbioru");
         } catch (err) {
           // Revert to initial dates on failure
           setLocalDates(prev => ({
