@@ -204,7 +204,6 @@ export default function ZleceniaPage() {
                   <tr>
                     <th className="qvm-th">Numer zlecenia</th>
                     <th className="qvm-th">Klient</th>
-                    <th className="qvm-th">Wartość netto</th>
                     <th className="qvm-th">Produkcja</th>
                     <th className="qvm-th">Status</th>
                     <th className="qvm-th" style={{ width: 100 }}>Akcja</th>
@@ -213,7 +212,7 @@ export default function ZleceniaPage() {
                 <tbody>
                   {filteredOrders.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "#8b949e" }}>
+                      <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "#8b949e" }}>
                         Brak zleceń do wyświetlenia
                       </td>
                     </tr>
@@ -229,7 +228,7 @@ export default function ZleceniaPage() {
                           <div>{order.clientName}</div>
                           <div style={{ fontSize: 11, color: "#8b949e" }}>{order.clientPhone || order.clientEmail}</div>
                         </td>
-                        <td className="qvm-td">{formatCurrency(order.valueNetto)}</td>
+
                         <td className="qvm-td" style={{ fontSize: 11 }}>
                           {order.productionStartDate || order.productionEndDate ? (
                             `${order.productionStartDate ? formatDeadline(order.productionStartDate) : "—"} do ${order.productionEndDate ? formatDeadline(order.productionEndDate) : "—"}`
@@ -660,15 +659,7 @@ function KanbanCardContent({
       </div>
       <div className="kanban-card-client">{order.clientName}</div>
       <div className="kanban-card-footer">
-        <div className="kanban-card-value">
-          <span className="kanban-card-value-num">
-            {order.valueNetto.toLocaleString("pl-PL", {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          </span>
-          <span className="kanban-card-value-unit">PLN</span>
-        </div>
+
         {order.productionStartDate || order.productionEndDate ? (
           <span className={`kanban-chip kanban-chip-deadline tone-${tone}`} style={{ fontSize: 10 }}>
             <I.cal s={11} />

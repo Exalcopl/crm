@@ -995,14 +995,24 @@ export function GanttPanelContent({
                 if (row.type === "order-assembly") {
                   const order = row.order!;
                   const aDates = localAssemblyDates[order._id];
+                  const prodDates = localDates[order._id];
+
+                  // Compute live delivery date (same logic as production row)
+                  const isDraggingProd = drag && drag.orderId === order._id;
+                  const liveDeliveryDate = (isDraggingProd && prodDates)
+                    ? addWorkingDays(prodDates.end, 2)
+                    : order.deliveryDate;
+
                   let assemblyBarStyle: React.CSSProperties | null = null;
+                  let assemblyStartX = -1;
 
                   if (aDates) {
                     const startOff = getDaysDiff(timelineStart, aDates.start);
                     const dur = getDaysDiff(aDates.start, aDates.end) + 1;
+                    assemblyStartX = startOff * dayWidth;
                     assemblyBarStyle = {
                       position: "absolute",
-                      left: startOff * dayWidth,
+                      left: assemblyStartX,
                       width: dur * dayWidth,
                       height: 20,
                       top: 8,
@@ -1021,6 +1031,13 @@ export function GanttPanelContent({
                       transition: dragAssembly?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
                     };
                   }
+
+                  // Connector: vertical line at delivery date x + horizontal line to assembly bar start
+                  const deliveryOffDays = liveDeliveryDate ? getDaysDiff(timelineStart, liveDeliveryDate) : -1;
+                  const deliveryX = deliveryOffDays >= 0 ? deliveryOffDays * dayWidth + dayWidth / 2 : -1;
+                  const showConnector = deliveryX >= 0 && assemblyStartX >= 0;
+                  const connectorColor = "#10b981";
+                  const centerY = rowHeight / 2;
 
                   return (
                     <div
@@ -1048,6 +1065,40 @@ export function GanttPanelContent({
                         />
                       ))}
 
+                      {/* Connector: vertical line from top of row down to center at delivery x */}
+                      {showConnector && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: deliveryX,
+                            top: 0,
+                            width: 1,
+                            height: centerY,
+                            borderLeft: `2px dashed ${connectorColor}`,
+                            opacity: 0.6,
+                            pointerEvents: "none",
+                            zIndex: 0,
+                          }}
+                        />
+                      )}
+
+                      {/* Connector: horizontal line from delivery x to assembly bar start at center y */}
+                      {showConnector && deliveryX !== assemblyStartX && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: Math.min(deliveryX, assemblyStartX),
+                            top: centerY - 1,
+                            width: Math.abs(assemblyStartX - deliveryX),
+                            height: 2,
+                            borderBottom: `2px dashed ${connectorColor}`,
+                            opacity: 0.6,
+                            pointerEvents: "none",
+                            zIndex: 0,
+                          }}
+                        />
+                      )}
+
                       {/* Assembly bar */}
                       {assemblyBarStyle && (
                         <div
@@ -1062,7 +1113,7 @@ export function GanttPanelContent({
                             <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                           </div>
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center", pointerEvents: "none", fontSize: 10 }}>
-                            {isMutatingAssemblyId === order._id ? "⏳" : ""}
+                            {isMutatingAssemblyId === order._id ? "⏳" : order.orderNumber}
                           </span>
                           {/* Resize right */}
                           <div
@@ -1076,6 +1127,7 @@ export function GanttPanelContent({
                     </div>
                   );
                 }
+
 
                 const order = row.order!;
                 const dates = localDates[order._id];
