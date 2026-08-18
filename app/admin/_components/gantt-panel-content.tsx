@@ -73,22 +73,24 @@ export function GanttPanelContent({
 
   const [drag, setDrag] = useState<DragState | null>(null);
   const [localDates, setLocalDates] = useState<Record<string, { start: string; end: string }>>({});
+  const [isMutatingId, setIsMutatingId] = useState<Id<"orders"> | null>(null);
 
-  // Sync DB dates to local drag dates when orders list changes or drag ends
+  // Sync DB dates to local drag dates when orders list changes, preserving active drag/mutating states
   useEffect(() => {
-    if (!drag) {
-      const dates: Record<string, { start: string; end: string }> = {};
-      for (const order of productionOrders) {
-        if (order.productionStartDate && order.productionEndDate) {
-          dates[order._id] = {
-            start: order.productionStartDate,
-            end: order.productionEndDate,
-          };
-        }
+    const dates: Record<string, { start: string; end: string }> = {};
+    for (const order of productionOrders) {
+      const isUserInteracting = (drag && drag.orderId === order._id) || (isMutatingId === order._id);
+      if (isUserInteracting && localDates[order._id]) {
+        dates[order._id] = localDates[order._id];
+      } else if (order.productionStartDate && order.productionEndDate) {
+        dates[order._id] = {
+          start: order.productionStartDate,
+          end: order.productionEndDate,
+        };
       }
-      setLocalDates(dates);
     }
-  }, [orders, drag]);
+    setLocalDates(dates);
+  }, [orders, drag, isMutatingId]);
 
   // Generate 30 days of timeline
   const days: { dateStr: string; label: string; dayNum: number; isWeekend: boolean; isToday: boolean }[] = [];
@@ -228,6 +230,8 @@ export function GanttPanelContent({
 
     const handleMouseUp = async (e: MouseEvent) => {
       const finalDates = localDates[drag.orderId];
+      const mutatingId = drag.orderId;
+      setIsMutatingId(mutatingId);
       setDrag(null);
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
@@ -235,14 +239,23 @@ export function GanttPanelContent({
       if (finalDates && (finalDates.start !== drag.initialStart || finalDates.end !== drag.initialEnd)) {
         try {
           await updateDates({
-            id: drag.orderId,
+            id: mutatingId,
             productionStartDate: finalDates.start,
             productionEndDate: finalDates.end,
           });
           toast.success("Zaktualizowano termin produkcji");
         } catch (err) {
+          // Revert to initial dates on failure
+          setLocalDates(prev => ({
+            ...prev,
+            [mutatingId]: { start: drag.initialStart, end: drag.initialEnd }
+          }));
           toast.error("Błąd aktualizacji terminu produkcji");
+        } finally {
+          setIsMutatingId(null);
         }
+      } else {
+        setIsMutatingId(null);
       }
     };
 
@@ -253,7 +266,7 @@ export function GanttPanelContent({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [drag, localDates, updateDates]);
+  }, [drag, localDates, updateDates, isMutatingId]);
 
   // Layout parameters
   const leftColWidth = 320;
