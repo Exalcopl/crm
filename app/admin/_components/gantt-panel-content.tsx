@@ -112,6 +112,7 @@ export function GanttPanelContent({
   const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
+  const lastShiftRef = useRef<number>(0);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -186,6 +187,19 @@ export function GanttPanelContent({
       isWeekend,
       isToday,
     });
+  }
+
+  // Group contiguous days by month for timeline header
+  const monthHeaderGroups: { monthLabel: string; count: number }[] = [];
+  for (const day of days) {
+    const d = new Date(day.dateStr + "T00:00:00");
+    const monthName = d.toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
+    const label = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    if (monthHeaderGroups.length > 0 && monthHeaderGroups[monthHeaderGroups.length - 1].monthLabel === label) {
+      monthHeaderGroups[monthHeaderGroups.length - 1].count++;
+    } else {
+      monthHeaderGroups.push({ monthLabel: label, count: 1 });
+    }
   }
 
   // Calculate daily load (capacity)
@@ -346,7 +360,7 @@ export function GanttPanelContent({
   useEffect(() => {
     if (!drag) return;
 
-    const dayWidth = 40; // matches width of col in px
+    const dayWidth = 48;
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - drag.startX;
@@ -367,6 +381,20 @@ export function GanttPanelContent({
         newEnd = addDays(drag.initialEnd, deltaDays);
         if (newEnd < drag.initialStart) {
           newEnd = drag.initialStart;
+        }
+      }
+
+      // Auto-shift timeline when dragging near edges
+      const now = Date.now();
+      if (now - lastShiftRef.current > 120) {
+        if (e.clientX > window.innerWidth - 60) {
+          lastShiftRef.current = now;
+          drag.startX -= dayWidth;
+          setTimelineStart(prev => addDays(prev, 1));
+        } else if (e.clientX < leftColWidth + 60) {
+          lastShiftRef.current = now;
+          drag.startX += dayWidth;
+          setTimelineStart(prev => addDays(prev, -1));
         }
       }
 
@@ -443,7 +471,7 @@ export function GanttPanelContent({
 
   useEffect(() => {
     if (!dragAssembly) return;
-    const dayWidth = 40;
+    const dayWidth = 48;
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = e.clientX - dragAssembly.startX;
@@ -460,6 +488,20 @@ export function GanttPanelContent({
       } else if (dragAssembly.type === "resize-end") {
         newEnd = addDays(dragAssembly.initialEnd, deltaDays);
         if (newEnd < dragAssembly.initialStart) newEnd = dragAssembly.initialStart;
+      }
+
+      // Auto-shift timeline when dragging near edges
+      const now = Date.now();
+      if (now - lastShiftRef.current > 120) {
+        if (e.clientX > window.innerWidth - 60) {
+          lastShiftRef.current = now;
+          dragAssembly.startX -= dayWidth;
+          setTimelineStart(prev => addDays(prev, 1));
+        } else if (e.clientX < leftColWidth + 60) {
+          lastShiftRef.current = now;
+          dragAssembly.startX += dayWidth;
+          setTimelineStart(prev => addDays(prev, -1));
+        }
       }
 
       const current = localAssemblyDates[dragAssembly.orderId];
@@ -507,7 +549,7 @@ export function GanttPanelContent({
 
   // Layout parameters
   const leftColWidth = 320;
-  const dayWidth = 40;
+  const dayWidth = 48;
   const rowHeight = 36; // slightly tighter now we have two rows per order
 
   return (
@@ -639,7 +681,7 @@ export function GanttPanelContent({
           {/* Left Columns (Fixed Side) */}
           <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 3, position: "sticky", left: 0 }}>
             {/* Header Row */}
-            <div style={{ height: 50, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 12, color: "#8b949e", textTransform: "uppercase" }}>
+            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 12, color: "#8b949e", textTransform: "uppercase" }}>
               Zlecenie / Klient
             </div>
 
@@ -842,38 +884,69 @@ export function GanttPanelContent({
           <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
             
             {/* Timeline Headers */}
-            <div style={{ display: "flex", height: 50, borderBottom: "2px solid #30363d", background: "#161b22", position: "sticky", top: 0, zIndex: 2 }}>
-              {days.map((day) => {
-                const loadCount = dayCapacity[day.dateStr] || 0;
-                const cap = getCapacityColor(loadCount);
-                return (
+            <div style={{ display: "flex", flexDirection: "column", height: 54, borderBottom: "2px solid #30363d", background: "#161b22", position: "sticky", top: 0, zIndex: 2 }}>
+              {/* Row 1: Month Headers */}
+              <div style={{ display: "flex", height: 22, borderBottom: "1px solid #30363d", background: "#0d1117" }}>
+                {monthHeaderGroups.map((m, idx) => (
                   <div
-                    key={day.dateStr}
+                    key={`month-hdr-${idx}`}
                     style={{
-                      width: dayWidth,
+                      width: m.count * dayWidth,
                       flexShrink: 0,
-                      borderRight: "1px solid #21262d",
+                      borderRight: "1px solid #30363d",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: day.isToday 
-                        ? "rgba(245, 158, 11, 0.15)" 
-                        : day.isWeekend 
-                        ? "#0d1117" 
-                        : cap.bg !== "transparent"
-                        ? cap.bg
-                        : "transparent",
-                      color: day.isToday ? "#f59e0b" : day.isWeekend ? "#8b949e" : "#c9d1d9",
-                      position: "relative"
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#58a6ff",
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                      padding: "0 4px",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap"
                     }}
-                    title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji (${cap.label})`}
                   >
-                    <span style={{ fontSize: 9, textTransform: "uppercase" }}>{day.label}</span>
-                    <span style={{ fontSize: 13, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
+                    📅 {m.monthLabel}
                   </div>
-                );
-              })}
+                ))}
+              </div>
+
+              {/* Row 2: Days Header */}
+              <div style={{ display: "flex", height: 32 }}>
+                {days.map((day) => {
+                  const loadCount = dayCapacity[day.dateStr] || 0;
+                  const cap = getCapacityColor(loadCount);
+                  return (
+                    <div
+                      key={day.dateStr}
+                      style={{
+                        width: dayWidth,
+                        flexShrink: 0,
+                        borderRight: "1px solid #21262d",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: day.isToday 
+                          ? "rgba(245, 158, 11, 0.15)" 
+                          : day.isWeekend 
+                          ? "#0d1117" 
+                          : cap.bg !== "transparent"
+                          ? cap.bg
+                          : "transparent",
+                        color: day.isToday ? "#f59e0b" : day.isWeekend ? "#8b949e" : "#c9d1d9",
+                        position: "relative"
+                      }}
+                      title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji (${cap.label})`}
+                    >
+                      <span style={{ fontSize: 9, textTransform: "uppercase" }}>{day.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Timeline Grid Rows & Bars */}
