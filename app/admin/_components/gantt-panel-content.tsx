@@ -846,25 +846,25 @@ export function GanttPanelContent({
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #161b22",
-                      borderLeft: "3px solid #8b5cf6",
+                      borderLeft: "3px solid #f97316",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
                       padding: "0 12px 0 40px",
-                      background: "#0e0a1a",
+                      background: "#16120b",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ color: "#8b5cf6", fontSize: 10, fontWeight: 700 }}>↳</span>
+                      <span style={{ color: "#f97316", fontSize: 10, fontWeight: 700 }}>↳</span>
                       <span
                         style={{
                           fontSize: 9,
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.4px",
-                          background: "rgba(139, 92, 246, 0.25)",
-                          color: "#c084fc",
-                          border: "1px solid rgba(139, 92, 246, 0.4)",
+                          background: "rgba(249, 115, 22, 0.2)",
+                          color: "#fb923c",
+                          border: "1px solid rgba(249, 115, 22, 0.4)",
                           padding: "1px 5px",
                           borderRadius: 3,
                           display: "inline-flex",
@@ -875,7 +875,7 @@ export function GanttPanelContent({
                         🔧 MONTAŻ
                       </span>
                       {aDates && (
-                        <span style={{ fontSize: 10, color: "#a78bfa", marginLeft: 2, fontWeight: 600 }}>
+                        <span style={{ fontSize: 10, color: "#fdba74", marginLeft: 2, fontWeight: 600 }}>
                           ({getDaysDiff(aDates.start, aDates.end) + 1} dni)
                         </span>
                       )}
@@ -897,7 +897,7 @@ export function GanttPanelContent({
                             padding: 2,
                             color: "#8b949e",
                           }}
-                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#a78bfa")}
+                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#fb923c")}
                           onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
                         >
                           🎯
@@ -919,12 +919,12 @@ export function GanttPanelContent({
                           }}
                           style={{
                             display: "flex", alignItems: "center", gap: 3,
-                            background: "#1a0a2e", border: "1px solid #8b5cf6",
+                            background: "#2a1808", border: "1px solid #f97316",
                             borderRadius: 4, padding: "2px 6px", cursor: "pointer",
-                            color: "#c084fc", fontSize: 10, fontWeight: 600,
+                            color: "#fb923c", fontSize: 10, fontWeight: 600,
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#2d1b69"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "#1a0a2e"; }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#3e240c"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1808"; }}
                         >
                           <Plus size={10} /> Montaż
                         </button>
@@ -939,7 +939,7 @@ export function GanttPanelContent({
                               toast.success("Usunięto termin montażu");
                             } catch { toast.error("Błąd usuwania montażu"); }
                           }}
-                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#6e40c9", padding: 2 }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#f97316", padding: 2 }}
                         >
                           ✕
                         </button>
