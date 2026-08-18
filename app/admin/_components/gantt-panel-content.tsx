@@ -618,50 +618,6 @@ export function GanttPanelContent({
               }}
             />
           </div>
-
-          <button
-            type="button"
-            onClick={() => shiftTimeline(-30)}
-            className="gantt-tool-btn"
-            title="Poprzedni miesiąc (-30 dni)"
-            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
-          >
-            <ChevronLeft size={14} /> Miesiąc
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftTimeline(-7)}
-            className="gantt-tool-btn"
-            title="Poprzedni tydzień (-7 dni)"
-            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
-          >
-            <ChevronLeft size={14} /> Tydzień
-          </button>
-          <button
-            type="button"
-            onClick={jumpToToday}
-            style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 12px", cursor: "pointer", color: "white", fontSize: 12, fontWeight: 500 }}
-          >
-            Dzisiaj
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftTimeline(7)}
-            className="gantt-tool-btn"
-            title="Następny tydzień (+7 dni)"
-            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
-          >
-            Tydzień <ChevronRight size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => shiftTimeline(30)}
-            className="gantt-tool-btn"
-            title="Następny miesiąc (+30 dni)"
-            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
-          >
-            Miesiąc <ChevronRight size={14} />
-          </button>
         </div>  
         </div>
       </div>
