@@ -865,26 +865,26 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
         {/* 1. Utworzenie zlecenia */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
               Utworzenie zlecenia
-              <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDateTime(order.createdAt)}</span>
             </div>
+            <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDateTime(order.createdAt)}</span>
           </div>
         </div>
 
         {/* 2. Data akceptacji */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
               Data akceptacji
-              {order.acceptanceDate ? (
-                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8 }}>{formatEventDate(order.acceptanceDate)}</span>
-              ) : (
-                <span style={{ color: "#8b949e", fontWeight: 400, marginLeft: 8, fontStyle: "italic" }}>— brak (automatyczna) —</span>
-              )}
             </div>
+            {order.acceptanceDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.acceptanceDate)}</span>
+            ) : (
+              <span style={{ color: "#8b949e", fontWeight: 400, fontStyle: "italic" }}>— brak (automatyczna) —</span>
+            )}
           </div>
           {order.acceptanceDate && (
             <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("acceptanceDate")}><I.trash s={13} /></button>
@@ -894,8 +894,8 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
         {/* 3. Produkcja (początek) */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
               Produkcja (początek)
             </div>
             {order.productionStartDate ? (
@@ -916,8 +916,8 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
         {/* 4. Produkcja (zakończenie) */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
               Produkcja (zakończenie)
             </div>
             {order.productionEndDate ? (
@@ -935,11 +935,11 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
           )}
         </div>
 
-        {/* 4. Data odbioru */}
+        {/* 5. Data odbioru */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
               Data odbioru
             </div>
             {order.deliveryDate ? (
