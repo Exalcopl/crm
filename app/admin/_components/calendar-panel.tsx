@@ -10,7 +10,8 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { ownerInitials } from "../_lib/quotes";
 import { UserFilterBar } from "./user-filter-bar";
 import { getUserColor } from "../_lib/users";
-import { Building2, CalendarDays, CheckSquare, Plus } from "lucide-react";
+import { Building2, CalendarDays, CheckSquare, Plus, BarChart3 } from "lucide-react";
+import { GanttPanelContent } from "./gantt-panel-content";
 
 import {
   Calendar,
@@ -1378,12 +1379,14 @@ class CalErrorBoundary extends React.Component<
 export function CalendarPanel() {
   const [open, setOpen] = useState(false);
   const [isCompanyOpen, setIsCompanyOpen] = useState(false);
+  const [isGanttOpen, setIsGanttOpen] = useState(false);
   const router = useRouter();
 
   function handleOpenOrder(orderId: Id<"orders">) {
     setIsDrawerOpen(false);
     setOpen(false);
     setIsCompanyOpen(false);
+    setIsGanttOpen(false);
     router.push(`/admin/zlecenia/${orderId}`);
   }
   const [menuExpanded, setMenuExpanded] = useState(false);
@@ -2803,6 +2806,15 @@ export function CalendarPanel() {
         />
       </aside>
 
+      {/* Sliding Gantt Panel (3/4 width) */}
+      <aside
+        className={`cal-company-panel ${isGanttOpen ? "cal-company-panel--open" : ""}`}
+        aria-label="Harmonogram produkcji"
+        style={{ zIndex: 100 }}
+      >
+        <GanttPanelContent onClose={() => setIsGanttOpen(false)} onOpenOrder={handleOpenOrder} />
+      </aside>
+
       <TaskDrawer
         isOpen={isTaskDrawerOpen}
         onClose={() => setIsTaskDrawerOpen(false)}
@@ -2814,6 +2826,23 @@ export function CalendarPanel() {
 
       {/* FAB Container */}
       <div className={`cal-fab-container ${menuExpanded ? "cal-fab-container--expanded" : ""}`}>
+        {/* Gantt Chart FAB */}
+        <button
+          type="button"
+          className={`cal-fab-item cal-fab-item--gantt ${isGanttOpen ? "cal-fab-item--active" : ""}`}
+          onClick={() => {
+            setIsGanttOpen((v) => !v);
+            setOpen(false);
+            setIsCompanyOpen(false);
+            setMenuExpanded(false);
+          }}
+          aria-label="Otwórz harmonogram produkcji"
+          aria-expanded={isGanttOpen}
+          title="Harmonogram produkcji (Gantt)"
+        >
+          <BarChart3 className="cal-fab-icon" style={{ strokeWidth: 1.5, filter: "none", color: "#fff", transform: "rotate(90deg)" }} />
+        </button>
+
         {/* Company Calendar FAB */}
         <button
           type="button"
@@ -2821,6 +2850,7 @@ export function CalendarPanel() {
           onClick={() => {
             setIsCompanyOpen((v) => !v);
             setOpen(false);
+            setIsGanttOpen(false);
             setMenuExpanded(false);
           }}
           aria-label="Otwórz kalendarz firmowy"
@@ -2837,6 +2867,7 @@ export function CalendarPanel() {
           onClick={() => {
             setOpen(false);
             setIsCompanyOpen(false);
+            setIsGanttOpen(false);
             setMenuExpanded(false);
             setTaskForm({ title: "", description: "", assigneeIds: [], dueDate: "" });
             setIsTaskDrawerOpen(true);
@@ -2854,6 +2885,7 @@ export function CalendarPanel() {
           onClick={() => {
             setOpen((v) => !v);
             setIsCompanyOpen(false);
+            setIsGanttOpen(false);
             setMenuExpanded(false);
           }}
           aria-label="Otwórz kalendarz prywatny"
@@ -3930,7 +3962,7 @@ export function CalendarPanel() {
 
         .cal-fab-container:hover,
         .cal-fab-container--expanded {
-          height: 260px;
+          height: 330px;
         }
 
         .cal-fab-item {
@@ -4059,6 +4091,38 @@ export function CalendarPanel() {
         .cal-fab-item--company.cal-fab-item--active {
           background: #1d4ed8;
           box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+        }
+
+        /* Gantt Chart (Circle 4) */
+        .cal-fab-item--gantt {
+          background: #f59e0b;
+          box-shadow: 0 4px 18px rgba(245, 158, 11, 0.5);
+          opacity: 0;
+          transform: translateY(0) scale(0.6);
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .cal-fab-container:hover .cal-fab-item--gantt,
+        .cal-fab-container--expanded .cal-fab-item--gantt {
+          opacity: 1;
+          transform: translateY(-264px) scale(1);
+          pointer-events: auto;
+        }
+
+        .cal-fab-item--gantt:hover {
+          background: #d97706;
+          transform: translateY(-264px) scale(1.06);
+          box-shadow: 0 6px 24px rgba(245, 158, 11, 0.65);
+        }
+
+        .cal-fab-item--gantt:active {
+          transform: translateY(-264px) scale(0.95);
+        }
+
+        .cal-fab-item--gantt.cal-fab-item--active {
+          background: #b45309;
+          box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
         }
 
         .cal-fab-icon {
