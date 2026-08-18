@@ -107,8 +107,7 @@ export function GanttPanelContent({
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [deliveryFilterStart, setDeliveryFilterStart] = useState("");
-  const [deliveryFilterEnd, setDeliveryFilterEnd] = useState("");
+
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
@@ -247,13 +246,7 @@ export function GanttPanelContent({
       }
     }
 
-    // Filter by delivery date range
-    if (deliveryFilterStart || deliveryFilterEnd) {
-      const delDate = o.deliveryDate;
-      if (!delDate) return false;
-      if (deliveryFilterStart && delDate < deliveryFilterStart) return false;
-      if (deliveryFilterEnd && delDate > deliveryFilterEnd) return false;
-    }
+    // (delivery date filter removed)
 
     return true;
   });
@@ -586,50 +579,7 @@ export function GanttPanelContent({
               })}
             </div>
           )}
-          {/* Delivery Date Range Filter */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#8b949e", borderLeft: "1px solid #30363d", paddingLeft: 12, marginLeft: 4 }}>
-            <span style={{ fontWeight: 500 }}>Odbiór od:</span>
-            <input
-              type="date"
-              value={deliveryFilterStart}
-              onChange={(e) => setDeliveryFilterStart(e.target.value)}
-              style={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 4,
-                color: "white",
-                fontSize: 11,
-                padding: "2px 6px",
-                outline: "none",
-                colorScheme: "dark"
-              }}
-            />
-            <span>do:</span>
-            <input
-              type="date"
-              value={deliveryFilterEnd}
-              onChange={(e) => setDeliveryFilterEnd(e.target.value)}
-              style={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 4,
-                color: "white",
-                fontSize: 11,
-                padding: "2px 6px",
-                outline: "none",
-                colorScheme: "dark"
-              }}
-            />
-            {(deliveryFilterStart || deliveryFilterEnd) && (
-              <button
-                type="button"
-                onClick={() => { setDeliveryFilterStart(""); setDeliveryFilterEnd(""); }}
-                style={{ background: "transparent", border: "none", color: "#f85149", fontSize: 11, cursor: "pointer", fontWeight: 600, paddingLeft: 4 }}
-              >
-                Wyczyść
-              </button>
-            )}
-          </div>
+
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1010,6 +960,19 @@ export function GanttPanelContent({
                     const startOff = getDaysDiff(timelineStart, aDates.start);
                     const dur = getDaysDiff(aDates.start, aDates.end) + 1;
                     assemblyStartX = startOff * dayWidth;
+
+                    // Capacity-based color – same logic as production bar
+                    const maxConcurrencyAsm = getMaxConcurrency(aDates.start, aDates.end);
+                    let asmGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green
+                    let asmShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
+                    if (maxConcurrencyAsm >= 5) {
+                      asmGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red
+                      asmShadow = "0 2px 8px rgba(248, 81, 73, 0.4)";
+                    } else if (maxConcurrencyAsm >= 3) {
+                      asmGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange
+                      asmShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
+                    }
+
                     assemblyBarStyle = {
                       position: "absolute",
                       left: assemblyStartX,
@@ -1017,8 +980,8 @@ export function GanttPanelContent({
                       height: 20,
                       top: 8,
                       borderRadius: 4,
-                      background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
-                      boxShadow: "0 2px 8px rgba(139, 92, 246, 0.35)",
+                      background: asmGradient,
+                      boxShadow: asmShadow,
                       display: "flex",
                       alignItems: "center",
                       padding: "0 8px",

@@ -2806,9 +2806,9 @@ export function CalendarPanel() {
         />
       </aside>
 
-      {/* Sliding Gantt Panel (3/4 width) */}
+      {/* Sliding Gantt Panel (full width) */}
       <aside
-        className={`cal-company-panel ${isGanttOpen ? "cal-company-panel--open" : ""}`}
+        className={`cal-gantt-panel ${isGanttOpen ? "cal-gantt-panel--open" : ""}`}
         aria-label="Harmonogram produkcji"
         style={{ zIndex: 100 }}
       >
@@ -3617,6 +3617,29 @@ export function CalendarPanel() {
         }
 
         .cal-company-panel--open {
+          right: 0;
+        }
+
+        /* ─── Gantt Panel (full width) ─────────────────────────────── */
+        .cal-gantt-panel {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: 100vw;
+          max-width: 100vw;
+          z-index: 50;
+          background: #111419;
+          border-left: 1px solid #282e37;
+          box-shadow: -10px 0 36px rgba(0, 0, 0, 0.6);
+          display: flex;
+          flex-direction: column;
+          right: -100vw;
+          transition: right 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+          overflow: hidden;
+        }
+
+        .cal-gantt-panel--open {
           right: 0;
         }
 
