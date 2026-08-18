@@ -891,44 +891,48 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
           )}
         </div>
 
-        {/* 3. Produkcja (rozpoczęcie i zakończenie) */}
+        {/* 3. Produkcja (początek) */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
-          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
-              Produkcja
+              Produkcja (początek)
             </div>
-            
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#8b949e" }}>od:</span>
-              {order.productionStartDate ? (
-                <span style={{ color: "#8b949e", fontWeight: 400, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  {formatEventDate(order.productionStartDate)}
-                  <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af", padding: 2 }} onClick={() => void delOrderDate("productionStartDate")}><I.trash s={12} /></button>
-                </span>
-              ) : (
-                <input
-                  type="date"
-                  style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 130, colorScheme: "dark" }}
-                  onChange={(e) => void setOrderDateInline("productionStartDate", e.target.value)}
-                />
-              )}
-
-              <span style={{ fontSize: 12, color: "#8b949e", marginLeft: 8 }}>do:</span>
-              {order.productionEndDate ? (
-                <span style={{ color: "#8b949e", fontWeight: 400, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  {formatEventDate(order.productionEndDate)}
-                  <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af", padding: 2 }} onClick={() => void delOrderDate("productionEndDate")}><I.trash s={12} /></button>
-                </span>
-              ) : (
-                <input
-                  type="date"
-                  style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 130, colorScheme: "dark" }}
-                  onChange={(e) => void setOrderDateInline("productionEndDate", e.target.value)}
-                />
-              )}
-            </div>
+            {order.productionStartDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.productionStartDate)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("productionStartDate", e.target.value)}
+              />
+            )}
           </div>
+          {order.productionStartDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("productionStartDate")}><I.trash s={13} /></button>
+          )}
+        </div>
+
+        {/* 4. Produkcja (zakończenie) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0 }}>
+              Produkcja (zakończenie)
+            </div>
+            {order.productionEndDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.productionEndDate)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("productionEndDate", e.target.value)}
+              />
+            )}
+          </div>
+          {order.productionEndDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("productionEndDate")}><I.trash s={13} /></button>
+          )}
         </div>
 
         {/* 4. Data odbioru */}
