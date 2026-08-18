@@ -131,7 +131,11 @@ export function GanttPanelContent({
   const [localDates, setLocalDates] = useState<Record<string, { start: string; end: string }>>({});
   const [isMutatingId, setIsMutatingId] = useState<Id<"orders"> | null>(null);
 
-  // Sync DB dates to local drag dates when orders list changes, preserving active drag/mutating states
+  const [dragAssembly, setDragAssembly] = useState<DragState | null>(null);
+  const [localAssemblyDates, setLocalAssemblyDates] = useState<Record<string, { start: string; end: string }>>({});
+  const [isMutatingAssemblyId, setIsMutatingAssemblyId] = useState<Id<"orders"> | null>(null);
+
+  // Sync DB production dates to local drag state
   useEffect(() => {
     const dates: Record<string, { start: string; end: string }> = {};
     for (const order of productionOrders) {
@@ -147,6 +151,23 @@ export function GanttPanelContent({
     }
     setLocalDates(dates);
   }, [orders, drag, isMutatingId]);
+
+  // Sync DB assembly dates to local drag state
+  useEffect(() => {
+    const aDates: Record<string, { start: string; end: string }> = {};
+    for (const order of productionOrders) {
+      const isUserInteracting = (dragAssembly && dragAssembly.orderId === order._id) || (isMutatingAssemblyId === order._id);
+      if (isUserInteracting && localAssemblyDates[order._id]) {
+        aDates[order._id] = localAssemblyDates[order._id];
+      } else if (order.assemblyStartDate && order.assemblyEndDate) {
+        aDates[order._id] = {
+          start: order.assemblyStartDate,
+          end: order.assemblyEndDate,
+        };
+      }
+    }
+    setLocalAssemblyDates(aDates);
+  }, [orders, dragAssembly, isMutatingAssemblyId]);
 
   // Generate 30 days of timeline
   const days: { dateStr: string; label: string; dayNum: number; isWeekend: boolean; isToday: boolean }[] = [];
@@ -249,7 +270,7 @@ export function GanttPanelContent({
   const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
   interface RowItem {
-    type: "client" | "order";
+    type: "client" | "order" | "order-assembly";
     clientName: string;
     order?: typeof filteredOrders[0];
   }
@@ -260,6 +281,7 @@ export function GanttPanelContent({
     const clientOrders = grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
     for (const order of clientOrders) {
       rows.push({ type: "order", clientName, order });
+      rows.push({ type: "order-assembly", clientName, order }); // assembly row below production
     }
   }
 
@@ -407,10 +429,92 @@ export function GanttPanelContent({
     };
   }, [drag, localDates, updateDates, isMutatingId]);
 
+  // Assembly drag handler
+  const handleAssemblyMouseDown = (
+    e: React.MouseEvent,
+    type: "move" | "resize-start" | "resize-end",
+    orderId: Id<"orders">
+  ) => {
+    e.preventDefault();
+    const aDates = localAssemblyDates[orderId];
+    if (!aDates) return;
+    setDragAssembly({
+      type,
+      orderId,
+      startX: e.clientX,
+      initialStart: aDates.start,
+      initialEnd: aDates.end,
+    });
+  };
+
+  useEffect(() => {
+    if (!dragAssembly) return;
+    const dayWidth = 40;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - dragAssembly.startX;
+      const deltaDays = Math.round(deltaX / dayWidth);
+      let newStart = dragAssembly.initialStart;
+      let newEnd = dragAssembly.initialEnd;
+
+      if (dragAssembly.type === "move") {
+        newStart = addDays(dragAssembly.initialStart, deltaDays);
+        newEnd = addDays(dragAssembly.initialEnd, deltaDays);
+      } else if (dragAssembly.type === "resize-start") {
+        newStart = addDays(dragAssembly.initialStart, deltaDays);
+        if (newStart > dragAssembly.initialEnd) newStart = dragAssembly.initialEnd;
+      } else if (dragAssembly.type === "resize-end") {
+        newEnd = addDays(dragAssembly.initialEnd, deltaDays);
+        if (newEnd < dragAssembly.initialStart) newEnd = dragAssembly.initialStart;
+      }
+
+      const current = localAssemblyDates[dragAssembly.orderId];
+      if (current && current.start === newStart && current.end === newEnd) return;
+      setLocalAssemblyDates(prev => ({ ...prev, [dragAssembly.orderId]: { start: newStart, end: newEnd } }));
+    };
+
+    const handleMouseUp = async () => {
+      const finalDates = localAssemblyDates[dragAssembly.orderId];
+      const mutatingId = dragAssembly.orderId;
+      setIsMutatingAssemblyId(mutatingId);
+      setDragAssembly(null);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+
+      if (finalDates && (finalDates.start !== dragAssembly.initialStart || finalDates.end !== dragAssembly.initialEnd)) {
+        try {
+          await updateDates({
+            id: mutatingId,
+            assemblyStartDate: finalDates.start,
+            assemblyEndDate: finalDates.end,
+          });
+          toast.success("Zaktualizowano termin montażu");
+        } catch (err) {
+          setLocalAssemblyDates(prev => ({
+            ...prev,
+            [mutatingId]: { start: dragAssembly.initialStart, end: dragAssembly.initialEnd },
+          }));
+          toast.error("Błąd aktualizacji terminu montażu");
+        } finally {
+          setIsMutatingAssemblyId(null);
+        }
+      } else {
+        setIsMutatingAssemblyId(null);
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragAssembly, localAssemblyDates, updateDates, isMutatingAssemblyId]);
+
   // Layout parameters
   const leftColWidth = 320;
   const dayWidth = 40;
-  const rowHeight = 44;
+  const rowHeight = 36; // slightly tighter now we have two rows per order
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d1117", color: "#c9d1d9" }}>
@@ -613,6 +717,78 @@ export function GanttPanelContent({
                 );
               }
 
+              // ── Assembly row in left column ──────────────────────────
+              if (row.type === "order-assembly") {
+                const order = row.order!;
+                const aDates = localAssemblyDates[order._id];
+                return (
+                  <div
+                    key={`asm-${order._id}`}
+                    style={{
+                      height: rowHeight,
+                      borderBottom: "1px solid #161b22",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 16px 0 28px",
+                      background: "#080c10",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                      <span style={{ color: "#8b5cf6", fontSize: 10 }}>↳</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#8b5cf6" }}>Montaż</span>
+                      {aDates && (
+                        <span style={{ fontSize: 10, color: "#6e40c9", marginLeft: 4 }}>
+                          {getDaysDiff(aDates.start, aDates.end) + 1} dni
+                        </span>
+                      )}
+                    </div>
+                    {!aDates && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          // Set assembly start = today, end = today + 3 days
+                          const startD = new Date();
+                          const s = localDateStr(startD);
+                          const endD = new Date();
+                          endD.setDate(endD.getDate() + 3);
+                          const en = localDateStr(endD);
+                          try {
+                            await updateDates({ id: order._id, assemblyStartDate: s, assemblyEndDate: en });
+                            toast.success("Zaplanowano montaż");
+                          } catch { toast.error("Błąd planowania montażu"); }
+                        }}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4,
+                          background: "#1a0a2e", border: "1px solid #8b5cf6",
+                          borderRadius: 4, padding: "3px 7px", cursor: "pointer",
+                          color: "#8b5cf6", fontSize: 10,
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#2d1b69"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "#1a0a2e"; }}
+                      >
+                        <Plus size={10} /> Montaż
+                      </button>
+                    )}
+                    {aDates && (
+                      <button
+                        type="button"
+                        title="Usuń daty montażu"
+                        onClick={async () => {
+                          try {
+                            await updateDates({ id: order._id, assemblyStartDate: null, assemblyEndDate: null });
+                            toast.success("Usunięto termin montażu");
+                          } catch { toast.error("Błąd usuwania montażu"); }
+                        }}
+                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "#6e40c9", padding: 2 }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                );
+              }
+
               const order = row.order!;
               const isPlanned = !!(localDates[order._id] || (order.productionStartDate && order.productionEndDate));
 
@@ -811,6 +987,92 @@ export function GanttPanelContent({
                           />
                         );
                       })}
+                    </div>
+                  );
+                }
+
+                // ── Assembly row in right grid ────────────────────────
+                if (row.type === "order-assembly") {
+                  const order = row.order!;
+                  const aDates = localAssemblyDates[order._id];
+                  let assemblyBarStyle: React.CSSProperties | null = null;
+
+                  if (aDates) {
+                    const startOff = getDaysDiff(timelineStart, aDates.start);
+                    const dur = getDaysDiff(aDates.start, aDates.end) + 1;
+                    assemblyBarStyle = {
+                      position: "absolute",
+                      left: startOff * dayWidth,
+                      width: dur * dayWidth,
+                      height: 20,
+                      top: 8,
+                      borderRadius: 4,
+                      background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)",
+                      boxShadow: "0 2px 8px rgba(139, 92, 246, 0.35)",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0 8px",
+                      color: "white",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      cursor: "grab",
+                      userSelect: "none",
+                      zIndex: 1,
+                      transition: dragAssembly?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
+                    };
+                  }
+
+                  return (
+                    <div
+                      key={`grid-asm-${order._id}`}
+                      style={{
+                        height: rowHeight,
+                        borderBottom: "1px solid #161b22",
+                        display: "flex",
+                        position: "relative",
+                        background: "#080c10",
+                      }}
+                    >
+                      {/* Background day columns */}
+                      {days.map((day) => (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #0d1117",
+                            background: day.isWeekend ? "#0a0f15" : "transparent",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
+
+                      {/* Assembly bar */}
+                      {assemblyBarStyle && (
+                        <div
+                          style={assemblyBarStyle}
+                          onMouseDown={(e) => handleAssemblyMouseDown(e, "move", order._id)}
+                        >
+                          {/* Resize left */}
+                          <div
+                            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-start", order._id); }}
+                          >
+                            <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
+                          </div>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center", pointerEvents: "none", fontSize: 10 }}>
+                            {isMutatingAssemblyId === order._id ? "⏳" : ""}
+                          </span>
+                          {/* Resize right */}
+                          <div
+                            style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-end", order._id); }}
+                          >
+                            <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 }

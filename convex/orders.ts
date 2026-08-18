@@ -424,6 +424,8 @@ export const updateDates = mutation({
     deadline: v.optional(v.union(v.string(), v.null())),
     productionStartDate: v.optional(v.union(v.string(), v.null())),
     productionEndDate: v.optional(v.union(v.string(), v.null())),
+    assemblyStartDate: v.optional(v.union(v.string(), v.null())),
+    assemblyEndDate: v.optional(v.union(v.string(), v.null())),
     deliveryDate: v.optional(v.union(v.string(), v.null())),
     acceptanceDate: v.optional(v.union(v.string(), v.null())),
   },
@@ -438,12 +440,14 @@ export const updateDates = mutation({
       deadline: "Termin realizacji",
       productionStartDate: "Początek produkcji",
       productionEndDate: "Koniec produkcji",
+      assemblyStartDate: "Początek montażu",
+      assemblyEndDate: "Koniec montażu",
       deliveryDate: "Data odbioru",
       acceptanceDate: "Data akceptacji",
     };
 
     const processChange = (
-      field: "deadline" | "productionStartDate" | "productionEndDate" | "deliveryDate" | "acceptanceDate",
+      field: "deadline" | "productionStartDate" | "productionEndDate" | "assemblyStartDate" | "assemblyEndDate" | "deliveryDate" | "acceptanceDate",
       newValue: string | null | undefined
     ) => {
       if (newValue === undefined) return;
@@ -468,6 +472,8 @@ export const updateDates = mutation({
     processChange("deadline", args.deadline);
     processChange("productionStartDate", args.productionStartDate);
     processChange("productionEndDate", args.productionEndDate);
+    processChange("assemblyStartDate", args.assemblyStartDate);
+    processChange("assemblyEndDate", args.assemblyEndDate);
     processChange("deliveryDate", args.deliveryDate);
     processChange("acceptanceDate", args.acceptanceDate);
 
@@ -482,6 +488,14 @@ export const updateDates = mutation({
     if (args.productionEndDate !== undefined) {
       if (args.productionEndDate === null) delete order.productionEndDate;
       else order.productionEndDate = args.productionEndDate;
+    }
+    if (args.assemblyStartDate !== undefined) {
+      if (args.assemblyStartDate === null) delete order.assemblyStartDate;
+      else order.assemblyStartDate = args.assemblyStartDate;
+    }
+    if (args.assemblyEndDate !== undefined) {
+      if (args.assemblyEndDate === null) delete order.assemblyEndDate;
+      else order.assemblyEndDate = args.assemblyEndDate;
     }
     if (args.deliveryDate !== undefined) {
       if (args.deliveryDate === null) delete order.deliveryDate;

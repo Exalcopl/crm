@@ -826,7 +826,7 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
   }
 
   const updateDates = useMutation(api.orders.updateDates);
-  async function delOrderDate(type: "deadline" | "productionStartDate" | "productionEndDate" | "deliveryDate" | "acceptanceDate") {
+  async function delOrderDate(type: "deadline" | "productionStartDate" | "productionEndDate" | "assemblyStartDate" | "assemblyEndDate" | "deliveryDate" | "acceptanceDate") {
     try {
       await updateDates({ id: orderId, [type]: null });
       toast.success("Usunięto termin");
@@ -836,7 +836,7 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
     }
   }
 
-  async function setOrderDateInline(type: "deadline" | "productionStartDate" | "productionEndDate" | "deliveryDate" | "acceptanceDate", val: string) {
+  async function setOrderDateInline(type: "deadline" | "productionStartDate" | "productionEndDate" | "assemblyStartDate" | "assemblyEndDate" | "deliveryDate" | "acceptanceDate", val: string) {
     if (!val) return;
     try {
       await updateDates({ id: orderId, [type]: val });
@@ -935,7 +935,51 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
           )}
         </div>
 
-        {/* 5. Data odbioru */}
+        {/* 5. Montaż (rozpoczęcie) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #8b5cf6`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#8b5cf6", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
+              Montaż (rozpoczęcie)
+            </div>
+            {order.assemblyStartDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.assemblyStartDate)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("assemblyStartDate", e.target.value)}
+              />
+            )}
+          </div>
+          {order.assemblyStartDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("assemblyStartDate")}><I.trash s={13} /></button>
+          )}
+        </div>
+
+        {/* 6. Montaż (zakończenie) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #8b5cf6`, borderRadius: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#8b5cf6", flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 500, flexShrink: 0, width: 180 }}>
+              Montaż (zakończenie)
+            </div>
+            {order.assemblyEndDate ? (
+              <span style={{ color: "#8b949e", fontWeight: 400 }}>{formatEventDate(order.assemblyEndDate)}</span>
+            ) : (
+              <input
+                type="date"
+                style={{ background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 6, padding: "4px 8px", fontSize: 12, fontFamily: "inherit", width: 140, colorScheme: "dark" }}
+                onChange={(e) => void setOrderDateInline("assemblyEndDate", e.target.value)}
+              />
+            )}
+          </div>
+          {order.assemblyEndDate && (
+            <button type="button" className="icon-btn" title="Usuń" style={{ color: "#ffb4af" }} onClick={() => void delOrderDate("assemblyEndDate")}><I.trash s={13} /></button>
+          )}
+        </div>
+
+        {/* 7. Data odbioru */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
