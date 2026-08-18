@@ -44,6 +44,7 @@ import type * as sharepointWebhookDb from "../sharepointWebhookDb.js";
 import type * as systemSettings from "../systemSettings.js";
 import type * as tasks from "../tasks.js";
 import type * as testing from "../testing.js";
+import type * as testing_calendar from "../testing_calendar.js";
 import type * as testing_orders from "../testing_orders.js";
 import type * as testing_partners from "../testing_partners.js";
 import type * as users from "../users.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   systemSettings: typeof systemSettings;
   tasks: typeof tasks;
   testing: typeof testing;
+  testing_calendar: typeof testing_calendar;
   testing_orders: typeof testing_orders;
   testing_partners: typeof testing_partners;
   users: typeof users;

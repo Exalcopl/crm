@@ -298,6 +298,22 @@ export const update = mutation({
       patch.category = fields.category === null ? undefined : fields.category;
     }
 
+    // Auto-sync endDate when date changes without explicit endDate, or when endDate is before date
+    const targetDate = (fields.date !== undefined ? fields.date : event.date) as string;
+    let targetEndDate = (fields.endDate !== undefined ? fields.endDate : event.endDate) as string | undefined;
+
+    if (fields.date !== undefined && fields.endDate === undefined) {
+      // If event was single day (endDate === date or no endDate)
+      if (!event.endDate || event.endDate === event.date) {
+        targetEndDate = fields.date;
+        patch.endDate = fields.date;
+      }
+    }
+
+    if (targetDate && targetEndDate && targetEndDate < targetDate) {
+      patch.endDate = targetDate;
+    }
+
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(id, patch);
     }

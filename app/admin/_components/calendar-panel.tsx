@@ -57,6 +57,26 @@ function hexToRgba(hex: string, alpha: number): string {
   }
 }
 
+function addDays(dateStr: string, days: number): string {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, "0");
+  const nd = String(dt.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
+function getDaysDiff(startStr: string, endStr: string): number {
+  if (!startStr || !endStr) return 0;
+  const [y1, m1, d1] = startStr.split("-").map(Number);
+  const [y2, m2, d2] = endStr.split("-").map(Number);
+  const dt1 = new Date(y1, m1 - 1, d1);
+  const dt2 = new Date(y2, m2 - 1, d2);
+  return Math.round((dt2.getTime() - dt1.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function getPolishHoliday(year: number, month: number, day: number): string | null {
   if (month === 1 && day === 1) return "Nowy Rok";
   if (month === 1 && day === 6) return "Trzech Króli";
@@ -1606,12 +1626,16 @@ export function CalendarPanel() {
           const targetDate = weekDateStrings[colIdx];
 
           const didMove = targetDate !== compDragState.originalDate || Math.abs(snappedStart - compDragState.originalStart) >= 0.25;
+          const dayDiff = getDaysDiff(compDragState.originalDate, targetDate);
+          const origEndDate = compDragState.originalEndDate || compDragState.originalDate;
+          const newEndDate = addDays(origEndDate, dayDiff);
 
           setCompDragState(prev => prev ? {
             ...prev,
             currentStart: snappedStart,
             currentEnd: snappedStart + duration,
             currentDate: targetDate,
+            currentEndDate: newEndDate,
             didMove: prev.didMove || didMove
           } : null);
         } else {
@@ -1643,9 +1667,14 @@ export function CalendarPanel() {
 
         if (compDragState.type === "month-move") {
           const didMove = targetDate !== compDragState.originalDate;
+          const dayDiff = getDaysDiff(compDragState.originalDate, targetDate);
+          const origEndDate = compDragState.originalEndDate || compDragState.originalDate;
+          const newEndDate = addDays(origEndDate, dayDiff);
+
           setCompDragState(prev => prev ? {
             ...prev,
             currentDate: targetDate,
+            currentEndDate: newEndDate,
             didMove: prev.didMove || didMove
           } : null);
         } else {
@@ -1720,12 +1749,16 @@ export function CalendarPanel() {
           }
         } else {
           // Normal drag: move event
+          const dayDiff = getDaysDiff(compDragState.originalDate, compDragState.currentDate);
+          const origEndDate = compDragState.originalEndDate || compDragState.originalDate;
+          const finalEndDate = compDragState.currentEndDate || addDays(origEndDate, dayDiff);
+
           updateEvent({
             id: compDragState.eventId,
             date: compDragState.currentDate,
             startTime: formatHour(compDragState.currentStart),
             endTime: formatHour(compDragState.currentEnd),
-            endDate: compDragState.currentEndDate,
+            endDate: finalEndDate,
           }).catch((err) => {
             console.error("Failed to drag-update event:", err);
           });
@@ -2467,7 +2500,7 @@ export function CalendarPanel() {
                       const allDayEvs = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter(ev => {
                         if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
                         const evEnd = ev.endDate || ev.date;
-                        return ev.isAllDay || ev.date !== evEnd;
+                        return !!ev.isAllDay || (!ev.startTime && evEnd > ev.date);
                       }) : [];
                       
                       // For simplicity, we just stack them. A real algorithm would pack them vertically without overlap.
@@ -2602,7 +2635,7 @@ export function CalendarPanel() {
                         if (eventDate !== dayStr) return false;
                         if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
                         const evEnd = ev.endDate || ev.date;
-                        if (ev.isAllDay || ev.date !== evEnd) return false; // Already in all-day tray
+                        if (ev.isAllDay || (!ev.startTime && evEnd > ev.date)) return false; // In all-day tray
                         return true;
                       }) : [];
 
@@ -2693,9 +2726,11 @@ export function CalendarPanel() {
                                     type: "move",
                                     eventId: ev._id,
                                     originalDate: ev.date,
+                                    originalEndDate: ev.endDate || ev.date,
                                     originalStart: startVal,
                                     originalEnd: endVal,
                                     currentDate: ev.date,
+                                    currentEndDate: ev.endDate || ev.date,
                                     currentStart: startVal,
                                     currentEnd: endVal,
                                     grabOffsetY: e.clientY - rect.top,
