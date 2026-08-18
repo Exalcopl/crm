@@ -106,6 +106,29 @@ export default function PanelPage() {
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
+  const filteredTasks = useMemo(() => {
+    const tasks = (tasksRaw ?? []) as TaskWithQuote[];
+    if (selectedUserIds.length === 0) return tasks;
+    return tasks.filter((t) => {
+      if (!t.assigneeIds || t.assigneeIds.length === 0) return false;
+      return t.assigneeIds.some((id) => selectedUserIds.includes(id as string));
+    });
+  }, [tasksRaw, selectedUserIds]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+
+  const byColumn = useMemo(() => {
+    const map: Record<TaskStatus, TaskWithQuote[]> = {
+      todo: [],
+      in_progress: [],
+      done: [],
+    };
+    for (const t of filteredTasks) map[t.status].push(t);
+    return map;
+  }, [filteredTasks]);
+
   if (tasksRaw === undefined || assigneesRaw === undefined || allUsersRaw === undefined || isLoading) {
     return (
       <main className="fluent-content panel-page">
@@ -125,29 +148,6 @@ export default function PanelPage() {
     if (b.isCurrentUser) return 1;
     return (a.name || a.email || "").localeCompare(b.name || b.email || "");
   });
-
-  const filteredTasks = useMemo(() => {
-    if (selectedUserIds.length === 0) return tasks;
-    return tasks.filter((t) => {
-      // If task has no assignees, we can decide whether to show it. We'll hide it if filters are active.
-      if (!t.assigneeIds || t.assigneeIds.length === 0) return false;
-      return t.assigneeIds.some((id) => selectedUserIds.includes(id as string));
-    });
-  }, [tasks, selectedUserIds]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  );
-
-  const byColumn = useMemo(() => {
-    const map: Record<TaskStatus, TaskWithQuote[]> = {
-      todo: [],
-      in_progress: [],
-      done: [],
-    };
-    for (const t of filteredTasks) map[t.status].push(t);
-    return map;
-  }, [filteredTasks]);
 
   function handleDragStart(e: DragStartEvent) {
     const id = e.active.id as string;
