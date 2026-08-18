@@ -278,7 +278,7 @@ export function GanttPanelContent({
   const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
   interface RowItem {
-    type: "client" | "order" | "order-assembly";
+    type: "client" | "order-header" | "order-production" | "order-assembly";
     clientName: string;
     order?: typeof filteredOrders[0];
   }
@@ -288,8 +288,9 @@ export function GanttPanelContent({
     rows.push({ type: "client", clientName });
     const clientOrders = grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
     for (const order of clientOrders) {
-      rows.push({ type: "order", clientName, order });
-      rows.push({ type: "order-assembly", clientName, order }); // assembly row below production
+      rows.push({ type: "order-header", clientName, order });
+      rows.push({ type: "order-production", clientName, order });
+      rows.push({ type: "order-assembly", clientName, order });
     }
   }
 
@@ -677,7 +678,165 @@ export function GanttPanelContent({
                 );
               }
 
-              // ── Assembly row in left column ──────────────────────────
+              // ── Order Header Row (Level 1 under Client) ───────────────
+              if (row.type === "order-header") {
+                const order = row.order!;
+                const q = quotesMap.get(order.quoteId);
+                const customLabel = order.customLabel || q?.customLabel;
+                return (
+                  <div
+                    key={`hdr-${order._id}`}
+                    onClick={() => onOpenOrder(order._id)}
+                    style={{
+                      height: 28,
+                      background: "#161b22",
+                      borderBottom: "1px solid #30363d",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 12px 0 18px",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#161b22")}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#58a6ff" }}>
+                        📦 Zlecenie {order.orderNumber}
+                      </span>
+                      {customLabel && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            color: "var(--accent-primary)",
+                            background: "var(--accent-soft)",
+                            border: "1px solid var(--accent-line)",
+                            padding: "1px 5px",
+                            borderRadius: 3,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: 110,
+                          }}
+                          title={customLabel}
+                        >
+                          🏷️ {customLabel}
+                        </span>
+                      )}
+                    </div>
+                    {order.projectType && order.projectType.length > 0 && (
+                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                        {order.projectType.map((t: string) => (
+                          <span key={t} style={{ fontSize: 9, color: "#8b949e" }}>· {t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Production Row (Level 2) ─────────────────────────────
+              if (row.type === "order-production") {
+                const order = row.order!;
+                const isPlanned = !!(localDates[order._id] || (order.productionStartDate && order.productionEndDate));
+                return (
+                  <div
+                    key={`prod-${order._id}`}
+                    style={{
+                      height: rowHeight,
+                      borderBottom: "1px solid #21262d",
+                      borderLeft: "3px solid #10b981",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 12px 0 28px",
+                      background: "transparent",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                      <span style={{ color: "#10b981", fontSize: 10, fontWeight: 700 }}>↳</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.4px",
+                          background: "rgba(16, 185, 129, 0.15)",
+                          color: "#3fb950",
+                          border: "1px solid rgba(16, 185, 129, 0.3)",
+                          padding: "1px 5px",
+                          borderRadius: 3,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                      >
+                        🏭 PRODUKCJA
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {!isPlanned ? (
+                        <button
+                          type="button"
+                          onClick={() => handleScheduleDefault(order._id)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 3,
+                            background: "#161b22",
+                            border: "1px solid #10b981",
+                            borderRadius: 4,
+                            padding: "2px 6px",
+                            cursor: "pointer",
+                            color: "#3fb950",
+                            fontSize: 10,
+                            fontWeight: 600,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#10b981"; e.currentTarget.style.color = "#ffffff"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#161b22"; e.currentTarget.style.color = "#3fb950"; }}
+                        >
+                          <Plus size={10} /> Zaplanuj
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
+                          <Clock size={10} />
+                          {localDates[order._id] 
+                            ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
+                            : "—"
+                          }
+                        </span>
+                      )}
+                      {localDates[order._id] && (
+                        <button
+                          type="button"
+                          title="Centruj kalendarz na terminie produkcji"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const s = localDates[order._id].start;
+                            if (s) setTimelineStart(addDays(s, -5));
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            padding: 2,
+                            color: "#8b949e",
+                          }}
+                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#f59e0b")}
+                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
+                        >
+                          🎯
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── Assembly Row (Level 3) ───────────────────────────────
               if (row.type === "order-assembly") {
                 const order = row.order!;
                 const aDates = localAssemblyDates[order._id];
@@ -687,11 +846,11 @@ export function GanttPanelContent({
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #161b22",
-                      borderLeft: "4px solid #8b5cf6",
+                      borderLeft: "3px solid #8b5cf6",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0 12px 0 24px",
+                      padding: "0 12px 0 40px",
                       background: "#0e0a1a",
                     }}
                   >
@@ -714,9 +873,6 @@ export function GanttPanelContent({
                         }}
                       >
                         🔧 MONTAŻ
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 500, color: "#8b949e" }}>
-                        {order.orderNumber}
                       </span>
                       {aDates && (
                         <span style={{ fontSize: 10, color: "#a78bfa", marginLeft: 2, fontWeight: 600 }}>
@@ -789,141 +945,6 @@ export function GanttPanelContent({
                         </button>
                       )}
                     </div>
-                  </div>
-                );
-              }
-
-              const order = row.order!;
-              const isPlanned = !!(localDates[order._id] || (order.productionStartDate && order.productionEndDate));
-
-              if (isPlanned) {
-                return (
-                  <div
-                    key={order._id}
-                    onClick={() => onOpenOrder(order._id)}
-                    style={{
-                      height: rowHeight,
-                      borderBottom: "1px solid #21262d",
-                      borderLeft: "4px solid #10b981",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      padding: "0 12px",
-                      cursor: "pointer",
-                      transition: "background 0.2s",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.4px",
-                            background: "rgba(16, 185, 129, 0.15)",
-                            color: "#3fb950",
-                            border: "1px solid rgba(16, 185, 129, 0.3)",
-                            padding: "1px 5px",
-                            borderRadius: 3,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                          }}
-                        >
-                          🏭 PRODUKCJA
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
-                          <Clock size={10} />
-                          {localDates[order._id] 
-                            ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
-                            : "—"
-                          }
-                        </span>
-                        {localDates[order._id] && (
-                          <button
-                            type="button"
-                            title="Centruj kalendarz na terminie produkcji"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const s = localDates[order._id].start;
-                              if (s) setTimelineStart(addDays(s, -5));
-                            }}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: 11,
-                              padding: 2,
-                              color: "#8b949e",
-                            }}
-                            onMouseEnter={(ev) => (ev.currentTarget.style.color = "#f59e0b")}
-                            onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
-                          >
-                            🎯
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    {order.projectType && order.projectType.length > 0 && (
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
-                        {order.projectType.map((t: string) => (
-                          <span key={t} style={{ fontSize: 9, color: "#8b949e" }}>· {t}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              } else {
-                return (
-                  <div
-                    key={order._id}
-                    style={{
-                      height: rowHeight,
-                      borderBottom: "1px solid #21262d",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0 16px",
-                    }}
-                  >
-                    <div onClick={() => onOpenOrder(order._id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "#8b949e" }}>{order.orderNumber}</div>
-                      <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic" }}>
-                        Brak daty produkcji
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleScheduleDefault(order._id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        background: "#21262d",
-                        border: "1px solid #30363d",
-                        borderRadius: 4,
-                        padding: "4px 8px",
-                        cursor: "pointer",
-                        color: "#f0f6fc",
-                        fontSize: 11,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "#f59e0b";
-                        e.currentTarget.style.color = "#f59e0b";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "#30363d";
-                        e.currentTarget.style.color = "#f0f6fc";
-                      }}
-                    >
-                      <Plus size={11} /> Zaplanuj
-                    </button>
                   </div>
                 );
               }
@@ -1068,6 +1089,36 @@ export function GanttPanelContent({
                           />
                         );
                       })}
+                    </div>
+                  );
+                }
+
+                // ── Order Header Row in right grid ─────────────────────
+                if (row.type === "order-header") {
+                  return (
+                    <div
+                      key={`grid-hdr-${row.order!._id}`}
+                      style={{
+                        height: 28,
+                        background: "#11161d",
+                        borderBottom: "1px solid #30363d",
+                        display: "flex",
+                        position: "relative",
+                      }}
+                    >
+                      {days.map((day) => (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #1b222d",
+                            background: day.isWeekend ? "#0d1117" : "transparent",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
                     </div>
                   );
                 }
@@ -1240,6 +1291,7 @@ export function GanttPanelContent({
                 }
 
 
+                // ── Production row in right grid ──────────────────────
                 const order = row.order!;
                 const dates = localDates[order._id];
                 let barStyle: React.CSSProperties | null = null;
