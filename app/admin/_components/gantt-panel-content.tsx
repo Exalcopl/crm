@@ -198,9 +198,6 @@ export function GanttPanelContent({
       const deltaX = e.clientX - drag.startX;
       const deltaDays = Math.round(deltaX / dayWidth);
 
-      if (deltaDays === 0) return;
-
-      const dates = { ...localDates };
       let newStart = drag.initialStart;
       let newEnd = drag.initialEnd;
 
@@ -209,18 +206,22 @@ export function GanttPanelContent({
         newEnd = addDays(drag.initialEnd, deltaDays);
       } else if (drag.type === "resize-start") {
         newStart = addDays(drag.initialStart, deltaDays);
-        // prevent start > end
         if (newStart > drag.initialEnd) {
           newStart = drag.initialEnd;
         }
       } else if (drag.type === "resize-end") {
         newEnd = addDays(drag.initialEnd, deltaDays);
-        // prevent end < start
         if (newEnd < drag.initialStart) {
           newEnd = drag.initialStart;
         }
       }
 
+      const current = localDates[drag.orderId];
+      if (current && current.start === newStart && current.end === newEnd) {
+        return;
+      }
+
+      const dates = { ...localDates };
       dates[drag.orderId] = { start: newStart, end: newEnd };
       setLocalDates(dates);
     };
