@@ -687,64 +687,108 @@ export function GanttPanelContent({
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #161b22",
+                      borderLeft: "4px solid #8b5cf6",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0 16px 0 28px",
-                      background: "#080c10",
+                      padding: "0 12px 0 24px",
+                      background: "#0e0a1a",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ color: "#8b5cf6", fontSize: 10 }}>↳</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "#8b5cf6" }}>Montaż</span>
+                      <span style={{ color: "#8b5cf6", fontSize: 10, fontWeight: 700 }}>↳</span>
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.4px",
+                          background: "rgba(139, 92, 246, 0.25)",
+                          color: "#c084fc",
+                          border: "1px solid rgba(139, 92, 246, 0.4)",
+                          padding: "1px 5px",
+                          borderRadius: 3,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                        }}
+                      >
+                        🔧 MONTAŻ
+                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 500, color: "#8b949e" }}>
+                        {order.orderNumber}
+                      </span>
                       {aDates && (
-                        <span style={{ fontSize: 10, color: "#6e40c9", marginLeft: 4 }}>
-                          {getDaysDiff(aDates.start, aDates.end) + 1} dni
+                        <span style={{ fontSize: 10, color: "#a78bfa", marginLeft: 2, fontWeight: 600 }}>
+                          ({getDaysDiff(aDates.start, aDates.end) + 1} dni)
                         </span>
                       )}
                     </div>
-                    {!aDates && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          // Set assembly start = today, end = today + 3 days
-                          const startD = new Date();
-                          const s = localDateStr(startD);
-                          const endD = new Date();
-                          endD.setDate(endD.getDate() + 3);
-                          const en = localDateStr(endD);
-                          try {
-                            await updateDates({ id: order._id, assemblyStartDate: s, assemblyEndDate: en });
-                            toast.success("Zaplanowano montaż");
-                          } catch { toast.error("Błąd planowania montażu"); }
-                        }}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 4,
-                          background: "#1a0a2e", border: "1px solid #8b5cf6",
-                          borderRadius: 4, padding: "3px 7px", cursor: "pointer",
-                          color: "#8b5cf6", fontSize: 10,
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#2d1b69"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "#1a0a2e"; }}
-                      >
-                        <Plus size={10} /> Montaż
-                      </button>
-                    )}
-                    {aDates && (
-                      <button
-                        type="button"
-                        title="Usuń daty montażu"
-                        onClick={async () => {
-                          try {
-                            await updateDates({ id: order._id, assemblyStartDate: null, assemblyEndDate: null });
-                            toast.success("Usunięto termin montażu");
-                          } catch { toast.error("Błąd usuwania montażu"); }
-                        }}
-                        style={{ background: "transparent", border: "none", cursor: "pointer", color: "#6e40c9", padding: 2 }}
-                      >
-                        ✕
-                      </button>
-                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      {aDates && (
+                        <button
+                          type="button"
+                          title="Centruj kalendarz na terminie montażu"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (aDates.start) setTimelineStart(addDays(aDates.start, -5));
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: 11,
+                            padding: 2,
+                            color: "#8b949e",
+                          }}
+                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#a78bfa")}
+                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
+                        >
+                          🎯
+                        </button>
+                      )}
+                      {!aDates && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const startD = new Date();
+                            const s = localDateStr(startD);
+                            const endD = new Date();
+                            endD.setDate(endD.getDate() + 3);
+                            const en = localDateStr(endD);
+                            try {
+                              await updateDates({ id: order._id, assemblyStartDate: s, assemblyEndDate: en });
+                              toast.success("Zaplanowano montaż");
+                            } catch { toast.error("Błąd planowania montażu"); }
+                          }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 3,
+                            background: "#1a0a2e", border: "1px solid #8b5cf6",
+                            borderRadius: 4, padding: "2px 6px", cursor: "pointer",
+                            color: "#c084fc", fontSize: 10, fontWeight: 600,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#2d1b69"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#1a0a2e"; }}
+                        >
+                          <Plus size={10} /> Montaż
+                        </button>
+                      )}
+                      {aDates && (
+                        <button
+                          type="button"
+                          title="Usuń daty montażu"
+                          onClick={async () => {
+                            try {
+                              await updateDates({ id: order._id, assemblyStartDate: null, assemblyEndDate: null });
+                              toast.success("Usunięto termin montażu");
+                            } catch { toast.error("Błąd usuwania montażu"); }
+                          }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#6e40c9", padding: 2 }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               }
@@ -760,10 +804,11 @@ export function GanttPanelContent({
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #21262d",
+                      borderLeft: "4px solid #10b981",
                       display: "flex",
                       flexDirection: "column",
                       justifyContent: "center",
-                      padding: "0 16px",
+                      padding: "0 12px",
                       cursor: "pointer",
                       transition: "background 0.2s",
                     }}
@@ -771,7 +816,27 @@ export function GanttPanelContent({
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.4px",
+                            background: "rgba(16, 185, 129, 0.15)",
+                            color: "#3fb950",
+                            border: "1px solid rgba(16, 185, 129, 0.3)",
+                            padding: "1px 5px",
+                            borderRadius: 3,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                          }}
+                        >
+                          🏭 PRODUKCJA
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
+                      </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
                           <Clock size={10} />
@@ -783,7 +848,7 @@ export function GanttPanelContent({
                         {localDates[order._id] && (
                           <button
                             type="button"
-                            title="Centruj kalendarz na tym zleceniu"
+                            title="Centruj kalendarz na terminie produkcji"
                             onClick={(e) => {
                               e.stopPropagation();
                               const s = localDates[order._id].start;
@@ -793,7 +858,7 @@ export function GanttPanelContent({
                               background: "transparent",
                               border: "none",
                               cursor: "pointer",
-                              fontSize: 12,
+                              fontSize: 11,
                               padding: 2,
                               color: "#8b949e",
                             }}
