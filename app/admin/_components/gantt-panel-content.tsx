@@ -5,7 +5,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
-import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins } from "lucide-react";
+import { useMemo } from "react";
 
 // timezone-agnostic date helpers
 function formatDateStr(date: Date): string {
@@ -22,6 +23,16 @@ function getDaysDiff(startStr: string, endStr: string): number {
   const s = new Date(startStr + "T00:00:00");
   const e = new Date(endStr + "T00:00:00");
   return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatTooltipDate(dateStr: string): string {
+  if (!dateStr) return "—";
+  const dateObj = new Date(dateStr + "T00:00:00");
+  return dateObj.toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatCurrency(val: number): string {
+  return val.toLocaleString("pl-PL", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " zł";
 }
 
 interface DragState {
@@ -41,11 +52,18 @@ export function GanttPanelContent({
 }) {
   const orders = useQuery(api.orders.list) ?? [];
   const updateDates = useMutation(api.orders.updateDates);
+  const projectTypes = useQuery(api.projectTypes.list) ?? [];
+  const allUsers = useQuery(api.users.listAllAssignable) ?? [];
+  const usersMap = useMemo(() => new Map(allUsers.map((u: any) => [u._id, u.name])), [allUsers]);
 
   // Filter only production orders
   const productionOrders = orders.filter((o) => o.status === "produkcja");
 
   const [search, setSearch] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
   const [timelineStart, setTimelineStart] = useState(() => {
     // Default to 5 days before today
     const d = new Date();
@@ -91,12 +109,17 @@ export function GanttPanelContent({
     });
   }
 
-  // Filter orders by search term
-  const filteredOrders = productionOrders.filter(
-    (o) =>
+  // Filter orders by search term and selected project types
+  const filteredOrders = productionOrders.filter((o) => {
+    const matchesSearch =
       o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      o.clientName.toLowerCase().includes(search.toLowerCase())
-  );
+      o.clientName.toLowerCase().includes(search.toLowerCase());
+
+    if (selectedTypes.length === 0) return matchesSearch;
+
+    const orderTypes = o.projectType || [];
+    return matchesSearch && orderTypes.some((t: string) => selectedTypes.includes(t));
+  });
 
   // Split into planned and unplanned
   const planned = filteredOrders.filter(
@@ -241,15 +264,53 @@ export function GanttPanelContent({
 
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", borderBottom: "1px solid #30363d", background: "#0d1117", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#161b22", borderRadius: 6, padding: "4px 10px", border: "1px solid #30363d", width: 280 }}>
-          <Search size={14} style={{ color: "#8b949e" }} />
-          <input
-            type="text"
-            placeholder="Szukaj zlecenia, klienta..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{ background: "transparent", border: "none", color: "white", outline: "none", fontSize: 13, width: "100%" }}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#161b22", borderRadius: 6, padding: "4px 10px", border: "1px solid #30363d", width: 260 }}>
+            <Search size={14} style={{ color: "#8b949e" }} />
+            <input
+              type="text"
+              placeholder="Szukaj zlecenia, klienta..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ background: "transparent", border: "none", color: "white", outline: "none", fontSize: 13, width: "100%" }}
+            />
+          </div>
+
+          {/* Project Type Filter Chips */}
+          {projectTypes.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Linia:</span>
+              {projectTypes.map((type) => {
+                const isActive = selectedTypes.includes(type.name);
+                return (
+                  <button
+                    key={type.name}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTypes(prev => 
+                        prev.includes(type.name) 
+                          ? prev.filter(t => t !== type.name) 
+                          : [...prev, type.name]
+                      );
+                    }}
+                    style={{
+                      background: isActive ? type.color || "#2563eb" : "#21262d",
+                      color: isActive ? "#ffffff" : "#c9d1d9",
+                      border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
+                      borderRadius: 12,
+                      padding: "2px 10px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                      fontWeight: 500,
+                      transition: "all 0.2s"
+                    }}
+                  >
+                    {type.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -487,6 +548,9 @@ export function GanttPanelContent({
                       <div
                         style={barStyle}
                         onMouseDown={(e) => handleMouseDown(e, "move", order._id)}
+                        onMouseEnter={() => setHoveredOrder(order)}
+                        onMouseMove={(e) => setTooltipPos({ x: e.clientX + 15, y: e.clientY + 15 })}
+                        onMouseLeave={() => { setHoveredOrder(null); setTooltipPos(null); }}
                       >
                         {/* Resize Left Handle */}
                         <div
@@ -547,6 +611,84 @@ export function GanttPanelContent({
         </div>
 
       </div>
+
+      {/* Hover Tooltip / Popover */}
+      {hoveredOrder && tooltipPos && (() => {
+        const ownerName = hoveredOrder.ownerId ? usersMap.get(hoveredOrder.ownerId) || "" : "";
+        const dates = localDates[hoveredOrder._id] || { start: hoveredOrder.productionStartDate, end: hoveredOrder.productionEndDate };
+        const duration = (dates.start && dates.end) ? getDaysDiff(dates.start, dates.end) + 1 : 0;
+        
+        return (
+          <div
+            style={{
+              position: "fixed",
+              left: tooltipPos.x,
+              top: tooltipPos.y,
+              background: "rgba(22, 27, 34, 0.95)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid #30363d",
+              borderRadius: 8,
+              padding: "12px 14px",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+              zIndex: 1000,
+              minWidth: 260,
+              maxWidth: 320,
+              pointerEvents: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              fontSize: 12,
+              color: "#c9d1d9",
+              fontFamily: "inherit"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #21262d", paddingBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#58a6ff" }}>{hoveredOrder.orderNumber}</span>
+              {duration > 0 && (
+                <span style={{ background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>
+                  {duration} dni
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div>Klient: <strong style={{ color: "#f0f6fc" }}>{hoveredOrder.clientName}</strong></div>
+              {dates.start && dates.end && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
+                  <Calendar size={11} />
+                  <span>{formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</span>
+                </div>
+              )}
+              {ownerName && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
+                  <UserCheck size={11} />
+                  <span>Opiekun: <strong style={{ color: "#f0f6fc" }}>{ownerName}</strong></span>
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
+                <Coins size={11} />
+                <span>Wartość Netto: <strong style={{ color: "#3fb950" }}>{formatCurrency(hoveredOrder.valueNetto || 0)}</strong></span>
+              </div>
+            </div>
+
+            {hoveredOrder.projectType && hoveredOrder.projectType.length > 0 && (
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 2 }}>
+                {hoveredOrder.projectType.map((t: string) => (
+                  <span key={t} style={{ fontSize: 9, background: "#21262d", color: "#8b949e", padding: "1px 6px", borderRadius: 10, border: "1px solid #30363d" }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {hoveredOrder.notes && (
+              <div style={{ borderTop: "1px solid #21262d", paddingTop: 6, fontSize: 11, color: "#8b949e", fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                {hoveredOrder.notes}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
