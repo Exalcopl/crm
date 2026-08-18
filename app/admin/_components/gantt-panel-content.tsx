@@ -170,10 +170,10 @@ export function GanttPanelContent({
     setLocalAssemblyDates(aDates);
   }, [orders, dragAssembly, isMutatingAssemblyId]);
 
-  // Generate 30 days of timeline
+  // Generate 90 days of timeline (3 full months)
   const days: { dateStr: string; label: string; dayNum: number; isWeekend: boolean; isToday: boolean }[] = [];
   const todayStr = formatDateStr(new Date());
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 90; i++) {
     const currentStr = addDays(timelineStart, i);
     const dateObj = new Date(currentStr + "T00:00:00");
     const dayOfWeek = dateObj.getDay();
@@ -623,22 +623,51 @@ export function GanttPanelContent({
             </div>
           )}
 
-        </div>
+               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Month/Year selector */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#161b22", border: "1px solid #30363d", borderRadius: 4, padding: "2px 8px" }}>
+            <Calendar size={13} style={{ color: "#58a6ff" }} />
+            <span style={{ fontSize: 11, color: "#8b949e" }}>Skocz do miesiąca:</span>
+            <input
+              type="month"
+              value={timelineStart.slice(0, 7)}
+              onChange={(e) => {
+                if (e.target.value) setTimelineStart(e.target.value + "-01");
+              }}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#f0f6fc",
+                fontSize: 12,
+                fontWeight: 600,
+                outline: "none",
+                colorScheme: "dark",
+                cursor: "pointer",
+              }}
+            />
+          </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => shiftTimeline(-30)}
+            className="gantt-tool-btn"
+            title="Poprzedni miesiąc (-30 dni)"
+            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
+          >
+            <ChevronLeft size={14} /> Miesiąc
+          </button>
           <button
             type="button"
             onClick={() => shiftTimeline(-7)}
             className="gantt-tool-btn"
-            title="Poprzedni tydzień"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#21262d", border: "1px solid #30363d", borderRadius: 4, width: 28, height: 28, cursor: "pointer", color: "white" }}
+            title="Poprzedni tydzień (-7 dni)"
+            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} /> Tydzień
           </button>
           <button
             type="button"
             onClick={jumpToToday}
-            className="gantt-tool-btn"
             style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 12px", cursor: "pointer", color: "white", fontSize: 12, fontWeight: 500 }}
           >
             Dzisiaj
@@ -647,11 +676,21 @@ export function GanttPanelContent({
             type="button"
             onClick={() => shiftTimeline(7)}
             className="gantt-tool-btn"
-            title="Następny tydzień"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#21262d", border: "1px solid #30363d", borderRadius: 4, width: 28, height: 28, cursor: "pointer", color: "white" }}
+            title="Następny tydzień (+7 dni)"
+            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
           >
-            <ChevronRight size={16} />
+            Tydzień <ChevronRight size={14} />
           </button>
+          <button
+            type="button"
+            onClick={() => shiftTimeline(30)}
+            className="gantt-tool-btn"
+            title="Następny miesiąc (+30 dni)"
+            style={{ display: "flex", alignItems: "center", gap: 3, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "white", fontSize: 11 }}
+          >
+            Miesiąc <ChevronRight size={14} />
+          </button>
+        </div>  
         </div>
       </div>
 
