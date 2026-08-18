@@ -2916,9 +2916,11 @@ export function CalendarPanel() {
         /* ─── Typography & Container (Geist Sans / Modern Sans) ──── */
         .cal-panel,
         .cal-company-panel,
+        .cal-gantt-panel,
         .cal-drawer,
         .cal-panel *,
-        .cal-company-panel * {
+        .cal-company-panel *,
+        .cal-gantt-panel * {
           font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           box-sizing: border-box;
           -webkit-font-smoothing: antialiased;
