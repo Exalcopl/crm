@@ -8,15 +8,23 @@ import { toast } from "sonner";
 import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck } from "lucide-react";
 import { useMemo } from "react";
 
-// timezone-agnostic date helpers
+// Local date formatting – uses date components to avoid UTC timezone shift.
+// toISOString() converts local midnight → UTC, which in UTC+2 gives the previous day.
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function formatDateStr(date: Date): string {
-  return date.toISOString().split("T")[0];
+  return localDateStr(date);
 }
 
 function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
+  return localDateStr(d);
 }
 
 function addWorkingDays(dateStr: string, days: number): string {
@@ -24,13 +32,12 @@ function addWorkingDays(dateStr: string, days: number): string {
   let added = 0;
   while (added < days) {
     d.setDate(d.getDate() + 1);
-    const dayOfWeek = d.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    if (!isWeekend) {
+    const dow = d.getDay(); // 0 = Sunday, 6 = Saturday
+    if (dow !== 0 && dow !== 6) {
       added++;
     }
   }
-  return d.toISOString().split("T")[0];
+  return localDateStr(d);
 }
 
 function getDaysDiff(startStr: string, endStr: string): number {
@@ -565,14 +572,6 @@ export function GanttPanelContent({
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
           <span>Czerwone: 5+ zleceń (Przeciążenie)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid #30363d", paddingLeft: 12, marginLeft: 4 }}>
-          <Truck size={12} style={{ color: "#10b981" }} />
-          <span>Data odbioru:</span>
-          <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
-            <span style={{ color: "#10b981" }}>🟢 W terminie (do +2 dni)</span>
-            <span style={{ color: "#ef4444" }}>🔴 Poza terminem</span>
-          </span>
         </div>
       </div>
 
