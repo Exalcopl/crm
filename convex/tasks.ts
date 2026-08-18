@@ -225,6 +225,7 @@ export const add = mutation({
       createdAt: Date.now(),
       createdBy: callerId,
       order: maxOrder + 1,
+      isItTicket: !!args.isItTicket,
     });
   },
 });
@@ -590,5 +591,20 @@ export const assignItTicket = mutation({
       assigneeId: primaryId,
       assigneeIds: args.assigneeIds,
     });
+  },
+});
+
+export const fixUnflaggedItTickets = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const tasks = await ctx.db.query("tasks").collect();
+    let count = 0;
+    for (const t of tasks) {
+      if (!t.isItTicket && !t.quoteId && (!t.assigneeIds || t.assigneeIds.length === 0) && !t.assigneeId) {
+        await ctx.db.patch(t._id, { isItTicket: true });
+        count++;
+      }
+    }
+    return count;
   },
 });
