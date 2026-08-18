@@ -109,6 +109,7 @@ export function GanttPanelContent({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
+  const [hoveredType, setHoveredType] = useState<"production" | "assembly" | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
 
@@ -1071,6 +1072,7 @@ export function GanttPanelContent({
                             if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                             const rect = e.currentTarget.getBoundingClientRect();
                             setHoveredOrder(order);
+                            setHoveredType("assembly");
                             setTooltipPos({
                               x: rect.left + rect.width / 2 - 130,
                               y: rect.bottom + window.scrollY + 8
@@ -1079,6 +1081,7 @@ export function GanttPanelContent({
                           onMouseLeave={() => {
                             closeTimeoutRef.current = setTimeout(() => {
                               setHoveredOrder(null);
+                              setHoveredType(null);
                               setTooltipPos(null);
                             }, 250);
                           }}
@@ -1193,6 +1196,7 @@ export function GanttPanelContent({
                           if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                           const rect = e.currentTarget.getBoundingClientRect();
                           setHoveredOrder(order);
+                          setHoveredType("production");
                           setTooltipPos({
                             x: rect.left + rect.width / 2 - 130,
                             y: rect.bottom + window.scrollY + 8
@@ -1201,6 +1205,7 @@ export function GanttPanelContent({
                         onMouseLeave={() => {
                           closeTimeoutRef.current = setTimeout(() => {
                             setHoveredOrder(null);
+                            setHoveredType(null);
                             setTooltipPos(null);
                           }, 250);
                         }}
@@ -1319,6 +1324,7 @@ export function GanttPanelContent({
             }}
             onMouseLeave={() => {
               setHoveredOrder(null);
+              setHoveredType(null);
               setTooltipPos(null);
             }}
             style={{
@@ -1355,18 +1361,37 @@ export function GanttPanelContent({
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <div>Klient: <strong style={{ color: "#f0f6fc" }}>{hoveredOrder.clientName}</strong></div>
               {dates.start && dates.end && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
-                  <Calendar size={11} />
-                  <span>Produkcja: {formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</span>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  color: hoveredType === "production" ? "#ffffff" : "#8b949e",
+                  fontWeight: hoveredType === "production" ? 700 : 400,
+                  background: hoveredType === "production" ? "rgba(16, 185, 129, 0.12)" : "transparent",
+                  padding: hoveredType === "production" ? "2px 6px" : "0",
+                  borderRadius: 4,
+                }}>
+                  <Calendar size={11} style={{ color: hoveredType === "production" ? "#10b981" : "#8b949e" }} />
+                  <span>Produkcja: <strong style={{ color: hoveredType === "production" ? "#10b981" : "#f0f6fc", fontWeight: 700 }}>{formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</strong></span>
                 </div>
               )}
               {(() => {
                 const aDates = localAssemblyDates[hoveredOrder._id] || (hoveredOrder.assemblyStartDate && hoveredOrder.assemblyEndDate ? { start: hoveredOrder.assemblyStartDate, end: hoveredOrder.assemblyEndDate } : null);
                 if (!aDates) return null;
+                const isSelected = hoveredType === "assembly";
                 return (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b5cf6" }}>
-                    <Calendar size={11} style={{ color: "#8b5cf6" }} />
-                    <span>Montaż: <strong style={{ color: "#a78bfa" }}>{formatTooltipDate(aDates.start)} – {formatTooltipDate(aDates.end)}</strong></span>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: isSelected ? "#ffffff" : "#8b5cf6",
+                    fontWeight: isSelected ? 700 : 400,
+                    background: isSelected ? "rgba(139, 92, 246, 0.18)" : "transparent",
+                    padding: isSelected ? "2px 6px" : "0",
+                    borderRadius: 4,
+                  }}>
+                    <Calendar size={11} style={{ color: isSelected ? "#a78bfa" : "#8b5cf6" }} />
+                    <span>Montaż: <strong style={{ color: isSelected ? "#c084fc" : "#a78bfa", fontWeight: 700 }}>{formatTooltipDate(aDates.start)} – {formatTooltipDate(aDates.end)}</strong></span>
                   </div>
                 );
               })()}
