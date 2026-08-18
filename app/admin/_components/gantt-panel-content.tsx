@@ -51,13 +51,26 @@ export function GanttPanelContent({
   onOpenOrder: (id: Id<"orders">) => void;
 }) {
   const orders = useQuery(api.orders.list) ?? [];
+  const quotes = useQuery(api.quotes.list) ?? [];
   const updateDates = useMutation(api.orders.updateDates);
   const projectTypes = useQuery(api.projectTypes.list) ?? [];
   const allUsers = useQuery(api.users.listAllAssignable) ?? [];
   const usersMap = useMemo(() => new Map(allUsers.map((u: any) => [u._id, u.name])), [allUsers]);
 
-  // Filter only production orders
-  const productionOrders = orders.filter((o) => o.status === "produkcja");
+  const quotesMap = useMemo(() => new Map(quotes.map((q: any) => [q._id, q])), [quotes]);
+
+  // Filter only production orders and resolve projectTypes from quote if undefined
+  const productionOrders = useMemo(() => {
+    return orders
+      .filter((o) => o.status === "produkcja")
+      .map((o) => {
+        const q = o.quoteId ? quotesMap.get(o.quoteId) : undefined;
+        return {
+          ...o,
+          projectType: o.projectType || q?.projectType || [],
+        };
+      });
+  }, [orders, quotesMap]);
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -354,7 +367,7 @@ export function GanttPanelContent({
           {/* Project Type Filter Chips */}
           {projectTypes.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Linia:</span>
+              <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Typ projektu:</span>
               {projectTypes.map((type) => {
                 const isActive = selectedTypes.includes(type.name);
                 return (
