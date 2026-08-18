@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
-import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck } from "lucide-react";
 import { useMemo } from "react";
 
 // timezone-agnostic date helpers
@@ -86,6 +86,8 @@ export function GanttPanelContent({
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [deliveryFilterStart, setDeliveryFilterStart] = useState("");
+  const [deliveryFilterEnd, setDeliveryFilterEnd] = useState("");
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
@@ -193,10 +195,25 @@ export function GanttPanelContent({
       o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
       o.clientName.toLowerCase().includes(search.toLowerCase());
 
-    if (selectedTypes.length === 0) return matchesSearch;
+    if (!matchesSearch) return false;
 
-    const orderTypes = o.projectType || [];
-    return matchesSearch && orderTypes.some((t: string) => selectedTypes.includes(t));
+    // Filter by project types
+    if (selectedTypes.length > 0) {
+      const orderTypes = o.projectType || [];
+      if (!orderTypes.some((t: string) => selectedTypes.includes(t))) {
+        return false;
+      }
+    }
+
+    // Filter by delivery date range
+    if (deliveryFilterStart || deliveryFilterEnd) {
+      const delDate = o.deliveryDate;
+      if (!delDate) return false;
+      if (deliveryFilterStart && delDate < deliveryFilterStart) return false;
+      if (deliveryFilterEnd && delDate > deliveryFilterEnd) return false;
+    }
+
+    return true;
   });
 
   // Group orders by clientName
@@ -430,6 +447,50 @@ export function GanttPanelContent({
               })}
             </div>
           )}
+          {/* Delivery Date Range Filter */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#8b949e", borderLeft: "1px solid #30363d", paddingLeft: 12, marginLeft: 4 }}>
+            <span style={{ fontWeight: 500 }}>Odbiór od:</span>
+            <input
+              type="date"
+              value={deliveryFilterStart}
+              onChange={(e) => setDeliveryFilterStart(e.target.value)}
+              style={{
+                background: "#161b22",
+                border: "1px solid #30363d",
+                borderRadius: 4,
+                color: "white",
+                fontSize: 11,
+                padding: "2px 6px",
+                outline: "none",
+                colorScheme: "dark"
+              }}
+            />
+            <span>do:</span>
+            <input
+              type="date"
+              value={deliveryFilterEnd}
+              onChange={(e) => setDeliveryFilterEnd(e.target.value)}
+              style={{
+                background: "#161b22",
+                border: "1px solid #30363d",
+                borderRadius: 4,
+                color: "white",
+                fontSize: 11,
+                padding: "2px 6px",
+                outline: "none",
+                colorScheme: "dark"
+              }}
+            />
+            {(deliveryFilterStart || deliveryFilterEnd) && (
+              <button
+                type="button"
+                onClick={() => { setDeliveryFilterStart(""); setDeliveryFilterEnd(""); }}
+                style={{ background: "transparent", border: "none", color: "#f85149", fontSize: 11, cursor: "pointer", fontWeight: 600, paddingLeft: 4 }}
+              >
+                Wyczyść
+              </button>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -467,15 +528,23 @@ export function GanttPanelContent({
         <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory pasków (Obciążenie terminu):</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
-          <span>Zielone: 1-2 zlecenia równolegle (Optymalne)</span>
+          <span>Zielone: 1-2 zlecenia (Optymalne)</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
-          <span>Pomarańczowe: 3-4 zlecenia równolegle (Wysokie)</span>
+          <span>Pomarańczowe: 3-4 zlecenia (Wysokie)</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
-          <span>Czerwone: 5+ zleceń równolegle (Przeciążenie)</span>
+          <span>Czerwone: 5+ zleceń (Przeciążenie)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, borderLeft: "1px solid #30363d", paddingLeft: 12, marginLeft: 4 }}>
+          <Truck size={12} style={{ color: "#10b981" }} />
+          <span>Data odbioru:</span>
+          <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+            <span style={{ color: "#10b981" }}>🟢 W terminie (do +2 dni)</span>
+            <span style={{ color: "#ef4444" }}>🔴 Poza terminem</span>
+          </span>
         </div>
       </div>
 
@@ -839,6 +908,65 @@ export function GanttPanelContent({
                         </div>
                       </div>
                     )}
+
+                    {/* Delivery Date Visual Indicator */}
+                    {order.deliveryDate && (() => {
+                      const deliveryOffsetDays = getDaysDiff(timelineStart, order.deliveryDate);
+                      const isDeliveryVisible = deliveryOffsetDays >= 0 && deliveryOffsetDays < 30;
+
+                      if (!isDeliveryVisible) return null;
+
+                      const prodEndOffsetDays = dates ? getDaysDiff(timelineStart, dates.end) : -999;
+                      const diffFromProdEnd = dates ? getDaysDiff(dates.end, order.deliveryDate) : -999;
+                      
+                      // Highlight warning if delivery is before end of production or > 2 days after
+                      const isWarning = dates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
+                      const deliveryColor = isWarning ? "#ef4444" : "#10b981";
+
+                      return (
+                        <>
+                          {/* Dashed line connecting production end to delivery date */}
+                          {dates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: (prodEndOffsetDays + 1) * dayWidth,
+                                width: (deliveryOffsetDays - prodEndOffsetDays - 1) * dayWidth + (dayWidth / 2),
+                                height: 2,
+                                borderBottom: `2px dashed ${deliveryColor}`,
+                                top: 21,
+                                zIndex: 0,
+                                opacity: 0.8,
+                                pointerEvents: "none",
+                              }}
+                            />
+                          )}
+
+                          {/* Truck badge on delivery date */}
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: deliveryOffsetDays * dayWidth + (dayWidth / 2) - 8,
+                              top: 14,
+                              zIndex: 2,
+                              color: deliveryColor,
+                              cursor: "help",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: "#0d1117",
+                              borderRadius: "50%",
+                              padding: 2,
+                              border: `1px solid ${deliveryColor}`,
+                              boxShadow: `0 0 6px ${deliveryColor}40`,
+                            }}
+                            title={`Data odbioru: ${order.deliveryDate}${dates ? ` (${diffFromProdEnd} dni od końca produkcji${isWarning ? " - PRZEKROCZONO +2 DNI" : ""})` : ""}`}
+                          >
+                            <Truck size={10} style={{ strokeWidth: 2.5 }} />
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -901,9 +1029,27 @@ export function GanttPanelContent({
               {dates.start && dates.end && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
                   <Calendar size={11} />
-                  <span>{formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</span>
+                  <span>Produkcja: {formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</span>
                 </div>
               )}
+              {hoveredOrder.deliveryDate && (() => {
+                const diff = dates.end ? getDaysDiff(dates.end, hoveredOrder.deliveryDate) : -999;
+                const isWarning = dates.end && (diff > 2 || diff < 0);
+                const color = isWarning ? "#ef4444" : "#10b981";
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
+                    <Truck size={11} style={{ color }} />
+                    <span>
+                      Odbiór: <strong style={{ color }}>{formatTooltipDate(hoveredOrder.deliveryDate)}</strong>
+                      {dates.end && (
+                        <span style={{ fontSize: 10, color: isWarning ? "#ff7b72" : "#8b949e", marginLeft: 4 }}>
+                          ({diff >= 0 ? `+${diff}` : diff} dni)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
               {ownerName && (
                 <div style={{ display: "flex", alignItems: "center", gap: 4, color: "#8b949e" }}>
                   <UserCheck size={11} />
