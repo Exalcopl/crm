@@ -937,16 +937,25 @@ export function GanttPanelContent({
                     )}
 
                     {/* Delivery Date Visual Indicator */}
-                    {order.deliveryDate && (() => {
-                      const deliveryOffsetDays = getDaysDiff(timelineStart, order.deliveryDate);
+                    {(() => {
+                      // During drag: compute delivery date live from current localDates.end
+                      // After drag: fall back to DB deliveryDate
+                      const isDraggingThis = drag && drag.orderId === order._id;
+                      const liveDeliveryDate = (isDraggingThis && dates)
+                        ? addWorkingDays(dates.end, 2)
+                        : order.deliveryDate;
+
+                      if (!liveDeliveryDate) return null;
+
+                      const deliveryOffsetDays = getDaysDiff(timelineStart, liveDeliveryDate);
                       const isDeliveryVisible = deliveryOffsetDays >= 0 && deliveryOffsetDays < 30;
 
                       if (!isDeliveryVisible) return null;
 
                       const prodEndOffsetDays = dates ? getDaysDiff(timelineStart, dates.end) : -999;
-                      const diffFromProdEnd = dates ? getDaysDiff(dates.end, order.deliveryDate) : -999;
-                      
-                      // Highlight warning if delivery is before end of production or > 2 days after
+                      const diffFromProdEnd = dates ? getDaysDiff(dates.end, liveDeliveryDate) : -999;
+
+                      // Warn if delivery is before end of production or > 2 working days after
                       const isWarning = dates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
                       const deliveryColor = isWarning ? "#ef4444" : "#10b981";
 
@@ -987,7 +996,7 @@ export function GanttPanelContent({
                               border: `1px solid ${deliveryColor}`,
                               boxShadow: `0 0 6px ${deliveryColor}40`,
                             }}
-                            title={`Data odbioru: ${order.deliveryDate}${dates ? ` (${diffFromProdEnd} dni od końca produkcji${isWarning ? " - PRZEKROCZONO +2 DNI" : ""})` : ""}`}
+                            title={`Data odbioru: ${liveDeliveryDate}${dates ? ` (${diffFromProdEnd} dni od końca produkcji${isWarning ? " - PRZEKROCZONO +2 DNI" : ""})` : ""}`}
                           >
                             <Truck size={10} style={{ strokeWidth: 2.5 }} />
                           </div>
