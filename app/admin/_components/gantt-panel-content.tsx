@@ -384,20 +384,6 @@ export function GanttPanelContent({
         }
       }
 
-      // Auto-shift timeline when dragging near edges
-      const now = Date.now();
-      if (now - lastShiftRef.current > 120) {
-        if (e.clientX > window.innerWidth - 60) {
-          lastShiftRef.current = now;
-          drag.startX -= dayWidth;
-          setTimelineStart(prev => addDays(prev, 1));
-        } else if (e.clientX < leftColWidth + 60) {
-          lastShiftRef.current = now;
-          drag.startX += dayWidth;
-          setTimelineStart(prev => addDays(prev, -1));
-        }
-      }
-
       const current = localDates[drag.orderId];
       if (current && current.start === newStart && current.end === newEnd) {
         return;
@@ -488,20 +474,6 @@ export function GanttPanelContent({
       } else if (dragAssembly.type === "resize-end") {
         newEnd = addDays(dragAssembly.initialEnd, deltaDays);
         if (newEnd < dragAssembly.initialStart) newEnd = dragAssembly.initialStart;
-      }
-
-      // Auto-shift timeline when dragging near edges
-      const now = Date.now();
-      if (now - lastShiftRef.current > 120) {
-        if (e.clientX > window.innerWidth - 60) {
-          lastShiftRef.current = now;
-          dragAssembly.startX -= dayWidth;
-          setTimelineStart(prev => addDays(prev, 1));
-        } else if (e.clientX < leftColWidth + 60) {
-          lastShiftRef.current = now;
-          dragAssembly.startX += dayWidth;
-          setTimelineStart(prev => addDays(prev, -1));
-        }
       }
 
       const current = localAssemblyDates[dragAssembly.orderId];
@@ -844,13 +816,38 @@ export function GanttPanelContent({
                   >
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
-                      <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
-                        <Clock size={10} />
-                        {localDates[order._id] 
-                          ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
-                          : "—"
-                        }
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
+                          <Clock size={10} />
+                          {localDates[order._id] 
+                            ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
+                            : "—"
+                          }
+                        </span>
+                        {localDates[order._id] && (
+                          <button
+                            type="button"
+                            title="Centruj kalendarz na tym zleceniu"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const s = localDates[order._id].start;
+                              if (s) setTimelineStart(addDays(s, -5));
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: 12,
+                              padding: 2,
+                              color: "#8b949e",
+                            }}
+                            onMouseEnter={(ev) => (ev.currentTarget.style.color = "#f59e0b")}
+                            onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
+                          >
+                            🎯
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {order.projectType && order.projectType.length > 0 && (
                       <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
