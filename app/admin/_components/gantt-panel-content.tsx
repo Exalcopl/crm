@@ -121,13 +121,31 @@ export function GanttPanelContent({
     return matchesSearch && orderTypes.some((t: string) => selectedTypes.includes(t));
   });
 
-  // Split into planned and unplanned
-  const planned = filteredOrders.filter(
-    (o) => localDates[o._id] || (o.productionStartDate && o.productionEndDate)
-  );
-  const unplanned = filteredOrders.filter(
-    (o) => !localDates[o._id] && (!o.productionStartDate || !o.productionEndDate)
-  );
+  // Group orders by clientName
+  const grouped: Record<string, typeof filteredOrders> = {};
+  for (const o of filteredOrders) {
+    if (!grouped[o.clientName]) {
+      grouped[o.clientName] = [];
+    }
+    grouped[o.clientName].push(o);
+  }
+
+  const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
+  interface RowItem {
+    type: "client" | "order";
+    clientName: string;
+    order?: typeof filteredOrders[0];
+  }
+
+  const rows: RowItem[] = [];
+  for (const clientName of sortedClients) {
+    rows.push({ type: "client", clientName });
+    const clientOrders = grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
+    for (const order of clientOrders) {
+      rows.push({ type: "order", clientName, order });
+    }
+  }
 
   // Time navigation
   const shiftTimeline = (amount: number) => {
@@ -356,61 +374,120 @@ export function GanttPanelContent({
               Zlecenie / Klient
             </div>
 
-            {/* Planned Orders Rows */}
-            {planned.map((order) => (
-              <div
-                key={order._id}
-                onClick={() => onOpenOrder(order._id)}
-                style={{ height: rowHeight, borderBottom: "1px solid #21262d", display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 16px", cursor: "pointer", transition: "background 0.2s" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
-                  <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
-                    <Clock size={10} />
-                    {localDates[order._id] 
-                      ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end)} dni`
-                      : "—"
-                    }
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: "#8b949e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {order.clientName}
-                </div>
-              </div>
-            ))}
-
-            {/* Divider if Unplanned exist */}
-            {unplanned.length > 0 && (
-              <div style={{ height: 26, background: "#0d1117", borderBottom: "1px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontSize: 10, fontWeight: 600, color: "#f59e0b", textTransform: "uppercase" }}>
-                Niezaplanowane ({unplanned.length})
-              </div>
-            )}
-
-            {/* Unplanned Orders Rows */}
-            {unplanned.map((order) => (
-              <div
-                key={order._id}
-                style={{ height: rowHeight, borderBottom: "1px solid #21262d", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px" }}
-              >
-                <div onClick={() => onOpenOrder(order._id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#8b949e" }}>{order.orderNumber}</div>
-                  <div style={{ fontSize: 11, color: "#8b949e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {order.clientName}
+            {/* Grouped Client and Order Rows */}
+            {rows.map((row, idx) => {
+              if (row.type === "client") {
+                return (
+                  <div
+                    key={`client-${row.clientName}-${idx}`}
+                    style={{
+                      height: 28,
+                      background: "#0d1117",
+                      borderBottom: "1px solid #30363d",
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "0 16px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#f0f6fc",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    🏢 {row.clientName}
                   </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleScheduleDefault(order._id)}
-                  style={{ display: "flex", alignItems: "center", gap: 4, background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", cursor: "pointer", color: "#f0f6fc", fontSize: 11 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#f59e0b"; e.currentTarget.style.color = "#f59e0b"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#30363d"; e.currentTarget.style.color = "#f0f6fc"; }}
-                >
-                  <Plus size={11} /> Zaplanuj
-                </button>
-              </div>
-            ))}
+                );
+              }
+
+              const order = row.order!;
+              const isPlanned = !!(localDates[order._id] || (order.productionStartDate && order.productionEndDate));
+
+              if (isPlanned) {
+                return (
+                  <div
+                    key={order._id}
+                    onClick={() => onOpenOrder(order._id)}
+                    style={{
+                      height: rowHeight,
+                      borderBottom: "1px solid #21262d",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      padding: "0 16px",
+                      cursor: "pointer",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#58a6ff" }}>{order.orderNumber}</span>
+                      <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
+                        <Clock size={10} />
+                        {localDates[order._id] 
+                          ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
+                          : "—"
+                        }
+                      </span>
+                    </div>
+                    {order.projectType && order.projectType.length > 0 && (
+                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 2 }}>
+                        {order.projectType.map((t: string) => (
+                          <span key={t} style={{ fontSize: 9, color: "#8b949e" }}>· {t}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              } else {
+                return (
+                  <div
+                    key={order._id}
+                    style={{
+                      height: rowHeight,
+                      borderBottom: "1px solid #21262d",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 16px",
+                    }}
+                  >
+                    <div onClick={() => onOpenOrder(order._id)} style={{ flex: 1, minWidth: 0, cursor: "pointer" }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#8b949e" }}>{order.orderNumber}</div>
+                      <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic" }}>
+                        Brak daty produkcji
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleScheduleDefault(order._id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        background: "#21262d",
+                        border: "1px solid #30363d",
+                        borderRadius: 4,
+                        padding: "4px 8px",
+                        cursor: "pointer",
+                        color: "#f0f6fc",
+                        fontSize: 11,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "#f59e0b";
+                        e.currentTarget.style.color = "#f59e0b";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "#30363d";
+                        e.currentTarget.style.color = "#f0f6fc";
+                      }}
+                    >
+                      <Plus size={11} /> Zaplanuj
+                    </button>
+                  </div>
+                );
+              }
+            })}
 
             {/* Empty state */}
             {filteredOrders.length === 0 && (
@@ -476,25 +553,47 @@ export function GanttPanelContent({
                 return null;
               })()}
 
-              {/* Grid Background Lines and Bars for Planned Orders */}
-              {planned.map((order) => {
+              {/* Grouped Client and Order Grid Rows */}
+              {rows.map((row, idx) => {
+                if (row.type === "client") {
+                  return (
+                    <div
+                      key={`grid-client-${row.clientName}-${idx}`}
+                      style={{
+                        height: 28,
+                        background: "#0d1117",
+                        borderBottom: "1px solid #30363d",
+                        display: "flex",
+                        position: "relative",
+                      }}
+                    >
+                      {days.map((day) => (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #21262d",
+                            background: day.isWeekend ? "#161b22" : "transparent",
+                            pointerEvents: "none",
+                            opacity: 0.3
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+
+                const order = row.order!;
                 const dates = localDates[order._id];
                 let barStyle: React.CSSProperties | null = null;
 
                 if (dates) {
-                  // Calculate start offset and width
-                  const startIndex = days.findIndex((d) => d.dateStr === dates.start);
-                  const endIndex = days.findIndex((d) => d.dateStr === dates.end);
-
-                  let left = -9999;
-                  let width = 0;
-
-                  // If both dates lie completely outside the 30-day window
                   const startOffsetDays = getDaysDiff(timelineStart, dates.start);
                   const durationDays = getDaysDiff(dates.start, dates.end) + 1;
-
-                  left = startOffsetDays * dayWidth;
-                  width = durationDays * dayWidth;
+                  const left = startOffsetDays * dayWidth;
+                  const width = durationDays * dayWidth;
 
                   barStyle = {
                     position: "absolute",
@@ -520,7 +619,7 @@ export function GanttPanelContent({
 
                 return (
                   <div
-                    key={order._id}
+                    key={`grid-order-${order._id}`}
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #21262d",
@@ -577,33 +676,6 @@ export function GanttPanelContent({
                   </div>
                 );
               })}
-
-              {/* Grid Background Lines for Unplanned Orders */}
-              {unplanned.map((order) => (
-                <div
-                  key={order._id}
-                  style={{
-                    height: rowHeight,
-                    borderBottom: "1px solid #21262d",
-                    display: "flex",
-                    position: "relative",
-                  }}
-                >
-                  {days.map((day) => (
-                    <div
-                      key={day.dateStr}
-                      style={{
-                        width: dayWidth,
-                        height: "100%",
-                        flexShrink: 0,
-                        borderRight: "1px solid #21262d",
-                        background: day.isWeekend ? "#161b22" : "transparent",
-                        pointerEvents: "none",
-                      }}
-                    />
-                  ))}
-                </div>
-              ))}
             </div>
 
           </div>
