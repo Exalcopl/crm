@@ -769,3 +769,54 @@ export const appendNotesFromPartnerApi = internalMutation({
     return { orderId: order._id, notes: newNotes };
   },
 });
+
+export const updateItems = mutation({
+  args: {
+    id: v.id("orders"),
+    items: v.array(
+      v.object({
+        lp: v.number(),
+        description: v.string(),
+        quantity: v.union(v.number(), v.null()),
+        unit: v.optional(v.string()),
+        priceNetto: v.union(v.number(), v.null()),
+        valueNetto: v.union(v.number(), v.null()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+    const order = await ctx.db.get(args.id);
+    if (!order) throw new Error("Zlecenie nie istnieje.");
+    const user = await ctx.db.get(userId);
+
+    // Oblicz nowe sumy wartości netto, vat, brutto
+    let valueNetto = 0;
+    for (const item of args.items) {
+      valueNetto += item.valueNetto || 0;
+    }
+    const vatRate = order.vatRate ?? 23;
+    const valueVat = Number((valueNetto * (vatRate / 100)).toFixed(2));
+    const valueBrutto = Number((valueNetto + valueVat).toFixed(2));
+
+    await ctx.db.patch(args.id, {
+      items: args.items,
+      valueNetto,
+      valueVat,
+      valueBrutto,
+    });
+
+    await ctx.db.insert("orderActivity", {
+      orderId: args.id,
+      type: "items_updated",
+      title: "Zaktualizowano pozycje zlecenia",
+      detail: `Zmieniono listę pozycji zlecenia. Nowa wartość netto: ${valueNetto} PLN.`,
+      authorId: userId,
+      authorName: user?.name || "System",
+      createdAt: Date.now(),
+    });
+
+    return { valueNetto, valueVat, valueBrutto };
+  },
+});

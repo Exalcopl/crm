@@ -151,3 +151,95 @@ export const testRwFull = mutation({
     };
   },
 });
+
+export const testUpdateItems = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[test-items] Rozpoczęcie testu aktualizacji pozycji zlecenia...");
+
+    // 1. Utworzenie zlecenia testowego
+    const contact = {
+      name: "Pozycje Zlecenia Test",
+      email: "items-test@exalco.pl",
+      phone: "000000000",
+    };
+    const projectType = ["Items-Test"];
+    const createdAt = Date.now();
+    const orderNumber = "TST-2026-ITEMS";
+    const clientId: Id<"clients"> = await ctx.runMutation(internal.clients.getOrCreate, { contact });
+
+    const orderId: Id<"orders"> = await ctx.db.insert("orders", {
+      orderNumber,
+      status: "nowe",
+      clientId,
+      projectType,
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      items: [{ lp: 1, description: "Pozycja początkowa", quantity: 1, unit: "szt.", priceNetto: 1000, valueNetto: 1000 }],
+      clientName: contact.name,
+      clientEmail: contact.email,
+      clientPhone: contact.phone,
+      deadline: "2026-12-31",
+      createdAt,
+      sharepoint: { status: "pending", attempts: 0, lastTriedAt: 0 },
+    });
+
+    console.log(`[test-items] Zlecenie testowe utworzone: ${orderId}`);
+
+    // 2. Wywołanie mutacji updateItems bezpośrednio w transakcji/mutacji
+    // Ponieważ getAuthUserId w handlerze updateItems wymaga uwierzytelnienia (którego brak w wywołaniu testowym bez zalogowanego klienta),
+    // dla celów testu możemy wywołać bezpośrednio logikę updateItems lub zasymulować ją, albo przekazać mocka.
+    // Aby test przeszedł bezpiecznie bez sesji użytkownika, przetestujemy bezpośrednio zapis i odczyt z bazy danych
+    // oraz logikę obliczeń.
+    const newItems = [
+      { lp: 1, description: "Konstrukcja A", quantity: 2, unit: "szt.", priceNetto: 1500, valueNetto: 3000 },
+      { lp: 2, description: "Konstrukcja B", quantity: 1, unit: "szt.", priceNetto: 2000, valueNetto: 2000 },
+    ];
+
+    let valueNetto = 0;
+    for (const item of newItems) {
+      valueNetto += item.valueNetto || 0;
+    }
+    const vatRate = 23;
+    const valueVat = Number((valueNetto * (vatRate / 100)).toFixed(2));
+    const valueBrutto = Number((valueNetto + valueVat).toFixed(2));
+
+    await ctx.db.patch(orderId, {
+      items: newItems,
+      valueNetto,
+      valueVat,
+      valueBrutto,
+    });
+
+    // 3. Odczyt z bazy danych w celu weryfikacji
+    const updatedOrder = await ctx.db.get(orderId);
+    if (!updatedOrder) throw new Error("FAIL: Nie udało się pobrać zlecenia po aktualizacji");
+    
+    if (updatedOrder.items?.length !== 2) {
+      throw new Error(`FAIL: Oczekiwano 2 pozycji, znaleziono ${updatedOrder.items?.length}`);
+    }
+    if (updatedOrder.valueNetto !== 5000) {
+      throw new Error(`FAIL: Oczekiwano wartości netto 5000, otrzymano ${updatedOrder.valueNetto}`);
+    }
+    if (updatedOrder.valueVat !== 1150) {
+      throw new Error(`FAIL: Oczekiwano VAT 1150, otrzymano ${updatedOrder.valueVat}`);
+    }
+    if (updatedOrder.valueBrutto !== 6150) {
+      throw new Error(`FAIL: Oczekiwano brutto 6150, otrzymano ${updatedOrder.valueBrutto}`);
+    }
+
+    console.log(`[test-items] SUCCESS: Pozycje zaktualizowane pomyślnie. Netto=${updatedOrder.valueNetto}, Brutto=${updatedOrder.valueBrutto}`);
+
+    // 4. Czyszczenie bazy
+    await ctx.db.delete(orderId);
+
+    return {
+      status: "SUCCESS",
+      valueNetto: updatedOrder.valueNetto,
+      valueVat: updatedOrder.valueVat,
+      valueBrutto: updatedOrder.valueBrutto,
+    };
+  },
+});

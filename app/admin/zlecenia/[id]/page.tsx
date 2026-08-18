@@ -527,6 +527,250 @@ function formatEventDateTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString("pl-PL", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+interface OrderItem {
+  lp: number;
+  description: string;
+  quantity: number | null;
+  unit?: string;
+  priceNetto: number | null;
+  valueNetto: number | null;
+}
+
+function OrderItemsManager({ orderId, order }: { orderId: Id<"orders">; order: any }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [items, setItems] = useState<OrderItem[]>([]);
+  const updateItems = useMutation(api.orders.updateItems);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setItems((order.items || []) as OrderItem[]);
+    }
+  }, [order.items, isEditing]);
+
+  function handleAddItem() {
+    const nextLp = items.length > 0 ? Math.max(...items.map(i => i.lp)) + 1 : 1;
+    setItems([
+      ...items,
+      {
+        lp: nextLp,
+        description: "",
+        quantity: 1,
+        unit: "szt.",
+        priceNetto: 0,
+        valueNetto: 0,
+      }
+    ]);
+  }
+
+  function handleRemoveItem(lp: number) {
+    const filtered = items.filter(i => i.lp !== lp);
+    const renumbered = filtered.map((item, index) => ({
+      ...item,
+      lp: index + 1
+    }));
+    setItems(renumbered);
+  }
+
+  function handleFieldChange(lp: number, field: keyof OrderItem, value: any) {
+    const updated = items.map(item => {
+      if (item.lp === lp) {
+        const newItem = { ...item, [field]: value };
+        if (field === "quantity" || field === "priceNetto") {
+          const qty = field === "quantity" ? value : item.quantity;
+          const price = field === "priceNetto" ? value : item.priceNetto;
+          newItem.valueNetto = (qty || 0) * (price || 0);
+        }
+        return newItem;
+      }
+      return item;
+    });
+    setItems(updated);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const validItems = items.map(item => ({
+        lp: item.lp,
+        description: item.description.trim() || "Pozycja bez nazwy",
+        quantity: item.quantity != null ? Number(item.quantity) : null,
+        unit: item.unit ? item.unit.trim() : undefined,
+        priceNetto: item.priceNetto != null ? Number(item.priceNetto) : null,
+        valueNetto: item.valueNetto != null ? Number(item.valueNetto) : null,
+      }));
+      await updateItems({ id: orderId, items: validItems });
+      toast.success("Zapisano pozycje zlecenia");
+      setIsEditing(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Błąd zapisu pozycji");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const totalNetto = isEditing 
+    ? items.reduce((acc, item) => acc + (item.valueNetto || 0), 0)
+    : (order.valueNetto || 0);
+  const totalVat = isEditing
+    ? Number((totalNetto * ((order.vatRate || 23) / 100)).toFixed(2))
+    : (order.valueVat || 0);
+  const totalBrutto = isEditing
+    ? Number((totalNetto + totalVat).toFixed(2))
+    : (order.valueBrutto || 0);
+
+  return (
+    <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ padding: "12px 16px", borderBottom: "1px solid #30363d", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "#8b949e", textTransform: "uppercase" }}>
+          Pozycje zlecenia
+        </div>
+        {!isEditing ? (
+          <button
+            type="button"
+            className="fluent-btn fluent-btn-sm"
+            onClick={() => setIsEditing(true)}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <I.edit s={13} /> Edytuj pozycje
+          </button>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-sm"
+              onClick={handleAddItem}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "#21262d", color: "#c9d1d9" }}
+            >
+              <I.plus s={13} /> Dodaj pozycję
+            </button>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-ghost fluent-btn-sm"
+              onClick={() => setIsEditing(false)}
+              disabled={saving}
+            >
+              Anuluj
+            </button>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-primary fluent-btn-sm"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? "Zapisywanie..." : "Zapisz"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table className="qvm-items-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th className="qvm-th" style={{ width: 50 }}>Lp.</th>
+              <th className="qvm-th">Opis</th>
+              <th className="qvm-th" style={{ width: 90 }}>Ilość</th>
+              <th className="qvm-th" style={{ width: 80 }}>Jedn.</th>
+              <th className="qvm-th" style={{ width: 120 }}>Cena netto</th>
+              <th className="qvm-th" style={{ width: 130 }}>Wartość netto</th>
+              {isEditing && <th className="qvm-th" style={{ width: 60, textAlign: "center" }}>Akcja</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={isEditing ? 7 : 6} style={{ textAlign: "center", padding: 24, color: "#8b949e" }}>
+                  Brak pozycji zlecenia
+                </td>
+              </tr>
+            ) : (
+              items.map((row) => (
+                <tr key={row.lp} className="qvm-tr">
+                  <td className="qvm-td" style={{ color: "#8b949e" }}>{row.lp}</td>
+                  <td className="qvm-td">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={row.description}
+                        onChange={(e) => handleFieldChange(row.lp, "description", e.target.value)}
+                        style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 4, padding: "4px 8px", fontSize: 13 }}
+                        placeholder="Wpisz opis pozycji..."
+                      />
+                    ) : (
+                      row.description
+                    )}
+                  </td>
+                  <td className="qvm-td">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        value={row.quantity ?? ""}
+                        onChange={(e) => handleFieldChange(row.lp, "quantity", e.target.value === "" ? null : Number(e.target.value))}
+                        style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 4, padding: "4px 8px", fontSize: 13 }}
+                      />
+                    ) : (
+                      row.quantity ?? "—"
+                    )}
+                  </td>
+                  <td className="qvm-td">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={row.unit ?? ""}
+                        onChange={(e) => handleFieldChange(row.lp, "unit", e.target.value === "" ? undefined : e.target.value)}
+                        style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 4, padding: "4px 8px", fontSize: 13 }}
+                        placeholder="szt."
+                      />
+                    ) : (
+                      row.unit ?? "—"
+                    )}
+                  </td>
+                  <td className="qvm-td">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={row.priceNetto ?? ""}
+                        onChange={(e) => handleFieldChange(row.lp, "priceNetto", e.target.value === "" ? null : Number(e.target.value))}
+                        style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "white", borderRadius: 4, padding: "4px 8px", fontSize: 13 }}
+                      />
+                    ) : (
+                      row.priceNetto != null ? formatCurrency(row.priceNetto) : "—"
+                    )}
+                  </td>
+                  <td className="qvm-td" style={{ fontWeight: 500 }}>
+                    {formatCurrency(row.valueNetto || 0)}
+                  </td>
+                  {isEditing && (
+                    <td className="qvm-td" style={{ textAlign: "center" }}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        style={{ color: "#ffb4af" }}
+                        onClick={() => handleRemoveItem(row.lp)}
+                        title="Usuń pozycję"
+                      >
+                        <I.trash s={14} />
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ padding: 16, background: "#161b22", borderTop: "1px solid #30363d", display: "flex", justifyContent: "flex-end", gap: 24, fontSize: 13 }}>
+        <div>Netto: <strong>{formatCurrency(totalNetto)}</strong></div>
+        <div>VAT ({order.vatRate || 23}%): <strong>{formatCurrency(totalVat)}</strong></div>
+        <div>Brutto: <strong style={{ color: "#3fb950" }}>{formatCurrency(totalBrutto)}</strong></div>
+      </div>
+    </div>
+  );
+}
+
 function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any }) {
   const events = (useQuery(api.calendarEvents.listByOrder, { orderId }) as CalEvent[] | undefined) ?? [];
   const categories = (useQuery(api.calendarCategories.list, {}) as CalCategory[] | undefined) ?? [];
@@ -983,45 +1227,7 @@ export default function OrderDetailPage({
               <OrderSimpleNotes orderId={orderId} initialNotes={order.notes || ""} />
             </div>
             
-            <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ padding: "16px 16px 8px", fontSize: 12, fontWeight: 600, color: "#8b949e", textTransform: "uppercase" }}>
-                Pozycje zlecenia
-              </div>
-              {(() => {
-                const hasItemPrices = order.items.some((row: any) => (row.priceNetto != null && row.priceNetto !== 0) || (row.valueNetto != null && row.valueNetto !== 0));
-                return (
-                  <table className="qvm-items-table">
-                <thead>
-                  <tr>
-                    <th className="qvm-th">Lp.</th>
-                    <th className="qvm-th">Opis</th>
-                    <th className="qvm-th">Ilość</th>
-                    <th className="qvm-th">Jedn.</th>
-                    {hasItemPrices && <th className="qvm-th">Cena netto</th>}
-                    {hasItemPrices && <th className="qvm-th">Wartość netto</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {order.items.map((row: any) => (
-                    <tr key={row.lp} className="qvm-tr">
-                      <td className="qvm-td">{row.lp}</td>
-                      <td className="qvm-td">{row.description}</td>
-                      <td className="qvm-td">{row.quantity ?? "—"}</td>
-                      <td className="qvm-td">{row.unit ?? "—"}</td>
-                      {hasItemPrices && <td className="qvm-td">{(row.priceNetto != null && row.priceNetto !== 0) ? formatCurrency(row.priceNetto) : "—"}</td>}
-                      {hasItemPrices && <td className="qvm-td">{(row.valueNetto != null && row.valueNetto !== 0) ? formatCurrency(row.valueNetto) : "—"}</td>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              );
-              })()}
-              <div style={{ padding: 16, background: "#161b22", borderTop: "1px solid #30363d", display: "flex", justifyContent: "flex-end", gap: 24, fontSize: 13 }}>
-                <div>Netto: <strong>{formatCurrency(order.valueNetto)}</strong></div>
-                <div>VAT ({order.vatRate}%): <strong>{formatCurrency(order.valueVat)}</strong></div>
-                <div>Brutto: <strong style={{ color: "#3fb950" }}>{formatCurrency(order.valueBrutto)}</strong></div>
-              </div>
-            </div>
+            <OrderItemsManager orderId={orderId} order={order} />
           </div>
 
           {/* Kolumna 4: Historia */}
