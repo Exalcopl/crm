@@ -13,7 +13,6 @@ import {
   User,
   Search,
   Filter,
-  UserCheck,
   Check,
   RotateCcw,
 } from "lucide-react";
@@ -23,10 +22,7 @@ export default function ZgloszeniaItPage() {
   const [search, setSearch] = useState("");
 
   const tickets = useQuery(api.tasks.listItTickets, { statusFilter: filter });
-  const users = useQuery(api.users.list, {}) ?? [];
-
   const updateStatus = useMutation(api.tasks.updateItTicketStatus);
-  const assignTicket = useMutation(api.tasks.assignItTicket);
 
   const handleStatusChange = async (id: Id<"tasks">, status: "todo" | "in_progress" | "done") => {
     try {
@@ -34,16 +30,6 @@ export default function ZgloszeniaItPage() {
       toast.success(status === "done" ? "Zgłoszenie zostało zamknięte!" : "Zaktualizowano status zgłoszenia");
     } catch {
       toast.error("Błąd aktualizacji statusu");
-    }
-  };
-
-  const handleAssigneeChange = async (id: Id<"tasks">, userId: string) => {
-    try {
-      const assigneeIds = userId ? [userId as Id<"users">] : [];
-      await assignTicket({ id, assigneeIds });
-      toast.success("Zaktualizowano opiekuna IT");
-    } catch {
-      toast.error("Błąd przypisania opiekuna");
     }
   };
 
@@ -268,49 +254,23 @@ export default function ZgloszeniaItPage() {
                     </div>
                   )}
 
-                  {/* Footer / Assignee Selector */}
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      borderTop: "1px solid #21262d",
-                      paddingTop: 10,
-                      marginTop: 2,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#8b949e" }}>
-                      <UserCheck size={14} style={{ color: "#38bdf8" }} />
-                      <span>Opiekun IT:</span>
-                      <select
-                        value={t.assigneeId || (t.assigneeIds && t.assigneeIds[0]) || ""}
-                        onChange={(e) => handleAssigneeChange(t._id, e.target.value)}
-                        style={{
-                          background: "#0d1117",
-                          border: "1px solid #30363d",
-                          borderRadius: 4,
-                          padding: "3px 8px",
-                          color: "#f0f6fc",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          outline: "none",
-                        }}
-                      >
-                        <option value="">-- Nieprzypisany --</option>
-                        {users.map((u: any) => (
-                          <option key={u._id} value={u._id}>
-                            {u.name || u.email}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {isClosed && t.completedAt && (
+                  {/* Footer (if closed) */}
+                  {isClosed && t.completedAt && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-end",
+                        borderTop: "1px solid #21262d",
+                        paddingTop: 10,
+                        marginTop: 2,
+                      }}
+                    >
                       <span style={{ fontSize: 11, color: "#3fb950" }}>
                         ✓ Zamknięto {new Date(t.completedAt).toLocaleDateString("pl-PL")}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
