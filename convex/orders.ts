@@ -96,6 +96,7 @@ export const create = mutation({
       clientEmail: quote.contact.email,
       clientPhone: quote.contact.phone,
       deadline: quote.deadline,
+      productionEndDate: quote.deadline,
       ownerId: quote.ownerId || undefined,
       createdAt: Date.now(),
     });
@@ -421,6 +422,8 @@ export const updateDates = mutation({
   args: {
     id: v.id("orders"),
     deadline: v.optional(v.union(v.string(), v.null())),
+    productionStartDate: v.optional(v.union(v.string(), v.null())),
+    productionEndDate: v.optional(v.union(v.string(), v.null())),
     deliveryDate: v.optional(v.union(v.string(), v.null())),
     acceptanceDate: v.optional(v.union(v.string(), v.null())),
   },
@@ -433,11 +436,16 @@ export const updateDates = mutation({
     const changes: string[] = [];
     const labels: Record<string, string> = {
       deadline: "Termin realizacji",
+      productionStartDate: "Początek produkcji",
+      productionEndDate: "Koniec produkcji",
       deliveryDate: "Data odbioru",
       acceptanceDate: "Data akceptacji",
     };
 
-    const processChange = (field: "deadline" | "deliveryDate" | "acceptanceDate", newValue: string | null | undefined) => {
+    const processChange = (
+      field: "deadline" | "productionStartDate" | "productionEndDate" | "deliveryDate" | "acceptanceDate",
+      newValue: string | null | undefined
+    ) => {
       if (newValue === undefined) return;
       const prevValue = order[field];
       const label = labels[field];
@@ -458,12 +466,22 @@ export const updateDates = mutation({
     };
 
     processChange("deadline", args.deadline);
+    processChange("productionStartDate", args.productionStartDate);
+    processChange("productionEndDate", args.productionEndDate);
     processChange("deliveryDate", args.deliveryDate);
     processChange("acceptanceDate", args.acceptanceDate);
 
     if (args.deadline !== undefined) {
       if (args.deadline === null) delete order.deadline;
       else order.deadline = args.deadline;
+    }
+    if (args.productionStartDate !== undefined) {
+      if (args.productionStartDate === null) delete order.productionStartDate;
+      else order.productionStartDate = args.productionStartDate;
+    }
+    if (args.productionEndDate !== undefined) {
+      if (args.productionEndDate === null) delete order.productionEndDate;
+      else order.productionEndDate = args.productionEndDate;
     }
     if (args.deliveryDate !== undefined) {
       if (args.deliveryDate === null) delete order.deliveryDate;

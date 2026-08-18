@@ -502,6 +502,8 @@ export default defineSchema({
     clientEmail: v.optional(v.string()),
     clientPhone: v.optional(v.string()),
     deadline: v.optional(v.string()), // Termin realizacji w formacie YYYY-MM-DD
+    productionStartDate: v.optional(v.string()), // Data rozpoczęcia produkcji YYYY-MM-DD
+    productionEndDate: v.optional(v.string()),   // Data zakończenia produkcji YYYY-MM-DD
     deliveryDate: v.optional(v.string()), // Data dostawy YYYY-MM-DD
     acceptanceDate: v.optional(v.string()), // Data akceptacji YYYY-MM-DD
     ownerId: v.optional(v.id("users")),
