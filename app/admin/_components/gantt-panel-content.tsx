@@ -1573,26 +1573,6 @@ export function GanttPanelContent({
                   <span>Produkcja: <strong style={{ color: hoveredType === "production" ? "#10b981" : "#f0f6fc", fontWeight: 700 }}>{formatTooltipDate(dates.start)} – {formatTooltipDate(dates.end)}</strong></span>
                 </div>
               )}
-              {(() => {
-                const aDates = localAssemblyDates[hoveredOrder._id] || (hoveredOrder.assemblyStartDate && hoveredOrder.assemblyEndDate ? { start: hoveredOrder.assemblyStartDate, end: hoveredOrder.assemblyEndDate } : null);
-                if (!aDates) return null;
-                const isSelected = hoveredType === "assembly";
-                return (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    color: isSelected ? "#ffffff" : "#8b5cf6",
-                    fontWeight: isSelected ? 700 : 400,
-                    background: isSelected ? "rgba(139, 92, 246, 0.18)" : "transparent",
-                    padding: isSelected ? "2px 6px" : "0",
-                    borderRadius: 4,
-                  }}>
-                    <Calendar size={11} style={{ color: isSelected ? "#a78bfa" : "#8b5cf6" }} />
-                    <span>Montaż: <strong style={{ color: isSelected ? "#c084fc" : "#a78bfa", fontWeight: 700 }}>{formatTooltipDate(aDates.start)} – {formatTooltipDate(aDates.end)}</strong></span>
-                  </div>
-                );
-              })()}
               {hoveredOrder.deliveryDate && (() => {
                 const diff = dates.end ? getDaysDiff(dates.end, hoveredOrder.deliveryDate) : -999;
                 const isWarning = dates.end && (diff > 2 || diff < 0);
@@ -1611,13 +1591,33 @@ export function GanttPanelContent({
                   }}>
                     <Truck size={11} style={{ color }} />
                     <span>
-                      Odbiór: <strong style={{ color, fontWeight: 700 }}>{formatTooltipDate(hoveredOrder.deliveryDate)}</strong>
+                      Odbiór produkcji: <strong style={{ color, fontWeight: 700 }}>{formatTooltipDate(hoveredOrder.deliveryDate)}</strong>
                       {dates.end && (
                         <span style={{ fontSize: 10, color: isWarning ? "#ff7b72" : "#8b949e", marginLeft: 4 }}>
                           ({diff >= 0 ? `+${diff}` : diff} dni)
                         </span>
                       )}
                     </span>
+                  </div>
+                );
+              })()}
+              {(() => {
+                const aDates = localAssemblyDates[hoveredOrder._id] || (hoveredOrder.assemblyStartDate && hoveredOrder.assemblyEndDate ? { start: hoveredOrder.assemblyStartDate, end: hoveredOrder.assemblyEndDate } : null);
+                if (!aDates) return null;
+                const isSelected = hoveredType === "assembly";
+                return (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    color: isSelected ? "#ffffff" : "#8b5cf6",
+                    fontWeight: isSelected ? 700 : 400,
+                    background: isSelected ? "rgba(139, 92, 246, 0.18)" : "transparent",
+                    padding: isSelected ? "2px 6px" : "0",
+                    borderRadius: 4,
+                  }}>
+                    <Calendar size={11} style={{ color: isSelected ? "#a78bfa" : "#8b5cf6" }} />
+                    <span>Montaż: <strong style={{ color: isSelected ? "#c084fc" : "#a78bfa", fontWeight: 700 }}>{formatTooltipDate(aDates.start)} – {formatTooltipDate(aDates.end)}</strong></span>
                   </div>
                 );
               })()}
