@@ -98,22 +98,33 @@ type AssignableUser = {
 export default function PanelPage() {
   const { user, isLoading } = usePermissions();
   const greeting = useGreeting();
-  const tasks = (useQuery(api.tasks.listMine) ?? []) as TaskWithQuote[];
-  const assignees = (useQuery(api.users.listAssignable) ?? []) as AssignableUser[];
+  const tasksRaw = useQuery(api.tasks.listMine);
+  const assigneesRaw = useQuery(api.users.listAssignable);
+  const allUsersRaw = useQuery(api.users.listAllAssignable);
   const setStatus = useMutation(api.tasks.setStatus);
   const [activeTask, setActiveTask] = useState<TaskWithQuote | null>(null);
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  if (tasksRaw === undefined || assigneesRaw === undefined || allUsersRaw === undefined || isLoading) {
+    return (
+      <main className="fluent-content panel-page">
+        <div style={{ padding: 45, textAlign: "center", color: "var(--fg-muted)", fontSize: "0.9rem" }}>
+          Ładowanie panelu zadań...
+        </div>
+      </main>
+    );
+  }
+
+  const tasks = tasksRaw as TaskWithQuote[];
+  const assignees = assigneesRaw as AssignableUser[];
   const currentUserId = assignees.find((u) => u._id === user?._id)?._id; // or from user context
 
-  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
-  const allUsers = useMemo(() => {
-    return [...allUsersRaw].sort((a, b) => {
-      if (a.isCurrentUser) return -1;
-      if (b.isCurrentUser) return 1;
-      return (a.name || a.email || "").localeCompare(b.name || b.email || "");
-    });
-  }, [allUsersRaw]);
+  const allUsers = [...allUsersRaw].sort((a, b) => {
+    if (a.isCurrentUser) return -1;
+    if (b.isCurrentUser) return 1;
+    return (a.name || a.email || "").localeCompare(b.name || b.email || "");
+  });
 
   const filteredTasks = useMemo(() => {
     if (selectedUserIds.length === 0) return tasks;
