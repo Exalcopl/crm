@@ -47,11 +47,18 @@ export function QuoteSimpleNotes({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <textarea
+        ref={(el) => {
+          if (el) {
+            el.style.height = "auto";
+            el.style.height = `${Math.max(120, el.scrollHeight)}px`;
+          }
+        }}
         className="fluent-input"
         style={{
           width: "100%",
           minHeight: "120px",
-          resize: "vertical",
+          resize: "none",
+          overflow: "hidden",
           fontSize: "13.5px",
           lineHeight: "1.5",
           padding: "10px 12px",
@@ -66,6 +73,8 @@ export function QuoteSimpleNotes({
           setValue(e.target.value);
           setIsDirty(true);
           setSavedRecently(false);
+          e.target.style.height = "auto";
+          e.target.style.height = `${Math.max(120, e.target.scrollHeight)}px`;
         }}
         onBlur={() => {
           if (isDirty) {
