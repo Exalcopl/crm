@@ -649,7 +649,7 @@ export function GanttPanelContent({
           {/* Left Columns (Fixed Side) */}
           <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 3, position: "sticky", left: 0 }}>
             {/* Header Row */}
-            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 12, color: "#8b949e", textTransform: "uppercase" }}>
+            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 11, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Zlecenie / Klient
             </div>
 
@@ -662,18 +662,18 @@ export function GanttPanelContent({
                     style={{
                       height: 28,
                       background: "#0d1117",
-                      borderBottom: "1px solid #30363d",
+                      borderBottom: "1px solid #21262d",
                       display: "flex",
                       alignItems: "center",
                       padding: "0 16px",
                       fontSize: 11,
                       fontWeight: 700,
                       color: "#f0f6fc",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
+                      letterSpacing: "0.3px",
                     }}
                   >
-                    🏢 {row.clientName}
+                    <span style={{ marginRight: 6, opacity: 0.8 }}>🏢</span>
+                    <span style={{ textTransform: "uppercase" }}>{row.clientName}</span>
                   </div>
                 );
               }
@@ -690,35 +690,35 @@ export function GanttPanelContent({
                     style={{
                       height: 28,
                       background: "#161b22",
-                      borderBottom: "1px solid #30363d",
+                      borderBottom: "1px solid #21262d",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0 12px 0 18px",
+                      padding: "0 12px 0 24px",
                       cursor: "pointer",
+                      transition: "background 0.15s ease",
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "#161b22")}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#58a6ff" }}>
-                        📦 Zlecenie {order.orderNumber}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#38bdf8" }}>
+                        Zlecenie #{order.orderNumber}
                       </span>
                       {customLabel && (
                         <span
                           style={{
                             fontSize: 9,
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            color: "var(--accent-primary)",
-                            background: "var(--accent-soft)",
-                            border: "1px solid var(--accent-line)",
-                            padding: "1px 5px",
-                            borderRadius: 3,
+                            fontWeight: 600,
+                            color: "#cbd5e1",
+                            background: "#1e293b",
+                            border: "1px solid #334155",
+                            padding: "1px 6px",
+                            borderRadius: 4,
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
-                            maxWidth: 110,
+                            maxWidth: 120,
                           }}
                           title={customLabel}
                         >
@@ -727,9 +727,9 @@ export function GanttPanelContent({
                       )}
                     </div>
                     {order.projectType && order.projectType.length > 0 && (
-                      <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 4 }}>
                         {order.projectType.map((t: string) => (
-                          <span key={t} style={{ fontSize: 9, color: "#8b949e" }}>· {t}</span>
+                          <span key={t} style={{ fontSize: 9, color: "#64748b", fontWeight: 500 }}>{t}</span>
                         ))}
                       </div>
                     )}
@@ -746,34 +746,33 @@ export function GanttPanelContent({
                     key={`prod-${order._id}`}
                     style={{
                       height: rowHeight,
-                      borderBottom: "1px solid #21262d",
+                      borderBottom: "1px solid #1e293b",
                       borderLeft: "3px solid #10b981",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0 12px 0 28px",
+                      padding: "0 12px 0 36px",
                       background: "transparent",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ color: "#10b981", fontSize: 10, fontWeight: 700 }}>↳</span>
                       <span
                         style={{
                           fontSize: 9,
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.4px",
-                          background: "rgba(16, 185, 129, 0.15)",
-                          color: "#3fb950",
-                          border: "1px solid rgba(16, 185, 129, 0.3)",
-                          padding: "1px 5px",
-                          borderRadius: 3,
+                          background: "rgba(16, 185, 129, 0.12)",
+                          color: "#34d399",
+                          border: "1px solid rgba(16, 185, 129, 0.25)",
+                          padding: "2px 6px",
+                          borderRadius: 4,
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: 3,
+                          gap: 4,
                         }}
                       >
-                        🏭 PRODUKCJA
+                        PRODUKCJA
                       </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -785,22 +784,22 @@ export function GanttPanelContent({
                             display: "flex",
                             alignItems: "center",
                             gap: 3,
-                            background: "#161b22",
-                            border: "1px solid #10b981",
+                            background: "#064e3b",
+                            border: "1px solid #059669",
                             borderRadius: 4,
-                            padding: "2px 6px",
+                            padding: "2px 8px",
                             cursor: "pointer",
-                            color: "#3fb950",
+                            color: "#6ee7b7",
                             fontSize: 10,
                             fontWeight: 600,
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#10b981"; e.currentTarget.style.color = "#ffffff"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "#161b22"; e.currentTarget.style.color = "#3fb950"; }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#059669"; e.currentTarget.style.color = "#ffffff"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#064e3b"; e.currentTarget.style.color = "#6ee7b7"; }}
                         >
                           <Plus size={10} /> Zaplanuj
                         </button>
                       ) : (
-                        <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
                           <Clock size={10} />
                           {localDates[order._id] 
                             ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
@@ -823,10 +822,10 @@ export function GanttPanelContent({
                             cursor: "pointer",
                             fontSize: 11,
                             padding: 2,
-                            color: "#8b949e",
+                            color: "#64748b",
                           }}
-                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#f59e0b")}
-                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
+                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
+                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#64748b")}
                         >
                           🎯
                         </button>
@@ -845,37 +844,36 @@ export function GanttPanelContent({
                     key={`asm-${order._id}`}
                     style={{
                       height: rowHeight,
-                      borderBottom: "1px solid #161b22",
+                      borderBottom: "1px solid #1e293b",
                       borderLeft: "3px solid #f97316",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0 12px 0 40px",
-                      background: "#16120b",
+                      padding: "0 12px 0 48px",
+                      background: "#0d1117",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ color: "#f97316", fontSize: 10, fontWeight: 700 }}>↳</span>
                       <span
                         style={{
                           fontSize: 9,
                           fontWeight: 700,
                           textTransform: "uppercase",
                           letterSpacing: "0.4px",
-                          background: "rgba(249, 115, 22, 0.2)",
+                          background: "rgba(249, 115, 22, 0.12)",
                           color: "#fb923c",
-                          border: "1px solid rgba(249, 115, 22, 0.4)",
-                          padding: "1px 5px",
-                          borderRadius: 3,
+                          border: "1px solid rgba(249, 115, 22, 0.25)",
+                          padding: "2px 6px",
+                          borderRadius: 4,
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: 3,
+                          gap: 4,
                         }}
                       >
-                        🔧 MONTAŻ
+                        MONTAŻ
                       </span>
                       {aDates && (
-                        <span style={{ fontSize: 10, color: "#fdba74", marginLeft: 2, fontWeight: 600 }}>
+                        <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 2, fontWeight: 500 }}>
                           ({getDaysDiff(aDates.start, aDates.end) + 1} dni)
                         </span>
                       )}
@@ -895,10 +893,10 @@ export function GanttPanelContent({
                             cursor: "pointer",
                             fontSize: 11,
                             padding: 2,
-                            color: "#8b949e",
+                            color: "#64748b",
                           }}
                           onMouseEnter={(ev) => (ev.currentTarget.style.color = "#fb923c")}
-                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#8b949e")}
+                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#64748b")}
                         >
                           🎯
                         </button>
@@ -919,12 +917,12 @@ export function GanttPanelContent({
                           }}
                           style={{
                             display: "flex", alignItems: "center", gap: 3,
-                            background: "#2a1808", border: "1px solid #f97316",
-                            borderRadius: 4, padding: "2px 6px", cursor: "pointer",
-                            color: "#fb923c", fontSize: 10, fontWeight: 600,
+                            background: "#7c2d12", border: "1px solid #ea580c",
+                            borderRadius: 4, padding: "2px 8px", cursor: "pointer",
+                            color: "#ffedd5", fontSize: 10, fontWeight: 600,
                           }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#3e240c"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "#2a1808"; }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#c2410c"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "#7c2d12"; }}
                         >
                           <Plus size={10} /> Montaż
                         </button>
@@ -1008,13 +1006,11 @@ export function GanttPanelContent({
                         alignItems: "center",
                         justifyContent: "center",
                         background: day.isToday 
-                          ? "rgba(245, 158, 11, 0.15)" 
+                          ? "rgba(56, 189, 248, 0.12)" 
                           : day.isWeekend 
                           ? "#0d1117" 
-                          : cap.bg !== "transparent"
-                          ? cap.bg
                           : "transparent",
-                        color: day.isToday ? "#f59e0b" : day.isWeekend ? "#8b949e" : "#c9d1d9",
+                        color: day.isToday ? "#38bdf8" : day.isWeekend ? "#64748b" : "#cbd5e1",
                         position: "relative"
                       }}
                       title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji (${cap.label})`}
@@ -1080,8 +1076,6 @@ export function GanttPanelContent({
                               borderRight: "1px solid #21262d",
                               background: day.isWeekend 
                                 ? "#0d1117" 
-                                : cap.bg !== "transparent"
-                                ? cap.bg
                                 : "transparent",
                               pointerEvents: "none",
                               opacity: 0.4
@@ -1359,9 +1353,7 @@ export function GanttPanelContent({
                             flexShrink: 0,
                             borderRight: "1px solid #21262d",
                             background: day.isWeekend 
-                              ? "#161b22" 
-                              : cap.bg !== "transparent"
-                              ? cap.bg
+                              ? "#0d1117" 
                               : "transparent",
                             pointerEvents: "none",
                           }}
