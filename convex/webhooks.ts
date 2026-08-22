@@ -22,7 +22,7 @@ export const triggerPartnerWebhook = internalAction({
       return;
     }
 
-    const order = await ctx.runQuery(internal.orders._getInternal, { id: args.orderId });
+    const order = await ctx.runQuery(internal.orders._getInternal, { orderId: args.orderId });
 
     const payload = {
       event: "order.updated",
