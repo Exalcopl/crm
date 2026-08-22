@@ -12,6 +12,7 @@ export const triggerPartnerWebhook = internalAction({
     orderNumber: v.string(),
     oldStatus: v.string(),
     newStatus: v.string(),
+    deliveryDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // 1. Pobierz dane partnera (webhookUrl, webhookSecret)
@@ -21,12 +22,16 @@ export const triggerPartnerWebhook = internalAction({
       return;
     }
 
+    const order = await ctx.runQuery(internal.orders.getInternal, { id: args.orderId });
+
     const payload = {
-      event: "order.status_changed",
+      event: "order.updated",
       orderId: args.orderId,
       orderNumber: args.orderNumber,
       oldStatus: args.oldStatus,
       newStatus: args.newStatus,
+      status: args.newStatus,
+      deliveryDate: args.deliveryDate || order?.deliveryDate || order?.acceptanceDate || undefined,
       timestamp: Date.now(),
     };
 

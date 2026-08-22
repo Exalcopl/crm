@@ -509,6 +509,20 @@ export const updateDates = mutation({
 
     await ctx.db.replace(args.id, order);
 
+    if (order.partnerId) {
+      const partner = await ctx.db.get(order.partnerId);
+      if (partner?.webhookUrl && partner.isActive) {
+        await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
+          partnerId: partner._id,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          oldStatus: order.status || "nowe",
+          newStatus: order.status || "nowe",
+          deliveryDate: order.deliveryDate || order.acceptanceDate || undefined,
+        });
+      }
+    }
+
     if (changes.length > 0) {
       const user = await ctx.db.get(userId);
       await ctx.db.insert("orderActivity", {
