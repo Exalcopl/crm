@@ -180,3 +180,17 @@ export const getInternal = internalQuery({
   },
 });
 
+export const updateWebhookUrlInternal = internalMutation({
+  args: {
+    id: v.id("partners"),
+    webhookUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, {
+      webhookUrl: args.webhookUrl,
+      isActive: true,
+      updatedAt: Date.now(),
+    });
+  },
+});
+

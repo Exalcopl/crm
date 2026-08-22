@@ -457,7 +457,15 @@ http.route({
       );
     }
 
-    // 6. Aktualizacja statystyk Partnera (async — nie blokuje odpowiedzi)
+    // 6. Aktualizacja statystyk Partnera i zarejestrowanie webhookUrl
+    const incomingWebhookUrl = typeof body.webhookUrl === "string" ? body.webhookUrl : (typeof body.callbackUrl === "string" ? body.callbackUrl : undefined);
+    if (incomingWebhookUrl && incomingWebhookUrl.trim()) {
+      await ctx.runMutation(internal.partners.updateWebhookUrlInternal, {
+        id: partner._id,
+        webhookUrl: incomingWebhookUrl.trim(),
+      });
+    }
+
     await ctx.runMutation(internal.partners.recordApiUsage, { id: partner._id });
 
     // 7. Odpowiedź
