@@ -759,11 +759,10 @@ export function GanttPanelContent({
                 ))}
               </div>
 
-              {/* Row 2: Days Header with Capacity Badges */}
+              {/* Row 2: Days Header */}
               <div style={{ display: "flex", height: 32 }}>
                 {days.map((day) => {
                   const loadCount = dayCapacity[day.dateStr] || 0;
-                  const capColor = loadCount >= 5 ? "#ef4444" : loadCount >= 3 ? "#f59e0b" : loadCount >= 1 ? "#10b981" : "transparent";
                   return (
                     <div
                       key={day.dateStr}
@@ -779,29 +778,10 @@ export function GanttPanelContent({
                         color: day.isToday ? "#38bdf8" : day.isWeekend ? "#475569" : "#94a3b8",
                         position: "relative"
                       }}
-                      title={`${day.dateStr}: Obciążenie (capacity) ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji`}
+                      title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji`}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                        <span style={{ fontSize: 9, textTransform: "uppercase", fontWeight: day.isToday ? 700 : 500 }}>{day.label}</span>
-                        <span style={{ fontSize: 11, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
-                      </div>
-                      {loadCount > 0 && (
-                        <span
-                          style={{
-                            fontSize: 8,
-                            fontWeight: 700,
-                            color: capColor,
-                            background: `${capColor}20`,
-                            border: `1px solid ${capColor}40`,
-                            borderRadius: 6,
-                            padding: "0 3px",
-                            lineHeight: "11px",
-                            marginTop: 1,
-                          }}
-                        >
-                          {loadCount}
-                        </span>
-                      )}
+                      <span style={{ fontSize: 9, textTransform: "uppercase", fontWeight: day.isToday ? 700 : 500 }}>{day.label}</span>
+                      <span style={{ fontSize: 12, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
                     </div>
                   );
                 })}
@@ -843,10 +823,23 @@ export function GanttPanelContent({
                 let prodBarLeft = 0;
                 let prodBarWidth = 0;
                 let hasProdBar = false;
+                let maxConcurrency = 1;
                 if (prodDates) {
                   prodBarLeft = getDaysDiff(timelineStart, prodDates.start) * dayWidth;
                   prodBarWidth = (getDaysDiff(prodDates.start, prodDates.end) + 1) * dayWidth;
                   hasProdBar = true;
+                  maxConcurrency = getMaxConcurrency(prodDates.start, prodDates.end);
+                }
+
+                // Dynamic capacity color logic for production card
+                let prodGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green (Optymalne: 1-2)
+                let prodShadow = "0 2px 6px rgba(16, 185, 129, 0.25)";
+                if (maxConcurrency >= 5) {
+                  prodGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red (Przeciążenie: 5+)
+                  prodShadow = "0 2px 6px rgba(248, 81, 73, 0.35)";
+                } else if (maxConcurrency >= 3) {
+                  prodGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange (Wysokie: 3-4)
+                  prodShadow = "0 2px 6px rgba(245, 158, 11, 0.3)";
                 }
 
                 // Assembly bar
@@ -961,8 +954,8 @@ export function GanttPanelContent({
                           height: PROD_H,
                           top: PROD_TOP,
                           borderRadius: 4,
-                          background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
-                          boxShadow: "0 2px 6px rgba(5, 150, 105, 0.25)",
+                          background: prodGradient,
+                          boxShadow: prodShadow,
                           display: "flex",
                           alignItems: "center",
                           padding: "0 8px",
