@@ -584,7 +584,6 @@ export function GanttPanelContent({
             </div>
           )}
 
-               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           {/* Month/Year selector */}
           <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#161b22", border: "1px solid #30363d", borderRadius: 4, padding: "2px 8px" }}>
             <Calendar size={13} style={{ color: "#58a6ff" }} />
@@ -607,10 +606,29 @@ export function GanttPanelContent({
               }}
             />
           </div>
-        </div>  
         </div>
       </div>
 
+      {/* Capacity Legend Bar / Agenda */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory kart produkcji (Obciążenie):</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
+          <span>Zielony: 1-2 zlecenia (Optymalne)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
+          <span>Pomarańczowy: 3-4 zlecenia (Wysokie)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
+          <span>Czerwony: 5+ zleceń (Przeciążenie)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)" }} />
+          <span>Montaż</span>
+        </div>
+      </div>
 
       {/* Main Content Area */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
