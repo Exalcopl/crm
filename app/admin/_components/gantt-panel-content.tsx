@@ -108,6 +108,7 @@ export function GanttPanelContent({
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [scheduleFilter, setScheduleFilter] = useState<"all" | "production" | "assembly" | "unplanned">("all");
+  const [barMode, setBarMode] = useState<"all" | "production" | "assembly">("all");
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
@@ -652,6 +653,44 @@ export function GanttPanelContent({
               );
             })}
           </div>
+
+          {/* Bar Visibility Mode (Wszystkie / Wyłącznie produkcja / Wyłącznie montaż) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
+            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Widok pasków:</span>
+            {[
+              { id: "all", label: "Wszystkie paski" },
+              { id: "production", label: "Wyłącznie produkcja", color: "#10b981" },
+              { id: "assembly", label: "Wyłącznie montaż", color: "#f59e0b" },
+            ].map((chip) => {
+              const isActive = barMode === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setBarMode(chip.id as any)}
+                  style={{
+                    background: isActive ? (chip.color || "#2563eb") : "#21262d",
+                    color: isActive ? "#ffffff" : "#c9d1d9",
+                    border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
+                    borderRadius: 12,
+                    padding: "2px 10px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    transition: "all 0.15s",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  {chip.color && (
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#ffffff" : chip.color }} />
+                  )}
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -952,10 +991,13 @@ export function GanttPanelContent({
                 const isWarning = prodDates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
                 const deliveryColor = isWarning ? "#ef4444" : "#10b981";
 
-                const PROD_TOP = 4;
-                const PROD_H = 22;
-                const ASM_TOP = 32;
-                const ASM_H = 18;
+                const showProdBar = hasProdBar && (barMode === "all" || barMode === "production");
+                const showAsmBar = hasAsmBar && (barMode === "all" || barMode === "assembly");
+
+                const PROD_TOP = barMode === "production" ? 15 : 4;
+                const PROD_H = barMode === "production" ? 28 : 22;
+                const ASM_TOP = barMode === "assembly" ? 15 : 32;
+                const ASM_H = barMode === "assembly" ? 28 : 18;
 
                 // Delivery pickup X coordinate
                 const deliveryX = isDeliveryVisible
@@ -963,8 +1005,8 @@ export function GanttPanelContent({
                   : prodDates ? (prodEndOffsetDays + 1) * dayWidth : -1;
 
                 // Connector between Delivery pickup and Assembly start
-                const asmCenterX = hasAsmBar ? asmBarLeft : -1;
-                const showAssemblyConnector = deliveryX >= 0 && hasAsmBar && asmCenterX >= 0;
+                const asmCenterX = showAsmBar ? asmBarLeft : -1;
+                const showAssemblyConnector = barMode === "all" && showProdBar && showAsmBar && deliveryX >= 0 && asmCenterX >= 0;
                 const isAssemblyBeforeDelivery = showAssemblyConnector && asmBarLeft < deliveryX;
                 const asmConnectorColor = isAssemblyBeforeDelivery ? "#ef4444" : "#ea580c";
                 const connectorCenterY = ASM_TOP + ASM_H / 2;
@@ -1031,8 +1073,8 @@ export function GanttPanelContent({
                       </>
                     )}
 
-                    {/* Production bar (top half) */}
-                    {hasProdBar && (
+                    {/* Production bar */}
+                    {showProdBar && (
                       <div
                         style={{
                           position: "absolute",
@@ -1089,8 +1131,8 @@ export function GanttPanelContent({
                       </div>
                     )}
 
-                    {/* Assembly bar (bottom half) */}
-                    {hasAsmBar && (
+                    {/* Assembly bar */}
+                    {showAsmBar && (
                       <div
                         style={{
                           position: "absolute",
