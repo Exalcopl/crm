@@ -306,12 +306,21 @@ export function GanttPanelContent({
     grouped[o.clientName].push(o);
   }
 
-  const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+  interface RowItem {
+    type: "client" | "order";
+    clientName?: string;
+    orderCount?: number;
+    order?: typeof filteredOrders[0];
+  }
 
-  // Flat sorted order list: by client then order number
-  const sortedOrders = sortedClients.flatMap((clientName) =>
-    grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber))
-  );
+  const rows: RowItem[] = [];
+  for (const clientName of sortedClients) {
+    const clientOrders = grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
+    rows.push({ type: "client", clientName, orderCount: clientOrders.length });
+    for (const order of clientOrders) {
+      rows.push({ type: "order", order });
+    }
+  }
 
   // Time navigation
   const shiftTimeline = (amount: number) => {
@@ -748,8 +757,41 @@ export function GanttPanelContent({
               </span>
             </div>
 
-            {/* One row per order */}
-            {sortedOrders.map((order) => {
+            {/* Grouped Client and Order Rows */}
+            {rows.map((row, idx) => {
+              if (row.type === "client") {
+                return (
+                  <div
+                    key={`client-${row.clientName}-${idx}`}
+                    style={{
+                      height: 28,
+                      background: "#161b22",
+                      borderTop: idx === 0 ? "none" : "2px solid #30363d",
+                      borderBottom: "1px solid #21262d",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "0 12px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#38bdf8",
+                      letterSpacing: "0.3px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
+                      <span style={{ fontSize: 12 }}>🏢</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {row.clientName}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 10, color: "#8b949e", fontWeight: 500 }}>
+                      {row.orderCount} {row.orderCount === 1 ? "zlecenie" : "zlecenia"}
+                    </span>
+                  </div>
+                );
+              }
+
+              const order = row.order!;
               const q = quotesMap.get(order.quoteId);
               const customLabel = order.customLabel || q?.customLabel;
               const prodDates = localDates[order._id];
@@ -764,7 +806,7 @@ export function GanttPanelContent({
                     display: "flex",
                     flexDirection: "column",
                     justifyContent: "center",
-                    padding: "0 12px",
+                    padding: "0 12px 0 20px",
                     background: "#0d1117",
                     cursor: "pointer",
                     transition: "background 0.15s",
@@ -927,8 +969,39 @@ export function GanttPanelContent({
                 return null;
               })()}
 
-              {/* One row per order in right grid */}
-              {sortedOrders.map((order) => {
+              {/* Rows grouped by client in right grid */}
+              {rows.map((row, idx) => {
+                if (row.type === "client") {
+                  return (
+                    <div
+                      key={`grid-client-${row.clientName}-${idx}`}
+                      style={{
+                        height: 28,
+                        background: "#161b22",
+                        borderTop: idx === 0 ? "none" : "2px solid #30363d",
+                        borderBottom: "1px solid #21262d",
+                        display: "flex",
+                        position: "relative",
+                      }}
+                    >
+                      {days.map((day) => (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #21262d",
+                            background: "transparent",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+
+                const order = row.order!;
                 const prodDates = localDates[order._id];
                 const asmDates = localAssemblyDates[order._id];
 
