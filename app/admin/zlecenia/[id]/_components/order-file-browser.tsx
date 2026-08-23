@@ -284,7 +284,7 @@ function FolderNode({
   onPreview,
   onDeleteSelf,
 }: FolderNodeProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(item.name === "Dokumentacja");
   const [contents, setContents] = useState<DriveItem[] | null>(null);
   const [contentsLoading, setContentsLoading] = useState(false);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
@@ -309,6 +309,12 @@ function FolderNode({
       setContentsLoading(false);
     }
   }, [orderId, item.id, actions]);
+
+  useEffect(() => {
+    if (item.name === "Dokumentacja" && contents === null) {
+      void loadContents();
+    }
+  }, [item.name, contents, loadContents]);
 
   function handleToggle() {
     if (!expanded && contents === null) {

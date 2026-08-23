@@ -963,6 +963,7 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
     <CollapsibleSection
       title="Terminy"
       icon={<I.cal s={14} />}
+      defaultOpen={false}
       action={
         !editing && (
           <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={startAdd}>
@@ -1395,11 +1396,11 @@ export default function OrderDetailPage({
             <OrderItemsManager orderId={orderId} order={order} />
           </div>
 
-          {/* Kolumna 4: Terminy (zwijane) nad Historia i Aktywność (zwijane) */}
+          {/* Kolumna 4: Terminy (zwijane, domyślnie zwinięte) nad Historia i Aktywność (zwijane, domyślnie zwinięte) */}
           <div className="quote-widget-item quote-widget-span-1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <OrderDeadlines orderId={orderId} order={order} />
 
-            <CollapsibleSection title="Historia i Aktywność" icon={<I.clock s={14} />}>
+            <CollapsibleSection title="Historia i Aktywność" icon={<I.clock s={14} />} defaultOpen={false}>
               <div className="order-activities-list">
                 {activities.length === 0 ? (
                   <div style={{ color: "#8b949e", fontSize: 12, textAlign: "center", padding: "12px 0" }}>

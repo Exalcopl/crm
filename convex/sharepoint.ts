@@ -1921,8 +1921,20 @@ export const uploadPartnerFileToOrder = internalAction({
 
     const token = await getGraphToken(tenantId, clientId, clientSecret);
 
-    // 2. Direct upload to the main order folder on SharePoint (subfolderItemId)
-    const targetFolderId = sp.subfolderItemId;
+    // 2. Upload to "Dokumentacja" subfolder on SharePoint if present, otherwise main folder
+    let targetFolderId = sp.subfolderItemId;
+    try {
+      const folderRes = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Dokumentacja`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (folderRes.ok) {
+        const folderData = (await folderRes.json()) as { id: string };
+        targetFolderId = folderData.id;
+      }
+    } catch (e) {
+      console.warn("Nie udało się odnaleźć podfolderu Dokumentacja, zapisuję w folderze głównym:", e);
+    }
 
     // 3. Upload file content to SharePoint under targetFolderId
     const binaryBuffer = Buffer.from(args.fileBase64, "base64");
