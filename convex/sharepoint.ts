@@ -1888,7 +1888,26 @@ export const uploadPartnerFileToOrder = internalAction({
     }
     if (!order) throw new Error("Nie znaleziono zlecenia.");
 
-    const sp = order.sharepoint;
+    let sp = order.sharepoint;
+    if (!sp?.driveId || !sp?.subfolderItemId) {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        await new Promise((r) => setTimeout(r, 1000));
+        order = await ctx.runQuery(internal.orders._getInternal, { orderId: order._id });
+        sp = order?.sharepoint;
+        if (sp?.driveId && sp?.subfolderItemId) break;
+      }
+    }
+
+    if (!sp?.driveId || !sp?.subfolderItemId) {
+      try {
+        await ctx.runAction(internal.sharepoint.createFolderForOrder, { orderId: order._id });
+        order = await ctx.runQuery(internal.orders._getInternal, { orderId: order._id });
+        sp = order?.sharepoint;
+      } catch (e) {
+        console.error("Błąd synchronicznego tworzenia folderu SharePoint:", e);
+      }
+    }
+
     if (!sp?.driveId || !sp?.subfolderItemId) {
       throw new Error("Zlecenie nie ma utworzonego folderu SharePoint.");
     }
@@ -1902,17 +1921,8 @@ export const uploadPartnerFileToOrder = internalAction({
 
     const token = await getGraphToken(tenantId, clientId, clientSecret);
 
-    // 2. Find the ID of the "Dokumentacja" subfolder
-    const folderRes = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Dokumentacja`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!folderRes.ok) {
-      const txt = await folderRes.text();
-      throw new Error(`Nie można odnaleźć podfolderu Dokumentacja: ${folderRes.status} - ${txt}`);
-    }
-    const folderData = await folderRes.json() as { id: string };
-    const targetFolderId = folderData.id;
+    // 2. Direct upload to the main order folder on SharePoint (subfolderItemId)
+    const targetFolderId = sp.subfolderItemId;
 
     // 3. Upload file content to SharePoint under targetFolderId
     const binaryBuffer = Buffer.from(args.fileBase64, "base64");
@@ -1944,7 +1954,7 @@ export const uploadPartnerFileToOrder = internalAction({
     await ctx.runMutation(internal.orders.logFileActivity, {
       orderId: order._id,
       title: "Przesłano dokument przez API",
-      detail: `Dodano plik ${prefixedName} do folderu Dokumentacja`,
+      detail: `Dodano plik ${prefixedName} do głównego folderu zlecenia w SharePoint`,
     });
 
     return {
