@@ -51,11 +51,13 @@ function formatDate(ts: number) {
 function CollapsibleSection({
   title,
   icon,
+  action,
   children,
   defaultOpen = true,
 }: {
   title: string;
   icon?: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
 }) {
@@ -80,8 +82,11 @@ function CollapsibleSection({
           {icon && <span style={{ display: "flex", alignItems: "center", color: "#8b949e" }}>{icon}</span>}
           <span>{title}</span>
         </div>
-        <div style={{ color: "#8b949e", display: "flex", alignItems: "center" }}>
-          {isOpen ? <I.up s={14} /> : <span style={{ display: "inline-block", transform: "rotate(180deg)" }}><I.up s={14} /></span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {action && <div onClick={(e) => e.stopPropagation()}>{action}</div>}
+          <div style={{ color: "#8b949e", display: "flex", alignItems: "center" }}>
+            {isOpen ? <I.up s={14} /> : <span style={{ display: "inline-block", transform: "rotate(180deg)" }}><I.up s={14} /></span>}
+          </div>
         </div>
       </header>
       {isOpen && (
@@ -955,19 +960,18 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
   const editing = adding || editId !== null;
 
   return (
-    <div className="cal-card" style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid #30363d" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, color: "#f0f6fc" }}>
-          <I.cal s={14} /> Terminy
-        </div>
-        {!editing && (
+    <CollapsibleSection
+      title="Terminy"
+      icon={<I.cal s={14} />}
+      action={
+        !editing && (
           <button type="button" className="fluent-btn fluent-btn-primary fluent-btn-sm" onClick={startAdd}>
             <I.plus s={13} /> Dodaj wydarzenie
           </button>
-        )}
-      </div>
-
-      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+        )
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {/* 1. Utworzenie zlecenia */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#0d1117", border: "1px solid #21262d", borderLeft: `3px solid #d41d3c`, borderRadius: 6 }}>
           <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#d41d3c", flexShrink: 0 }} />
@@ -1132,7 +1136,7 @@ function OrderDeadlines({ orderId, order }: { orderId: Id<"orders">, order: any 
           <EventForm form={form} setForm={setForm} categories={availableCats} busy={busy} onSave={save} onCancel={() => { setAdding(false); resetForm(); }} />
         )}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -1372,16 +1376,13 @@ export default function OrderDetailPage({
 
         {/* Grid 4-kolumnowy (taki sam jak wycena) */}
         <div className="quote-detail-grid-customizable">
+          {/* Kolumna 1: Pliki / SharePoint */}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div className="quote-widget-item">
-              <OrderDeadlines orderId={orderId} order={order} />
-            </div>
             {quote?.sharepoint ? (
               <QuoteFileBrowser quote={quote} archived={false} />
             ) : order.sharepoint ? (
               <OrderFileBrowser order={order} archived={false} />
             ) : null}
-            {/* Historia i Aktywność została przeniesiona do kolumny 4 */}
           </div>
 
           {/* Kolumny 2-3: Notatki + Pozycje */}
@@ -1394,8 +1395,10 @@ export default function OrderDetailPage({
             <OrderItemsManager orderId={orderId} order={order} />
           </div>
 
-          {/* Kolumna 4: Historia */}
+          {/* Kolumna 4: Terminy (zwijane) nad Historia i Aktywność (zwijane) */}
           <div className="quote-widget-item quote-widget-span-1" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <OrderDeadlines orderId={orderId} order={order} />
+
             <CollapsibleSection title="Historia i Aktywność" icon={<I.clock s={14} />}>
               <div className="order-activities-list">
                 {activities.length === 0 ? (
