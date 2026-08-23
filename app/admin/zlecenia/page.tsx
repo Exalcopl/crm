@@ -720,18 +720,6 @@ function KanbanCardContent({
           </span>
           <span className="kanban-card-value-unit">PLN</span>
         </div>
-
-        {order.productionStartDate || order.productionEndDate ? (
-          <span className={`kanban-chip kanban-chip-deadline tone-${tone}`} style={{ fontSize: 10 }}>
-            <I.cal s={11} />
-            {order.productionStartDate ? formatDeadline(order.productionStartDate) : "—"} - {order.productionEndDate ? formatDeadline(order.productionEndDate) : "—"}
-          </span>
-        ) : order.deadline ? (
-          <span className={`kanban-chip kanban-chip-deadline tone-${tone}`}>
-            <I.cal s={11} />
-            {formatDeadline(order.deadline)}
-          </span>
-        ) : null}
       </div>
     </>
   );
