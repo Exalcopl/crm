@@ -619,13 +619,13 @@ export function GanttPanelContent({
 
 
 
-          {/* Bar Visibility Mode (Wszystkie / Wyłącznie produkcja / Wyłącznie montaż) */}
+          {/* Obszar realizacji (Wszystkie / Produkcja / Montaż) */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
-            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Widok pasków:</span>
+            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Obszar realizacji:</span>
             {[
-              { id: "all", label: "Wszystkie paski" },
-              { id: "production", label: "Wyłącznie produkcja", color: "#10b981" },
-              { id: "assembly", label: "Wyłącznie montaż", color: "#f59e0b" },
+              { id: "all", label: "Wszystkie" },
+              { id: "production", label: "Produkcja", color: "#059669" },
+              { id: "assembly", label: "Montaż", color: "#ea580c" },
             ].map((chip) => {
               const isActive = barMode === chip.id;
               return (
