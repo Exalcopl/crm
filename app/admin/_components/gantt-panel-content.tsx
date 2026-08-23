@@ -277,22 +277,10 @@ export function GanttPanelContent({
 
   const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
 
-  interface RowItem {
-    type: "client" | "order-header" | "order-production" | "order-assembly";
-    clientName: string;
-    order?: typeof filteredOrders[0];
-  }
-
-  const rows: RowItem[] = [];
-  for (const clientName of sortedClients) {
-    rows.push({ type: "client", clientName });
-    const clientOrders = grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber));
-    for (const order of clientOrders) {
-      rows.push({ type: "order-header", clientName, order });
-      rows.push({ type: "order-production", clientName, order });
-      rows.push({ type: "order-assembly", clientName, order });
-    }
-  }
+  // Flat sorted order list: by client then order number
+  const sortedOrders = sortedClients.flatMap((clientName) =>
+    grouped[clientName].sort((a, b) => a.orderNumber.localeCompare(b.orderNumber))
+  );
 
   // Time navigation
   const shiftTimeline = (amount: number) => {
@@ -523,7 +511,7 @@ export function GanttPanelContent({
   // Layout parameters
   const leftColWidth = 320;
   const dayWidth = 48;
-  const rowHeight = 36; // slightly tighter now we have two rows per order
+  const rowHeight = 58; // single row with two stacked bars
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d1117", color: "#c9d1d9" }}>
@@ -623,22 +611,6 @@ export function GanttPanelContent({
         </div>
       </div>
 
-      {/* Capacity Legend Bar */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory pasków (Obciążenie terminu):</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
-          <span>Zielone: 1-2 zlecenia (Optymalne)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
-          <span>Pomarańczowe: 3-4 zlecenia (Wysokie)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
-          <span>Czerwone: 5+ zleceń (Przeciążenie)</span>
-        </div>
-      </div>
 
       {/* Main Content Area */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
@@ -649,303 +621,101 @@ export function GanttPanelContent({
           {/* Left Columns (Fixed Side) */}
           <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 3, position: "sticky", left: 0 }}>
             {/* Header Row */}
-            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 11, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Zlecenie / Klient
+            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 11, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.5px", gap: 16 }}>
+              <span style={{ flex: 1 }}>Zlecenie / Klient</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 10 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#059669", display: "inline-block" }} />
+                  Produkcja
+                </span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#ea580c", display: "inline-block" }} />
+                  Montaż
+                </span>
+              </span>
             </div>
 
-            {/* Grouped Client and Order Rows */}
-            {rows.map((row, idx) => {
-              if (row.type === "client") {
-                return (
-                  <div
-                    key={`client-${row.clientName}-${idx}`}
-                    style={{
-                      height: 28,
-                      background: "#0d1117",
-                      borderBottom: "1px solid #21262d",
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 16px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#f0f6fc",
-                      letterSpacing: "0.3px",
-                    }}
-                  >
-                    <span style={{ marginRight: 6, opacity: 0.8 }}>🏢</span>
-                    <span style={{ textTransform: "uppercase" }}>{row.clientName}</span>
-                  </div>
-                );
-              }
-
-              // ── Order Header Row (Level 1 under Client) ───────────────
-              if (row.type === "order-header") {
-                const order = row.order!;
-                const q = quotesMap.get(order.quoteId);
-                const customLabel = order.customLabel || q?.customLabel;
-                return (
-                  <div
-                    key={`hdr-${order._id}`}
-                    onClick={() => onOpenOrder(order._id)}
-                    style={{
-                      height: 28,
-                      background: "#161b22",
-                      borderBottom: "1px solid #21262d",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0 12px 0 24px",
-                      cursor: "pointer",
-                      transition: "background 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "#161b22")}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#38bdf8" }}>
-                        Zlecenie #{order.orderNumber}
-                      </span>
-                      {customLabel && (
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 600,
-                            color: "#cbd5e1",
-                            background: "#1e293b",
-                            border: "1px solid #334155",
-                            padding: "1px 6px",
-                            borderRadius: 4,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            maxWidth: 120,
-                          }}
-                          title={customLabel}
-                        >
-                          🏷️ {customLabel}
-                        </span>
-                      )}
-                    </div>
-                    {order.projectType && order.projectType.length > 0 && (
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {order.projectType.map((t: string) => (
-                          <span key={t} style={{ fontSize: 9, color: "#64748b", fontWeight: 500 }}>{t}</span>
-                        ))}
-                      </div>
+            {/* One row per order */}
+            {sortedOrders.map((order) => {
+              const q = quotesMap.get(order.quoteId);
+              const customLabel = order.customLabel || q?.customLabel;
+              const prodDates = localDates[order._id];
+              const asmDates = localAssemblyDates[order._id];
+              const isPlanned = !!prodDates;
+              return (
+                <div
+                  key={`left-${order._id}`}
+                  style={{
+                    height: rowHeight,
+                    borderBottom: "1px solid #21262d",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    padding: "0 12px",
+                    background: "#0d1117",
+                    cursor: "pointer",
+                    transition: "background 0.15s",
+                    gap: 3,
+                  }}
+                  onClick={() => onOpenOrder(order._id)}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#161b22")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#0d1117")}
+                >
+                  {/* Top line: order number + client */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", whiteSpace: "nowrap" }}>
+                      #{order.orderNumber}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#8b949e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                      {order.clientName}
+                    </span>
+                    {customLabel && (
+                      <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>🏷️</span>
                     )}
                   </div>
-                );
-              }
-
-              // ── Production Row (Level 2) ─────────────────────────────
-              if (row.type === "order-production") {
-                const order = row.order!;
-                const isPlanned = !!(localDates[order._id] || (order.productionStartDate && order.productionEndDate));
-                return (
-                  <div
-                    key={`prod-${order._id}`}
-                    style={{
-                      height: rowHeight,
-                      borderBottom: "1px solid #1e293b",
-                      borderLeft: "3px solid #10b981",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0 12px 0 36px",
-                      background: "transparent",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.4px",
-                          background: "rgba(16, 185, 129, 0.12)",
-                          color: "#34d399",
-                          border: "1px solid rgba(16, 185, 129, 0.25)",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        PRODUKCJA
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      {!isPlanned ? (
+                  {/* Bottom line: dates and actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    {/* Prod indicator */}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: prodDates ? "#34d399" : "#475569", fontWeight: 600 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 1, background: prodDates ? "#059669" : "#374151", display: "inline-block" }} />
+                      {prodDates ? `${getDaysDiff(prodDates.start, prodDates.end) + 1}d prod.` : "brak prod."}
+                    </span>
+                    <span style={{ color: "#30363d", fontSize: 10 }}>·</span>
+                    {/* Assembly indicator */}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: asmDates ? "#fb923c" : "#475569", fontWeight: 600 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: 1, background: asmDates ? "#ea580c" : "#374151", display: "inline-block" }} />
+                      {asmDates ? `${getDaysDiff(asmDates.start, asmDates.end) + 1}d mont.` : "brak mont."}
+                    </span>
+                    {/* Actions */}
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+                      {!isPlanned && (
                         <button
                           type="button"
-                          onClick={() => handleScheduleDefault(order._id)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 3,
-                            background: "#064e3b",
-                            border: "1px solid #059669",
-                            borderRadius: 4,
-                            padding: "2px 8px",
-                            cursor: "pointer",
-                            color: "#6ee7b7",
-                            fontSize: 10,
-                            fontWeight: 600,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#059669"; e.currentTarget.style.color = "#ffffff"; }}
+                          title="Zaplanuj produkcję"
+                          onClick={(e) => { e.stopPropagation(); handleScheduleDefault(order._id); }}
+                          style={{ background: "#064e3b", border: "1px solid #059669", borderRadius: 3, padding: "1px 6px", cursor: "pointer", color: "#6ee7b7", fontSize: 9, fontWeight: 600 }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "#059669"; e.currentTarget.style.color = "#fff"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.background = "#064e3b"; e.currentTarget.style.color = "#6ee7b7"; }}
                         >
-                          <Plus size={10} /> Zaplanuj
+                          + Zaplanuj
                         </button>
-                      ) : (
-                        <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 3 }}>
-                          <Clock size={10} />
-                          {localDates[order._id] 
-                            ? `${getDaysDiff(localDates[order._id].start, localDates[order._id].end) + 1} dni`
-                            : "—"
-                          }
-                        </span>
                       )}
-                      {localDates[order._id] && (
+                      {prodDates && (
                         <button
                           type="button"
-                          title="Centruj kalendarz na terminie produkcji"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const s = localDates[order._id].start;
-                            if (s) setTimelineStart(addDays(s, -5));
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            padding: 2,
-                            color: "#64748b",
-                          }}
+                          title="Centruj na produkcji"
+                          onClick={(e) => { e.stopPropagation(); setTimelineStart(addDays(prodDates.start, -5)); }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, padding: "1px 3px", color: "#475569" }}
                           onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
-                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#64748b")}
+                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#475569")}
                         >
                           🎯
                         </button>
                       )}
                     </div>
                   </div>
-                );
-              }
-
-              // ── Assembly Row (Level 3) ───────────────────────────────
-              if (row.type === "order-assembly") {
-                const order = row.order!;
-                const aDates = localAssemblyDates[order._id];
-                return (
-                  <div
-                    key={`asm-${order._id}`}
-                    style={{
-                      height: rowHeight,
-                      borderBottom: "1px solid #1e293b",
-                      borderLeft: "3px solid #f97316",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "0 12px 0 48px",
-                      background: "#0d1117",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.4px",
-                          background: "rgba(249, 115, 22, 0.12)",
-                          color: "#fb923c",
-                          border: "1px solid rgba(249, 115, 22, 0.25)",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        MONTAŻ
-                      </span>
-                      {aDates && (
-                        <span style={{ fontSize: 10, color: "#94a3b8", marginLeft: 2, fontWeight: 500 }}>
-                          ({getDaysDiff(aDates.start, aDates.end) + 1} dni)
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      {aDates && (
-                        <button
-                          type="button"
-                          title="Centruj kalendarz na terminie montażu"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (aDates.start) setTimelineStart(addDays(aDates.start, -5));
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 11,
-                            padding: 2,
-                            color: "#64748b",
-                          }}
-                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#fb923c")}
-                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#64748b")}
-                        >
-                          🎯
-                        </button>
-                      )}
-                      {!aDates && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const startD = new Date();
-                            const s = localDateStr(startD);
-                            const endD = new Date();
-                            endD.setDate(endD.getDate() + 3);
-                            const en = localDateStr(endD);
-                            try {
-                              await updateDates({ id: order._id, assemblyStartDate: s, assemblyEndDate: en });
-                              toast.success("Zaplanowano montaż");
-                            } catch { toast.error("Błąd planowania montażu"); }
-                          }}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 3,
-                            background: "#7c2d12", border: "1px solid #ea580c",
-                            borderRadius: 4, padding: "2px 8px", cursor: "pointer",
-                            color: "#ffedd5", fontSize: 10, fontWeight: 600,
-                          }}
-                          onMouseEnter={(e) => { e.currentTarget.style.background = "#c2410c"; }}
-                          onMouseLeave={(e) => { e.currentTarget.style.background = "#7c2d12"; }}
-                        >
-                          <Plus size={10} /> Montaż
-                        </button>
-                      )}
-                      {aDates && (
-                        <button
-                          type="button"
-                          title="Usuń daty montażu"
-                          onClick={async () => {
-                            try {
-                              await updateDates({ id: order._id, assemblyStartDate: null, assemblyEndDate: null });
-                              toast.success("Usunięto termin montażu");
-                            } catch { toast.error("Błąd usuwania montażu"); }
-                          }}
-                          style={{ background: "transparent", border: "none", cursor: "pointer", color: "#f97316", padding: 2 }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
+                </div>
+              );
             })}
 
             {/* Empty state */}
@@ -1044,269 +814,52 @@ export function GanttPanelContent({
                 return null;
               })()}
 
-              {/* Grouped Client and Order Grid Rows */}
-              {rows.map((row, idx) => {
-                if (row.type === "client") {
-                  return (
-                    <div
-                      key={`grid-client-${row.clientName}-${idx}`}
-                      style={{
-                        height: 28,
-                        background: "#080c10",
-                        borderTop: idx === 0 ? "none" : "2px solid #21262d",
-                        borderBottom: "1px solid #21262d",
-                        display: "flex",
-                        position: "relative",
-                      }}
-                    >
-                      {days.map((day) => (
-                        <div
-                          key={day.dateStr}
-                          style={{
-                            width: dayWidth,
-                            height: "100%",
-                            flexShrink: 0,
-                            borderRight: "1px solid #161b22",
-                            background: "transparent",
-                            pointerEvents: "none",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  );
+              {/* One row per order in right grid */}
+              {sortedOrders.map((order) => {
+                const prodDates = localDates[order._id];
+                const asmDates = localAssemblyDates[order._id];
+
+                // Production bar
+                let prodBarLeft = 0;
+                let prodBarWidth = 0;
+                let hasProdBar = false;
+                if (prodDates) {
+                  prodBarLeft = getDaysDiff(timelineStart, prodDates.start) * dayWidth;
+                  prodBarWidth = (getDaysDiff(prodDates.start, prodDates.end) + 1) * dayWidth;
+                  hasProdBar = true;
                 }
 
-                // ── Order Header Row in right grid ─────────────────────
-                if (row.type === "order-header") {
-                  return (
-                    <div
-                      key={`grid-hdr-${row.order!._id}`}
-                      style={{
-                        height: 28,
-                        background: "#0d1117",
-                        borderTop: "1px solid #21262d",
-                        borderBottom: "1px solid #21262d",
-                        display: "flex",
-                        position: "relative",
-                      }}
-                    >
-                      {days.map((day) => (
-                        <div
-                          key={day.dateStr}
-                          style={{
-                            width: dayWidth,
-                            height: "100%",
-                            flexShrink: 0,
-                            borderRight: "1px solid #161b22",
-                            background: "transparent",
-                            pointerEvents: "none",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  );
+                // Assembly bar
+                let asmBarLeft = 0;
+                let asmBarWidth = 0;
+                let hasAsmBar = false;
+                if (asmDates) {
+                  asmBarLeft = getDaysDiff(timelineStart, asmDates.start) * dayWidth;
+                  asmBarWidth = (getDaysDiff(asmDates.start, asmDates.end) + 1) * dayWidth;
+                  hasAsmBar = true;
                 }
 
-                // ── Assembly row in right grid ────────────────────────
-                if (row.type === "order-assembly") {
-                  const order = row.order!;
-                  const aDates = localAssemblyDates[order._id];
-                  const prodDates = localDates[order._id];
+                // Live delivery date
+                const isDraggingProd = drag && drag.orderId === order._id;
+                const liveDeliveryDate = (isDraggingProd && prodDates)
+                  ? addWorkingDays(prodDates.end, 2)
+                  : order.deliveryDate;
 
-                  // Compute live delivery date (same logic as production row)
-                  const isDraggingProd = drag && drag.orderId === order._id;
-                  const liveDeliveryDate = (isDraggingProd && prodDates)
-                    ? addWorkingDays(prodDates.end, 2)
-                    : order.deliveryDate;
+                const deliveryOffsetDays = liveDeliveryDate ? getDaysDiff(timelineStart, liveDeliveryDate) : -1;
+                const isDeliveryVisible = deliveryOffsetDays >= 0 && deliveryOffsetDays < 90;
+                const prodEndOffsetDays = prodDates ? getDaysDiff(timelineStart, prodDates.end) : -999;
+                const diffFromProdEnd = prodDates && liveDeliveryDate ? getDaysDiff(prodDates.end, liveDeliveryDate) : -999;
+                const isWarning = prodDates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
+                const deliveryColor = isWarning ? "#ef4444" : "#10b981";
 
-                  let assemblyBarStyle: React.CSSProperties | null = null;
-                  let assemblyStartX = -1;
-
-                  if (aDates) {
-                    const startOff = getDaysDiff(timelineStart, aDates.start);
-                    const dur = getDaysDiff(aDates.start, aDates.end) + 1;
-                    assemblyStartX = startOff * dayWidth;
-
-                    // Assembly bar styling (consistent warm amber)
-                    const asmGradient = "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)";
-                    const asmShadow = "0 2px 6px rgba(234, 88, 12, 0.25)";
-
-                    assemblyBarStyle = {
-                      position: "absolute",
-                      left: assemblyStartX,
-                      width: dur * dayWidth,
-                      height: 20,
-                      top: 8,
-                      borderRadius: 4,
-                      background: asmGradient,
-                      boxShadow: asmShadow,
-                      display: "flex",
-                      alignItems: "center",
-                      padding: "0 8px",
-                      color: "white",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      cursor: "grab",
-                      userSelect: "none",
-                      zIndex: 1,
-                      transition: dragAssembly?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
-                    };
-                  }
-
-                  // Connector: vertical line at delivery date x + horizontal line to assembly bar start
-                  const deliveryOffDays = liveDeliveryDate ? getDaysDiff(timelineStart, liveDeliveryDate) : -1;
-                  const deliveryX = deliveryOffDays >= 0 ? deliveryOffDays * dayWidth + dayWidth / 2 : -1;
-                  const showConnector = deliveryX >= 0 && assemblyStartX >= 0;
-                  const connectorColor = "#10b981";
-                  const centerY = rowHeight / 2;
-
-                  return (
-                    <div
-                      key={`grid-asm-${order._id}`}
-                      style={{
-                        height: rowHeight,
-                        borderBottom: "1px solid #21262d",
-                        display: "flex",
-                        position: "relative",
-                        background: "#0d1117",
-                      }}
-                    >
-                      {/* Background day columns */}
-                      {days.map((day) => (
-                        <div
-                          key={day.dateStr}
-                          style={{
-                            width: dayWidth,
-                            height: "100%",
-                            flexShrink: 0,
-                            borderRight: "1px solid #0d1117",
-                            background: day.isWeekend ? "#0a0f15" : "transparent",
-                            pointerEvents: "none",
-                          }}
-                        />
-                      ))}
-
-                      {/* Connector: vertical line from top of row down to center at delivery x */}
-                      {showConnector && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: deliveryX,
-                            top: 0,
-                            width: 1,
-                            height: centerY,
-                            borderLeft: `2px dashed ${connectorColor}`,
-                            opacity: 0.6,
-                            pointerEvents: "none",
-                            zIndex: 0,
-                          }}
-                        />
-                      )}
-
-                      {/* Connector: horizontal line from delivery x to assembly bar start at center y */}
-                      {showConnector && deliveryX !== assemblyStartX && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: Math.min(deliveryX, assemblyStartX),
-                            top: centerY - 1,
-                            width: Math.abs(assemblyStartX - deliveryX),
-                            height: 2,
-                            borderBottom: `2px dashed ${connectorColor}`,
-                            opacity: 0.6,
-                            pointerEvents: "none",
-                            zIndex: 0,
-                          }}
-                        />
-                      )}
-
-                      {/* Assembly bar */}
-                      {assemblyBarStyle && (
-                        <div
-                          style={assemblyBarStyle}
-                          onMouseDown={(e) => handleAssemblyMouseDown(e, "move", order._id)}
-                          onMouseEnter={(e) => {
-                            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setHoveredOrder(order);
-                            setHoveredType("assembly");
-                            setTooltipPos({
-                              x: rect.left + rect.width / 2 - 130,
-                              y: rect.bottom + window.scrollY + 8
-                            });
-                          }}
-                          onMouseLeave={() => {
-                            closeTimeoutRef.current = setTimeout(() => {
-                              setHoveredOrder(null);
-                              setHoveredType(null);
-                              setTooltipPos(null);
-                            }, 250);
-                          }}
-                        >
-                          {/* Resize left */}
-                          <div
-                            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
-                            onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-start", order._id); }}
-                          >
-                            <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
-                          </div>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center", pointerEvents: "none", fontSize: 10 }}>
-                            {isMutatingAssemblyId === order._id ? "⏳" : order.orderNumber}
-                          </span>
-                          {/* Resize right */}
-                          <div
-                            style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
-                            onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-end", order._id); }}
-                          >
-                            <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-
-                // ── Production row in right grid ──────────────────────
-                const order = row.order!;
-                const dates = localDates[order._id];
-                let barStyle: React.CSSProperties | null = null;
-
-                if (dates) {
-                  const startOffsetDays = getDaysDiff(timelineStart, dates.start);
-                  const durationDays = getDaysDiff(dates.start, dates.end) + 1;
-                  const left = startOffsetDays * dayWidth;
-                  const width = durationDays * dayWidth;
-
-                  // Production bar styling (consistent emerald green)
-                  const barGradient = "linear-gradient(135deg, #059669 0%, #047857 100%)";
-                  const barShadow = "0 2px 6px rgba(5, 150, 105, 0.25)";
-
-                  barStyle = {
-                    position: "absolute",
-                    left: left,
-                    width: width,
-                    height: 26,
-                    top: 9,
-                    borderRadius: 4,
-                    background: barGradient,
-                    boxShadow: barShadow,
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "0 10px",
-                    color: "white",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    cursor: "grab",
-                    userSelect: "none",
-                    zIndex: 1,
-                    transition: drag?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
-                  };
-                }
+                const PROD_TOP = 4;
+                const PROD_H = 22;
+                const ASM_TOP = 32;
+                const ASM_H = 18;
 
                 return (
                   <div
-                    key={`grid-order-${order._id}`}
+                    key={`grid-row-${order._id}`}
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #21262d",
@@ -1315,7 +868,7 @@ export function GanttPanelContent({
                       background: "#0d1117",
                     }}
                   >
-                    {/* Background day columns styling */}
+                    {/* Background day columns */}
                     {days.map((day) => (
                       <div
                         key={day.dateStr}
@@ -1323,142 +876,179 @@ export function GanttPanelContent({
                           width: dayWidth,
                           height: "100%",
                           flexShrink: 0,
-                          borderRight: "1px solid #161b22",
-                          background: "transparent",
+                          borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22",
+                          background: day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent",
                           pointerEvents: "none",
                         }}
                       />
                     ))}
 
-                    {/* Gantt Bar */}
-                    {barStyle && (
+                    {/* Production bar (top half) */}
+                    {hasProdBar && (
                       <div
-                        style={barStyle}
+                        style={{
+                          position: "absolute",
+                          left: prodBarLeft,
+                          width: prodBarWidth,
+                          height: PROD_H,
+                          top: PROD_TOP,
+                          borderRadius: 4,
+                          background: "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                          boxShadow: "0 2px 6px rgba(5, 150, 105, 0.25)",
+                          display: "flex",
+                          alignItems: "center",
+                          padding: "0 8px",
+                          color: "white",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          cursor: "grab",
+                          userSelect: "none",
+                          zIndex: 2,
+                          transition: drag?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
+                          overflow: "hidden",
+                        }}
                         onMouseDown={(e) => handleMouseDown(e, "move", order._id)}
                         onMouseEnter={(e) => {
                           if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
                           const rect = e.currentTarget.getBoundingClientRect();
                           setHoveredOrder(order);
                           setHoveredType("production");
-                          setTooltipPos({
-                            x: rect.left + rect.width / 2 - 130,
-                            y: rect.bottom + window.scrollY + 8
-                          });
+                          setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
                         }}
                         onMouseLeave={() => {
                           closeTimeoutRef.current = setTimeout(() => {
-                            setHoveredOrder(null);
-                            setHoveredType(null);
-                            setTooltipPos(null);
+                            setHoveredOrder(null); setHoveredType(null); setTooltipPos(null);
                           }, 250);
                         }}
                       >
-                        {/* Resize Left Handle */}
+                        {/* Resize left */}
                         <div
                           style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
                           onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "resize-start", order._id); }}
                         >
-                          <div style={{ width: 2, height: 12, background: "rgba(255, 255, 255, 0.4)", borderRadius: 1 }} />
+                          <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                         </div>
-
-                        {/* Text Content */}
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%", textAlign: "center", pointerEvents: "none" }}>
-                          {order.orderNumber}
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "center", pointerEvents: "none", fontSize: 10 }}>
+                          {isMutatingId === order._id ? "⏳" : `${order.orderNumber} · ${order.clientName}`}
                         </span>
-
-                        {/* Resize Right Handle */}
+                        {/* Resize right */}
                         <div
                           style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 6, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
                           onMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, "resize-end", order._id); }}
                         >
-                          <div style={{ width: 2, height: 12, background: "rgba(255, 255, 255, 0.4)", borderRadius: 1 }} />
+                          <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                         </div>
                       </div>
                     )}
 
-                    {/* Delivery Date Visual Indicator */}
-                    {(() => {
-                      // During drag: compute delivery date live from current localDates.end
-                      // After drag: fall back to DB deliveryDate
-                      const isDraggingThis = drag && drag.orderId === order._id;
-                      const liveDeliveryDate = (isDraggingThis && dates)
-                        ? addWorkingDays(dates.end, 2)
-                        : order.deliveryDate;
+                    {/* Assembly bar (bottom half) */}
+                    {hasAsmBar && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: asmBarLeft,
+                          width: asmBarWidth,
+                          height: ASM_H,
+                          top: ASM_TOP,
+                          borderRadius: 3,
+                          background: "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)",
+                          boxShadow: "0 2px 6px rgba(234, 88, 12, 0.2)",
+                          display: "flex",
+                          alignItems: "center",
+                          padding: "0 6px",
+                          color: "white",
+                          fontSize: 9,
+                          fontWeight: 600,
+                          cursor: "grab",
+                          userSelect: "none",
+                          zIndex: 2,
+                          transition: dragAssembly?.orderId === order._id ? "none" : "left 0.1s, width 0.1s",
+                          overflow: "hidden",
+                        }}
+                        onMouseDown={(e) => handleAssemblyMouseDown(e, "move", order._id)}
+                        onMouseEnter={(e) => {
+                          if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setHoveredOrder(order);
+                          setHoveredType("assembly");
+                          setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
+                        }}
+                        onMouseLeave={() => {
+                          closeTimeoutRef.current = setTimeout(() => {
+                            setHoveredOrder(null); setHoveredType(null); setTooltipPos(null);
+                          }, 250);
+                        }}
+                      >
+                        {/* Resize left */}
+                        <div
+                          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 5, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-start", order._id); }}
+                        >
+                          <div style={{ width: 2, height: 8, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
+                        </div>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "center", pointerEvents: "none" }}>
+                          {isMutatingAssemblyId === order._id ? "⏳" : order.orderNumber}
+                        </span>
+                        {/* Resize right */}
+                        <div
+                          style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 5, cursor: "ew-resize", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          onMouseDown={(e) => { e.stopPropagation(); handleAssemblyMouseDown(e, "resize-end", order._id); }}
+                        >
+                          <div style={{ width: 2, height: 8, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
+                        </div>
+                      </div>
+                    )}
 
-                      if (!liveDeliveryDate) return null;
-
-                      const deliveryOffsetDays = getDaysDiff(timelineStart, liveDeliveryDate);
-                      const isDeliveryVisible = deliveryOffsetDays >= 0 && deliveryOffsetDays < 30;
-
-                      if (!isDeliveryVisible) return null;
-
-                      const prodEndOffsetDays = dates ? getDaysDiff(timelineStart, dates.end) : -999;
-                      const diffFromProdEnd = dates ? getDaysDiff(dates.end, liveDeliveryDate) : -999;
-
-                      // Warn if delivery is before end of production or > 2 working days after
-                      const isWarning = dates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
-                      const deliveryColor = isWarning ? "#ef4444" : "#10b981";
-
-                      return (
-                        <>
-                          {/* Dashed line connecting production end to delivery date */}
-                          {dates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                left: (prodEndOffsetDays + 1) * dayWidth,
-                                width: (deliveryOffsetDays - prodEndOffsetDays - 1) * dayWidth + (dayWidth / 2),
-                                height: 2,
-                                borderBottom: `2px dashed ${deliveryColor}`,
-                                top: 21,
-                                zIndex: 0,
-                                opacity: 0.8,
-                                pointerEvents: "none",
-                              }}
-                            />
-                          )}
-
-                          {/* Truck badge on delivery date */}
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: deliveryOffsetDays * dayWidth + (dayWidth / 2) - 8,
-                              top: 14,
-                              zIndex: 2,
-                              color: deliveryColor,
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              background: "#0d1117",
-                              borderRadius: "50%",
-                              padding: 2,
-                              border: `1px solid ${deliveryColor}`,
-                              boxShadow: `0 0 6px ${deliveryColor}40`,
-                            }}
-                            onMouseEnter={(e) => {
-                              if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHoveredOrder(order);
-                              setHoveredType("delivery");
-                              setTooltipPos({
-                                x: rect.left + rect.width / 2 - 130,
-                                y: rect.bottom + window.scrollY + 8
-                              });
-                            }}
-                            onMouseLeave={() => {
-                              closeTimeoutRef.current = setTimeout(() => {
-                                setHoveredOrder(null);
-                                setHoveredType(null);
-                                setTooltipPos(null);
-                              }, 250);
-                            }}
-                          >
-                            <Truck size={10} style={{ strokeWidth: 2.5 }} />
-                          </div>
-                        </>
-                      );
-                    })()}
+                    {/* Delivery truck indicator */}
+                    {isDeliveryVisible && (
+                      <>
+                        {prodDates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
+                          <div style={{
+                            position: "absolute",
+                            left: (prodEndOffsetDays + 1) * dayWidth,
+                            width: (deliveryOffsetDays - prodEndOffsetDays - 1) * dayWidth + dayWidth / 2,
+                            height: 2,
+                            borderBottom: `2px dashed ${deliveryColor}`,
+                            top: PROD_TOP + PROD_H / 2,
+                            zIndex: 1,
+                            opacity: 0.7,
+                            pointerEvents: "none",
+                          }} />
+                        )}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: deliveryOffsetDays * dayWidth + dayWidth / 2 - 8,
+                            top: PROD_TOP,
+                            zIndex: 3,
+                            color: deliveryColor,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "#0d1117",
+                            borderRadius: "50%",
+                            padding: 2,
+                            border: `1px solid ${deliveryColor}`,
+                            boxShadow: `0 0 6px ${deliveryColor}40`,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setHoveredOrder(order);
+                            setHoveredType("delivery");
+                            setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
+                          }}
+                          onMouseLeave={() => {
+                            closeTimeoutRef.current = setTimeout(() => {
+                              setHoveredOrder(null); setHoveredType(null); setTooltipPos(null);
+                            }, 250);
+                          }}
+                        >
+                          <Truck size={10} style={{ strokeWidth: 2.5 }} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
