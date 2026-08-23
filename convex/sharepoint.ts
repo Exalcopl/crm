@@ -1888,20 +1888,25 @@ export const uploadPartnerFileToOrder = internalAction({
     }
     if (!order) throw new Error("Nie znaleziono zlecenia.");
 
+    const targetOrderId = order._id;
+
     let sp = order.sharepoint;
     if (!sp?.driveId || !sp?.subfolderItemId) {
       for (let attempt = 0; attempt < 10; attempt++) {
         await new Promise((r) => setTimeout(r, 1000));
-        order = await ctx.runQuery(internal.orders._getInternal, { orderId: order._id });
-        sp = order?.sharepoint;
-        if (sp?.driveId && sp?.subfolderItemId) break;
+        const refetched = await ctx.runQuery(internal.orders._getInternal, { orderId: targetOrderId });
+        sp = refetched?.sharepoint;
+        if (sp?.driveId && sp?.subfolderItemId) {
+          order = refetched;
+          break;
+        }
       }
     }
 
     if (!sp?.driveId || !sp?.subfolderItemId) {
       try {
-        await ctx.runAction(internal.sharepoint.createFolderForOrder, { orderId: order._id });
-        order = await ctx.runQuery(internal.orders._getInternal, { orderId: order._id });
+        await ctx.runAction(internal.sharepoint.createFolderForOrder, { orderId: targetOrderId });
+        order = await ctx.runQuery(internal.orders._getInternal, { orderId: targetOrderId });
         sp = order?.sharepoint;
       } catch (e) {
         console.error("Błąd synchronicznego tworzenia folderu SharePoint:", e);
@@ -1964,7 +1969,7 @@ export const uploadPartnerFileToOrder = internalAction({
 
     // 4. Log order activity
     await ctx.runMutation(internal.orders.logFileActivity, {
-      orderId: order._id,
+      orderId: targetOrderId,
       title: "Przesłano dokument przez API",
       detail: `Dodano plik ${prefixedName} do głównego folderu zlecenia w SharePoint`,
     });
