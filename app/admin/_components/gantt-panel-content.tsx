@@ -1052,8 +1052,9 @@ export function GanttPanelContent({
                       key={`grid-client-${row.clientName}-${idx}`}
                       style={{
                         height: 28,
-                        background: "#0d1117",
-                        borderBottom: "1px solid #21262d",
+                        background: "#080c10",
+                        borderTop: idx === 0 ? "none" : "2px solid #30363d",
+                        borderBottom: "1px solid #30363d",
                         display: "flex",
                         position: "relative",
                       }}
@@ -1065,8 +1066,8 @@ export function GanttPanelContent({
                             width: dayWidth,
                             height: "100%",
                             flexShrink: 0,
-                            borderRight: "1px solid #161b22",
-                            background: "transparent",
+                            borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22",
+                            background: day.isWeekend ? "rgba(255,255,255,0.02)" : "transparent",
                             pointerEvents: "none",
                           }}
                         />
@@ -1082,10 +1083,12 @@ export function GanttPanelContent({
                       key={`grid-hdr-${row.order!._id}`}
                       style={{
                         height: 28,
-                        background: "#0d1117",
-                        borderBottom: "1px solid #21262d",
+                        background: "#0d1520",
+                        borderTop: "1px solid #1c2e44",
+                        borderBottom: "1px solid #1c2e44",
                         display: "flex",
                         position: "relative",
+                        borderLeft: "3px solid #1d4ed8",
                       }}
                     >
                       {days.map((day) => (
@@ -1095,8 +1098,8 @@ export function GanttPanelContent({
                             width: dayWidth,
                             height: "100%",
                             flexShrink: 0,
-                            borderRight: "1px solid #161b22",
-                            background: "transparent",
+                            borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22",
+                            background: day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent",
                             pointerEvents: "none",
                           }}
                         />
@@ -1164,6 +1167,7 @@ export function GanttPanelContent({
                       style={{
                         height: rowHeight,
                         borderBottom: "1px solid #21262d",
+                        borderLeft: "3px solid #7c2d12",
                         display: "flex",
                         position: "relative",
                         background: "#0d1117",
@@ -1308,6 +1312,7 @@ export function GanttPanelContent({
                     style={{
                       height: rowHeight,
                       borderBottom: "1px solid #21262d",
+                      borderLeft: "3px solid #064e3b",
                       display: "flex",
                       position: "relative",
                       background: "#0d1117",
