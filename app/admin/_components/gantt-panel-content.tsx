@@ -759,10 +759,11 @@ export function GanttPanelContent({
                 ))}
               </div>
 
-              {/* Row 2: Days Header */}
+              {/* Row 2: Days Header with Capacity Badges */}
               <div style={{ display: "flex", height: 32 }}>
                 {days.map((day) => {
                   const loadCount = dayCapacity[day.dateStr] || 0;
+                  const capColor = loadCount >= 5 ? "#ef4444" : loadCount >= 3 ? "#f59e0b" : loadCount >= 1 ? "#10b981" : "transparent";
                   return (
                     <div
                       key={day.dateStr}
@@ -778,10 +779,29 @@ export function GanttPanelContent({
                         color: day.isToday ? "#38bdf8" : day.isWeekend ? "#475569" : "#94a3b8",
                         position: "relative"
                       }}
-                      title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji`}
+                      title={`${day.dateStr}: Obciążenie (capacity) ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji`}
                     >
-                      <span style={{ fontSize: 9, textTransform: "uppercase", fontWeight: day.isToday ? 700 : 500 }}>{day.label}</span>
-                      <span style={{ fontSize: 12, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <span style={{ fontSize: 9, textTransform: "uppercase", fontWeight: day.isToday ? 700 : 500 }}>{day.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
+                      </div>
+                      {loadCount > 0 && (
+                        <span
+                          style={{
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: capColor,
+                            background: `${capColor}20`,
+                            border: `1px solid ${capColor}40`,
+                            borderRadius: 6,
+                            padding: "0 3px",
+                            lineHeight: "11px",
+                            marginTop: 1,
+                          }}
+                        >
+                          {loadCount}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -857,6 +877,18 @@ export function GanttPanelContent({
                 const ASM_TOP = 32;
                 const ASM_H = 18;
 
+                // Delivery pickup X coordinate
+                const deliveryX = isDeliveryVisible
+                  ? deliveryOffsetDays * dayWidth + dayWidth / 2
+                  : prodDates ? (prodEndOffsetDays + 1) * dayWidth : -1;
+
+                // Connector between Delivery pickup and Assembly start
+                const asmCenterX = hasAsmBar ? asmBarLeft : -1;
+                const showAssemblyConnector = deliveryX >= 0 && hasAsmBar && asmCenterX >= 0;
+                const isAssemblyBeforeDelivery = showAssemblyConnector && asmBarLeft < deliveryX;
+                const asmConnectorColor = isAssemblyBeforeDelivery ? "#ef4444" : "#ea580c";
+                const connectorCenterY = ASM_TOP + ASM_H / 2;
+
                 return (
                   <div
                     key={`grid-row-${order._id}`}
@@ -882,6 +914,42 @@ export function GanttPanelContent({
                         }}
                       />
                     ))}
+
+                    {/* Connector line between Delivery/Pickup and Assembly Start */}
+                    {showAssemblyConnector && (
+                      <>
+                        {/* Vertical line from Delivery truck Y down to Assembly center Y */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: deliveryX - 1,
+                            top: PROD_TOP + PROD_H,
+                            width: 2,
+                            height: connectorCenterY - (PROD_TOP + PROD_H),
+                            borderLeft: `2px dashed ${asmConnectorColor}`,
+                            opacity: 0.8,
+                            pointerEvents: "none",
+                            zIndex: 1,
+                          }}
+                        />
+                        {/* Horizontal line from Delivery X to Assembly Start X */}
+                        {deliveryX !== asmBarLeft && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: Math.min(deliveryX, asmBarLeft),
+                              top: connectorCenterY - 1,
+                              width: Math.abs(asmBarLeft - deliveryX),
+                              height: 2,
+                              borderBottom: `2px dashed ${asmConnectorColor}`,
+                              opacity: 0.8,
+                              pointerEvents: "none",
+                              zIndex: 1,
+                            }}
+                          />
+                        )}
+                      </>
+                    )}
 
                     {/* Production bar (top half) */}
                     {hasProdBar && (
