@@ -107,6 +107,7 @@ export function GanttPanelContent({
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [scheduleFilter, setScheduleFilter] = useState<"all" | "production" | "assembly" | "unplanned">("all");
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
@@ -284,7 +285,13 @@ export function GanttPanelContent({
       }
     }
 
-    // (delivery date filter removed)
+    // Filter by schedule status (Produkcja / Montaż / Niezaplanowane)
+    const hasProd = !!(localDates[o._id] || (o.productionStartDate && o.productionEndDate));
+    const hasAsm = !!(localAssemblyDates[o._id] || (o.assemblyStartDate && o.assemblyEndDate));
+
+    if (scheduleFilter === "production" && !hasProd) return false;
+    if (scheduleFilter === "assembly" && !hasAsm) return false;
+    if (scheduleFilter === "unplanned" && (hasProd || hasAsm)) return false;
 
     return true;
   });
@@ -607,27 +614,43 @@ export function GanttPanelContent({
             </div>
           )}
 
-          {/* Month/Year selector */}
-          <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#161b22", border: "1px solid #30363d", borderRadius: 4, padding: "2px 8px" }}>
-            <Calendar size={13} style={{ color: "#58a6ff" }} />
-            <span style={{ fontSize: 11, color: "#8b949e" }}>Skocz do miesiąca:</span>
-            <input
-              type="month"
-              value={timelineStart.slice(0, 7)}
-              onChange={(e) => {
-                if (e.target.value) setTimelineStart(e.target.value + "-01");
-              }}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "#f0f6fc",
-                fontSize: 12,
-                fontWeight: 600,
-                outline: "none",
-                colorScheme: "dark",
-                cursor: "pointer",
-              }}
-            />
+          {/* Scheduling Status Filter Chips (Produkcja / Montaż / Niezaplanowane) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Stan planu:</span>
+            {[
+              { id: "all", label: "Wszystkie" },
+              { id: "production", label: "Z produkcją", color: "#059669" },
+              { id: "assembly", label: "Z montażem", color: "#ea580c" },
+              { id: "unplanned", label: "Niezaplanowane", color: "#475569" },
+            ].map((chip) => {
+              const isActive = scheduleFilter === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setScheduleFilter(chip.id as any)}
+                  style={{
+                    background: isActive ? (chip.color || "#2563eb") : "#21262d",
+                    color: isActive ? "#ffffff" : "#c9d1d9",
+                    border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
+                    borderRadius: 12,
+                    padding: "2px 10px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    transition: "all 0.15s",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  {chip.color && (
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#ffffff" : chip.color }} />
+                  )}
+                  {chip.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
