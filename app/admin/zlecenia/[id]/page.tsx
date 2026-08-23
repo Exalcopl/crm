@@ -1309,7 +1309,7 @@ export default function OrderDetailPage({
           <RibbonBtn
             icon={<I.arrowLeft s={22} />}
             label="Wróć"
-            onClick={() => router.push("/admin/zlecenia")}
+            onClick={() => router.back()}
           />
         </RibbonGroup>
         <RibbonGroup label="Widok">

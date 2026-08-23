@@ -735,7 +735,6 @@ export function GanttPanelContent({
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flex: 1 }}>
-                      <span style={{ fontSize: 12 }}>🏢</span>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {row.clientName}
                       </span>
@@ -781,7 +780,7 @@ export function GanttPanelContent({
                       {order.clientName}
                     </span>
                     {customLabel && (
-                      <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>🏷️</span>
+                      <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>[{customLabel}]</span>
                     )}
                   </div>
                   {/* Bottom line: dates and actions */}
@@ -816,11 +815,11 @@ export function GanttPanelContent({
                           type="button"
                           title="Centruj na produkcji"
                           onClick={(e) => { e.stopPropagation(); setTimelineStart(addDays(prodDates.start, -5)); }}
-                          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 11, padding: "1px 3px", color: "#475569" }}
+                          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 10, padding: "1px 4px", color: "#475569", fontWeight: 600 }}
                           onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
                           onMouseLeave={(ev) => (ev.currentTarget.style.color = "#475569")}
                         >
-                          🎯
+                          Pokaż
                         </button>
                       )}
                     </div>
