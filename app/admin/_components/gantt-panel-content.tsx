@@ -306,6 +306,8 @@ export function GanttPanelContent({
     grouped[o.clientName].push(o);
   }
 
+  const sortedClients = Object.keys(grouped).sort((a, b) => a.localeCompare(b));
+
   interface RowItem {
     type: "client" | "order";
     clientName?: string;
