@@ -107,7 +107,6 @@ export function GanttPanelContent({
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [scheduleFilter, setScheduleFilter] = useState<"all" | "production" | "assembly" | "unplanned">("all");
   const [barMode, setBarMode] = useState<"all" | "production" | "assembly">("all");
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
@@ -285,14 +284,6 @@ export function GanttPanelContent({
         return false;
       }
     }
-
-    // Filter by schedule status (Produkcja / Montaż / Niezaplanowane)
-    const hasProd = !!(localDates[o._id] || (o.productionStartDate && o.productionEndDate));
-    const hasAsm = !!(localAssemblyDates[o._id] || (o.assemblyStartDate && o.assemblyEndDate));
-
-    if (scheduleFilter === "production" && !hasProd) return false;
-    if (scheduleFilter === "assembly" && !hasAsm) return false;
-    if (scheduleFilter === "unplanned" && (hasProd || hasAsm)) return false;
 
     return true;
   });
@@ -626,44 +617,7 @@ export function GanttPanelContent({
             </div>
           )}
 
-          {/* Scheduling Status Filter Chips (Produkcja / Montaż / Niezaplanowane) */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Stan planu:</span>
-            {[
-              { id: "all", label: "Wszystkie" },
-              { id: "production", label: "Z produkcją", color: "#059669" },
-              { id: "assembly", label: "Z montażem", color: "#ea580c" },
-              { id: "unplanned", label: "Niezaplanowane", color: "#475569" },
-            ].map((chip) => {
-              const isActive = scheduleFilter === chip.id;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setScheduleFilter(chip.id as any)}
-                  style={{
-                    background: isActive ? (chip.color || "#2563eb") : "#21262d",
-                    color: isActive ? "#ffffff" : "#c9d1d9",
-                    border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
-                    borderRadius: 12,
-                    padding: "2px 10px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    transition: "all 0.15s",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  {chip.color && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#ffffff" : chip.color }} />
-                  )}
-                  {chip.label}
-                </button>
-              );
-            })}
-          </div>
+
 
           {/* Bar Visibility Mode (Wszystkie / Wyłącznie produkcja / Wyłącznie montaż) */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
