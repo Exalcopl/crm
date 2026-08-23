@@ -1194,6 +1194,8 @@ export default function OrderDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const fromGantt = searchParams.get("from") === "gantt";
   const orderId = id as Id<"orders">;
 
   const order = useQuery(api.orders.get, { id: orderId });
@@ -1301,9 +1303,6 @@ export default function OrderDetailPage({
   const config = STATUS_CONFIG[currentStatus];
   const statuses = Object.keys(STATUS_CONFIG) as OrderStatus[];
   const statusIndex = statuses.indexOf(currentStatus);
-
-  const searchParams = useSearchParams();
-  const fromGantt = searchParams.get("from") === "gantt";
 
   const handleBack = () => {
     if (fromGantt) {

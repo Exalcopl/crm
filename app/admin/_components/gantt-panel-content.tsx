@@ -1220,7 +1220,7 @@ export function GanttPanelContent({
                     {/* Delivery truck indicator */}
                     {isDeliveryVisible && (
                       <>
-                        {prodDates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
+                        {barMode === "all" && prodDates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
                           <div style={{
                             position: "absolute",
                             left: (prodEndOffsetDays + 1) * dayWidth,
