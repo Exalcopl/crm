@@ -993,7 +993,6 @@ export function GanttPanelContent({
               <div style={{ display: "flex", height: 32 }}>
                 {days.map((day) => {
                   const loadCount = dayCapacity[day.dateStr] || 0;
-                  const cap = getCapacityColor(loadCount);
                   return (
                     <div
                       key={day.dateStr}
@@ -1005,17 +1004,13 @@ export function GanttPanelContent({
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        background: day.isToday 
-                          ? "rgba(56, 189, 248, 0.12)" 
-                          : day.isWeekend 
-                          ? "#0d1117" 
-                          : "transparent",
-                        color: day.isToday ? "#38bdf8" : day.isWeekend ? "#64748b" : "#cbd5e1",
+                        background: "transparent",
+                        color: day.isToday ? "#38bdf8" : day.isWeekend ? "#475569" : "#94a3b8",
                         position: "relative"
                       }}
-                      title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji (${cap.label})`}
+                      title={`${day.dateStr}: ${loadCount} ${loadCount === 1 ? "zlecenie" : loadCount < 5 ? "zlecenia" : "zleceń"} w produkcji`}
                     >
-                      <span style={{ fontSize: 9, textTransform: "uppercase" }}>{day.label}</span>
+                      <span style={{ fontSize: 9, textTransform: "uppercase", fontWeight: day.isToday ? 700 : 500 }}>{day.label}</span>
                       <span style={{ fontSize: 12, fontWeight: day.isToday ? 700 : 500 }}>{day.dayNum}</span>
                     </div>
                   );
@@ -1038,8 +1033,8 @@ export function GanttPanelContent({
                         bottom: 0,
                         left: todayIndex * dayWidth + (dayWidth / 2) - 1,
                         width: 2,
-                        background: "#ef4444",
-                        boxShadow: "0 0 8px #ef4444",
+                        background: "#38bdf8",
+                        boxShadow: "0 0 6px rgba(56, 189, 248, 0.4)",
                         zIndex: 2,
                         pointerEvents: "none",
                       }}
@@ -1058,44 +1053,7 @@ export function GanttPanelContent({
                       style={{
                         height: 28,
                         background: "#0d1117",
-                        borderBottom: "1px solid #30363d",
-                        display: "flex",
-                        position: "relative",
-                      }}
-                    >
-                      {days.map((day) => {
-                        const loadCount = dayCapacity[day.dateStr] || 0;
-                        const cap = getCapacityColor(loadCount);
-                        return (
-                          <div
-                            key={day.dateStr}
-                            style={{
-                              width: dayWidth,
-                              height: "100%",
-                              flexShrink: 0,
-                              borderRight: "1px solid #21262d",
-                              background: day.isWeekend 
-                                ? "#0d1117" 
-                                : "transparent",
-                              pointerEvents: "none",
-                              opacity: 0.4
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  );
-                }
-
-                // ── Order Header Row in right grid ─────────────────────
-                if (row.type === "order-header") {
-                  return (
-                    <div
-                      key={`grid-hdr-${row.order!._id}`}
-                      style={{
-                        height: 28,
-                        background: "#11161d",
-                        borderBottom: "1px solid #30363d",
+                        borderBottom: "1px solid #21262d",
                         display: "flex",
                         position: "relative",
                       }}
@@ -1107,8 +1065,38 @@ export function GanttPanelContent({
                             width: dayWidth,
                             height: "100%",
                             flexShrink: 0,
-                            borderRight: "1px solid #1b222d",
-                            background: day.isWeekend ? "#0d1117" : "transparent",
+                            borderRight: "1px solid #161b22",
+                            background: "transparent",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+
+                // ── Order Header Row in right grid ─────────────────────
+                if (row.type === "order-header") {
+                  return (
+                    <div
+                      key={`grid-hdr-${row.order!._id}`}
+                      style={{
+                        height: 28,
+                        background: "#0d1117",
+                        borderBottom: "1px solid #21262d",
+                        display: "flex",
+                        position: "relative",
+                      }}
+                    >
+                      {days.map((day) => (
+                        <div
+                          key={day.dateStr}
+                          style={{
+                            width: dayWidth,
+                            height: "100%",
+                            flexShrink: 0,
+                            borderRight: "1px solid #161b22",
+                            background: "transparent",
                             pointerEvents: "none",
                           }}
                         />
@@ -1137,17 +1125,9 @@ export function GanttPanelContent({
                     const dur = getDaysDiff(aDates.start, aDates.end) + 1;
                     assemblyStartX = startOff * dayWidth;
 
-                    // Capacity-based color – same logic as production bar
-                    const maxConcurrencyAsm = getMaxConcurrency(aDates.start, aDates.end);
-                    let asmGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green
-                    let asmShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
-                    if (maxConcurrencyAsm >= 5) {
-                      asmGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red
-                      asmShadow = "0 2px 8px rgba(248, 81, 73, 0.4)";
-                    } else if (maxConcurrencyAsm >= 3) {
-                      asmGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange
-                      asmShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
-                    }
+                    // Assembly bar styling (consistent warm amber)
+                    const asmGradient = "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)";
+                    const asmShadow = "0 2px 6px rgba(234, 88, 12, 0.25)";
 
                     assemblyBarStyle = {
                       position: "absolute",
@@ -1183,10 +1163,10 @@ export function GanttPanelContent({
                       key={`grid-asm-${order._id}`}
                       style={{
                         height: rowHeight,
-                        borderBottom: "1px solid #161b22",
+                        borderBottom: "1px solid #21262d",
                         display: "flex",
                         position: "relative",
-                        background: "#080c10",
+                        background: "#0d1117",
                       }}
                     >
                       {/* Background day columns */}
@@ -1296,17 +1276,9 @@ export function GanttPanelContent({
                   const left = startOffsetDays * dayWidth;
                   const width = durationDays * dayWidth;
 
-                  const maxConcurrency = getMaxConcurrency(dates.start, dates.end);
-                  let barGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green (Niskie)
-                  let barShadow = "0 2px 8px rgba(16, 185, 129, 0.3)";
-
-                  if (maxConcurrency >= 5) {
-                    barGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red (Przeciążenie)
-                    barShadow = "0 2px 8px rgba(248, 81, 73, 0.4)";
-                  } else if (maxConcurrency >= 3) {
-                    barGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange (Wysokie)
-                    barShadow = "0 2px 8px rgba(245, 158, 11, 0.3)";
-                  }
+                  // Production bar styling (consistent emerald green)
+                  const barGradient = "linear-gradient(135deg, #059669 0%, #047857 100%)";
+                  const barShadow = "0 2px 6px rgba(5, 150, 105, 0.25)";
 
                   barStyle = {
                     position: "absolute",
@@ -1338,28 +1310,23 @@ export function GanttPanelContent({
                       borderBottom: "1px solid #21262d",
                       display: "flex",
                       position: "relative",
+                      background: "#0d1117",
                     }}
                   >
                     {/* Background day columns styling */}
-                    {days.map((day) => {
-                      const loadCount = dayCapacity[day.dateStr] || 0;
-                      const cap = getCapacityColor(loadCount);
-                      return (
-                        <div
-                          key={day.dateStr}
-                          style={{
-                            width: dayWidth,
-                            height: "100%",
-                            flexShrink: 0,
-                            borderRight: "1px solid #21262d",
-                            background: day.isWeekend 
-                              ? "#0d1117" 
-                              : "transparent",
-                            pointerEvents: "none",
-                          }}
-                        />
-                      );
-                    })}
+                    {days.map((day) => (
+                      <div
+                        key={day.dateStr}
+                        style={{
+                          width: dayWidth,
+                          height: "100%",
+                          flexShrink: 0,
+                          borderRight: "1px solid #161b22",
+                          background: "transparent",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    ))}
 
                     {/* Gantt Bar */}
                     {barStyle && (
