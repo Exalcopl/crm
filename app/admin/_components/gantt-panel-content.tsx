@@ -633,19 +633,33 @@ export function GanttPanelContent({
       </div>
 
       {/* Capacity Legend Bar / Agenda */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory obciążenia (Produkcja i Montaż):</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
+        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Obciążenie Produkcji:</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
-          <span>Zielony: 1-2 zlecenia (Optymalne)</span>
+          <span>Zielony: 1-2</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
-          <span>Pomarańczowy: 3-4 zlecenia (Wysokie)</span>
+          <span>Pomarańczowy: 3-4</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
-          <span>Czerwony: 5+ zleceń (Przeciążenie)</span>
+          <span>Czerwony: 5+</span>
+        </div>
+
+        <span style={{ fontWeight: 600, color: "#c9d1d9", marginLeft: 20 }}>Obciążenie Montaży:</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
+          <span>Zielony: 1</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
+          <span>Pomarańczowy: 2</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
+          <span>Czerwony: 3+</span>
         </div>
       </div>
 
@@ -891,14 +905,14 @@ export function GanttPanelContent({
                   maxAsmConcurrency = getMaxAssemblyConcurrency(asmDates.start, asmDates.end);
                 }
 
-                // Dynamic capacity color logic for assembly card (same as production)
-                let asmGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green (Optymalne: 1-2 montaże)
+                // Dynamic capacity color logic for assembly card (Thresholds: 1=Green, 2=Orange, 3+=Red)
+                let asmGradient = "linear-gradient(135deg, #10b981 0%, #059669 100%)"; // Green (1 montaż)
                 let asmShadow = "0 2px 6px rgba(16, 185, 129, 0.25)";
-                if (maxAsmConcurrency >= 5) {
-                  asmGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red (Przeciążenie: 5+ montaży)
+                if (maxAsmConcurrency >= 3) {
+                  asmGradient = "linear-gradient(135deg, #f85149 0%, #da3633 100%)"; // Red (3+ montaży)
                   asmShadow = "0 2px 6px rgba(248, 81, 73, 0.35)";
-                } else if (maxAsmConcurrency >= 3) {
-                  asmGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange (Wysokie: 3-4 montaże)
+                } else if (maxAsmConcurrency >= 2) {
+                  asmGradient = "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"; // Orange (2 montaże)
                   asmShadow = "0 2px 6px rgba(245, 158, 11, 0.3)";
                 }
 
