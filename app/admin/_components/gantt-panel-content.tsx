@@ -245,6 +245,29 @@ export function GanttPanelContent({
     return maxCount;
   };
 
+  // Helper to calculate maximum concurrency for assembly range
+  const getMaxAssemblyConcurrency = (startStr: string, endStr: string) => {
+    let maxCount = 0;
+    const startD = new Date(startStr + "T00:00:00");
+    const endD = new Date(endStr + "T00:00:00");
+    const tempD = new Date(startD);
+    while (tempD <= endD) {
+      const dateStr = tempD.toISOString().split("T")[0];
+      let count = 0;
+      for (const o of productionOrders) {
+        const aDates = localAssemblyDates[o._id] || (o.assemblyStartDate && o.assemblyEndDate ? { start: o.assemblyStartDate, end: o.assemblyEndDate } : null);
+        if (aDates && dateStr >= aDates.start && dateStr <= aDates.end) {
+          count++;
+        }
+      }
+      if (count > maxCount) {
+        maxCount = count;
+      }
+      tempD.setDate(tempD.getDate() + 1);
+    }
+    return maxCount;
+  };
+
   // Filter orders by search term and selected project types
   const filteredOrders = productionOrders.filter((o) => {
     const matchesSearch =
@@ -611,22 +634,32 @@ export function GanttPanelContent({
 
       {/* Capacity Legend Bar / Agenda */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "8px 24px", background: "#161b22", borderBottom: "1px solid #30363d", fontSize: 11, color: "#8b949e", flexWrap: "wrap" }}>
-        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Kolory kart produkcji (Obciążenie):</span>
+        <span style={{ fontWeight: 600, color: "#c9d1d9" }}>Obciążenie Produkcji:</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 1px 3px rgba(16, 185, 129, 0.3)" }} />
-          <span>Zielony: 1-2 zlecenia (Optymalne)</span>
+          <span>Zielony: 1-2</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)", boxShadow: "0 1px 3px rgba(245, 158, 11, 0.3)" }} />
-          <span>Pomarańczowy: 3-4 zlecenia (Wysokie)</span>
+          <span>Pomarańczowy: 3-4</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #f85149 0%, #da3633 100%)", boxShadow: "0 1px 3px rgba(248, 81, 73, 0.3)" }} />
-          <span>Czerwony: 5+ zleceń (Przeciążenie)</span>
+          <span>Czerwony: 5+</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+
+        <span style={{ fontWeight: 600, color: "#c9d1d9", marginLeft: 16 }}>Obciążenie Montaży:</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)" }} />
-          <span>Montaż</span>
+          <span>Pomarańczowy: 1-2</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #d97706 0%, #b45309 100%)" }} />
+          <span>Bursztynowy: 3-4</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ display: "inline-block", width: 14, height: 8, borderRadius: 2, background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" }} />
+          <span>Czerwony: 5+</span>
         </div>
       </div>
 
@@ -864,10 +897,23 @@ export function GanttPanelContent({
                 let asmBarLeft = 0;
                 let asmBarWidth = 0;
                 let hasAsmBar = false;
+                let maxAsmConcurrency = 1;
                 if (asmDates) {
                   asmBarLeft = getDaysDiff(timelineStart, asmDates.start) * dayWidth;
                   asmBarWidth = (getDaysDiff(asmDates.start, asmDates.end) + 1) * dayWidth;
                   hasAsmBar = true;
+                  maxAsmConcurrency = getMaxAssemblyConcurrency(asmDates.start, asmDates.end);
+                }
+
+                // Dynamic capacity color logic for assembly card
+                let asmGradient = "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)"; // Optymalne (1-2 montaże: Pomarańczowy)
+                let asmShadow = "0 2px 6px rgba(234, 88, 12, 0.25)";
+                if (maxAsmConcurrency >= 5) {
+                  asmGradient = "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)"; // Przeciążenie (5+ montaży: Czerwony)
+                  asmShadow = "0 2px 6px rgba(220, 38, 38, 0.35)";
+                } else if (maxAsmConcurrency >= 3) {
+                  asmGradient = "linear-gradient(135deg, #d97706 0%, #b45309 100%)"; // Wysokie (3-4 montaże: Ciemnobursztynowy)
+                  asmShadow = "0 2px 6px rgba(217, 119, 6, 0.3)";
                 }
 
                 // Live delivery date
@@ -1030,8 +1076,8 @@ export function GanttPanelContent({
                           height: ASM_H,
                           top: ASM_TOP,
                           borderRadius: 3,
-                          background: "linear-gradient(135deg, #ea580c 0%, #c2410c 100%)",
-                          boxShadow: "0 2px 6px rgba(234, 88, 12, 0.2)",
+                          background: asmGradient,
+                          boxShadow: asmShadow,
                           display: "flex",
                           alignItems: "center",
                           padding: "0 6px",
