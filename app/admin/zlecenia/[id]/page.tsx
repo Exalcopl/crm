@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -1302,6 +1302,17 @@ export default function OrderDetailPage({
   const statuses = Object.keys(STATUS_CONFIG) as OrderStatus[];
   const statusIndex = statuses.indexOf(currentStatus);
 
+  const searchParams = useSearchParams();
+  const fromGantt = searchParams.get("from") === "gantt";
+
+  const handleBack = () => {
+    if (fromGantt) {
+      router.push("/admin/zlecenia?gantt=open");
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <>
       <div className="fluent-ribbon">
@@ -1309,7 +1320,7 @@ export default function OrderDetailPage({
           <RibbonBtn
             icon={<I.arrowLeft s={22} />}
             label="Wróć"
-            onClick={() => router.back()}
+            onClick={handleBack}
           />
         </RibbonGroup>
         <RibbonGroup label="Widok">

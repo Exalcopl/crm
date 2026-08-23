@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -1420,13 +1420,21 @@ export function CalendarPanel() {
   const [isCompanyOpen, setIsCompanyOpen] = useState(false);
   const [isGanttOpen, setIsGanttOpen] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams?.get("gantt") === "open") {
+      setIsGanttOpen(true);
+    }
+  }, [searchParams]);
 
   function handleOpenOrder(orderId: Id<"orders">) {
+    const wasGanttOpen = isGanttOpen;
     setIsDrawerOpen(false);
     setOpen(false);
     setIsCompanyOpen(false);
     setIsGanttOpen(false);
-    router.push(`/admin/zlecenia/${orderId}`);
+    router.push(`/admin/zlecenia/${orderId}${wasGanttOpen ? "?from=gantt" : ""}`);
   }
   const [menuExpanded, setMenuExpanded] = useState(false);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
