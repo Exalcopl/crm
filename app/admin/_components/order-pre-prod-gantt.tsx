@@ -274,10 +274,10 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
           borderBottom: "1px solid #21262d", flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Calendar size={16} style={{ color: "#58a6ff" }} />
+            <Calendar size={16} style={{ color: "#d41d3c" }} />
             <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Etapy przedprodukcyjne</span>
             <span style={{ fontSize: 11, color: "#30363d" }}>·</span>
-            <span style={{ fontSize: 13, color: "#58a6ff", fontWeight: 700 }}>#{orderNumber}</span>
+            <span style={{ fontSize: 13, color: "#d41d3c", fontWeight: 700 }}>#{orderNumber}</span>
             <span style={{ fontSize: 13, color: "#8b949e" }}>{clientName}</span>
           </div>
 
@@ -313,12 +313,12 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
               onClick={activateAddRow}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
-                background: "rgba(56, 189, 248, 0.12)", color: "#38bdf8",
-                border: "1px solid rgba(56, 189, 248, 0.3)", borderRadius: 6,
+                background: "rgba(212, 29, 60, 0.12)", color: "#d41d3c",
+                border: "1px solid rgba(212, 29, 60, 0.3)", borderRadius: 6,
                 padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600,
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#38bdf8"; e.currentTarget.style.color = "#0d1117"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "rgba(56, 189, 248, 0.12)"; e.currentTarget.style.color = "#38bdf8"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#d41d3c"; e.currentTarget.style.color = "#0d1117"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(212, 29, 60, 0.12)"; e.currentTarget.style.color = "#d41d3c"; }}
             >
               <Plus size={13} /> Dodaj etap
             </button>
@@ -401,7 +401,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                         onBlur={() => commitTitle(step)}
                         onKeyDown={e => { if (e.key === "Enter") commitTitle(step); if (e.key === "Escape") setEditingId(null); }}
                         style={{
-                          flex: 1, background: "#161b22", border: "1px solid #38bdf8",
+                          flex: 1, background: "#161b22", border: "1px solid #d41d3c",
                           borderRadius: 4, padding: "3px 6px", color: "#f0f6fc", fontSize: 12, outline: "none",
                         }}
                       />
@@ -467,7 +467,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                               onClick={() => handleAssignee(step._id, u._id)}
                               style={{
                                 display: "flex", alignItems: "center", gap: 8, width: "100%",
-                                padding: "6px 10px", background: u._id === step.assigneeId ? "rgba(56,189,248,0.08)" : "none",
+                                padding: "6px 10px", background: u._id === step.assigneeId ? "rgba(212, 29, 60, 0.08)" : "none",
                                 border: "none", cursor: "pointer", color: "#c9d1d9", fontSize: 11,
                               }}
                             >
@@ -502,15 +502,15 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   height: ROW_HEIGHT, display: "flex", alignItems: "center", gap: 8,
                   padding: "0 12px",
                   borderBottom: "1px solid #161b22",
-                  background: isAddRowActive ? "rgba(56,189,248,0.04)" : "transparent",
+                  background: isAddRowActive ? "rgba(212, 29, 60, 0.04)" : "transparent",
                   cursor: isAddRowActive ? "default" : "pointer",
                   transition: "background 0.15s",
                 }}
                 onClick={() => { if (!isAddRowActive) activateAddRow(); }}
-                onMouseEnter={e => { if (!isAddRowActive) (e.currentTarget as HTMLElement).style.background = "rgba(56,189,248,0.03)"; }}
+                onMouseEnter={e => { if (!isAddRowActive) (e.currentTarget as HTMLElement).style.background = "rgba(212, 29, 60, 0.03)"; }}
                 onMouseLeave={e => { if (!isAddRowActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
               >
-                <span style={{ color: isAddRowActive ? "#38bdf8" : "#374151", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                <span style={{ color: isAddRowActive ? "#d41d3c" : "#374151", flexShrink: 0, display: "flex", alignItems: "center" }}>
                   <Plus size={13} />
                 </span>
                 {isAddRowActive ? (
@@ -527,14 +527,14 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       }}
                       style={{
                         flex: 1, background: "transparent", border: "none",
-                        borderBottom: "1px solid #38bdf8",
+                        borderBottom: "1px solid #d41d3c",
                         color: "#f0f6fc", fontSize: 12, padding: "2px 0", outline: "none",
                       }}
                     />
                     <button
                       type="button"
                       onMouseDown={e => { e.preventDefault(); void handleAddStep(); }}
-                      style={{ background: "#38bdf8", border: "none", borderRadius: 4, color: "#0d1117", fontSize: 10, fontWeight: 700, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}
+                      style={{ background: "#d41d3c", border: "none", borderRadius: 4, color: "#0d1117", fontSize: 10, fontWeight: 700, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}
                     >
                       Dodaj
                     </button>
@@ -572,10 +572,10 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   <div key={day.dateStr} style={{
                     width: DAY_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
                     borderRight: "1px solid #21262d",
-                    background: day.isToday ? "rgba(56,189,248,0.08)" : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent",
+                    background: day.isToday ? "rgba(212, 29, 60, 0.08)" : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent",
                   }}>
-                    <span style={{ fontSize: 9, color: day.isToday ? "#38bdf8" : day.isWeekend ? "#374151" : "#8b949e", fontWeight: 600 }}>{day.label}</span>
-                    <span style={{ fontSize: 11, color: day.isToday ? "#38bdf8" : day.isWeekend ? "#475569" : "#c9d1d9", fontWeight: day.isToday ? 800 : 400 }}>{day.dayNum}</span>
+                    <span style={{ fontSize: 9, color: day.isToday ? "#d41d3c" : day.isWeekend ? "#374151" : "#8b949e", fontWeight: 600 }}>{day.label}</span>
+                    <span style={{ fontSize: 11, color: day.isToday ? "#d41d3c" : day.isWeekend ? "#475569" : "#c9d1d9", fontWeight: day.isToday ? 800 : 400 }}>{day.dayNum}</span>
                   </div>
                 ))}
               </div>
@@ -599,7 +599,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   }
                 }
 
-                const barColor = step.done ? "#3fb950" : "#38bdf8";
+                const barColor = step.done ? "#3fb950" : "#d41d3c";
                 const isMutating = mutatingId === step._id;
 
                 return (
@@ -608,7 +608,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                     {days.map((day) => (
                       <div key={day.dateStr} style={{
                         width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: "1px solid #161b22",
-                        background: day.isToday ? "rgba(56,189,248,0.04)" : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent",
+                        background: day.isToday ? "rgba(212, 29, 60, 0.04)" : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent",
                       }} />
                     ))}
 
@@ -619,7 +619,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                           position: "absolute",
                           left: barLeft + 2, top: BAR_TOP,
                           width: barWidth - 4, height: BAR_H,
-                          background: step.done ? "rgba(63,185,80,0.2)" : "rgba(56,189,248,0.18)",
+                          background: step.done ? "rgba(63,185,80,0.2)" : "rgba(212, 29, 60, 0.18)",
                           border: `1px solid ${barColor}55`,
                           borderRadius: 5, cursor: "grab",
                           opacity: isMutating ? 0.6 : 1,
@@ -662,7 +662,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                             background: "#161b22", border: "1px dashed #30363d", borderRadius: 5,
                             color: "#475569", fontSize: 10, padding: "3px 10px", cursor: "pointer",
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#38bdf8"; e.currentTarget.style.color = "#38bdf8"; }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = "#d41d3c"; e.currentTarget.style.color = "#d41d3c"; }}
                           onMouseLeave={e => { e.currentTarget.style.borderColor = "#30363d"; e.currentTarget.style.color = "#475569"; }}
                         >
                           + Ustaw datę
@@ -675,7 +675,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
               {/* Add row placeholder in timeline — matches the ghost add row in left column */}
               {isAddRowActive && (
-                <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", borderBottom: "1px solid #161b22", background: "rgba(56,189,248,0.02)" }}>
+                <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", borderBottom: "1px solid #161b22", background: "rgba(212, 29, 60, 0.02)" }}>
                   {days.map(day => (
                     <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: "1px solid #161b22" }} />
                   ))}
