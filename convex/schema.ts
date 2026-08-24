@@ -250,7 +250,8 @@ export default defineSchema({
     title: v.string(),
     startDate: v.optional(v.string()),    // YYYY-MM-DD
     endDate: v.optional(v.string()),      // YYYY-MM-DD
-    assigneeId: v.optional(v.id("users")),
+    assigneeId: v.optional(v.id("users")), // backward compatibility
+    assigneeIds: v.optional(v.array(v.id("users"))),
     done: v.boolean(),
     order: v.number(),                    // kolejność na liście
     parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica

@@ -25,8 +25,8 @@ export const listAllWithAssignee = query({
       .query("orderPreProdSteps")
       .collect();
 
-    // Filtruj tylko te z przypisanym użytkownikiem
-    const withAssignee = steps.filter((s) => !!s.assigneeId);
+    // Filtruj tylko te z przypisanym użytkownikiem (zależnie od tego czy użyto assigneeId czy assigneeIds)
+    const withAssignee = steps.filter((s) => (s.assigneeIds && s.assigneeIds.length > 0) || !!s.assigneeId);
 
     // Pobierz unikalne zlecenia
     const orderIds = [...new Set(withAssignee.map((s) => s.orderId))];
@@ -37,13 +37,19 @@ export const listAllWithAssignee = query({
         .map((o) => [o!._id, { orderNumber: o!.orderNumber, clientName: o!.clientName }])
     );
 
-    return withAssignee.map((s) => ({
-      ...s,
-      orderNumber: ordersMap.get(s.orderId)?.orderNumber ?? "—",
-      clientName: ordersMap.get(s.orderId)?.clientName ?? "—",
-    }));
+    return withAssignee.map((s) => {
+      // normalizacja assigneeIds
+      const assigneeIds = s.assigneeIds ?? (s.assigneeId ? [s.assigneeId] : []);
+      return {
+        ...s,
+        assigneeIds,
+        orderNumber: ordersMap.get(s.orderId)?.orderNumber ?? "—",
+        clientName: ordersMap.get(s.orderId)?.clientName ?? "—",
+      };
+    });
   },
 });
+
 
 /** Dodaje nowe zadanie lub podzadanie */
 export const add = mutation({
@@ -106,14 +112,32 @@ export const setDone = mutation({
   },
 });
 
-/** Przypisuje osobę do zadania */
+/** Przypisuje osoby do zadania (tablica ID) */
+export const setAssigneeIds = mutation({
+  args: {
+    id: v.id("orderPreProdSteps"),
+    assigneeIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, { id, assigneeIds }) => {
+    await ctx.db.patch(id, {
+      assigneeIds,
+      assigneeId: assigneeIds.length > 0 ? assigneeIds[0] : undefined,
+    });
+  },
+});
+
+/** Przypisuje osobę do zadania (legacy single) */
 export const setAssignee = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
     assigneeId: v.union(v.id("users"), v.null()),
   },
   handler: async (ctx, { id, assigneeId }) => {
-    await ctx.db.patch(id, { assigneeId: assigneeId ?? undefined });
+    const ids = assigneeId ? [assigneeId] : [];
+    await ctx.db.patch(id, {
+      assigneeId: assigneeId ?? undefined,
+      assigneeIds: ids,
+    });
   },
 });
 

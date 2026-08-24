@@ -1349,15 +1349,15 @@ export default function OrderDetailPage({
             onClick={() => setActiveView("szczegoly")}
           />
           <RibbonBtn
+            icon={<I.cal s={22} />}
+            label={`Zadania${preProdCount > 0 ? ` (${preProdCount})` : " (0)"}`}
+            onClick={() => setShowPreProdGantt(true)}
+          />
+          <RibbonBtn
             icon={<I.rw s={22} />}
             label="Rozchód (RW)"
             active={activeView === "rw"}
             onClick={() => setActiveView("rw")}
-          />
-          <RibbonBtn
-            icon={<I.cal s={22} />}
-            label={`Zadania${preProdCount > 0 ? ` (${preProdCount})` : " (0)"}`}
-            onClick={() => setShowPreProdGantt(true)}
           />
         </RibbonGroup>
         <RibbonGroup label="Operacje">

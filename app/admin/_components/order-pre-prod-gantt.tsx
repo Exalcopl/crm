@@ -40,11 +40,18 @@ type Step = {
   startDate?: string;
   endDate?: string;
   assigneeId?: Id<"users">;
+  assigneeIds?: Id<"users">[];
   done: boolean;
   order: number;
   parentId?: Id<"orderPreProdSteps">;
   createdAt: number;
 };
+
+export function getStepAssigneeIds(step: Step): Id<"users">[] {
+  if (step.assigneeIds && step.assigneeIds.length > 0) return step.assigneeIds;
+  if (step.assigneeId) return [step.assigneeId];
+  return [];
+}
 
 type DragState = {
   type: "move" | "resize-start" | "resize-end";
@@ -64,8 +71,10 @@ function buildFlatRows(steps: Step[], filterUserId: Id<"users"> | null): FlatRow
   const result: FlatRow[] = [];
   for (const parent of parents) {
     const kids = childrenOf(parent._id);
-    const kidsFiltered = filterUserId ? kids.filter(c => c.assigneeId === filterUserId) : kids;
-    const parentMatches = !filterUserId || parent.assigneeId === filterUserId;
+    const kidsFiltered = filterUserId 
+      ? kids.filter(c => getStepAssigneeIds(c).includes(filterUserId)) 
+      : kids;
+    const parentMatches = !filterUserId || getStepAssigneeIds(parent).includes(filterUserId);
 
     if (parentMatches || kidsFiltered.length > 0) {
       result.push({ step: parent, depth: 0, parentStep: null });
@@ -106,7 +115,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   const updateDates = useMutation(api.orderPreProdSteps.updateDates);
   const updateTitle = useMutation(api.orderPreProdSteps.updateTitle);
   const setDone = useMutation(api.orderPreProdSteps.setDone);
-  const setAssignee = useMutation(api.orderPreProdSteps.setAssignee);
+  const setAssigneeIds = useMutation(api.orderPreProdSteps.setAssigneeIds);
   const removeStep = useMutation(api.orderPreProdSteps.remove);
 
   // ── Timeline
@@ -238,10 +247,16 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     setEditingId(null);
   }
 
-  async function handleAssignee(stepId: Id<"orderPreProdSteps">, userId: Id<"users"> | null) {
-    try { await setAssignee({ id: stepId, assigneeId: userId }); }
-    catch { toast.error("Błąd przypisania"); }
-    setAssigneeDropId(null);
+  async function handleToggleAssignee(step: Step, userId: Id<"users">) {
+    const currentIds = getStepAssigneeIds(step);
+    const newIds = currentIds.includes(userId)
+      ? currentIds.filter(id => id !== userId)
+      : [...currentIds, userId];
+    try {
+      await setAssigneeIds({ id: step._id, assigneeIds: newIds });
+    } catch {
+      toast.error("Błąd przypisania osoby");
+    }
   }
 
   async function handleQuickDate(step: Step) {
@@ -300,7 +315,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "#161b22", borderBottom: "1px solid #21262d", flexShrink: 0, zIndex: 50, position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Calendar size={16} style={{ color: PRIMARY }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Zadania przedprodukcyjne</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Zadania</span>
             <span style={{ fontSize: 11, color: "#30363d" }}>·</span>
             <span style={{ fontSize: 13, color: PRIMARY, fontWeight: 700 }}>#{orderNumber}</span>
             <span style={{ fontSize: 13, color: "#8b949e" }}>{clientName}</span>
@@ -442,29 +457,89 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       )}
                     </div>
 
-                    {/* Assignee */}
-                    <div style={{ position: "relative", flexShrink: 0, zIndex: isOpen ? 210 : 1 }}>
-                      <button type="button" onClick={e => { e.stopPropagation(); setAssigneeDropId(prev => prev === step._id ? null : step._id); }}
-                        title={assignee?.name ?? "Przypisz osobę"}
-                        style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${assignee ? color + "88" : "#30363d"}`, background: assignee ? `${color}22` : "#161b22", color: assignee ? color : "#475569", fontSize: 8, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {assignee ? assignee.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase() : <User size={10} />}
-                      </button>
-                      {isOpen && (
-                        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 9999, background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "6px 0", minWidth: 200, boxShadow: "0 12px 32px rgba(0,0,0,0.7)" }} onClick={e => e.stopPropagation()}>
-                          <div style={{ padding: "4px 10px 6px", fontSize: 10, color: "#8b949e", fontWeight: 600, borderBottom: "1px solid #21262d" }}>Przypisz osobę</div>
-                          {step.assigneeId && <button type="button" onClick={() => handleAssignee(step._id, null)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: "none", border: "none", cursor: "pointer", color: "#f85149", fontSize: 11, textAlign: "left" }}><X size={11} /> Usuń przypisanie</button>}
-                          {allUsers.map((u: any) => (
-                            <button key={u._id} type="button" onClick={() => handleAssignee(step._id, u._id)}
-                              style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: u._id === step.assigneeId ? `${PRIMARY}11` : "none", border: "none", cursor: "pointer", color: u._id === step.assigneeId ? PRIMARY : "#c9d1d9", fontSize: 11, textAlign: "left" }}>
-                              <span style={{ width: 22, height: 22, borderRadius: "50%", background: `${getUserColor(u._id)}22`, color: getUserColor(u._id), fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                {u.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                    {/* Assignees */}
+                    {(() => {
+                      const assigneeIds = getStepAssigneeIds(step);
+                      const assignees = assigneeIds.map(id => usersMap.get(id)).filter(Boolean);
+                      return (
+                        <div style={{ position: "relative", flexShrink: 0, zIndex: isOpen ? 210 : 1 }}>
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); setAssigneeDropId(prev => prev === step._id ? null : step._id); }}
+                            title={assignees.map(a => a?.name).join(", ") || "Przypisz osoby"}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}
+                          >
+                            {assignees.length === 0 ? (
+                              <span style={{ width: 24, height: 24, borderRadius: "50%", border: "2px dashed #30363d", background: "#161b22", color: "#475569", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <User size={10} />
                               </span>
-                              {u.name}
-                            </button>
-                          ))}
+                            ) : (
+                              <div style={{ display: "flex", alignItems: "center", marginLeft: -4 }}>
+                                {assignees.slice(0, 3).map((u, i) => {
+                                  const c = getUserColor(u!._id);
+                                  return (
+                                    <span
+                                      key={u!._id}
+                                      style={{
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: "50%",
+                                        border: `2px solid ${c}88`,
+                                        background: `${c}22`,
+                                        color: c,
+                                        fontSize: 8,
+                                        fontWeight: 800,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        marginLeft: i > 0 ? -8 : 0,
+                                        boxShadow: "0 0 0 2px #0d1117",
+                                      }}
+                                    >
+                                      {u!.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                    </span>
+                                  );
+                                })}
+                                {assignees.length > 3 && (
+                                  <span style={{ fontSize: 9, color: "#8b949e", fontWeight: 700, marginLeft: 4 }}>
+                                    +{assignees.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </button>
+
+                          {isOpen && (
+                            <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 9999, background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "6px 0", minWidth: 210, boxShadow: "0 12px 32px rgba(0,0,0,0.7)" }} onClick={e => e.stopPropagation()}>
+                              <div style={{ padding: "4px 10px 6px", fontSize: 10, color: "#8b949e", fontWeight: 600, borderBottom: "1px solid #21262d", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>Przypisz osoby</span>
+                                <span style={{ fontSize: 9, color: PRIMARY, fontWeight: 700 }}>{assigneeIds.length} wybrano</span>
+                              </div>
+                              {allUsers.map((u: any) => {
+                                const isAssigned = assigneeIds.includes(u._id);
+                                const color = getUserColor(u._id);
+                                return (
+                                  <button
+                                    key={u._id}
+                                    type="button"
+                                    onClick={() => handleToggleAssignee(step, u._id)}
+                                    style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "7px 10px", background: isAssigned ? `${PRIMARY}15` : "none", border: "none", cursor: "pointer", color: isAssigned ? PRIMARY : "#c9d1d9", fontSize: 11, textAlign: "left" }}
+                                  >
+                                    <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${isAssigned ? PRIMARY : "#475569"}`, background: isAssigned ? PRIMARY : "transparent", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 10, fontWeight: 800 }}>
+                                      {isAssigned ? "✓" : ""}
+                                    </span>
+                                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: `${color}22`, color, fontSize: 8, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                      {u.name?.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
+                                    </span>
+                                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* Add subtask button (only on top-level tasks) */}
                     {!isSubtask && (
@@ -595,11 +670,16 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                               {fmtDate(dates.start)} → {fmtDate(dates.end)} · {getDaysDiff(dates.start, dates.end) + 1}d
                             </span>
                             {/* Assignee row (only on parent bars with enough space) */}
-                            {!isSubtask && step.assigneeId && usersMap.get(step.assigneeId) && (
-                              <span style={{ fontSize: 10, color: `${getUserColor(step.assigneeId)}cc`, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                👤 {usersMap.get(step.assigneeId)?.name}
-                              </span>
-                            )}
+                            {!isSubtask && (() => {
+                              const aIds = getStepAssigneeIds(step);
+                              const aNames = aIds.map(id => usersMap.get(id)?.name).filter(Boolean);
+                              if (aNames.length === 0) return null;
+                              return (
+                                <span style={{ fontSize: 10, color: `${PRIMARY}ee`, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  👤 {aNames.join(", ")}
+                                </span>
+                              );
+                            })()}
                           </div>
 
                           {/* Resize right */}
