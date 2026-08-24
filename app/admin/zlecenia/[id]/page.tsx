@@ -12,6 +12,7 @@ import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
 import { OrderFileBrowser } from "./_components/order-file-browser";
 import { OrderRwView } from "./_components/order-rw-view";
+import { OrderPreProdGantt } from "../../_components/order-pre-prod-gantt";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
 import {
   getProjectTypeStyle,
@@ -1226,6 +1227,11 @@ export default function OrderDetailPage({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
   const [activeView, setActiveView] = useState<"szczegoly" | "rw">("szczegoly");
+  const [showPreProdGantt, setShowPreProdGantt] = useState(false);
+
+  // Liczba zadań przedprodukcyjnych dla tego zlecenia
+  const preProdSteps = useQuery(api.orderPreProdSteps.list, { orderId });
+  const preProdCount = preProdSteps?.length ?? 0;
 
   const archiveOrder = useMutation(api.orders.archive);
   const restoreOrder = useMutation(api.orders.restore);
@@ -1319,6 +1325,14 @@ export default function OrderDetailPage({
 
   return (
     <>
+      {showPreProdGantt && (
+        <OrderPreProdGantt
+          orderId={orderId}
+          orderNumber={order.orderNumber}
+          clientName={order.clientName}
+          onClose={() => setShowPreProdGantt(false)}
+        />
+      )}
       <div className="fluent-ribbon">
         <RibbonGroup label="Nawigacja">
           <RibbonBtn
@@ -1339,6 +1353,11 @@ export default function OrderDetailPage({
             label="Rozchód (RW)"
             active={activeView === "rw"}
             onClick={() => setActiveView("rw")}
+          />
+          <RibbonBtn
+            icon={<I.cal s={22} />}
+            label={`Zadania${preProdCount > 0 ? ` (${preProdCount})` : " (0)"}`}
+            onClick={() => setShowPreProdGantt(true)}
           />
         </RibbonGroup>
         <RibbonGroup label="Operacje">
