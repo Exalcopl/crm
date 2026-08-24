@@ -426,8 +426,8 @@ export const createPublicUploadSession = action({
 });
 
 export const createUploadSession = action({
-  args: { quoteId: v.id("quotes"), fileName: v.string() },
-  handler: async (ctx, { quoteId, fileName }) => {
+  args: { quoteId: v.id("quotes"), fileName: v.string(), targetFolderId: v.optional(v.string()) },
+  handler: async (ctx, { quoteId, fileName, targetFolderId }) => {
     const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
     const sp = quote?.sharepoint;
     if (!sp?.subfolderItemId || !sp?.driveId) {
@@ -443,8 +443,9 @@ export const createUploadSession = action({
 
     const token = await getGraphToken(tenantId, clientId, clientSecret);
     const encodedName = encodeURIComponent(fileName);
+    const folderToUse = targetFolderId || sp.subfolderItemId;
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/${encodedName}:/createUploadSession`,
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${folderToUse}:/${encodedName}:/createUploadSession`,
       {
         method: "POST",
         headers: {
@@ -464,6 +465,98 @@ export const createUploadSession = action({
 
     const data = (await res.json()) as { uploadUrl: string };
     return { uploadUrl: data.uploadUrl };
+  },
+});
+
+export const listQuoteFolderContents = action({
+  args: { quoteId: v.id("quotes"), folderId: v.optional(v.string()) },
+  handler: async (ctx, { quoteId, folderId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.subfolderItemId || !sp?.driveId) return [];
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) return [];
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    const targetFolderId = folderId || sp.subfolderItemId;
+    
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${targetFolderId}/children` +
+        `?$select=id,name,size,lastModifiedDateTime,file,folder,webUrl`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+
+    if (res.status === 404) {
+      if (!folderId) {
+        console.warn(`[sharepoint] Subfolder ${sp.subfolderItemId} wyceny ${quoteId} nie istnieje — czyszczę stan`);
+        await ctx.runMutation(internal.quotes._clearSharepoint, { quoteId });
+      }
+      return [];
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Graph list folder contents ${res.status}: ${text}`);
+    }
+
+    const data = (await res.json()) as {
+      value: Array<{
+        id: string;
+        name: string;
+        size: number;
+        lastModifiedDateTime: string;
+        file?: { mimeType: string };
+        folder?: any;
+        webUrl?: string;
+      }>;
+    };
+
+    return data.value.map((item) => ({
+      id: item.id,
+      name: item.name,
+      isFolder: !!item.folder,
+      size: item.size,
+      lastModifiedDateTime: item.lastModifiedDateTime,
+      mimeType: item.file?.mimeType ?? "",
+      url: item.webUrl,
+    }));
+  },
+});
+
+export const createQuoteFolder = action({
+  args: { quoteId: v.id("quotes"), parentFolderId: v.string(), name: v.string() },
+  handler: async (ctx, { quoteId, parentFolderId, name }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint dla tej wyceny");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) throw new Error("SharePoint nie jest skonfigurowany");
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    await ensureSubfolderById(token, sp.driveId, parentFolderId, name);
+  },
+});
+
+export const deleteQuoteItem = action({
+  args: { quoteId: v.id("quotes"), itemId: v.string() },
+  handler: async (ctx, { quoteId, itemId }) => {
+    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+    const sp = quote?.sharepoint;
+    if (!sp?.driveId) throw new Error("Brak folderu SharePoint dla tej wyceny");
+
+    const tenantId = process.env.MS_TENANT_ID;
+    const clientId = process.env.MS_CLIENT_ID;
+    const clientSecret = process.env.MS_CLIENT_SECRET;
+    if (!tenantId || !clientId || !clientSecret) throw new Error("SharePoint nie jest skonfigurowany");
+
+    const token = await getGraphToken(tenantId, clientId, clientSecret);
+    await deleteFolder(token, sp.driveId, itemId);
   },
 });
 
