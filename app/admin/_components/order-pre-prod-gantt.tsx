@@ -399,7 +399,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       height: ROW_HEIGHT, display: "flex", alignItems: "center", gap: 8,
                       padding: `0 12px 0 ${isSubtask ? 32 : 14}px`,
                       borderBottom: "1px solid #161b22",
-                      borderLeft: isSubtask ? `2px solid ${PRIMARY}33` : "2px solid transparent",
+                      borderLeft: isSubtask ? "2px solid rgba(255,255,255,0.2)" : "2px solid transparent",
                       background: step.done ? "rgba(63,185,80,0.03)" : index % 2 === 0 ? "#0d1117" : "#0f1318",
                       transition: "background 0.15s",
                       position: "relative",
@@ -412,7 +412,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
                     {/* Subtask tree connector */}
                     {isSubtask && (
-                      <div style={{ position: "absolute", left: 14, top: 0, bottom: "50%", width: 10, borderLeft: `1px dashed ${PRIMARY}44`, borderBottom: `1px dashed ${PRIMARY}44`, borderBottomLeftRadius: 4 }} />
+                      <div style={{ position: "absolute", left: 14, top: 0, bottom: "50%", width: 10, borderLeft: "1px dashed rgba(255,255,255,0.4)", borderBottom: "1px dashed rgba(255,255,255,0.4)", borderBottomLeftRadius: 4 }} />
                     )}
 
                     {/* Checkbox */}
