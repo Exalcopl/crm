@@ -34,9 +34,6 @@ type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane"
 const TABS: { id: DetailTab; label: string; icon: React.ReactNode }[] = [
   { id: "szczegoly", label: "Szczegóły", icon: <I.doc s={22} /> },
   { id: "pozycje", label: "Wycena", icon: <I.box s={22} /> },
-  { id: "pomiary", label: "Pomiary", icon: <I.ruler s={22} /> },
-  { id: "aktywnosc", label: "Aktywność", icon: <I.clock s={22} /> },
-  { id: "powiazane", label: "Powiązane", icon: <I.link s={22} /> },
 ];
 
 export default function QuoteDetailPage({
