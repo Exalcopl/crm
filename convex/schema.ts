@@ -253,8 +253,11 @@ export default defineSchema({
     assigneeId: v.optional(v.id("users")),
     done: v.boolean(),
     order: v.number(),                    // kolejność na liście
+    parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica
     createdAt: v.number(),
-  }).index("by_order", ["orderId"]),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_parent", ["parentId"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),

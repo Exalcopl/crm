@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-/** Pobiera wszystkie etapy przedprodukcyjne danego zlecenia, posortowane wg pola order */
+/** Pobiera wszystkie kroki (zadania + podzadania) zlecenia, posortowane wg pola order */
 export const list = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {
@@ -13,13 +13,14 @@ export const list = query({
   },
 });
 
-/** Dodaje nowy etap na końcu listy */
+/** Dodaje nowe zadanie lub podzadanie */
 export const add = mutation({
   args: {
     orderId: v.id("orders"),
     title: v.string(),
+    parentId: v.optional(v.id("orderPreProdSteps")),
   },
-  handler: async (ctx, { orderId, title }) => {
+  handler: async (ctx, { orderId, title, parentId }) => {
     const existing = await ctx.db
       .query("orderPreProdSteps")
       .withIndex("by_order", (q) => q.eq("orderId", orderId))
@@ -30,12 +31,13 @@ export const add = mutation({
       title: title.trim(),
       done: false,
       order: nextOrder,
+      parentId,
       createdAt: Date.now(),
     });
   },
 });
 
-/** Aktualizuje daty etapu (wywoływane po przeciągnięciu paska na osi czasu) */
+/** Aktualizuje daty zadania (wywoływane po przeciągnięciu paska na osi czasu) */
 export const updateDates = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
@@ -50,7 +52,7 @@ export const updateDates = mutation({
   },
 });
 
-/** Aktualizuje tytuł etapu */
+/** Aktualizuje tytuł zadania */
 export const updateTitle = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
@@ -61,7 +63,7 @@ export const updateTitle = mutation({
   },
 });
 
-/** Toggle ukończenia etapu */
+/** Toggle ukończenia zadania */
 export const setDone = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
@@ -72,7 +74,7 @@ export const setDone = mutation({
   },
 });
 
-/** Przypisuje osobę do etapu */
+/** Przypisuje osobę do zadania */
 export const setAssignee = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
@@ -83,7 +85,18 @@ export const setAssignee = mutation({
   },
 });
 
-/** Zmienia kolejność etapu */
+/** Ustawia rodzica (podzadanie) */
+export const setParent = mutation({
+  args: {
+    id: v.id("orderPreProdSteps"),
+    parentId: v.union(v.id("orderPreProdSteps"), v.null()),
+  },
+  handler: async (ctx, { id, parentId }) => {
+    await ctx.db.patch(id, { parentId: parentId ?? undefined });
+  },
+});
+
+/** Zmienia kolejność zadania */
 export const reorder = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
@@ -94,10 +107,18 @@ export const reorder = mutation({
   },
 });
 
-/** Usuwa etap */
+/** Usuwa zadanie (i jego podzadania) */
 export const remove = mutation({
   args: { id: v.id("orderPreProdSteps") },
   handler: async (ctx, { id }) => {
+    // Usuń podzadania
+    const children = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_parent", (q) => q.eq("parentId", id))
+      .collect();
+    for (const child of children) {
+      await ctx.db.delete(child._id);
+    }
     await ctx.db.delete(id);
   },
 });
