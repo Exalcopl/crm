@@ -331,14 +331,18 @@ export function GanttPanelContent({
     const start = todayStr;
     const end = addDays(start, 3); // 3 days default duration
     const delivery = addWorkingDays(end, 2); // Automatically +2 working days!
+    const asmStart = delivery; // Assembly starts on delivery/pickup day
+    const asmEnd = addDays(asmStart, 2); // 3 days default assembly duration
     try {
       await updateDates({ 
         id: orderId, 
         productionStartDate: start, 
         productionEndDate: end,
-        deliveryDate: delivery
+        deliveryDate: delivery,
+        assemblyStartDate: asmStart,
+        assemblyEndDate: asmEnd,
       });
-      toast.success("Zlecenie zaplanowane (termin produkcji i odbioru)");
+      toast.success("Zaplanowano produkcję, odbiór oraz montaż");
     } catch (e) {
       toast.error("Błąd planowania zlecenia");
     }
@@ -428,13 +432,23 @@ export function GanttPanelContent({
         try {
           // Auto-compute deliveryDate as +2 working days from the new production end
           const newDelivery = addWorkingDays(finalDates.end, 2);
+          const order = productionOrders.find((o) => o._id === mutatingId);
+          const existingAsmStart = order?.assemblyStartDate;
+          const existingAsmEnd = order?.assemblyEndDate;
+
+          // If assembly dates don't exist yet, auto-schedule assembly right after delivery
+          const newAsmStart = existingAsmStart || newDelivery;
+          const newAsmEnd = existingAsmEnd || addDays(newAsmStart, 2);
+
           await updateDates({
             id: mutatingId,
             productionStartDate: finalDates.start,
             productionEndDate: finalDates.end,
             deliveryDate: newDelivery,
+            assemblyStartDate: newAsmStart,
+            assemblyEndDate: newAsmEnd,
           });
-          toast.success("Zaktualizowano termin produkcji i odbioru");
+          toast.success("Zaktualizowano termin produkcji, odbioru i montażu");
         } catch (err) {
           // Revert to initial dates on failure
           setLocalDates(prev => ({
