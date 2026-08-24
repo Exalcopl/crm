@@ -572,7 +572,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   return (
                     <div key={step._id} style={{ display: "flex", position: "relative", height: ROW_HEIGHT, borderBottom: "1px solid #161b22", background: step.done ? "rgba(63,185,80,0.02)" : index % 2 === 0 ? "#0d1117" : "#0f1318" }}>
                       {days.map(day => (
-                        <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: "1px solid #161b22", background: day.isToday ? `${PRIMARY}05` : day.isWeekend ? "rgba(255,255,255,0.006)" : "transparent" }} />
+                        <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isToday ? `${PRIMARY}05` : day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />
                       ))}
 
                       {/* Bar */}
@@ -625,7 +625,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                 {/* Add row placeholder */}
                 {isAddRowActive && (
                   <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", borderBottom: "1px solid #161b22", background: `rgba(212,29,60,0.02)` }}>
-                    {days.map(day => <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: "1px solid #161b22" }} />)}
+                    {days.map(day => <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />)}
                   </div>
                 )}
 
