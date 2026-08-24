@@ -78,12 +78,12 @@ function buildFlatRows(steps: Step[], filterUserId: Id<"users"> | null): FlatRow
 }
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
-const DAY_WIDTH = 48;
-const ROW_HEIGHT = 68;
+const DAY_WIDTH = 52;
+const ROW_HEIGHT = 96;
 const LEFT_COL = 310;
 const HEADER_H = 38;
-const BAR_H = 26;
-const BAR_H_SUB = 18;
+const BAR_H = 58;
+const BAR_H_SUB = 42;
 const BAR_TOP = (ROW_HEIGHT - BAR_H) / 2;
 const BAR_TOP_SUB = (ROW_HEIGHT - BAR_H_SUB) / 2;
 const PRIMARY = "#d41d3c";
@@ -578,12 +578,31 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       {/* Bar */}
                       {dates && barWidth > 0 && (
                         <div
-                          style={{ position: "absolute", left: barLeft, top: barTop, width: barWidth, height: barH, background: step.done ? "linear-gradient(90deg,rgba(63,185,80,0.22),rgba(63,185,80,0.13))" : isSubtask ? `linear-gradient(90deg,rgba(212,29,60,0.20),rgba(212,29,60,0.11))` : `linear-gradient(90deg,rgba(212,29,60,0.30),rgba(212,29,60,0.18))`, border: `1px solid ${step.done ? "#3fb95055" : PRIMARY + (isSubtask ? "44" : "66")}`, borderRadius: isSubtask ? 4 : 6, cursor: "grab", opacity: isMutating ? 0.5 : 1, transition: "opacity 0.15s", display: "flex", alignItems: "center", userSelect: "none", boxShadow: step.done ? "0 1px 4px rgba(63,185,80,0.12)" : `0 1px 5px rgba(212,29,60,${isSubtask ? "0.10" : "0.18"})` }}
+                          style={{ position: "absolute", left: barLeft, top: barTop, width: barWidth, height: barH, background: step.done ? "linear-gradient(135deg,rgba(63,185,80,0.22),rgba(63,185,80,0.12))" : isSubtask ? `linear-gradient(135deg,rgba(212,29,60,0.22),rgba(212,29,60,0.12))` : `linear-gradient(135deg,rgba(212,29,60,0.32),rgba(212,29,60,0.18))`, border: `1px solid ${step.done ? "#3fb95066" : PRIMARY + (isSubtask ? "44" : "77")}`, borderRadius: isSubtask ? 5 : 7, cursor: "grab", opacity: isMutating ? 0.5 : 1, transition: "opacity 0.15s", display: "flex", flexDirection: "column", justifyContent: "center", userSelect: "none", overflow: "hidden", boxShadow: step.done ? "0 2px 8px rgba(63,185,80,0.14)" : `0 2px 8px rgba(212,29,60,${isSubtask ? "0.12" : "0.22"})` }}
                           onMouseDown={e => handleBarMouseDown(e, "move", step)}
                         >
+                          {/* Resize left */}
                           <div style={{ position: "absolute", left: 0, top: 0, width: 8, height: "100%", cursor: "ew-resize" }} onMouseDown={e => { e.stopPropagation(); handleBarMouseDown(e, "resize-start", step); }} />
-                          <span style={{ fontSize: isSubtask ? 10 : 11, color: step.done ? "#3fb950" : PRIMARY, fontWeight: 700, padding: "0 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{step.title}</span>
-                          <span style={{ fontSize: 9, color: step.done ? "#3fb95088" : `${PRIMARY}99`, padding: "0 6px", whiteSpace: "nowrap", flexShrink: 0 }}>{fmtDate(dates.start)} – {fmtDate(dates.end)}</span>
+
+                          {/* Bar content */}
+                          <div style={{ padding: "0 10px 0 12px", display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                            {/* Title row */}
+                            <span style={{ fontSize: isSubtask ? 11 : 13, color: step.done ? "#3fb950" : "#f0f6fc", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {step.done ? "✓ " : ""}{step.title}
+                            </span>
+                            {/* Date + duration row */}
+                            <span style={{ fontSize: 10, color: step.done ? "#3fb95099" : `${PRIMARY}cc`, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {fmtDate(dates.start)} → {fmtDate(dates.end)} · {getDaysDiff(dates.start, dates.end) + 1}d
+                            </span>
+                            {/* Assignee row (only on parent bars with enough space) */}
+                            {!isSubtask && step.assigneeId && usersMap.get(step.assigneeId) && (
+                              <span style={{ fontSize: 10, color: `${getUserColor(step.assigneeId)}cc`, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                👤 {usersMap.get(step.assigneeId)?.name}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Resize right */}
                           <div style={{ position: "absolute", right: 0, top: 0, width: 8, height: "100%", cursor: "ew-resize" }} onMouseDown={e => { e.stopPropagation(); handleBarMouseDown(e, "resize-end", step); }} />
                         </div>
                       )}
