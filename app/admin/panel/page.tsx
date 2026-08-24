@@ -734,24 +734,6 @@ function PreProdTaskCard({ step }: { step: PreProdStep }) {
           {step.done ? "✓ " : ""}
           {step.title}
         </span>
-
-        {/* Badge "Przedprodukcja" */}
-        <span
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            color: "#d41d3c",
-            background: "rgba(212,29,60,0.12)",
-            border: "1px solid rgba(212,29,60,0.3)",
-            padding: "1px 6px",
-            borderRadius: "4px",
-            whiteSpace: "nowrap",
-            letterSpacing: "0.04em",
-          }}
-        >
-          ⚙ Przedprodukcja
-        </span>
       </div>
 
       {/* Subline: order number + client */}
