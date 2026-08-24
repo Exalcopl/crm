@@ -978,7 +978,6 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
           </div>
         </div>
       </div>
-      <QuoteClientNoteBanner quote={quote} />
       <QuoteStatusPipeline
         currentIndex={statusIndex}
         disabled={archived}

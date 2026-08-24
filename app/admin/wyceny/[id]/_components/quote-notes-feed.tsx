@@ -132,22 +132,29 @@ export function QuoteNotesFeed({ quoteId, archived }: { quoteId: Id<"quotes">; a
           <div className="client-detail-notes-empty">Brak wpisów. Dodaj pierwszy powyżej.</div>
         )}
         {ordered?.map((n) => {
+          const isClientNote = !n.authorId;
           const mine = !!currentUserId && n.authorId === currentUserId;
-          const color = n.authorId ? getUserColor(n.authorId) : undefined;
+          const color = n.authorId ? getUserColor(n.authorId) : "#38bdf8";
           const isEditing = editId === n._id;
           const isConfirming = confirmId === n._id;
           return (
-            <article key={n._id} className="client-detail-note">
+            <article
+              key={n._id}
+              className="client-detail-note"
+              style={isClientNote ? { borderLeft: "3px solid #38bdf8", background: "rgba(56, 189, 248, 0.04)" } : undefined}
+            >
               <div
                 className="client-detail-note-avatar"
                 aria-hidden
-                style={color ? { background: `${color}22`, color, borderColor: `${color}55` } : undefined}
+                style={isClientNote ? { background: "rgba(56, 189, 248, 0.2)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" } : color ? { background: `${color}22`, color, borderColor: `${color}55` } : undefined}
               >
-                {ownerInitials(n.authorName)}
+                {isClientNote ? "📬" : ownerInitials(n.authorName)}
               </div>
               <div className="client-detail-note-body">
                 <div className="client-detail-note-head">
-                  <span className="client-detail-note-author">{n.authorName}</span>
+                  <span className="client-detail-note-author" style={isClientNote ? { color: "#38bdf8", fontWeight: 700 } : undefined}>
+                    {isClientNote ? "Notatka od klienta" : n.authorName}
+                  </span>
                   <span className="client-detail-note-time" title={new Date(n.createdAt).toLocaleString("pl-PL")}>
                     {relTime(n.createdAt)}
                   </span>
