@@ -347,7 +347,44 @@ export function GanttPanelContent({
       toast.error("Błąd planowania zlecenia");
     }
   };
-  // Remove dates (unplan order)
+
+  // Add default assembly dates to an order
+  const handleAddAssemblyDefault = async (orderId: Id<"orders">) => {
+    const order = productionOrders.find((o) => o._id === orderId);
+    const prodDates = localDates[orderId];
+    const delivery = prodDates?.end ? addWorkingDays(prodDates.end, 2) : order?.deliveryDate || todayStr;
+    const asmStart = delivery;
+    const asmEnd = addDays(asmStart, 2);
+    try {
+      await updateDates({
+        id: orderId,
+        assemblyStartDate: asmStart,
+        assemblyEndDate: asmEnd,
+      });
+      toast.success("Dodano termin montażu");
+    } catch (err) {
+      toast.error("Błąd dodawania terminu montażu");
+    }
+  };
+
+  // Remove assembly dates
+  const handleRemoveAssemblyDates = async (e: React.MouseEvent, orderId: Id<"orders">) => {
+    e.stopPropagation();
+    try {
+      await updateDates({
+        id: orderId,
+        assemblyStartDate: null,
+        assemblyEndDate: null,
+      });
+      toast.success("Usunięto termin montażu");
+      setHoveredOrder(null);
+      setTooltipPos(null);
+    } catch (err) {
+      toast.error("Błąd usuwania terminu montażu");
+    }
+  };
+
+  // Remove production dates (unplan order)
   const handleRemoveDates = async (e: React.MouseEvent, orderId: Id<"orders">) => {
     e.stopPropagation();
     try {
@@ -811,11 +848,11 @@ export function GanttPanelContent({
                       {asmDates ? `${getDaysDiff(asmDates.start, asmDates.end) + 1}d mont.` : "brak mont."}
                     </span>
                     {/* Actions */}
-                    <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-                      {!isPlanned && (
+                    <div style={{ marginLeft: "auto", display: "flex", gap: 3, alignItems: "center" }}>
+                      {!isPlanned ? (
                         <button
                           type="button"
-                          title="Zaplanuj produkcję"
+                          title="Zaplanuj produkcję i montaż"
                           onClick={(e) => { e.stopPropagation(); handleScheduleDefault(order._id); }}
                           style={{ background: "#064e3b", border: "1px solid #059669", borderRadius: 3, padding: "1px 6px", cursor: "pointer", color: "#6ee7b7", fontSize: 9, fontWeight: 600 }}
                           onMouseEnter={(e) => { e.currentTarget.style.background = "#059669"; e.currentTarget.style.color = "#fff"; }}
@@ -823,18 +860,31 @@ export function GanttPanelContent({
                         >
                           + Zaplanuj
                         </button>
-                      )}
-                      {prodDates && (
-                        <button
-                          type="button"
-                          title="Centruj na produkcji"
-                          onClick={(e) => { e.stopPropagation(); setTimelineStart(addDays(prodDates.start, -5)); }}
-                          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 10, padding: "1px 4px", color: "#475569", fontWeight: 600 }}
-                          onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
-                          onMouseLeave={(ev) => (ev.currentTarget.style.color = "#475569")}
-                        >
-                          Pokaż
-                        </button>
+                      ) : (
+                        <>
+                          {!asmDates && (
+                            <button
+                              type="button"
+                              title="Dodaj termin montażu"
+                              onClick={(e) => { e.stopPropagation(); handleAddAssemblyDefault(order._id); }}
+                              style={{ background: "#431407", border: "1px solid #ea580c", borderRadius: 3, padding: "1px 6px", cursor: "pointer", color: "#ffedd5", fontSize: 9, fontWeight: 600 }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = "#ea580c"; e.currentTarget.style.color = "#fff"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = "#431407"; e.currentTarget.style.color = "#ffedd5"; }}
+                            >
+                              + Montaż
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            title="Centruj na produkcji"
+                            onClick={(e) => { e.stopPropagation(); setTimelineStart(addDays(prodDates.start, -5)); }}
+                            style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 10, padding: "1px 4px", color: "#475569", fontWeight: 600 }}
+                            onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
+                            onMouseLeave={(ev) => (ev.currentTarget.style.color = "#475569")}
+                          >
+                            Pokaż
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -1442,40 +1492,108 @@ export function GanttPanelContent({
               </div>
             )}
 
-            {/* Remove production date button */}
-            <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, marginTop: 2 }}>
-              <button
-                type="button"
-                onClick={(e) => handleRemoveDates(e, hoveredOrder._id)}
-                style={{
-                  width: "100%",
-                  background: "rgba(248, 81, 73, 0.1)",
-                  color: "#f85149",
-                  border: "1px solid rgba(248, 81, 73, 0.2)",
-                  borderRadius: 4,
-                  padding: "5px 10px",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  transition: "all 0.2s"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f85149";
-                  e.currentTarget.style.color = "#ffffff";
-                  e.currentTarget.style.borderColor = "transparent";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "rgba(248, 81, 73, 0.1)";
-                  e.currentTarget.style.color = "#f85149";
-                  e.currentTarget.style.borderColor = "rgba(248, 81, 73, 0.2)";
-                }}
-              >
-                ✕ Usuń termin produkcji
-              </button>
+            {/* Remove or add date buttons depending on hovered card */}
+            <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, marginTop: 2, display: "flex", flexDirection: "column", gap: 4 }}>
+              {hoveredType === "assembly" ? (
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveAssemblyDates(e, hoveredOrder._id)}
+                  style={{
+                    width: "100%",
+                    background: "rgba(249, 115, 22, 0.1)",
+                    color: "#fb923c",
+                    border: "1px solid rgba(249, 115, 22, 0.3)",
+                    borderRadius: 4,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#f97316";
+                    e.currentTarget.style.color = "#ffffff";
+                    e.currentTarget.style.borderColor = "transparent";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(249, 115, 22, 0.1)";
+                    e.currentTarget.style.color = "#fb923c";
+                    e.currentTarget.style.borderColor = "rgba(249, 115, 22, 0.3)";
+                  }}
+                >
+                  ✕ Usuń termin montażu
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => handleRemoveDates(e, hoveredOrder._id)}
+                  style={{
+                    width: "100%",
+                    background: "rgba(248, 81, 73, 0.1)",
+                    color: "#f85149",
+                    border: "1px solid rgba(248, 81, 73, 0.2)",
+                    borderRadius: 4,
+                    padding: "5px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#f85149";
+                    e.currentTarget.style.color = "#ffffff";
+                    e.currentTarget.style.borderColor = "transparent";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(248, 81, 73, 0.1)";
+                    e.currentTarget.style.color = "#f85149";
+                    e.currentTarget.style.borderColor = "rgba(248, 81, 73, 0.2)";
+                  }}
+                >
+                  ✕ Usuń termin produkcji
+                </button>
+              )}
+
+              {/* If assembly dates are missing for this order, provide a quick button to add assembly */}
+              {!localAssemblyDates[hoveredOrder._id] && (
+                <button
+                  type="button"
+                  onClick={() => handleAddAssemblyDefault(hoveredOrder._id)}
+                  style={{
+                    width: "100%",
+                    background: "#431407",
+                    color: "#ffedd5",
+                    border: "1px solid #ea580c",
+                    borderRadius: 4,
+                    padding: "4px 10px",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 4,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#ea580c";
+                    e.currentTarget.style.color = "#ffffff";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#431407";
+                    e.currentTarget.style.color = "#ffedd5";
+                  }}
+                >
+                  + Dodaj termin montażu
+                </button>
+              )}
             </div>
           </div>
         );
