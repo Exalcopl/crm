@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragEndEvent,
@@ -26,6 +27,18 @@ type TaskWithQuote = Doc<"tasks"> & {
   quote: { code: string; contactName: string };
 };
 type TaskStatus = TaskWithQuote["status"];
+
+type PreProdStep = {
+  _id: string;
+  orderId: string;
+  title: string;
+  done: boolean;
+  endDate?: string;
+  assigneeId?: string;
+  orderNumber: string;
+  clientName: string;
+  parentId?: string;
+};
 
 const COLUMNS: { id: TaskStatus; label: string; accent: string }[] = [
   { id: "todo", label: "TODO", accent: "#8b949e" },
@@ -115,6 +128,14 @@ export default function PanelPage() {
     });
   }, [tasksRaw, selectedUserIds]);
 
+  // Pre-production steps
+  const preProdRaw = useQuery(api.orderPreProdSteps.listAllWithAssignee);
+  const filteredPreProd = useMemo(() => {
+    const steps = (preProdRaw ?? []) as PreProdStep[];
+    if (selectedUserIds.length === 0) return steps;
+    return steps.filter((s) => s.assigneeId && selectedUserIds.includes(s.assigneeId));
+  }, [preProdRaw, selectedUserIds]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -129,7 +150,16 @@ export default function PanelPage() {
     return map;
   }, [filteredTasks]);
 
-  if (tasksRaw === undefined || assigneesRaw === undefined || allUsersRaw === undefined || isLoading) {
+  const preProdByColumn = useMemo(() => {
+    const map: Record<"todo" | "done", PreProdStep[]> = { todo: [], done: [] };
+    for (const s of filteredPreProd) {
+      if (s.done) map.done.push(s);
+      else map.todo.push(s);
+    }
+    return map;
+  }, [filteredPreProd]);
+
+  if (tasksRaw === undefined || assigneesRaw === undefined || allUsersRaw === undefined || preProdRaw === undefined || isLoading) {
     return (
       <main className="fluent-content panel-page">
         <div style={{ padding: 45, textAlign: "center", color: "var(--fg-muted)", fontSize: "0.9rem" }}>
@@ -251,6 +281,7 @@ export default function PanelPage() {
                 col={col}
                 tasks={byColumn[col.id]}
                 assignees={assignees}
+                preProdSteps={col.id === "in_progress" ? [] : preProdByColumn[col.id as "todo" | "done"]}
               />
             ))}
           </div>
@@ -274,12 +305,15 @@ function PanelKanbanColumn({
   col,
   tasks,
   assignees,
+  preProdSteps = [],
 }: {
   col: { id: TaskStatus; label: string; accent: string };
   tasks: TaskWithQuote[];
   assignees: AssignableUser[];
+  preProdSteps?: PreProdStep[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const totalCount = tasks.length + preProdSteps.length;
 
   return (
     <div
@@ -290,20 +324,25 @@ function PanelKanbanColumn({
       <div className="quote-detail-tasks-col-head">
         <span className="quote-detail-tasks-col-dot" />
         <span className="quote-detail-tasks-col-label">{col.label}</span>
-        <span className="quote-detail-tasks-col-count">{tasks.length}</span>
+        <span className="quote-detail-tasks-col-count">{totalCount}</span>
       </div>
 
       <div className="quote-detail-tasks-col-body">
-        {tasks.length === 0 ? (
+        {totalCount === 0 ? (
           <div className="panel-col-empty">—</div>
         ) : (
-          tasks.map((t) => (
-            <PanelTaskCard
-              key={t._id as unknown as string}
-              task={t}
-              assignees={assignees}
-            />
-          ))
+          <>
+            {tasks.map((t) => (
+              <PanelTaskCard
+                key={t._id as unknown as string}
+                task={t}
+                assignees={assignees}
+              />
+            ))}
+            {preProdSteps.map((s) => (
+              <PreProdTaskCard key={s._id} step={s} />
+            ))}
+          </>
         )}
       </div>
     </div>
@@ -644,6 +683,122 @@ function DueDatePicker({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── PreProdTaskCard ──────────────────────────────────────────────────────────
+// Karta kanbanu dla zadania przedprodukcyjnego (read-only, klik → zlecenie)
+
+function PreProdTaskCard({ step }: { step: PreProdStep }) {
+  const router = useRouter();
+  const tone = dueTone(step.endDate);
+  const toneColor =
+    step.done
+      ? "#3fb950"
+      : tone === "overdue"
+      ? "#f85149"
+      : tone === "soon"
+      ? "#d29922"
+      : "#8b949e";
+
+  return (
+    <div
+      className="kanban-card panel-task-card is-draggable"
+      style={{ cursor: "pointer", opacity: step.done ? 0.65 : 1 }}
+      onClick={() => router.push(`/admin/zlecenia/${step.orderId}`)}
+      title={`Zadanie przedprodukcyjne · ${step.orderNumber} · ${step.clientName}`}
+    >
+      {/* Colored left rail */}
+      <div
+        className="kanban-card-rail"
+        style={{
+          background: `linear-gradient(90deg, ${toneColor}, transparent)`,
+          opacity: 0.8,
+        }}
+      />
+
+      {/* Head: title + badge */}
+      <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
+        <span
+          style={{
+            flex: 1,
+            fontSize: "13px",
+            fontWeight: 500,
+            color: step.done ? "var(--fg-muted)" : "var(--fg)",
+            textDecoration: step.done ? "line-through" : "none",
+            whiteSpace: "normal",
+            lineHeight: 1.35,
+          }}
+        >
+          {step.done ? "✓ " : ""}
+          {step.title}
+        </span>
+
+        {/* Badge "Przedprodukcja" */}
+        <span
+          style={{
+            fontSize: "9px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            color: "#d41d3c",
+            background: "rgba(212,29,60,0.12)",
+            border: "1px solid rgba(212,29,60,0.3)",
+            padding: "1px 6px",
+            borderRadius: "4px",
+            whiteSpace: "nowrap",
+            letterSpacing: "0.04em",
+          }}
+        >
+          ⚙ Przedprodukcja
+        </span>
+      </div>
+
+      {/* Subline: order number + client */}
+      <div className="kanban-card-client" style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontWeight: 600, color: "#d41d3c", fontSize: "11px" }}>
+          {step.orderNumber}
+        </span>
+        <span style={{ color: "var(--fg-muted)", fontSize: "11px" }}>
+          · {step.clientName}
+        </span>
+      </div>
+
+      {/* Footer: due date */}
+      <div className="kanban-card-footer" style={{ marginTop: "8px", alignItems: "center" }}>
+        {step.endDate ? (
+          <span
+            className={`quote-detail-task-due-btn tone-${tone}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "11px", pointerEvents: "none" }}
+          >
+            <I.cal s={11} />
+            {formatDueShort(step.endDate)}
+          </span>
+        ) : (
+          <span style={{ fontSize: "11px", color: "var(--fg-muted)" }}>Brak terminu</span>
+        )}
+
+        {/* Link to order — explicit, stops propagation */}
+        <Link
+          href={`/admin/zlecenia/${step.orderId}`}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            marginLeft: "auto",
+            fontSize: "10px",
+            color: "var(--fg-muted)",
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: 3,
+            padding: "2px 6px",
+            borderRadius: 4,
+            border: "1px solid var(--border)",
+            background: "var(--bg-card-hover)",
+          }}
+        >
+          Zlecenie ↗
+        </Link>
+      </div>
     </div>
   );
 }

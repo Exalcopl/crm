@@ -13,6 +13,38 @@ export const list = query({
   },
 });
 
+/**
+ * Pobiera WSZYSTKIE zadania przedprodukcyjne (ze wszystkich zleceń),
+ * które mają przypisanego użytkownika — do wyświetlenia na panelu.
+ * Wzbogaca każde zadanie o dane zlecenia: orderNumber, clientName.
+ */
+export const listAllWithAssignee = query({
+  args: {},
+  handler: async (ctx) => {
+    const steps = await ctx.db
+      .query("orderPreProdSteps")
+      .collect();
+
+    // Filtruj tylko te z przypisanym użytkownikiem
+    const withAssignee = steps.filter((s) => !!s.assigneeId);
+
+    // Pobierz unikalne zlecenia
+    const orderIds = [...new Set(withAssignee.map((s) => s.orderId))];
+    const orders = await Promise.all(orderIds.map((id) => ctx.db.get(id)));
+    const ordersMap = new Map(
+      orders
+        .filter(Boolean)
+        .map((o) => [o!._id, { orderNumber: o!.orderNumber, clientName: o!.clientName }])
+    );
+
+    return withAssignee.map((s) => ({
+      ...s,
+      orderNumber: ordersMap.get(s.orderId)?.orderNumber ?? "—",
+      clientName: ordersMap.get(s.orderId)?.clientName ?? "—",
+    }));
+  },
+});
+
 /** Dodaje nowe zadanie lub podzadanie */
 export const add = mutation({
   args: {
