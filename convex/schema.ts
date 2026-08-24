@@ -244,6 +244,18 @@ export default defineSchema({
     .index("by_archived", ["archived"])
     .index("by_it_ticket", ["isItTicket"]),
 
+  // Etapy przedprodukcyjne per zlecenie (Gantt przedprodukcyjny)
+  orderPreProdSteps: defineTable({
+    orderId: v.id("orders"),
+    title: v.string(),
+    startDate: v.optional(v.string()),    // YYYY-MM-DD
+    endDate: v.optional(v.string()),      // YYYY-MM-DD
+    assigneeId: v.optional(v.id("users")),
+    done: v.boolean(),
+    order: v.number(),                    // kolejność na liście
+    createdAt: v.number(),
+  }).index("by_order", ["orderId"]),
+
   publicSubmissionAttempts: defineTable({
     ip: v.string(),
     createdAt: v.number(),

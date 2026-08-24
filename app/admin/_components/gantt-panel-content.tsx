@@ -7,6 +7,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck } from "lucide-react";
 import { useMemo } from "react";
+import { OrderPreProdGantt } from "./order-pre-prod-gantt";
 
 // Local date formatting – uses date components to avoid UTC timezone shift.
 // toISOString() converts local midnight → UTC, which in UTC+2 gives the previous day.
@@ -80,10 +81,31 @@ export function GanttPanelContent({
 
   const quotesMap = useMemo(() => new Map(quotes.map((q: any) => [q._id, q])), [quotes]);
 
-  // Filter only production orders and resolve projectTypes from quote/order in a robust way
+  // Status filter — domyślnie "produkcja", ale można wybrać wiele
+  const ALL_ORDER_STATUSES = [
+    { id: "nowe", label: "Nowe", color: "#6b7280" },
+    { id: "akceptacja", label: "Akceptacja", color: "#f59e0b" },
+    { id: "kompletacja", label: "Kompletacja", color: "#3b82f6" },
+    { id: "produkcja", label: "Produkcja", color: "#10b981" },
+    { id: "montaz", label: "Montaż", color: "#f97316" },
+    { id: "gotowe", label: "Gotowe", color: "#8b5cf6" },
+    { id: "wstrzymane", label: "Wstrzymane", color: "#ef4444" },
+  ];
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["produkcja"]);
+
+  function toggleStatus(s: string) {
+    setSelectedStatuses(prev =>
+      prev.includes(s) ? (prev.length > 1 ? prev.filter(x => x !== s) : prev) : [...prev, s]
+    );
+  }
+
+  // Gantt per zlecenie — otwierany po kliknięciu w wiersz
+  const [preProdOrder, setPreProdOrder] = useState<{ id: Id<"orders">; orderNumber: string; clientName: string } | null>(null);
+
+  // Filter orders by selected statuses and resolve projectTypes from quote/order in a robust way
   const productionOrders = useMemo(() => {
     return orders
-      .filter((o) => o.status === "produkcja")
+      .filter((o) => selectedStatuses.includes(o.status))
       .map((o) => {
         const q = o.quoteId ? quotesMap.get(o.quoteId) : undefined;
         
@@ -103,7 +125,7 @@ export function GanttPanelContent({
           projectType: resolvedTypes,
         };
       });
-  }, [orders, quotesMap]);
+  }, [orders, quotesMap, selectedStatuses]);
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
@@ -598,6 +620,7 @@ export function GanttPanelContent({
   const rowHeight = 58; // single row with two stacked bars
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d1117", color: "#c9d1d9" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #30363d", background: "#161b22" }}>
@@ -605,7 +628,7 @@ export function GanttPanelContent({
           <BarChart3 style={{ color: "#f59e0b", transform: "rotate(90deg)" }} size={20} />
           <span style={{ fontSize: 15, fontWeight: 600, color: "#f0f6fc" }}>Harmonogram Produkcji</span>
           <span style={{ background: "#21262d", color: "#8b949e", fontSize: 11, padding: "2px 8px", borderRadius: 10, fontWeight: 500 }}>
-            {productionOrders.length} zlecenia w produkcji
+            {productionOrders.length} {productionOrders.length === 1 ? "zlecenie" : "zleceń"}
           </span>
         </div>
         <button
@@ -669,8 +692,32 @@ export function GanttPanelContent({
           )}
 
 
+          {/* Status filter chips */}
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Status:</span>
+            {ALL_ORDER_STATUSES.map((s) => {
+              const active = selectedStatuses.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => toggleStatus(s.id)}
+                  style={{
+                    background: active ? `${s.color}22` : "#161b22",
+                    color: active ? s.color : "#475569",
+                    border: `1px solid ${active ? s.color + "66" : "#30363d"}`,
+                    borderRadius: 12, padding: "2px 10px",
+                    fontSize: 11, cursor: "pointer", fontWeight: active ? 700 : 500,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* Obszar realizacji (Wszystkie / Produkcja / Montaż) */}
+
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
             <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Obszar realizacji:</span>
             {[
@@ -818,11 +865,11 @@ export function GanttPanelContent({
                     transition: "background 0.15s",
                     gap: 3,
                   }}
-                  onClick={() => onOpenOrder(order._id)}
+                  onClick={() => setPreProdOrder({ id: order._id, orderNumber: order.orderNumber, clientName: order.clientName })}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#161b22")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#0d1117")}
                 >
-                  {/* Top line: order number + client */}
+                  {/* Top line: order number + client + CTA */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", whiteSpace: "nowrap" }}>
                       #{order.orderNumber}
@@ -833,6 +880,17 @@ export function GanttPanelContent({
                     {customLabel && (
                       <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>[{customLabel}]</span>
                     )}
+                    {/* CTA: open order detail */}
+                    <button
+                      type="button"
+                      title="Otwórz szczegóły zlecenia"
+                      onClick={(e) => { e.stopPropagation(); onOpenOrder(order._id); }}
+                      style={{ flexShrink: 0, background: "transparent", border: "none", padding: "1px 3px", cursor: "pointer", color: "#374151", borderRadius: 3 }}
+                      onMouseEnter={e => { e.currentTarget.style.color = "#58a6ff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = "#374151"; }}
+                    >
+                      ↗
+                    </button>
                   </div>
                   {/* Bottom line: dates and actions */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1599,5 +1657,16 @@ export function GanttPanelContent({
         );
       })()}
     </div>
+
+    {/* Pre-production Gantt overlay */}
+    {preProdOrder && (
+      <OrderPreProdGantt
+        orderId={preProdOrder.id}
+        orderNumber={preProdOrder.orderNumber}
+        clientName={preProdOrder.clientName}
+        onClose={() => setPreProdOrder(null)}
+      />
+    )}
+    </>
   );
 }
