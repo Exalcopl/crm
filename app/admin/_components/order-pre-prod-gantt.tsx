@@ -118,8 +118,13 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
   // New step form
   const [newTitle, setNewTitle] = useState("");
-  const [addingStep, setAddingStep] = useState(false);
+  const [isAddRowActive, setIsAddRowActive] = useState(false);
   const newInputRef = useRef<HTMLInputElement>(null);
+
+  function activateAddRow() {
+    setIsAddRowActive(true);
+    setTimeout(() => newInputRef.current?.focus(), 30);
+  }
 
   // Edit title inline
   const [editingId, setEditingId] = useState<Id<"orderPreProdSteps"> | null>(null);
@@ -201,11 +206,12 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   // Handlers
   async function handleAddStep() {
     const t = newTitle.trim();
-    if (!t) return;
+    if (!t) { setIsAddRowActive(false); return; }
     try {
       await addStep({ orderId, title: t });
       setNewTitle("");
-      setAddingStep(false);
+      // Keep add row active so user can quickly add another
+      setTimeout(() => newInputRef.current?.focus(), 30);
     } catch { toast.error("Błąd dodawania etapu"); }
   }
 
@@ -304,7 +310,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
             {/* + Dodaj etap */}
             <button
               type="button"
-              onClick={() => { setAddingStep(true); setTimeout(() => newInputRef.current?.focus(), 50); }}
+              onClick={activateAddRow}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 background: "rgba(56, 189, 248, 0.12)", color: "#38bdf8",
@@ -357,11 +363,6 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
             {/* Rows */}
             <div style={{ flex: 1, overflowY: "auto" }}>
-              {sorted.length === 0 && !addingStep && (
-                <div style={{ padding: "28px 18px", textAlign: "center", color: "#8b949e", fontSize: 12 }}>
-                  Brak etapów. Dodaj pierwszy klikając <strong style={{ color: "#38bdf8" }}>+ Dodaj etap</strong>
-                </div>
-              )}
 
               {sorted.map((step) => {
                 const dates = localDates[step._id];
@@ -494,28 +495,61 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                 );
               })}
 
-              {/* Add step row */}
-              {addingStep && (
-                <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderBottom: "1px solid #161b22", background: "rgba(56,189,248,0.04)" }}>
-                  <Square size={15} style={{ color: "#475569", flexShrink: 0 }} />
-                  <input
-                    ref={newInputRef}
-                    value={newTitle}
-                    onChange={e => setNewTitle(e.target.value)}
-                    placeholder="Nazwa etapu…"
-                    onKeyDown={e => {
-                      if (e.key === "Enter") { void handleAddStep(); }
-                      if (e.key === "Escape") { setAddingStep(false); setNewTitle(""); }
-                    }}
-                    style={{
-                      flex: 1, background: "transparent", border: "none", borderBottom: "1px solid #38bdf8",
-                      color: "#f0f6fc", fontSize: 12, padding: "2px 0", outline: "none",
-                    }}
-                  />
-                  <button type="button" onClick={handleAddStep} style={{ background: "#38bdf8", border: "none", borderRadius: 4, color: "#0d1117", fontSize: 10, fontWeight: 700, padding: "3px 8px", cursor: "pointer" }}>OK</button>
-                  <button type="button" onClick={() => { setAddingStep(false); setNewTitle(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#8b949e" }}><X size={12} /></button>
-                </div>
-              )}
+
+              {/* Always-visible add row at the bottom */}
+              <div
+                style={{
+                  height: ROW_HEIGHT, display: "flex", alignItems: "center", gap: 8,
+                  padding: "0 12px",
+                  borderBottom: "1px solid #161b22",
+                  background: isAddRowActive ? "rgba(56,189,248,0.04)" : "transparent",
+                  cursor: isAddRowActive ? "default" : "pointer",
+                  transition: "background 0.15s",
+                }}
+                onClick={() => { if (!isAddRowActive) activateAddRow(); }}
+                onMouseEnter={e => { if (!isAddRowActive) (e.currentTarget as HTMLElement).style.background = "rgba(56,189,248,0.03)"; }}
+                onMouseLeave={e => { if (!isAddRowActive) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <span style={{ color: isAddRowActive ? "#38bdf8" : "#374151", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                  <Plus size={13} />
+                </span>
+                {isAddRowActive ? (
+                  <>
+                    <input
+                      ref={newInputRef}
+                      value={newTitle}
+                      onChange={e => setNewTitle(e.target.value)}
+                      placeholder="Nazwa etapu… (Enter aby dodać)"
+                      onBlur={() => { if (!newTitle.trim()) setIsAddRowActive(false); }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") { void handleAddStep(); }
+                        if (e.key === "Escape") { setIsAddRowActive(false); setNewTitle(""); }
+                      }}
+                      style={{
+                        flex: 1, background: "transparent", border: "none",
+                        borderBottom: "1px solid #38bdf8",
+                        color: "#f0f6fc", fontSize: 12, padding: "2px 0", outline: "none",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onMouseDown={e => { e.preventDefault(); void handleAddStep(); }}
+                      style={{ background: "#38bdf8", border: "none", borderRadius: 4, color: "#0d1117", fontSize: 10, fontWeight: 700, padding: "3px 8px", cursor: "pointer", flexShrink: 0 }}
+                    >
+                      Dodaj
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={e => { e.preventDefault(); setIsAddRowActive(false); setNewTitle(""); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", flexShrink: 0, padding: 2 }}
+                    >
+                      <X size={12} />
+                    </button>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 12, color: "#374151", userSelect: "none" }}>Dodaj etap…</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -639,8 +673,8 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                 );
               })}
 
-              {/* Add row placeholder */}
-              {addingStep && (
+              {/* Add row placeholder in timeline — matches the ghost add row in left column */}
+              {isAddRowActive && (
                 <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", borderBottom: "1px solid #161b22", background: "rgba(56,189,248,0.02)" }}>
                   {days.map(day => (
                     <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: "1px solid #161b22" }} />

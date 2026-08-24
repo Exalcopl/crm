@@ -692,7 +692,8 @@ export function GanttPanelContent({
           )}
 
 
-          {/* Status filter chips */}
+          {/* Status filter chips — temporarily hidden */}
+          {false && (
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
             <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Status:</span>
             {ALL_ORDER_STATUSES.map((s) => {
@@ -716,7 +717,7 @@ export function GanttPanelContent({
               );
             })}
           </div>
-
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
             <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Obszar realizacji:</span>
