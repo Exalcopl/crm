@@ -153,12 +153,18 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
   useEffect(() => {
     if (drag) return;
-    const next: Record<string, { start: string; end: string }> = {};
-    for (const s of steps) {
-      if (s.startDate && s.endDate) next[s._id] = { start: s.startDate, end: s.endDate };
-    }
-    setLocalDates(next);
-  }, [steps, drag]);
+    setLocalDates(prev => {
+      const next: Record<string, { start: string; end: string }> = {};
+      for (const s of steps) {
+        if (s._id === mutatingId && prev[s._id]) {
+          next[s._id] = prev[s._id];
+        } else if (s.startDate && s.endDate) {
+          next[s._id] = { start: s.startDate, end: s.endDate };
+        }
+      }
+      return next;
+    });
+  }, [steps, drag, mutatingId]);
 
   // ── Add task / subtask
   const [newTitle, setNewTitle] = useState("");
