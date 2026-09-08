@@ -88,6 +88,8 @@ export default function NoweZleceniePage() {
   const [investmentLat, setInvestmentLat] = useState<number | undefined>(undefined);
   const [investmentLng, setInvestmentLng] = useState<number | undefined>(undefined);
   const [investmentNotes, setInvestmentNotes] = useState("");
+  const [initialNotes, setInitialNotes] = useState<string[]>([]);
+  const [noteDraft, setNoteDraft] = useState("");
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
   const [touched, setTouched] = useState(false);
@@ -169,6 +171,11 @@ export default function NoweZleceniePage() {
     }
     setSubmitStatus({ kind: "creating" });
 
+    const notesToSubmit = [...initialNotes];
+    if (noteDraft.trim()) {
+      notesToSubmit.push(noteDraft.trim());
+    }
+
     try {
       const orderId = await createOrder({
         contact: {
@@ -196,6 +203,7 @@ export default function NoweZleceniePage() {
         vatRate,
         valueVat,
         valueBrutto,
+        initialNotes: notesToSubmit.length > 0 ? notesToSubmit : undefined,
       });
 
       toast.success("Zlecenie utworzone pomyślnie.");
@@ -488,6 +496,55 @@ export default function NoweZleceniePage() {
                   </label>
                 </div>
               )}
+            </FormBox>
+
+            {/* ─── Komunikator / Notatki początkowe ────────────────────────── */}
+            <FormBox title="Komunikator / Notatki zlecenia" icon={<I.mail s={14} />} span={12} tag={<span className="quote-new-v2-hint">opcjonalnie</span>}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {initialNotes.map((note, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "#0d1117", border: "1px solid #30363d", borderRadius: "6px" }}>
+                    <span style={{ fontSize: "13px", color: "#f0f6fc" }}>{note}</span>
+                    <button
+                      type="button"
+                      onClick={() => setInitialNotes(initialNotes.filter((_, i) => i !== idx))}
+                      style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", display: "flex", alignItems: "center" }}
+                      title="Usuń wpis"
+                    >
+                      <I.trash s={14} />
+                    </button>
+                  </div>
+                ))}
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input
+                    className="fluent-input"
+                    placeholder="Wpisz wiadomość / notatkę do komunikatora zlecenia… (Enter dodaje wpis)"
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (noteDraft.trim()) {
+                          setInitialNotes([...initialNotes, noteDraft.trim()]);
+                          setNoteDraft("");
+                        }
+                      }
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="fluent-btn fluent-btn-ghost"
+                    onClick={() => {
+                      if (noteDraft.trim()) {
+                        setInitialNotes([...initialNotes, noteDraft.trim()]);
+                        setNoteDraft("");
+                      }
+                    }}
+                  >
+                    <I.plus s={14} /> Dodaj wpis
+                  </button>
+                </div>
+              </div>
             </FormBox>
 
           </div>

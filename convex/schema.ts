@@ -226,6 +226,7 @@ export default defineSchema({
     authorId: v.union(v.id("users"), v.null()),
     authorName: v.string(),
     createdAt: v.number(),
+    isPartner: v.optional(v.boolean()),
   }).index("by_order", ["orderId"]),
 
   tasks: defineTable({

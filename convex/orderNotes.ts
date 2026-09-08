@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const list = query({
   args: { orderId: v.id("orders") },
@@ -54,19 +55,43 @@ export const add = mutation({
     orderId: v.id("orders"),
     text: v.string(),
     authorName: v.string(),
+    isPartner: v.optional(v.boolean()),
   },
-  handler: async (ctx, { orderId, text, authorName }) => {
+  handler: async (ctx, { orderId, text, authorName, isPartner }) => {
     const callerId = await getAuthUserId(ctx);
-    if (!callerId) throw new Error("Brak autoryzacji");
+    if (!callerId && !isPartner) throw new Error("Brak autoryzacji");
     const trimmed = text.trim();
     if (!trimmed) throw new Error("Treść notatki nie może być pusta");
-    return await ctx.db.insert("orderNotes", {
+    const createdAt = Date.now();
+
+    const noteId = await ctx.db.insert("orderNotes", {
       orderId,
       text: trimmed,
-      authorId: callerId,
+      authorId: callerId ?? null,
       authorName,
-      createdAt: Date.now(),
+      createdAt,
+      isPartner: isPartner ?? false,
     });
+
+    // Powiadomienie Webhook dla Partnera jeśli wiadomość wysłana z ALCO CRM (nie API)
+    if (!isPartner) {
+      const order = await ctx.db.get(orderId);
+      if (order && order.partnerId) {
+        await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
+          partnerId: order.partnerId,
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          event: "order.note_added",
+          note: {
+            text: trimmed,
+            authorName,
+            createdAt,
+          },
+        });
+      }
+    }
+
+    return noteId;
   },
 });
 

@@ -349,6 +349,7 @@ export const createStandalone = mutation({
     valueVat: v.number(),
     valueBrutto: v.number(),
     vatRate: v.number(),
+    initialNotes: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<Id<"orders">> => {
     const userId = await getAuthUserId(ctx);
@@ -390,6 +391,23 @@ export const createStandalone = mutation({
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
 
     const user = await ctx.db.get(userId);
+
+    if (args.initialNotes && args.initialNotes.length > 0) {
+      const authorName = user?.name || user?.email || "Konsultant";
+      for (let i = 0; i < args.initialNotes.length; i++) {
+        const text = args.initialNotes[i].trim();
+        if (!text) continue;
+        await ctx.db.insert("orderNotes", {
+          orderId,
+          text,
+          authorId: userId,
+          authorName,
+          createdAt: createdAt + i * 10,
+          isPartner: false,
+        });
+      }
+    }
+
     await ctx.db.insert("orderActivity", {
       orderId,
       type: "order_created",
@@ -699,7 +717,7 @@ export const createFromPartnerApi = internalMutation({
     projectType: v.array(v.string()),
     valueNetto: v.number(),
     margin: v.number(),
-    notes: v.optional(v.string()),
+    notes: v.optional(v.union(v.string(), v.array(v.string()))),
   },
   handler: async (ctx, args): Promise<{ orderId: Id<"orders">; orderNumber: string }> => {
     const createdAt = Date.now();
@@ -712,6 +730,8 @@ export const createFromPartnerApi = internalMutation({
     const vatRate = 23;
     const valueVat = Math.round(finalValueNetto * (vatRate / 100) * 100) / 100;
     const valueBrutto = Math.round((finalValueNetto + valueVat) * 100) / 100;
+
+    const legacyNotesString = typeof args.notes === "string" ? args.notes : Array.isArray(args.notes) ? args.notes.join("\n\n---\n\n") : undefined;
 
     const orderId: Id<"orders"> = await ctx.db.insert("orders", {
       orderNumber,
@@ -736,7 +756,7 @@ export const createFromPartnerApi = internalMutation({
       clientEmail: args.clientEmail,
       clientPhone: args.clientPhone,
       partnerId: args.partnerId,
-      notes: args.notes,
+      notes: legacyNotesString,
       createdAt,
       sharepoint: {
         status: "pending",
@@ -744,6 +764,26 @@ export const createFromPartnerApi = internalMutation({
         lastTriedAt: 0,
       },
     });
+
+    // Wstawianie notatek początkowych od Partnera do komunikatora orderNotes
+    if (args.notes) {
+      const noteList = Array.isArray(args.notes)
+        ? args.notes
+        : args.notes.split("\n\n").map((s) => s.trim()).filter(Boolean);
+
+      for (let i = 0; i < noteList.length; i++) {
+        const text = noteList[i].trim();
+        if (!text) continue;
+        await ctx.db.insert("orderNotes", {
+          orderId,
+          text,
+          authorId: null,
+          authorName: "ADK Okna",
+          createdAt: createdAt + i * 10,
+          isPartner: true,
+        });
+      }
+    }
 
     // Uruchomienie schedulera SharePoint
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
@@ -755,7 +795,7 @@ export const createFromPartnerApi = internalMutation({
       title: "Zlecenie utworzone przez API Partnera",
       detail: `Partner ID: ${args.partnerId} | Marża: ${args.margin}% | Wartość końcowa: ${finalValueNetto.toLocaleString("pl-PL")} PLN netto`,
       authorId: null,
-      authorName: "API Partner",
+      authorName: "ADK Okna",
       createdAt,
     });
 
@@ -786,7 +826,7 @@ export const logFileActivity = internalMutation({
       title: args.title,
       detail: args.detail,
       authorId: null,
-      authorName: "API Partner",
+      authorName: "ADK Okna",
       createdAt: Date.now(),
     });
   },
@@ -796,8 +836,9 @@ export const appendNotesFromPartnerApi = internalMutation({
   args: {
     orderIdOrNumber: v.string(),
     notes: v.string(),
+    authorName: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; notes: string }> => {
+  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; notes: Array<any> }> => {
     // 1. Znajdź zlecenie po ID lub numerze zlecenia
     let order: any = null;
     if (args.orderIdOrNumber.length === 32) {
@@ -811,24 +852,48 @@ export const appendNotesFromPartnerApi = internalMutation({
     }
     if (!order) throw new Error("Nie znaleziono zlecenia.");
 
-    // 2. Sklej notatki z zachowaniem struktury textarea
-    const oldNotes = order.notes ? order.notes.trim() : "";
-    const newNotes = oldNotes ? `${oldNotes}\n\n${args.notes.trim()}` : args.notes.trim();
+    const authorName = args.authorName || "ADK Okna";
+    const trimmed = args.notes.trim();
+    const now = Date.now();
 
-    await ctx.db.patch(order._id, { notes: newNotes });
+    // 2. Dodaj notatkę do komunikatora orderNotes
+    await ctx.db.insert("orderNotes", {
+      orderId: order._id,
+      text: trimmed,
+      authorId: null,
+      authorName,
+      createdAt: now,
+      isPartner: true,
+    });
 
-    // 3. Dodaj wpis do aktywności
+    // 3. Dodaj wpis do aktywności zlecenia
     await ctx.db.insert("orderActivity", {
       orderId: order._id,
       type: "comment",
-      title: "Dodano notatkę przez API",
-      detail: args.notes.trim(),
+      title: "Wiadomość z komunikatora (ADK Okna)",
+      detail: trimmed,
       authorId: null,
-      authorName: "API Partner",
-      createdAt: Date.now(),
+      authorName,
+      createdAt: now,
     });
 
-    return { orderId: order._id, notes: newNotes };
+    // 4. Pobierz pełną listę notatek komunikatora dla zlecenia
+    const allNotes = await ctx.db
+      .query("orderNotes")
+      .withIndex("by_order", (q) => q.eq("orderId", order._id))
+      .order("asc")
+      .collect();
+
+    return {
+      orderId: order._id,
+      notes: allNotes.map((n) => ({
+        _id: n._id,
+        text: n.text,
+        authorName: n.authorName,
+        createdAt: n.createdAt,
+        isPartner: n.isPartner ?? (n.authorName.includes("ADK")),
+      })),
+    };
   },
 });
 

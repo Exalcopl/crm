@@ -330,6 +330,7 @@ export const testOrderNotesFlow = mutation({
     const noteId = await ctx.db.insert("orderNotes", {
       orderId,
       text: "Pierwszy wpis testowy w zleceniu",
+      authorId: null,
       authorName: "Jan Testowy",
       createdAt: now + 10,
     });
@@ -337,7 +338,7 @@ export const testOrderNotesFlow = mutation({
     // 3. Query notes using index (emulating orderNotes.list)
     const dbNotes = await ctx.db
       .query("orderNotes")
-      .withIndex("by_orderId", (q) => q.eq("orderId", orderId))
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
       .collect();
 
     // 4. Update note

@@ -435,7 +435,7 @@ http.route({
     }
 
     // 5. Tworzenie zlecenia
-    const notes = typeof body.notes === "string" ? body.notes : undefined;
+    const notes = typeof body.notes === "string" || Array.isArray(body.notes) ? body.notes : undefined;
     let result: { orderId: string; orderNumber: string };
     try {
       result = await ctx.runMutation(internal.orders.createFromPartnerApi, {
@@ -674,7 +674,7 @@ http.route({
       );
     }
 
-    const { orderIdOrNumber, notes } = body;
+    const { orderIdOrNumber, notes, authorName } = body;
 
     if (!orderIdOrNumber || typeof orderIdOrNumber !== "string") {
       return new Response(
@@ -695,6 +695,7 @@ http.route({
       const result = await ctx.runMutation(internal.orders.appendNotesFromPartnerApi, {
         orderIdOrNumber,
         notes,
+        authorName: typeof authorName === "string" && authorName.trim() ? authorName.trim() : "ADK Okna",
       });
 
       return new Response(

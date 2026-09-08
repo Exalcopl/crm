@@ -348,8 +348,11 @@ export const testAdkPartnerApiIntegration = action({
       const txt = await noteRes.text();
       throw new Error(`FAIL: add note failed with status ${noteRes.status}: ${txt}`);
     }
-    const noteData = await noteRes.json() as { success: boolean; notes: string };
-    console.log("[test-adk-http] ✓ Sukces: Notatka została dodana i połączona:\n" + noteData.notes);
+    const noteData = await noteRes.json() as { success: boolean; notes: Array<{ _id: string; text: string; authorName: string }> };
+    if (!Array.isArray(noteData.notes) || noteData.notes.length === 0) {
+      throw new Error("FAIL: Oczekiwano tablicy notatek w odpowiedzi z API");
+    }
+    console.log("[test-adk-http] ✓ Sukces: Notatka została dodana do komunikatora. Łącznie wpisów: " + noteData.notes.length);
 
     return {
       status: "SUCCESS",

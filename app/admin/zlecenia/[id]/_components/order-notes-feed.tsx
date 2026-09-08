@@ -16,6 +16,7 @@ type OrderNote = {
   authorId: Id<"users"> | null;
   authorName: string;
   createdAt: number;
+  isPartner?: boolean;
   isLegacy?: boolean;
 };
 
@@ -53,10 +54,10 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     if (!text || submitting) return;
     setSubmitting(true);
     try {
-      await add({ orderId, text, authorName: user?.name ?? user?.email ?? "Nieznany" });
+      await add({ orderId, text, authorName: user?.name ?? user?.email ?? "Zespół ALCO" });
       setDraft("");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nie udało się zapisać notatki");
+      toast.error(e instanceof Error ? e.message : "Nie udało się wysłać wiadomości");
     } finally {
       setSubmitting(false);
     }
@@ -68,7 +69,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     try {
       await update({ id, text });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nie udało się zapisać");
+      toast.error(e instanceof Error ? e.message : "Nie udało się zapisać edycji");
     }
   }
 
@@ -106,14 +107,15 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
   return (
     <div className="client-detail-notes">
       {!archived && (
-        <div className="client-detail-notes-composer">
+        <div className="client-detail-notes-composer" style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: 12 }}>
           <textarea
             className="client-detail-notes-textarea"
-            placeholder="Napisz notatkę do tego zlecenia… (Enter aby dodać)"
+            placeholder="Napisz wiadomość / notatkę do ADK Okna… (Enter wysyła)"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
             disabled={submitting}
+            style={{ background: "#161b22", color: "#f0f6fc", border: "1px solid #30363d", borderRadius: 6 }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -121,55 +123,91 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
               }
             }}
           />
-          <div className="client-detail-notes-composer-foot">
-            <span className="client-detail-notes-hint">Enter aby dodać · Shift+Enter = nowa linia</span>
+          <div className="client-detail-notes-composer-foot" style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span className="client-detail-notes-hint" style={{ fontSize: 11, color: "#8b949e" }}>
+              Enter = wysłanie wiadomości w czacie · Shift+Enter = nowa linia
+            </span>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-primary fluent-btn-sm"
+              disabled={!draft.trim() || submitting}
+              onClick={() => void handleAdd()}
+            >
+              {submitting ? "Wysyłanie…" : "Wyślij wiadomość"}
+            </button>
           </div>
         </div>
       )}
 
-      <div className="client-detail-notes-list">
-        {ordered === undefined && <div className="client-detail-notes-empty">Wczytywanie notatek…</div>}
+      <div className="client-detail-notes-list" style={{ marginTop: 12 }}>
+        {ordered === undefined && <div className="client-detail-notes-empty">Wczytywanie wiadomości…</div>}
         {ordered !== undefined && ordered.length === 0 && (
-          <div className="client-detail-notes-empty">Brak notatek. Dodaj pierwszą powyżej.</div>
+          <div className="client-detail-notes-empty">Brak wiadomości w komunikatorze. Napisz pierwszą powyżej.</div>
         )}
         {ordered?.map((n) => {
-          const isSystemNote = !n.authorId;
+          const isPartnerMsg = n.isPartner || n.authorName.includes("ADK") || !n.authorId;
           const mine = !!currentUserId && n.authorId === currentUserId;
           const color = n.authorId ? getUserColor(n.authorId) : "#38bdf8";
           const isEditing = editId === n._id;
           const isConfirming = confirmId === n._id;
+
           return (
             <article
               key={n._id}
               className="client-detail-note"
-              style={isSystemNote ? { borderLeft: "3px solid #38bdf8", background: "rgba(56, 189, 248, 0.04)" } : undefined}
+              style={
+                isPartnerMsg
+                  ? { borderLeft: "3px solid #38bdf8", background: "rgba(56, 189, 248, 0.06)", borderRadius: 8, padding: 12 }
+                  : { borderLeft: `3px solid ${color || "#238636"}`, background: "#0d1117", borderRadius: 8, padding: 12 }
+              }
             >
               <div
                 className="client-detail-note-avatar"
                 aria-hidden
-                style={isSystemNote ? { background: "rgba(56, 189, 248, 0.2)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" } : color ? { background: `${color}22`, color, borderColor: `${color}55` } : undefined}
+                style={
+                  isPartnerMsg
+                    ? { background: "rgba(56, 189, 248, 0.2)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" }
+                    : color
+                    ? { background: `${color}22`, color, borderColor: `${color}55` }
+                    : undefined
+                }
               >
-                {isSystemNote ? "📋" : ownerInitials(n.authorName)}
+                {isPartnerMsg ? "🏢" : ownerInitials(n.authorName)}
               </div>
-              <div className="client-detail-note-body">
-                <div className="client-detail-note-head">
-                  <span className="client-detail-note-author" style={isSystemNote ? { color: "#38bdf8", fontWeight: 700 } : undefined}>
-                    {n.authorName}
+              <div className="client-detail-note-body" style={{ flex: 1 }}>
+                <div className="client-detail-note-head" style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span
+                    className="client-detail-note-author"
+                    style={{
+                      fontWeight: 700,
+                      color: isPartnerMsg ? "#38bdf8" : "#f0f6fc",
+                      fontSize: 13,
+                    }}
+                  >
+                    {isPartnerMsg ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        🏢 {n.authorName} <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: "rgba(56, 189, 248, 0.15)", padding: "1px 5px", borderRadius: 4 }}>Partner API</span>
+                      </span>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        {n.authorName} <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: "rgba(35, 134, 54, 0.2)", color: "#3fb950", padding: "1px 5px", borderRadius: 4 }}>ALCO Team</span>
+                      </span>
+                    )}
                   </span>
-                  <span className="client-detail-note-time" title={new Date(n.createdAt).toLocaleString("pl-PL")}>
+                  <span className="client-detail-note-time" style={{ fontSize: 11, color: "#8b949e", marginLeft: 4 }} title={new Date(n.createdAt).toLocaleString("pl-PL")}>
                     {relTime(n.createdAt)}
                   </span>
                   {!archived && !isEditing && !isConfirming && !n.isLegacy && (mine || isAdmin) && (
-                    <span style={{ display: "inline-flex", gap: 2, marginLeft: "auto" }}>
+                    <span style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}>
                       {mine && (
                         <button
                           type="button"
                           className="client-detail-note-remove"
                           onClick={() => { setEditId(n._id); setEditDraft(n.text); }}
-                          title="Edytuj wpis"
-                          aria-label="Edytuj wpis"
+                          title="Edytuj wiadomość"
+                          aria-label="Edytuj wiadomość"
                         >
-                          <I.edit s={11} />
+                          <I.edit s={12} />
                         </button>
                       )}
                       {isAdmin && (
@@ -177,10 +215,10 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                           type="button"
                           className="client-detail-note-remove"
                           onClick={() => setConfirmId(n._id)}
-                          title="Usuń wpis"
-                          aria-label="Usuń wpis"
+                          title="Usuń wiadomość"
+                          aria-label="Usuń wiadomość"
                         >
-                          <I.trash s={11} />
+                          <I.trash s={12} />
                         </button>
                       )}
                     </span>
@@ -200,10 +238,12 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                         if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
                       }}
                     />
-                    <span className="client-detail-notes-hint">Autozapis · Esc anuluje edycję</span>
+                    <span className="client-detail-notes-hint" style={{ fontSize: 11, color: "#8b949e" }}>Autozapis · Esc anuluje edycję</span>
                   </div>
                 ) : (
-                  <div className="client-detail-note-text" style={{ whiteSpace: "pre-wrap" }}>{n.text}</div>
+                  <div className="client-detail-note-text" style={{ whiteSpace: "pre-wrap", fontSize: 13, lineHeight: 1.45, color: "#e6edf3" }}>
+                    {n.text}
+                  </div>
                 )}
 
                 {isConfirming && (
@@ -213,7 +253,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                       background: "rgba(248,81,73,0.08)", border: "1px solid rgba(248,81,73,0.35)", borderRadius: 6,
                     }}
                   >
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1 }}>Usunąć ten wpis? Tej operacji nie można cofnąć.</span>
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)", flex: 1 }}>Usunąć ten wpis z czatu? Tej operacji nie można cofnąć.</span>
                     <button type="button" className="fluent-btn fluent-btn-ghost fluent-btn-sm" onClick={() => setConfirmId(null)}>Anuluj</button>
                     <button type="button" className="fluent-btn fluent-btn-sm" style={{ background: "#da3633", color: "#fff", border: "none" }} onClick={() => void doRemove(n._id)}>
                       <I.trash s={12} /> Usuń
@@ -228,3 +268,4 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     </div>
   );
 }
+
