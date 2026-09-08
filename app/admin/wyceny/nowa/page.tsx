@@ -329,9 +329,9 @@ export default function NowaWycenaPage() {
         deadline,
         ownerId,
         customLabel: customLabel.trim() || undefined,
-        investment: investmentAddress.trim()
+        investment: (investmentAddress.trim() || investmentNotes.trim())
           ? {
-              address: investmentAddress.trim(),
+              address: investmentAddress.trim() || undefined,
               placeId: investmentPlaceId,
               lat: investmentLat,
               lng: investmentLng,

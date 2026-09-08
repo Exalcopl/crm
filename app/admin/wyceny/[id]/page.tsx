@@ -17,6 +17,7 @@ import {
   formatDeadline,
   ownerInitials,
   type Quote,
+  type InvestmentInfo,
 } from "../../_lib/quotes";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { OwnerNamesProvider, useOwnerName } from "../../_lib/owner-names";
@@ -178,7 +179,7 @@ export default function QuoteDetailPage({
         onCreateOrder={() => setConfirmOrderOpen(true)}
       />
       <main className="fluent-content">
-        <QuoteDetailLayout
+        <QuoteDetailMain
           quote={quote}
           activeTab={activeTab}
           archived={isArchived}
@@ -492,7 +493,96 @@ function QuoteDetailRibbon({
   );
 }
 
-function QuoteDetailLayout({
+function QuoteLocationNoteCard({
+  investment,
+  onOpenModal,
+}: {
+  investment?: InvestmentInfo;
+  onOpenModal: () => void;
+}) {
+  if (!investment?.notes?.trim()) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: "14px",
+        padding: "12px 14px",
+        background: "rgba(245, 158, 11, 0.08)",
+        border: "1px solid rgba(245, 158, 11, 0.3)",
+        borderLeft: "4px solid #f59e0b",
+        borderRadius: "8px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "12.5px",
+            fontWeight: 700,
+            color: "#fbbf24",
+          }}
+        >
+          <span>📍</span>
+          <span>Notatka do lokalizacji</span>
+          {(investment.name || investment.address) && (
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 400,
+                color: "#9ca3af",
+                marginLeft: "4px",
+              }}
+            >
+              ({investment.name || investment.address})
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#fbbf24",
+            cursor: "pointer",
+            fontSize: "11px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            textDecoration: "underline",
+            opacity: 0.9,
+          }}
+          title="Edytuj notatkę w lokalizacji"
+        >
+          <I.edit s={12} /> Edytuj
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: "13px",
+          color: "#f3f4f6",
+          lineHeight: "1.45",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {investment.notes.trim()}
+      </div>
+    </div>
+  );
+}
+
+function QuoteDetailMain({
   quote,
   activeTab,
   archived,
@@ -503,11 +593,17 @@ function QuoteDetailLayout({
   archived: boolean;
   onRestore: () => void;
 }) {
+  const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
+
   return (
     <OwnerNamesProvider quotes={[quote]}>
       <div className="quote-detail">
         {archived && <ArchivedBanner onRestore={onRestore} />}
-        <QuoteDetailHeader quote={quote} archived={archived} />
+        <QuoteDetailHeader
+          quote={quote}
+          archived={archived}
+          onOpenInvestmentModal={() => setIsInvestmentOpen(true)}
+        />
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
             {/* Kolumna 1: zadania + pytania pomocnicze */}
@@ -525,6 +621,10 @@ function QuoteDetailLayout({
             {/* Kolumny 2-3 (środek): Notatki */}
             <div className="quote-widget-item quote-widget-span-2">
               <Section title="Notatki" icon={<I.doc s={14} />}>
+                <QuoteLocationNoteCard
+                  investment={quote.investment}
+                  onOpenModal={() => setIsInvestmentOpen(true)}
+                />
                 <QuoteNotesFeed quoteId={quote._id} archived={archived} />
               </Section>
             </div>
@@ -543,6 +643,14 @@ function QuoteDetailLayout({
           </div>
         )}
       </div>
+
+      {isInvestmentOpen && (
+        <InvestmentModal
+          quote={quote}
+          archived={archived}
+          onClose={() => setIsInvestmentOpen(false)}
+        />
+      )}
     </OwnerNamesProvider>
   );
 }
@@ -680,7 +788,15 @@ function QuoteClientNoteBanner({ quote }: { quote: Quote }) {
   );
 }
 
-function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolean }) {
+function QuoteDetailHeader({
+  quote,
+  archived,
+  onOpenInvestmentModal,
+}: {
+  quote: Quote;
+  archived: boolean;
+  onOpenInvestmentModal?: () => void;
+}) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
   const tone = deadlineTone(quote.deadline);
@@ -786,7 +902,13 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
             <button
               type="button"
               className="quote-detail-investment-trigger"
-              onClick={() => setIsInvestmentOpen(true)}
+              onClick={() => {
+                if (onOpenInvestmentModal) {
+                  onOpenInvestmentModal();
+                } else {
+                  setIsInvestmentOpen(true);
+                }
+              }}
               title="Pokaż lokalizację inwestycji"
               aria-label="Lokalizacja inwestycji"
             >
@@ -796,6 +918,26 @@ function QuoteDetailHeader({ quote, archived }: { quote: Quote; archived: boolea
               <span className="quote-detail-investment-trigger-value">
                 {investmentLabel}
               </span>
+              {quote.investment?.notes?.trim() && (
+                <span
+                  style={{
+                    fontSize: "10.5px",
+                    fontWeight: 600,
+                    background: "rgba(245, 158, 11, 0.2)",
+                    color: "#fbbf24",
+                    border: "1px solid rgba(245, 158, 11, 0.4)",
+                    padding: "1px 6px",
+                    borderRadius: "4px",
+                    marginLeft: "4px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "2px",
+                  }}
+                  title="Lokalizacja zawiera notatkę"
+                >
+                  📝 z notatką
+                </span>
+              )}
             </button>
             <div className="quote-detail-hero-types">
               {quote.projectType.map((t) => {
@@ -1259,6 +1401,26 @@ function QuoteInfoCard({ quote, archived }: { quote: Quote; archived: boolean })
             <span className="quote-detail-investment-trigger-value" style={{ fontSize: "11px" }}>
               {investmentLabel}
             </span>
+            {quote.investment?.notes?.trim() && (
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  background: "rgba(245, 158, 11, 0.2)",
+                  color: "#fbbf24",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  padding: "1px 5px",
+                  borderRadius: "4px",
+                  marginLeft: "4px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "2px",
+                }}
+                title="Lokalizacja zawiera notatkę"
+              >
+                📝 z notatką
+              </span>
+            )}
           </button>
         </div>
         <div className="quote-detail-hero-types" style={{ marginBottom: "4px" }}>

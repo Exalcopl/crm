@@ -220,6 +220,14 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_quote", ["quoteId"]),
 
+  orderNotes: defineTable({
+    orderId: v.id("orders"),
+    text: v.string(),
+    authorId: v.union(v.id("users"), v.null()),
+    authorName: v.string(),
+    createdAt: v.number(),
+  }).index("by_order", ["orderId"]),
+
   tasks: defineTable({
     quoteId: v.optional(v.id("quotes")),
     title: v.string(),

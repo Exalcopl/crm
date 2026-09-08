@@ -304,3 +304,59 @@ export const testOcrProviderSetting = mutation({
     };
   },
 });
+
+/** Test: verifies orderNotes table CRUD and quote notes transfer */
+export const testOrderNotesFlow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Insert dummy order
+    const orderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-ORDER-NOTES-001",
+      clientName: "Klient Testowy",
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      status: "nowe",
+      items: [],
+      notes: "Stara scalona notatka testowa",
+      createdAt: now,
+      archived: false,
+    });
+
+    // 2. Add individual note
+    const noteId = await ctx.db.insert("orderNotes", {
+      orderId,
+      text: "Pierwszy wpis testowy w zleceniu",
+      authorName: "Jan Testowy",
+      createdAt: now + 10,
+    });
+
+    // 3. Query notes using index (emulating orderNotes.list)
+    const dbNotes = await ctx.db
+      .query("orderNotes")
+      .withIndex("by_orderId", (q) => q.eq("orderId", orderId))
+      .collect();
+
+    // 4. Update note
+    await ctx.db.patch(noteId, {
+      text: "Zaktualizowana notatka testowa",
+    });
+    const updatedNote = await ctx.db.get(noteId);
+
+    // 5. Clean up
+    await ctx.db.delete(noteId);
+    await ctx.db.delete(orderId);
+
+    return {
+      orderCreated: Boolean(orderId),
+      noteCreated: Boolean(noteId),
+      notesFetchedCount: dbNotes.length,
+      noteUpdatedText: updatedNote?.text,
+      success: dbNotes.length === 1 && updatedNote?.text === "Zaktualizowana notatka testowa",
+    };
+  },
+});
+

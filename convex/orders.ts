@@ -87,31 +87,6 @@ export const create = mutation({
       .withIndex("by_quote", (q) => q.eq("quoteId", args.quoteId))
       .collect();
 
-    // Skomponowanie notatki dla zlecenia z notatki głównej oraz z feedu notatek wyceny
-    const noteParts: string[] = [];
-    if (quote.notes && quote.notes.trim()) {
-      noteParts.push(`[Notatka z wyceny]:\n${quote.notes.trim()}`);
-    }
-
-    if (quoteNotes.length > 0) {
-      quoteNotes.sort((a, b) => a.createdAt - b.createdAt);
-      const feedText = quoteNotes
-        .map((n) => {
-          const dateStr = new Date(n.createdAt).toLocaleString("pl-PL", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          return `[Notatka z wyceny - ${n.authorName} (${dateStr})]:\n${n.text}`;
-        })
-        .join("\n\n");
-      noteParts.push(feedText);
-    }
-
-    const orderNotes = noteParts.length > 0 ? noteParts.join("\n\n---\n\n") : undefined;
-
     const orderId = await ctx.db.insert("orders", {
       quoteId: args.quoteId,
       quoteVersionId: args.quoteVersionId,
@@ -119,7 +94,7 @@ export const create = mutation({
       status: "nowe",
       clientId: quote.clientId,
       investment: quote.investment || undefined,
-      notes: orderNotes,
+      notes: undefined,
       valueNetto: version ? version.valueNetto : (quote.value || 0),
       valueVat: version ? version.valueVat : 0,
       valueBrutto: version ? version.valueBrutto : (quote.value || 0),
@@ -134,6 +109,31 @@ export const create = mutation({
       customLabel: quote.customLabel || undefined,
       createdAt: Date.now(),
     });
+
+    // Przeniesienie notatek z feedu wyceny (quoteNotes) jako osobne wpisy w orderNotes
+    if (quoteNotes.length > 0) {
+      quoteNotes.sort((a, b) => a.createdAt - b.createdAt);
+      for (const n of quoteNotes) {
+        await ctx.db.insert("orderNotes", {
+          orderId,
+          text: n.text,
+          authorId: n.authorId,
+          authorName: n.authorName,
+          createdAt: n.createdAt,
+        });
+      }
+    }
+
+    // Jeśli istnieje główna notatka z wyceny (quote.notes), również dodaj ją jako wpis
+    if (quote.notes && quote.notes.trim()) {
+      await ctx.db.insert("orderNotes", {
+        orderId,
+        text: quote.notes.trim(),
+        authorId: quote.ownerId || null,
+        authorName: "Notatka z wyceny",
+        createdAt: quote._creationTime,
+      });
+    }
 
     // Aktualizacja statusu wyceny na "Zrobione"
     await ctx.db.patch(args.quoteId, { status: "Zrobione" });
@@ -943,6 +943,9 @@ export const testNotesTransferFromQuote = mutation({
     if (!quote) throw new Error("Test failed: quote not found");
 
     const noteParts: string[] = [];
+    if (quote.investment?.notes && quote.investment.notes.trim()) {
+      noteParts.push(`📍 [NOTATKA DO LOKALIZACJI]:\n${quote.investment.notes.trim()}`);
+    }
     if (quote.notes && quote.notes.trim()) {
       noteParts.push(`[Notatka z wyceny]:\n${quote.notes.trim()}`);
     }
@@ -976,6 +979,9 @@ export const testNotesTransferFromQuote = mutation({
     if (!createdOrder) throw new Error("Test failed: order was not created");
 
     // Weryfikacja przeniesienia danych
+    if (!createdOrder.notes?.includes("📍 [NOTATKA DO LOKALIZACJI]:\nUwaga na wjazd")) {
+      throw new Error("Test failed: location note with badge missing in created order notes");
+    }
     if (!createdOrder.notes?.includes("Główna notatka z wyceny")) {
       throw new Error("Test failed: main quote note missing in created order");
     }
@@ -991,7 +997,7 @@ export const testNotesTransferFromQuote = mutation({
     await ctx.db.delete(noteId);
     await ctx.db.delete(quoteId);
 
-    return "SUCCESS: Notes and investment notes transferred correctly!";
+    return "SUCCESS: Location note, main note, and feed notes transferred correctly!";
   },
 });
 

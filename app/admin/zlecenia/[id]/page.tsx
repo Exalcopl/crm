@@ -12,6 +12,7 @@ import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
 import { OrderFileBrowser } from "./_components/order-file-browser";
 import { OrderRwView } from "./_components/order-rw-view";
+import { OrderNotesFeed } from "./_components/order-notes-feed";
 import { OrderPreProdGantt } from "../../_components/order-pre-prod-gantt";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
 import {
@@ -99,124 +100,90 @@ function CollapsibleSection({
   );
 }
 
-function OrderSimpleNotes({
-  orderId,
-  initialNotes,
+function OrderLocationNoteCard({
+  investment,
+  onOpenModal,
 }: {
-  orderId: Id<"orders">;
-  initialNotes: string;
+  investment?: { name?: string; address?: string; notes?: string };
+  onOpenModal: () => void;
 }) {
-  const updateNotes = useMutation(api.orders.updateNotes);
-  const [value, setValue] = useState(initialNotes || "");
-  const [isDirty, setIsDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [savedRecently, setSavedRecently] = useState(false);
-  const valueRef = useRef(value);
-  valueRef.current = value;
-
-  useEffect(() => {
-    if (!isDirty && (initialNotes || "") !== value) {
-      setValue(initialNotes || "");
-    }
-  }, [initialNotes, isDirty, value]);
-
-  const handleSave = useCallback(async () => {
-    if (!isDirty || saving) return;
-    setSaving(true);
-    try {
-      await updateNotes({ id: orderId, notes: valueRef.current });
-      setIsDirty(false);
-      setSavedRecently(true);
-      setTimeout(() => setSavedRecently(false), 2500);
-    } catch (e) {
-      console.error("Błąd zapisywania notatek:", e);
-    } finally {
-      setSaving(false);
-    }
-  }, [isDirty, saving, orderId, updateNotes]);
+  if (!investment?.notes?.trim()) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <textarea
-        ref={(el) => {
-          if (el) {
-            el.style.height = "auto";
-            el.style.height = `${Math.max(120, el.scrollHeight)}px`;
-          }
-        }}
-        className="fluent-input"
-        style={{
-          width: "100%",
-          minHeight: "120px",
-          resize: "none",
-          overflow: "hidden",
-          fontSize: "13.5px",
-          lineHeight: "1.5",
-          padding: "10px 12px",
-          borderRadius: "6px",
-          fontFamily: "inherit",
-          border: "1px solid #30363d",
-          background: "#0d1117",
-          color: "white",
-        }}
-        placeholder="Wpisz zwykłe notatki do tego zlecenia (bez dat i historii)..."
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setIsDirty(true);
-          setSavedRecently(false);
-          e.target.style.height = "auto";
-          e.target.style.height = `${Math.max(120, e.target.scrollHeight)}px`;
-        }}
-        onBlur={() => {
-          if (isDirty) {
-            void handleSave();
-          }
-        }}
-      />
+    <div
+      style={{
+        marginBottom: "14px",
+        padding: "12px 14px",
+        background: "rgba(245, 158, 11, 0.08)",
+        border: "1px solid rgba(245, 158, 11, 0.3)",
+        borderLeft: "4px solid #f59e0b",
+        borderRadius: "8px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      }}
+    >
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          minHeight: "28px",
         }}
       >
-        <span style={{ fontSize: "11.5px", color: "#8b949e" }}>
-          {isDirty
-            ? "Niezapisane zmiany — kliknij poza pole lub przycisk Zapisz"
-            : "Zapisuje się automatycznie po wyjściu z pola lub przyciskiem"}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {saving && (
-            <span style={{ fontSize: "12px", color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
-              Zapisywanie...
-            </span>
-          )}
-          {!saving && savedRecently && !isDirty && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontSize: "12.5px",
+            fontWeight: 700,
+            color: "#fbbf24",
+          }}
+        >
+          <span>📍</span>
+          <span>Notatka do lokalizacji</span>
+          {(investment.name || investment.address) && (
             <span
               style={{
-                fontSize: "12px",
-                color: "#3fb950",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                fontWeight: 500,
+                fontSize: "11px",
+                fontWeight: 400,
+                color: "#9ca3af",
+                marginLeft: "4px",
               }}
             >
-              <I.check s={14} /> Zapisano
+              ({investment.name || investment.address})
             </span>
           )}
-          {!saving && isDirty && (
-            <button
-              type="button"
-              className="fluent-btn fluent-btn-primary fluent-btn-sm"
-              onClick={handleSave}
-            >
-              Zapisz
-            </button>
-          )}
         </div>
+        <button
+          type="button"
+          onClick={onOpenModal}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#fbbf24",
+            cursor: "pointer",
+            fontSize: "11px",
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            textDecoration: "underline",
+            opacity: 0.9,
+          }}
+          title="Edytuj notatkę w lokalizacji"
+        >
+          <I.edit s={12} /> Edytuj
+        </button>
+      </div>
+      <div
+        style={{
+          fontSize: "13px",
+          color: "#f3f4f6",
+          lineHeight: "1.45",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {investment.notes.trim()}
       </div>
     </div>
   );
@@ -385,11 +352,12 @@ function OrderOwnerEditor({ order, ownerName }: { order: Doc<"orders">; ownerNam
   );
 }
 
-function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
+function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInvestmentModal }: {
   order: Doc<"orders">;
   quote: Quote | null | undefined;
   onStatusChange: (s: OrderStatus) => void;
   updating: boolean;
+  onOpenInvestmentModal?: () => void;
 }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const updateValueNetto = useMutation(api.orders.updateValueNetto);
@@ -478,11 +446,33 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating }: {
             </button>
             <OrderClientStrip order={order} quote={quote ?? null} />
             {(quote || order.investment?.address) && (
-              <button type="button" className="quote-detail-investment-trigger" onClick={() => { if(quote) setIsInvestmentOpen(true); }}
+              <button type="button" className="quote-detail-investment-trigger" onClick={() => {
+                if (onOpenInvestmentModal) onOpenInvestmentModal();
+                else if (quote) setIsInvestmentOpen(true);
+              }}
                 title="Pokaż lokalizację inwestycji" aria-label="Lokalizacja inwestycji"
-                style={{ cursor: quote ? "pointer" : "default" }}>
+                style={{ cursor: (quote || onOpenInvestmentModal) ? "pointer" : "default" }}>
                 <span className="quote-detail-investment-trigger-icon"><I.pin s={14} sw={2} /></span>
                 <span className="quote-detail-investment-trigger-value">{investmentLabel}</span>
+                {(order.investment?.notes || quote?.investment?.notes)?.trim() && (
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 600,
+                      background: "rgba(245, 158, 11, 0.2)",
+                      color: "#fbbf24",
+                      border: "1px solid rgba(245, 158, 11, 0.4)",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      marginLeft: "4px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "2px",
+                    }}
+                  >
+                    📝 z notatką
+                  </span>
+                )}
               </button>
             )}
             {isEditingLabel ? (
@@ -1238,6 +1228,7 @@ export default function OrderDetailPage({
   const removeOrder = useMutation(api.orders.remove);
 
   const [updating, setUpdating] = useState(false);
+  const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
 
   if (order === undefined) {
     return (
@@ -1386,12 +1377,12 @@ export default function OrderDetailPage({
         </main>
       )}
       <main className="fluent-content" style={{ padding: "16px 24px", display: activeView === "szczegoly" ? "flex" : "none", flexDirection: "column", gap: 20 }}>
-        {/* Nagłówek 1:1 z wyceną */}
         <OrderDetailHeader
           order={order}
           quote={quote as unknown as Quote | null | undefined}
           onStatusChange={handleStatusChange}
           updating={updating}
+          onOpenInvestmentModal={() => setIsInvestmentOpen(true)}
         />
 
         {/* Grid 4-kolumnowy (taki sam jak wycena) */}
@@ -1409,7 +1400,11 @@ export default function OrderDetailPage({
           <div className="quote-widget-item quote-widget-span-2" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div className="cal-card">
               <div className="cal-card-title">Notatki</div>
-              <OrderSimpleNotes orderId={orderId} initialNotes={order.notes || ""} />
+              <OrderLocationNoteCard
+                investment={order.investment || quote?.investment}
+                onOpenModal={() => setIsInvestmentOpen(true)}
+              />
+              <OrderNotesFeed orderId={orderId} archived={order.archived} />
             </div>
             
             <OrderItemsManager orderId={orderId} order={order} />
@@ -1507,6 +1502,13 @@ export default function OrderDetailPage({
           color: #8b949e;
         }
       `}</style>
+      {isInvestmentOpen && quote && (
+        <InvestmentModal
+          quote={quote as unknown as Quote}
+          archived={false}
+          onClose={() => setIsInvestmentOpen(false)}
+        />
+      )}
       {confirmDeleteOpen && (
         <ConfirmDeleteModal
           orderId={order.orderNumber}

@@ -22,6 +22,7 @@ import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as materials from "../materials.js";
 import type * as orderActivity from "../orderActivity.js";
+import type * as orderNotes from "../orderNotes.js";
 import type * as orderPreProdSteps from "../orderPreProdSteps.js";
 import type * as orderRw from "../orderRw.js";
 import type * as orders from "../orders.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   materials: typeof materials;
   orderActivity: typeof orderActivity;
+  orderNotes: typeof orderNotes;
   orderPreProdSteps: typeof orderPreProdSteps;
   orderRw: typeof orderRw;
   orders: typeof orders;

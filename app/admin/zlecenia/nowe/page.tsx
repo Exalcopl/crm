@@ -179,10 +179,15 @@ export default function NoweZleceniePage() {
           email: email.trim() || undefined,
         },
         projectType: projectType ? [projectType] : [],
-        investment: {
-          address: investmentAddress.trim() || undefined,
-          notes: investmentNotes.trim() || undefined,
-        },
+        investment: (investmentAddress.trim() || investmentNotes.trim())
+          ? {
+              address: investmentAddress.trim() || undefined,
+              placeId: investmentPlaceId,
+              lat: investmentLat,
+              lng: investmentLng,
+              notes: investmentNotes.trim() || undefined,
+            }
+          : undefined,
         deadline: undefined,
         deliveryDate: undefined,
         acceptanceDate: undefined,
