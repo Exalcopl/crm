@@ -148,19 +148,44 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   const setAssigneeIds = useMutation(api.orderPreProdSteps.setAssigneeIds);
   const removeStep = useMutation(api.orderPreProdSteps.remove);
 
-  // ── Timeline
-  const [timelineStart, setTimelineStart] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 3); return localDateStr(d);
-  });
+  // ── Timeline – stały punkt startowy: 180 dni wstecz
+  const timelineStart = useMemo(() => {
+    const d = new Date(); d.setDate(d.getDate() - 180); return localDateStr(d);
+  }, []);
   const today = todayStr();
 
   // ── Zoom
   const [dayWidth, setDayWidth] = useState(DAY_WIDTH_DEFAULT);
   const timelineRef = useRef<HTMLDivElement>(null);
 
+  // ── Days (stały zakres: 548 dni od timelineStart)
+  const days = useMemo(() => {
+    const result: { dateStr: string; dayNum: number; label: string; isWeekend: boolean; isToday: boolean }[] = [];
+    for (let i = 0; i < 548; i++) {
+      const ds = addDays(timelineStart, i);
+      const d = new Date(ds + "T00:00:00");
+      const dow = d.getDay();
+      const names = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
+      result.push({ dateStr: ds, dayNum: d.getDate(), label: names[dow], isWeekend: dow === 0 || dow === 6, isToday: ds === today });
+    }
+    return result;
+  }, [timelineStart, today]);
+
+  const scrollToToday = useCallback(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+    const todayIdx = days.findIndex(d => d.dateStr === today);
+    if (todayIdx !== -1) {
+      el.scrollLeft = todayIdx * dayWidth - 120;
+    }
+  }, [days, dayWidth, today]);
+
   const zoomTo = useCallback((next: number) => {
     setDayWidth(Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next))));
   }, []);
+
+  // Scroll to today on mount
+  useEffect(() => { scrollToToday(); }, []);
 
   useEffect(() => {
     const el = timelineRef.current;
@@ -252,18 +277,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   // ── Assignee dropdown
   const [assigneeDropId, setAssigneeDropId] = useState<Id<"orderPreProdSteps"> | null>(null);
 
-  // ── Days
-  const days = useMemo(() => {
-    const result: { dateStr: string; dayNum: number; label: string; isWeekend: boolean; isToday: boolean }[] = [];
-    for (let i = 0; i < 90; i++) {
-      const ds = addDays(timelineStart, i);
-      const d = new Date(ds + "T00:00:00");
-      const dow = d.getDay();
-      const names = ["Nd", "Pn", "Wt", "Śr", "Cz", "Pt", "Sb"];
-      result.push({ dateStr: ds, dayNum: d.getDate(), label: names[dow], isWeekend: dow === 0 || dow === 6, isToday: ds === today });
-    }
-    return result;
-  }, [timelineStart, today]);
+
 
   const monthGroups = useMemo(() => {
     const groups: { label: string; count: number }[] = [];
@@ -464,9 +478,9 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             {/* Timeline nav */}
-            <button type="button" onClick={() => setTimelineStart(p => addDays(p, -14))} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronLeft size={14} /></button>
-            <button type="button" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 3); setTimelineStart(localDateStr(d)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: "#c9d1d9", fontSize: 11, fontWeight: 600 }}>Dziś</button>
-            <button type="button" onClick={() => setTimelineStart(p => addDays(p, 14))} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronRight size={14} /></button>
+            <button type="button" onClick={() => { if (timelineRef.current) timelineRef.current.scrollLeft -= 14 * dayWidth; }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronLeft size={14} /></button>
+            <button type="button" onClick={scrollToToday} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: "#c9d1d9", fontSize: 11, fontWeight: 600 }}>Dziś</button>
+            <button type="button" onClick={() => { if (timelineRef.current) timelineRef.current.scrollLeft += 14 * dayWidth; }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronRight size={14} /></button>
 
             <div style={{ width: 1, height: 20, background: "#30363d" }} />
 
