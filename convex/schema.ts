@@ -263,12 +263,15 @@ export default defineSchema({
     assigneeIds: v.optional(v.array(v.id("users"))),
     done: v.boolean(),
     status: v.optional(v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"))),
+    completedAt: v.optional(v.number()),
+    archived: v.optional(v.boolean()),
     order: v.number(),                    // kolejność na liście
     parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica
     createdAt: v.number(),
   })
     .index("by_order", ["orderId"])
-    .index("by_parent", ["parentId"]),
+    .index("by_parent", ["parentId"])
+    .index("by_archived", ["archived"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),

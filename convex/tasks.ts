@@ -467,6 +467,51 @@ export const listArchived = query({
   },
 });
 
+export const migrateLegacyDoneTasks = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const preProdSteps = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_archived")
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_archived")
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
+    const now = Date.now();
+    const TEN_DAYS = 10 * 24 * 60 * 60 * 1000;
+    let archivedCount = 0;
+
+    for (const step of preProdSteps) {
+      if (step.status === "done" || step.done) {
+        // Jeżeli zadanie nie ma completedAt (bo było zrobione przed aktualizacją),
+        // używamy createdAt jako fallback lub przyjmujemy, że jest bardzo stare i archiwizujemy od razu.
+        const effectiveCompletedAt = step.completedAt ?? step.createdAt;
+        if (now - effectiveCompletedAt >= TEN_DAYS) {
+          await ctx.db.patch(step._id, { archived: true });
+          archivedCount++;
+        }
+      }
+    }
+
+    for (const task of tasks) {
+      if (task.status === "done") {
+        const effectiveCompletedAt = task.completedAt ?? task.createdAt;
+        if (now - effectiveCompletedAt >= TEN_DAYS) {
+          await ctx.db.patch(task._id, { archived: true });
+          archivedCount++;
+        }
+      }
+    }
+
+    return `Zarchiwizowano ${archivedCount} przestarzałych zadań.`;
+  },
+});
+
 export const archiveOldTasks = mutation({
   args: {},
   handler: async (ctx) => {
@@ -476,12 +521,24 @@ export const archiveOldTasks = mutation({
       .filter((q) => q.neq(q.field("archived"), true))
       .collect();
 
+    const preProdSteps = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_archived")
+      .filter((q) => q.neq(q.field("archived"), true))
+      .collect();
+
     const now = Date.now();
-    const FIVE_DAYS = 5 * 24 * 60 * 60 * 1000;
+    const TEN_DAYS = 10 * 24 * 60 * 60 * 1000;
 
     for (const task of tasks) {
-      if (task.status === "done" && task.completedAt && now - task.completedAt >= FIVE_DAYS) {
+      if (task.status === "done" && task.completedAt && now - task.completedAt >= TEN_DAYS) {
         await ctx.db.patch(task._id, { archived: true });
+      }
+    }
+
+    for (const step of preProdSteps) {
+      if ((step.status === "done" || step.done) && step.completedAt && now - step.completedAt >= TEN_DAYS) {
+        await ctx.db.patch(step._id, { archived: true });
       }
     }
   },

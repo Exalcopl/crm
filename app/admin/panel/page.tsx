@@ -532,17 +532,17 @@ function PanelTaskCard({
           />
         </div>
 
-        {!isOverlay && (
+        {!isOverlay && task.status === "done" && (
           <button
             type="button"
-            className="quote-detail-task-card-remove"
-            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "4px" }}
+            style={{ marginLeft: "auto", background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.2)", cursor: "pointer", color: "var(--text-primary)", padding: "4px 8px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600 }}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => void archiveTask({ id: task._id })}
-            aria-label="Archiwizuj zadanie"
+            aria-label="Archiwizuj zadanie natychmiast"
             title="Archiwizuj zadanie"
           >
             <I.archive s={12} />
+            Archiwizuj
           </button>
         )}
       </div>
@@ -748,6 +748,7 @@ function PreProdTaskCard({ step, assignees, isOverlay }: { step: PreProdStep; as
   const updateTitle = useMutation(api.orderPreProdSteps.updateTitle);
   const updateDates = useMutation(api.orderPreProdSteps.updateDates);
   const assignTask = useMutation(api.orderPreProdSteps.setAssigneeIds);
+  const archiveTask = useMutation(api.orderPreProdSteps.archive);
   const [editing, setEditing] = useState(false);
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({

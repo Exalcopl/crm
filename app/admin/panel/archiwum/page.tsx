@@ -14,11 +14,12 @@ import { usePermissions } from "../../_lib/permissions";
 export default function ArchivedTasksPage() {
   const users = useQuery(api.users.list, {});
   const tasks = useQuery(api.tasks.listArchived);
+  const preProdTasks = useQuery(api.orderPreProdSteps.listArchived);
   const { user: currentUser, isLoading } = usePermissions();
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
-  if (tasks === undefined || users === undefined || isLoading) {
+  if (tasks === undefined || preProdTasks === undefined || users === undefined || isLoading) {
     return (
       <main className="fluent-content panel-page">
         <div style={{ padding: 40, textAlign: "center", color: "var(--fg-muted)" }}>
@@ -30,10 +31,12 @@ export default function ArchivedTasksPage() {
 
   const currentUserId = currentUser?._id;
   
+  const combinedTasks = [...tasks, ...preProdTasks].sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+
   // Opcjonalne filtrowanie: jeśli zaznaczono kogoś, pokaż tylko przypisane do tych osób
   const filteredTasks = selectedUserIds.length > 0
-    ? tasks.filter((t: any) => t.assigneeIds?.some((id: any) => selectedUserIds.includes(id)))
-    : tasks;
+    ? combinedTasks.filter((t: any) => t.assigneeIds?.some((id: any) => selectedUserIds.includes(id)))
+    : combinedTasks;
 
   const allUsers = users
     .filter((u: any) => u.isAssignable)
@@ -149,6 +152,16 @@ function ArchivedTaskRow({ task, users }: { task: any; users: any[] }) {
             <span className="panel-task-card-quote-code">🏷️ {task.quote.code}</span>
             <span className="panel-task-card-quote-sep">•</span>
             <span className="panel-task-card-quote-client">{task.quote.contactName}</span>
+          </Link>
+        ) : task.orderNumber ? (
+          <Link
+            href={`/admin/zlecenia/${task.orderId}`}
+            className="panel-task-card-quote"
+            title={`${task.orderNumber} · ${task.clientName}`}
+          >
+            <span className="panel-task-card-quote-code">⚙️ {task.orderNumber}</span>
+            <span className="panel-task-card-quote-sep">•</span>
+            <span className="panel-task-card-quote-client">{task.clientName}</span>
           </Link>
         ) : (
           <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>Zadanie wewnętrzne</span>

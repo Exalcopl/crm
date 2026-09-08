@@ -25,8 +25,8 @@ export const listAllWithAssignee = query({
       .query("orderPreProdSteps")
       .collect();
 
-    // Filtruj tylko te z przypisanym użytkownikiem (zależnie od tego czy użyto assigneeId czy assigneeIds)
-    const withAssignee = steps.filter((s) => (s.assigneeIds && s.assigneeIds.length > 0) || !!s.assigneeId);
+    // Filtruj tylko te z przypisanym użytkownikiem (zależnie od tego czy użyto assigneeId czy assigneeIds) i nie zarchiwizowane
+    const withAssignee = steps.filter((s) => !s.archived && ((s.assigneeIds && s.assigneeIds.length > 0) || !!s.assigneeId));
 
     // Pobierz unikalne zlecenia
     const orderIds = [...new Set(withAssignee.map((s) => s.orderId))];
@@ -112,6 +112,7 @@ export const setDone = mutation({
     await ctx.db.patch(id, { 
       done,
       status: done ? "done" : "todo",
+      completedAt: done ? Date.now() : undefined,
     });
   },
 });
@@ -126,6 +127,7 @@ export const updateStatus = mutation({
     await ctx.db.patch(id, {
       status,
       done: status === "done",
+      completedAt: status === "done" ? Date.now() : undefined,
     });
   },
 });
@@ -181,6 +183,14 @@ export const reorder = mutation({
   },
 });
 
+/** Archiwizuje zadanie */
+export const archive = mutation({
+  args: { id: v.id("orderPreProdSteps") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.patch(id, { archived: true });
+  },
+});
+
 /** Usuwa zadanie (i jego podzadania) */
 export const remove = mutation({
   args: { id: v.id("orderPreProdSteps") },
@@ -194,5 +204,36 @@ export const remove = mutation({
       await ctx.db.delete(child._id);
     }
     await ctx.db.delete(id);
+  },
+});
+
+/** Pobiera zarchiwizowane zadania z Gantta */
+export const listArchived = query({
+  args: {},
+  handler: async (ctx) => {
+    const steps = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_archived", (q) => q.eq("archived", true))
+      .collect();
+
+    // Pobierz unikalne zlecenia
+    const orderIds = [...new Set(steps.map((s) => s.orderId))];
+    const orders = await Promise.all(orderIds.map((id) => ctx.db.get(id)));
+    const ordersMap = new Map(
+      orders
+        .filter(Boolean)
+        .map((o) => [o!._id, { orderNumber: o!.orderNumber, clientName: o!.clientName }])
+    );
+
+    return steps.map((s) => {
+      // normalizacja assigneeIds
+      const assigneeIds = s.assigneeIds ?? (s.assigneeId ? [s.assigneeId] : []);
+      return {
+        ...s,
+        assigneeIds,
+        orderNumber: ordersMap.get(s.orderId)?.orderNumber ?? "—",
+        clientName: ordersMap.get(s.orderId)?.clientName ?? "—",
+      };
+    }).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   },
 });
