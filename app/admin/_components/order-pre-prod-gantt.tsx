@@ -65,8 +65,17 @@ type DragState = {
 type FlatRow = { step: Step; depth: number; parentStep: Step | null };
 
 function buildFlatRows(steps: Step[], filterUserId: Id<"users"> | null): FlatRow[] {
+  const sortByDate = (a: Step, b: Step) => {
+    const dateA = a.endDate ?? a.startDate ?? "";
+    const dateB = b.endDate ?? b.startDate ?? "";
+    if (!dateA && !dateB) return a.order - b.order;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateA < dateB ? -1 : dateA > dateB ? 1 : a.order - b.order;
+  };
+
   const childrenOf = (parentId?: Id<"orderPreProdSteps">) =>
-    steps.filter(s => s.parentId === parentId).sort((a, b) => a.order - b.order);
+    steps.filter(s => s.parentId === parentId).sort(sortByDate);
 
   const visibleSteps = new Set<string>();
   if (filterUserId) {
