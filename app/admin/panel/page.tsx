@@ -861,6 +861,20 @@ function PreProdTaskCard({ step, assignees, isOverlay }: { step: PreProdStep; as
             }
           />
         </div>
+
+        {!isOverlay && (step.status === "done" || step.done) && (
+          <button
+            type="button"
+            style={{ marginLeft: "auto", background: "rgba(255, 255, 255, 0.1)", border: "1px solid rgba(255, 255, 255, 0.2)", cursor: "pointer", color: "var(--text-primary)", padding: "4px 8px", borderRadius: "6px", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 600 }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => void archiveTask({ id: step._id as Id<"orderPreProdSteps"> })}
+            aria-label="Archiwizuj zadanie natychmiast"
+            title="Archiwizuj zadanie"
+          >
+            <I.archive s={12} />
+            Archiwizuj
+          </button>
+        )}
       </div>
     </div>
   );
