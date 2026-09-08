@@ -530,7 +530,7 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                       transition: "all 0.15s ease"
                     }}
                   >
-                    🏷️ Wyróżnik: <strong>{customLabel}</strong>
+                    <strong>{customLabel}</strong>
                   </span>
                 ) : (
                   <span

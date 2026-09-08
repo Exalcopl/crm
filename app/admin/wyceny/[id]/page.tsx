@@ -1020,7 +1020,7 @@ function QuoteDetailHeader({
                         transition: "all 0.15s ease"
                       }}
                     >
-                      🏷️ Wyróżnik B2B: <strong>{quote.customLabel}</strong>
+                      <strong>{quote.customLabel}</strong>
                     </span>
                   ) : (
                     <span

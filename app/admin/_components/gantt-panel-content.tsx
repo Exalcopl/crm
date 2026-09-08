@@ -1529,7 +1529,7 @@ export function GanttPanelContent({
                 if (!label) return null;
                 return (
                   <div style={{ fontSize: 11, color: "#f59e0b", fontWeight: 600, marginTop: 2 }}>
-                    🏷️ Wyróżnik: {label}
+                    {label}
                   </div>
                 );
               })()}
