@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function AdminIndex() {
+export default async function AdminIndex() {
   redirect("/admin/panel");
 }
+

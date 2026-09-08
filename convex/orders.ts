@@ -81,12 +81,45 @@ export const create = mutation({
 
     const orderNumber = quote.code;
 
+    // Pobranie wpisów z feedu notatek wyceny (quoteNotes)
+    const quoteNotes = await ctx.db
+      .query("quoteNotes")
+      .withIndex("by_quote", (q) => q.eq("quoteId", args.quoteId))
+      .collect();
+
+    // Skomponowanie notatki dla zlecenia z notatki głównej oraz z feedu notatek wyceny
+    const noteParts: string[] = [];
+    if (quote.notes && quote.notes.trim()) {
+      noteParts.push(`[Notatka z wyceny]:\n${quote.notes.trim()}`);
+    }
+
+    if (quoteNotes.length > 0) {
+      quoteNotes.sort((a, b) => a.createdAt - b.createdAt);
+      const feedText = quoteNotes
+        .map((n) => {
+          const dateStr = new Date(n.createdAt).toLocaleString("pl-PL", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return `[Notatka z wyceny - ${n.authorName} (${dateStr})]:\n${n.text}`;
+        })
+        .join("\n\n");
+      noteParts.push(feedText);
+    }
+
+    const orderNotes = noteParts.length > 0 ? noteParts.join("\n\n---\n\n") : undefined;
+
     const orderId = await ctx.db.insert("orders", {
       quoteId: args.quoteId,
       quoteVersionId: args.quoteVersionId,
       orderNumber,
       status: "nowe",
       clientId: quote.clientId,
+      investment: quote.investment || undefined,
+      notes: orderNotes,
       valueNetto: version ? version.valueNetto : (quote.value || 0),
       valueVat: version ? version.valueVat : 0,
       valueBrutto: version ? version.valueBrutto : (quote.value || 0),
@@ -874,3 +907,91 @@ export const updateCustomLabel = mutation({
     });
   },
 });
+
+export const testNotesTransferFromQuote = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Tworzenie testowej wyceny z notatkami i lokalizacją
+    const quoteId = await ctx.db.insert("quotes", {
+      code: "TEST-QUOTE-NOTES-999",
+      contact: { name: "Testowy Klient", email: "test@example.com" },
+      status: "Kontakt z klientem",
+      deadline: "2026-12-31",
+      projectType: ["pergola"],
+      value: 100,
+      ownerId: null,
+      notes: "Główna notatka z wyceny",
+      investment: { address: "ul. Testowa 10, Warszawa", notes: "Uwaga na wjazd" },
+    });
+
+    // 2. Dodanie wpisu do feedu notatek (quoteNotes)
+    const noteId = await ctx.db.insert("quoteNotes", {
+      quoteId,
+      text: "Wpis w historii notatek wyceny",
+      authorId: null,
+      authorName: "Jan Kowalski",
+      createdAt: Date.now(),
+    });
+
+    // 3. Pobranie i sformatowanie notatek (dokładnie tak jak w orders.create)
+    const quoteNotes = await ctx.db
+      .query("quoteNotes")
+      .withIndex("by_quote", (q) => q.eq("quoteId", quoteId))
+      .collect();
+
+    const quote = await ctx.db.get(quoteId);
+    if (!quote) throw new Error("Test failed: quote not found");
+
+    const noteParts: string[] = [];
+    if (quote.notes && quote.notes.trim()) {
+      noteParts.push(`[Notatka z wyceny]:\n${quote.notes.trim()}`);
+    }
+
+    if (quoteNotes.length > 0) {
+      quoteNotes.sort((a, b) => a.createdAt - b.createdAt);
+      const feedText = quoteNotes
+        .map((n) => `[Notatka z wyceny - ${n.authorName}]:\n${n.text}`)
+        .join("\n\n");
+      noteParts.push(feedText);
+    }
+    const orderNotes = noteParts.length > 0 ? noteParts.join("\n\n---\n\n") : undefined;
+
+    // 4. Utworzenie zlecenia i weryfikacja pól
+    const orderId = await ctx.db.insert("orders", {
+      quoteId,
+      orderNumber: quote.code,
+      status: "nowe",
+      valueNetto: 100,
+      valueVat: 23,
+      valueBrutto: 123,
+      vatRate: 23,
+      items: [],
+      clientName: quote.contact.name,
+      investment: quote.investment,
+      notes: orderNotes,
+      createdAt: Date.now(),
+    });
+
+    const createdOrder = await ctx.db.get(orderId);
+    if (!createdOrder) throw new Error("Test failed: order was not created");
+
+    // Weryfikacja przeniesienia danych
+    if (!createdOrder.notes?.includes("Główna notatka z wyceny")) {
+      throw new Error("Test failed: main quote note missing in created order");
+    }
+    if (!createdOrder.notes?.includes("Wpis w historii notatek wyceny")) {
+      throw new Error("Test failed: quoteNotes entry missing in created order");
+    }
+    if (createdOrder.investment?.notes !== "Uwaga na wjazd") {
+      throw new Error("Test failed: investment notes missing in created order");
+    }
+
+    // 5. Sprzątanie danych testowych
+    await ctx.db.delete(orderId);
+    await ctx.db.delete(noteId);
+    await ctx.db.delete(quoteId);
+
+    return "SUCCESS: Notes and investment notes transferred correctly!";
+  },
+});
+
