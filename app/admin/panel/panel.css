@@ -53,7 +53,8 @@
 }
 
 .quote-detail-tasks-col.is-over {
-  background: color-mix(in srgb, var(--col-accent, var(--accent-primary)) 6%, var(--bg-surface));
+  background: color-mix(in srgb, var(--col-accent, var(--accent-primary)) 12%, var(--bg-surface));
+  box-shadow: inset 0 0 0 2px var(--col-accent, var(--accent-primary));
 }
 
 .quote-detail-tasks-col-head {
@@ -101,6 +102,7 @@
   transition: background 150ms;
 }
 
+
 /* Kanban karty — styl globalnego kanbana */
 .quote-detail-task-card {
   position: relative;
@@ -144,8 +146,9 @@
 }
 
 .quote-detail-task-card.is-dragging {
-  opacity: 0.35;
-  border-color: var(--accent-line);
+  opacity: 0.25;
+  background: color-mix(in srgb, var(--bg-surface) 50%, transparent);
+  border: 2px dashed var(--border);
   box-shadow: none;
 }
 

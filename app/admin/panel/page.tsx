@@ -33,8 +33,10 @@ type PreProdStep = {
   orderId: string;
   title: string;
   done: boolean;
+  status?: "todo" | "in_progress" | "done";
   endDate?: string;
   assigneeId?: string;
+  assigneeIds?: string[];
   orderNumber: string;
   clientName: string;
   parentId?: string;
@@ -115,7 +117,11 @@ export default function PanelPage() {
   const assigneesRaw = useQuery(api.users.listAssignable);
   const allUsersRaw = useQuery(api.users.listAllAssignable);
   const setStatus = useMutation(api.tasks.setStatus);
-  const [activeTask, setActiveTask] = useState<TaskWithQuote | null>(null);
+  const setPreProdStatus = useMutation(api.orderPreProdSteps.updateStatus);
+  const [activeTask, setActiveTask] = useState<TaskWithQuote | PreProdStep | null>(null);
+  const [optimistic, setOptimistic] = useState<Record<string, TaskStatus>>({});
+  
+
 
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
 
@@ -146,18 +152,42 @@ export default function PanelPage() {
       in_progress: [],
       done: [],
     };
-    for (const t of filteredTasks) map[t.status].push(t);
-    return map;
-  }, [filteredTasks]);
-
-  const preProdByColumn = useMemo(() => {
-    const map: Record<"todo" | "done", PreProdStep[]> = { todo: [], done: [] };
-    for (const s of filteredPreProd) {
-      if (s.done) map.done.push(s);
-      else map.todo.push(s);
+    for (const t of filteredTasks) {
+      const st = optimistic[t._id as string] || t.status;
+      if (map[st]) map[st].push(t);
     }
     return map;
-  }, [filteredPreProd]);
+  }, [filteredTasks, optimistic]);
+
+  const preProdByColumn = useMemo(() => {
+    const map: Record<TaskStatus, PreProdStep[]> = { todo: [], in_progress: [], done: [] };
+    for (const s of filteredPreProd) {
+      const st = optimistic[s._id] || s.status || (s.done ? "done" : "todo");
+      if (map[st as TaskStatus]) map[st as TaskStatus].push(s);
+    }
+    return map;
+  }, [filteredPreProd, optimistic]);
+
+  useEffect(() => {
+    setOptimistic(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const t of (tasksRaw ?? []) as TaskWithQuote[]) {
+        if (next[t._id as string] === t.status) {
+          delete next[t._id as string];
+          changed = true;
+        }
+      }
+      for (const s of (preProdRaw ?? []) as PreProdStep[]) {
+        const st = s.status || (s.done ? "done" : "todo");
+        if (next[s._id] === st) {
+          delete next[s._id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [tasksRaw, preProdRaw]);
 
   if (tasksRaw === undefined || assigneesRaw === undefined || allUsersRaw === undefined || preProdRaw === undefined || isLoading) {
     return (
@@ -181,21 +211,36 @@ export default function PanelPage() {
 
   function handleDragStart(e: DragStartEvent) {
     const id = e.active.id as string;
-    setActiveTask(
-      tasks.find((t) => (t._id as unknown as string) === id) ?? null,
-    );
+    const task = tasks.find((t) => (t._id as unknown as string) === id);
+    if (task) {
+      setActiveTask(task);
+      return;
+    }
+    const preProd = filteredPreProd.find((t) => (t._id as unknown as string) === id);
+    if (preProd) {
+      setActiveTask(preProd);
+    }
   }
 
   function handleDragEnd(e: DragEndEvent) {
     setActiveTask(null);
     if (!e.over) return;
-    const taskId = e.active.id as Id<"tasks">;
+    const taskId = e.active.id as string;
     const newStatus = e.over.id as TaskStatus;
-    const task = tasks.find(
-      (t) => (t._id as unknown as string) === (taskId as unknown as string),
-    );
-    if (!task || task.status === newStatus) return;
-    void setStatus({ id: taskId, status: newStatus });
+    const task = tasks.find((t) => (t._id as unknown as string) === taskId);
+    if (task) {
+      if (task.status === newStatus) return;
+      setOptimistic(p => ({ ...p, [taskId]: newStatus }));
+      void setStatus({ id: taskId as Id<"tasks">, status: newStatus });
+      return;
+    }
+    const preProd = filteredPreProd.find((t) => t._id === taskId);
+    if (preProd) {
+      const st = preProd.status || (preProd.done ? "done" : "todo");
+      if (st === newStatus) return;
+      setOptimistic(p => ({ ...p, [taskId]: newStatus }));
+      void setPreProdStatus({ id: taskId as Id<"orderPreProdSteps">, status: newStatus });
+    }
   }
 
   const firstName = pickFirstName(user?.name ?? null, user?.email ?? null);
@@ -281,18 +326,26 @@ export default function PanelPage() {
                 col={col}
                 tasks={byColumn[col.id]}
                 assignees={assignees}
-                preProdSteps={col.id === "in_progress" ? [] : preProdByColumn[col.id as "todo" | "done"]}
+                preProdSteps={preProdByColumn[col.id]}
               />
             ))}
           </div>
 
           <DragOverlay>
             {activeTask ? (
-              <PanelTaskCard
-                task={activeTask}
-                assignees={assignees}
-                isOverlay
-              />
+              "orderId" in activeTask ? (
+                <PreProdTaskCard
+                  step={activeTask as PreProdStep}
+                  assignees={assignees}
+                  isOverlay
+                />
+              ) : (
+                <PanelTaskCard
+                  task={activeTask as TaskWithQuote}
+                  assignees={assignees}
+                  isOverlay
+                />
+              )
             ) : null}
           </DragOverlay>
         </DndContext>
@@ -340,7 +393,7 @@ function PanelKanbanColumn({
               />
             ))}
             {preProdSteps.map((s) => (
-              <PreProdTaskCard key={s._id} step={s} />
+              <PreProdTaskCard key={s._id} step={s} assignees={assignees} />
             ))}
           </>
         )}
@@ -690,11 +743,22 @@ function DueDatePicker({
 // ── PreProdTaskCard ──────────────────────────────────────────────────────────
 // Karta kanbanu dla zadania przedprodukcyjnego (read-only, klik → zlecenie)
 
-function PreProdTaskCard({ step }: { step: PreProdStep }) {
+function PreProdTaskCard({ step, assignees, isOverlay }: { step: PreProdStep; assignees: AssignableUser[]; isOverlay?: boolean }) {
   const router = useRouter();
+  const updateTitle = useMutation(api.orderPreProdSteps.updateTitle);
+  const updateDates = useMutation(api.orderPreProdSteps.updateDates);
+  const assignTask = useMutation(api.orderPreProdSteps.setAssigneeIds);
+  const [editing, setEditing] = useState(false);
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: step._id,
+    disabled: isOverlay,
+  });
+
+  const draggable = !isOverlay && !editing;
   const tone = dueTone(step.endDate);
   const toneColor =
-    step.done
+    step.status === "done" || step.done
       ? "#3fb950"
       : tone === "overdue"
       ? "#f85149"
@@ -704,12 +768,12 @@ function PreProdTaskCard({ step }: { step: PreProdStep }) {
 
   return (
     <div
-      className="kanban-card panel-task-card is-draggable"
-      style={{ cursor: "pointer", opacity: step.done ? 0.65 : 1 }}
-      onClick={() => router.push(`/admin/zlecenia/${step.orderId}`)}
-      title={`Zadanie przedprodukcyjne · ${step.orderNumber} · ${step.clientName}`}
+      ref={setNodeRef}
+      className={`kanban-card panel-task-card${isDragging ? " is-dragging" : ""}${isOverlay ? " is-overlay" : ""}${draggable ? " is-draggable" : ""}`}
+      style={{ opacity: isDragging && !isOverlay ? 0 : (step.done || step.status === "done" ? 0.65 : 1) }}
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
     >
-      {/* Colored left rail */}
       <div
         className="kanban-card-rail"
         style={{
@@ -717,69 +781,85 @@ function PreProdTaskCard({ step }: { step: PreProdStep }) {
           opacity: 0.8,
         }}
       />
-
-      {/* Head: title + badge */}
       <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
-        <span
-          style={{
-            flex: 1,
-            fontSize: "13px",
-            fontWeight: 500,
-            color: step.done ? "var(--fg-muted)" : "var(--fg)",
-            textDecoration: step.done ? "line-through" : "none",
-            whiteSpace: "normal",
-            lineHeight: 1.35,
-          }}
-        >
-          {step.done ? "✓ " : ""}
-          {step.title}
-        </span>
-      </div>
-
-      {/* Subline: order number + client */}
-      <div className="kanban-card-client" style={{ marginTop: "4px", display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontWeight: 600, color: "#d41d3c", fontSize: "11px" }}>
-          {step.orderNumber}
-        </span>
-        <span style={{ color: "var(--fg-muted)", fontSize: "11px" }}>
-          · {step.clientName}
-        </span>
-      </div>
-
-      {/* Footer: due date */}
-      <div className="kanban-card-footer" style={{ marginTop: "8px", alignItems: "center" }}>
-        {step.endDate ? (
-          <span
-            className={`quote-detail-task-due-btn tone-${tone}`}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "11px", pointerEvents: "none" }}
-          >
-            <I.cal s={11} />
-            {formatDueShort(step.endDate)}
-          </span>
+        {editing ? (
+          <input
+            type="text"
+            defaultValue={step.title}
+            autoFocus
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              setEditing(false);
+              if (v && v !== step.title) void updateTitle({ id: step._id as Id<"orderPreProdSteps">, title: v });
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="quote-detail-task-card-title-input"
+            style={{ flex: 1, minWidth: "120px" }}
+          />
         ) : (
-          <span style={{ fontSize: "11px", color: "var(--fg-muted)" }}>Brak terminu</span>
+          <button
+            type="button"
+            className="kanban-card-id"
+            style={{ background: "none", border: "none", cursor: "text", padding: 0, flex: 1, textAlign: "left", whiteSpace: "normal", color: step.done || step.status === "done" ? "var(--fg-muted)" : "var(--fg)", textDecoration: step.done || step.status === "done" ? "line-through" : "none" }}
+            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          >
+            {step.done || step.status === "done" ? "✓ " : ""}
+            {step.title}
+          </button>
         )}
 
-        {/* Link to order — explicit, stops propagation */}
         <Link
           href={`/admin/zlecenia/${step.orderId}`}
-          onClick={(e) => e.stopPropagation()}
           style={{
-            marginLeft: "auto",
-            fontSize: "10px",
-            color: "var(--fg-muted)",
-            textDecoration: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: 3,
-            padding: "2px 6px",
-            borderRadius: 4,
-            border: "1px solid var(--border)",
-            background: "var(--bg-card-hover)",
+            fontSize: "9px",
+            fontWeight: "bold",
+            textTransform: "uppercase",
+            color: "#d41d3c",
+            background: "rgba(212, 29, 60, 0.1)",
+            border: "1px solid rgba(212, 29, 60, 0.2)",
+            padding: "1px 6px",
+            borderRadius: "4px",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "120px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            textDecoration: "none"
           }}
+          title={`${step.orderNumber} · ${step.clientName}`}
+          onPointerDown={(e) => e.stopPropagation()}
         >
-          Zlecenie ↗
+          🏷️ {step.orderNumber}
         </Link>
+
+        <div className="kanban-card-owner" onPointerDown={(e) => e.stopPropagation()}>
+          <AssigneePicker
+            assignees={assignees}
+            currentIds={(step.assigneeId ? [step.assigneeId] : step.assigneeIds || []) as Id<"users">[]}
+            onAssign={(userIds) =>
+              void assignTask({ id: step._id as Id<"orderPreProdSteps">, assigneeIds: userIds })
+            }
+          />
+        </div>
+      </div>
+
+      <div className="kanban-card-client" style={{ marginTop: "4px" }}>
+        {step.clientName}
+      </div>
+
+      <div className="kanban-card-footer" style={{ marginTop: "8px", alignItems: "center" }}>
+        <div onPointerDown={(e) => e.stopPropagation()}>
+          <DueDatePicker
+            dueDate={step.endDate}
+            tone={tone}
+            onChange={(d) =>
+              void updateDates({ id: step._id as Id<"orderPreProdSteps">, endDate: d ?? null, startDate: null })
+            }
+          />
+        </div>
       </div>
     </div>
   );

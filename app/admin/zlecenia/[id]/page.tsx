@@ -263,11 +263,15 @@ function nextEventDate(events: { date: string }[]): string | null {
 function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote | null }) {
   const router = useRouter();
   const ensureLink = useMutation(api.clients.ensureLinkedToQuote);
+  const client = useQuery(api.clients.get, order.clientId ? { id: order.clientId } : "skip");
   const [linking, setLinking] = useState(false);
   const name = order.clientName;
-  const phone = order.clientPhone || quote?.contact?.phone;
-  const email = order.clientEmail || quote?.contact?.email;
-  const address = [quote?.contact?.street, quote?.contact?.postalCity].filter(Boolean).join(", ");
+  const address = [client?.street || quote?.contact?.street, client?.postalCity || quote?.contact?.postalCity].filter(Boolean).join(", ");
+  const nip = client?.nip || quote?.contact?.nip;
+  const clientType = client?.type || quote?.contact?.clientType;
+  const typeLabel = clientType === "business" ? "Firma" : clientType === "individual" ? "Osoba prywatna" : null;
+  const phone = order.clientPhone || client?.phoneNormalized || quote?.contact?.phone;
+  const email = order.clientEmail || client?.email || quote?.contact?.email;
 
   async function openClient() {
     if (linking) return;
@@ -292,6 +296,15 @@ function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote
           {name}
           <span className="quote-detail-client-arrow" aria-hidden><I.arrow s={11} sw={2} /></span>
         </span>
+        {(nip || address || typeLabel || phone || email) && (
+          <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, color: "var(--text-muted)", marginTop: 4, textAlign: "left", fontWeight: 400 }}>
+            {typeLabel && <span>{typeLabel}</span>}
+            {nip && <span>NIP: {nip}</span>}
+            {address && <span>{address}</span>}
+            {phone && <span>📞 {phone}</span>}
+            {email && <span>✉️ {email}</span>}
+          </span>
+        )}
       </span>
     </button>
   );

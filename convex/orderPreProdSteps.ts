@@ -68,6 +68,7 @@ export const add = mutation({
       orderId,
       title: title.trim(),
       done: false,
+      status: "todo",
       order: nextOrder,
       parentId,
       createdAt: Date.now(),
@@ -101,14 +102,31 @@ export const updateTitle = mutation({
   },
 });
 
-/** Toggle ukończenia zadania */
+/** Toggle ukończenia zadania z wykresu Gantta */
 export const setDone = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
     done: v.boolean(),
   },
   handler: async (ctx, { id, done }) => {
-    await ctx.db.patch(id, { done });
+    await ctx.db.patch(id, { 
+      done,
+      status: done ? "done" : "todo",
+    });
+  },
+});
+
+/** Ustawia status 3-stopniowy (np. z tablicy Kanban) */
+export const updateStatus = mutation({
+  args: {
+    id: v.id("orderPreProdSteps"),
+    status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
+  },
+  handler: async (ctx, { id, status }) => {
+    await ctx.db.patch(id, {
+      status,
+      done: status === "done",
+    });
   },
 });
 

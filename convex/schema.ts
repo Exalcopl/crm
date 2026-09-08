@@ -262,6 +262,7 @@ export default defineSchema({
     assigneeId: v.optional(v.id("users")), // backward compatibility
     assigneeIds: v.optional(v.array(v.id("users"))),
     done: v.boolean(),
+    status: v.optional(v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"))),
     order: v.number(),                    // kolejność na liście
     parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica
     createdAt: v.number(),
