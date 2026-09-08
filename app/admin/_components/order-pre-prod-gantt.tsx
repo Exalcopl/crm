@@ -179,10 +179,44 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   const [filterUserId, setFilterUserId] = useState<Id<"users"> | null>(null);
   const [showUserFilter, setShowUserFilter] = useState(false);
 
-  // ── Drag
+  // ── Drag (bar resize/move)
   const [localDates, setLocalDates] = useState<Record<string, { start: string; end: string }>>({});
   const [drag, setDrag] = useState<DragState | null>(null);
   const [mutatingId, setMutatingId] = useState<Id<"orderPreProdSteps"> | null>(null);
+
+  // ── Pan (timeline horizontal scroll by dragging background)
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartX = useRef(0);
+  const panStartScrollLeft = useRef(0);
+
+  const handleTimelineMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only pan on left-click directly on the background (not on bars/buttons)
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("[data-bar]") || target.closest("input")) return;
+    if (drag) return; // don't pan while a bar is being dragged
+    e.preventDefault();
+    panStartX.current = e.clientX;
+    panStartScrollLeft.current = timelineRef.current?.scrollLeft ?? 0;
+    setIsPanning(true);
+  }, [drag]);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const onMove = (e: MouseEvent) => {
+      const dx = e.clientX - panStartX.current;
+      if (timelineRef.current) {
+        timelineRef.current.scrollLeft = panStartScrollLeft.current - dx;
+      }
+    };
+    const onUp = () => setIsPanning(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isPanning]);
 
   useEffect(() => {
     if (drag) return;
@@ -718,7 +752,17 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
           </div>
 
           {/* ── Timeline ── */}
-          <div ref={timelineRef} style={{ flex: 1, overflow: "auto", position: "relative" }}>
+          <div
+            ref={timelineRef}
+            onMouseDown={handleTimelineMouseDown}
+            style={{
+              flex: 1,
+              overflow: "auto",
+              position: "relative",
+              cursor: isPanning ? "grabbing" : drag ? "default" : "grab",
+              userSelect: isPanning ? "none" : "auto",
+            }}
+          >
             <div style={{ minWidth: days.length * dayWidth, position: "relative" }}>
 
               {/* Month row */}
@@ -788,6 +832,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       {/* Bar */}
                       {dates && barWidth > 0 && (
                         <div
+                          data-bar="true"
                           style={{ position: "absolute", left: barLeft, top: barTop, width: barWidth, height: barH, background: step.done ? "linear-gradient(135deg,rgba(63,185,80,0.22),rgba(63,185,80,0.12))" : isSubtask ? `linear-gradient(135deg,rgba(212,29,60,0.22),rgba(212,29,60,0.12))` : `linear-gradient(135deg,rgba(212,29,60,0.32),rgba(212,29,60,0.18))`, border: `1px solid ${step.done ? "#3fb95066" : PRIMARY + (isSubtask ? "44" : "77")}`, borderRadius: isSubtask ? 5 : 7, cursor: "grab", opacity: isMutating ? 0.5 : 1, transition: "opacity 0.15s", display: "flex", flexDirection: "column", justifyContent: "center", userSelect: "none", overflow: "hidden", boxShadow: step.done ? "0 2px 8px rgba(63,185,80,0.14)" : `0 2px 8px rgba(212,29,60,${isSubtask ? "0.12" : "0.22"})` }}
                           onMouseDown={e => handleBarMouseDown(e, "move", step)}
                         >
