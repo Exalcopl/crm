@@ -46,7 +46,7 @@ export default function ZgloszeniaItPage() {
   const openCount = (tickets || []).filter((t) => t.status !== "done").length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d1117", color: "#c9d1d9" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "#0d1117", color: "#c9d1d9" }}>
       {/* Top Ribbon */}
       <RibbonGroup label="Zgłoszenia IT">
         <RibbonBtn
