@@ -114,7 +114,7 @@ function buildFlatRows(steps: Step[], filterUserId: Id<"users"> | null): FlatRow
 }
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
-const DAY_WIDTH = 52;
+const DAY_WIDTH_DEFAULT = 52;
 const ROW_HEIGHT = 96;
 const LEFT_COL = 310;
 const HEADER_H = 38;
@@ -124,6 +124,9 @@ const BAR_TOP = (ROW_HEIGHT - BAR_H) / 2;
 const BAR_TOP_SUB = (ROW_HEIGHT - BAR_H_SUB) / 2;
 const PRIMARY = "#d41d3c";
 const SUB_INDENT = 22;
+const ZOOM_MIN = 18;
+const ZOOM_MAX = 120;
+const ZOOM_STEP = 6;
 
 interface OrderPreProdGanttProps {
   orderId: Id<"orders">;
@@ -150,6 +153,27 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     const d = new Date(); d.setDate(d.getDate() - 3); return localDateStr(d);
   });
   const today = todayStr();
+
+  // ── Zoom
+  const [dayWidth, setDayWidth] = useState(DAY_WIDTH_DEFAULT);
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  const zoomTo = useCallback((next: number) => {
+    setDayWidth(Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, next))));
+  }, []);
+
+  useEffect(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
+      setDayWidth(prev => Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, prev + delta))));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // ── Filters
   const [filterUserId, setFilterUserId] = useState<Id<"users"> | null>(null);
@@ -231,7 +255,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     
     const initialDrag = drag;
     const onMove = (e: MouseEvent) => {
-      const delta = Math.round((e.clientX - initialDrag.startX) / DAY_WIDTH);
+      const delta = Math.round((e.clientX - initialDrag.startX) / dayWidth);
       let ns = initialDrag.initialStart, ne = initialDrag.initialEnd;
       if (initialDrag.type === "move") { ns = addDays(initialDrag.initialStart, delta); ne = addDays(initialDrag.initialEnd, delta); }
       else if (initialDrag.type === "resize-start") { ns = addDays(initialDrag.initialStart, delta); if (ns > ne) ns = ne; }
@@ -244,7 +268,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     const onUp = () => {
       setDrag(prev => {
         if (!prev) return null;
-        const finalDelta = Math.round((prev.currentX - prev.startX) / DAY_WIDTH);
+        const finalDelta = Math.round((prev.currentX - prev.startX) / dayWidth);
         let ns = prev.initialStart, ne = prev.initialEnd;
         if (prev.type === "move") { ns = addDays(prev.initialStart, finalDelta); ne = addDays(prev.initialEnd, finalDelta); }
         else if (prev.type === "resize-start") { ns = addDays(prev.initialStart, finalDelta); if (ns > ne) ns = ne; }
@@ -330,13 +354,13 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     if (startIdx === -1) return null;
     const ei = endIdx === -1 ? startIdx : endIdx;
 
-    let left = startIdx * DAY_WIDTH + 3;
-    let right = (ei + 1) * DAY_WIDTH - 3;
+    let left = startIdx * dayWidth + 3;
+    let right = (ei + 1) * dayWidth - 3;
 
     if (drag && drag.stepId === stepId) {
        const pixelDelta = drag.currentX - drag.startX;
-       const deltaDays = Math.round(pixelDelta / DAY_WIDTH);
-       const smoothOffset = pixelDelta - (deltaDays * DAY_WIDTH);
+       const deltaDays = Math.round(pixelDelta / dayWidth);
+       const smoothOffset = pixelDelta - (deltaDays * dayWidth);
 
        if (drag.type === "move") {
          left += smoothOffset;
@@ -409,6 +433,23 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
             <button type="button" onClick={() => setTimelineStart(p => addDays(p, -14))} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronLeft size={14} /></button>
             <button type="button" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 3); setTimelineStart(localDateStr(d)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 10px", cursor: "pointer", color: "#c9d1d9", fontSize: 11, fontWeight: 600 }}>Dziś</button>
             <button type="button" onClick={() => setTimelineStart(p => addDays(p, 14))} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: "#c9d1d9" }}><ChevronRight size={14} /></button>
+
+            <div style={{ width: 1, height: 20, background: "#30363d" }} />
+
+            {/* Zoom controls */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <button type="button" onClick={() => zoomTo(dayWidth - ZOOM_STEP)}
+                disabled={dayWidth <= ZOOM_MIN}
+                style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 9px", cursor: dayWidth <= ZOOM_MIN ? "not-allowed" : "pointer", color: dayWidth <= ZOOM_MIN ? "#374151" : "#c9d1d9", fontSize: 15, lineHeight: 1, fontWeight: 700 }}
+                title="Oddal (Ctrl+Scroll)">−</button>
+              <button type="button" onClick={() => zoomTo(DAY_WIDTH_DEFAULT)}
+                style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 8px", cursor: "pointer", color: dayWidth === DAY_WIDTH_DEFAULT ? PRIMARY : "#8b949e", fontSize: 10, fontWeight: 700, minWidth: 38, textAlign: "center" }}
+                title="Resetuj zoom">{Math.round((dayWidth / DAY_WIDTH_DEFAULT) * 100)}%</button>
+              <button type="button" onClick={() => zoomTo(dayWidth + ZOOM_STEP)}
+                disabled={dayWidth >= ZOOM_MAX}
+                style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "5px 9px", cursor: dayWidth >= ZOOM_MAX ? "not-allowed" : "pointer", color: dayWidth >= ZOOM_MAX ? "#374151" : "#c9d1d9", fontSize: 15, lineHeight: 1, fontWeight: 700 }}
+                title="Przybliż (Ctrl+Scroll)">+</button>
+            </div>
 
             <div style={{ width: 1, height: 20, background: "#30363d" }} />
 
@@ -677,13 +718,13 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
           </div>
 
           {/* ── Timeline ── */}
-          <div style={{ flex: 1, overflow: "auto", position: "relative" }}>
-            <div style={{ minWidth: days.length * DAY_WIDTH, position: "relative" }}>
+          <div ref={timelineRef} style={{ flex: 1, overflow: "auto", position: "relative" }}>
+            <div style={{ minWidth: days.length * dayWidth, position: "relative" }}>
 
               {/* Month row */}
               <div style={{ display: "flex", height: HEADER_H, background: "#0d1117", borderBottom: "1px solid #21262d", position: "sticky", top: 0, zIndex: 20 }}>
                 {monthGroups.map((g, i) => (
-                  <div key={i} style={{ width: g.count * DAY_WIDTH, flexShrink: 0, display: "flex", alignItems: "center", padding: "0 10px", borderRight: "1px solid #21262d" }}>
+                  <div key={i} style={{ width: g.count * dayWidth, flexShrink: 0, display: "flex", alignItems: "center", padding: "0 10px", borderRight: "1px solid #21262d" }}>
                     <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 700, textTransform: "capitalize" }}>{g.label}</span>
                   </div>
                 ))}
@@ -692,7 +733,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
               {/* Day row */}
               <div style={{ display: "flex", height: HEADER_H, background: "#0d1117", borderBottom: "1px solid #21262d", position: "sticky", top: HEADER_H, zIndex: 20 }}>
                 {days.map(day => (
-                  <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "1px solid #21262d", background: day.isToday ? `${PRIMARY}12` : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent" }}>
+                  <div key={day.dateStr} style={{ width: dayWidth, flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", borderRight: "1px solid #21262d", background: day.isToday ? `${PRIMARY}12` : day.isWeekend ? "rgba(255,255,255,0.01)" : "transparent" }}>
                     <span style={{ fontSize: 9, color: day.isToday ? PRIMARY : day.isWeekend ? "#374151" : "#8b949e", fontWeight: 700 }}>{day.label}</span>
                     <span style={{ fontSize: 12, color: day.isToday ? PRIMARY : day.isWeekend ? "#475569" : "#c9d1d9", fontWeight: day.isToday ? 800 : 400 }}>{day.dayNum}</span>
                   </div>
@@ -713,13 +754,13 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                     const si = days.findIndex(d => d.dateStr === dates.start);
                     const ei = days.findIndex(d => d.dateStr === dates.end);
                     if (si !== -1) {
-                      barLeft = si * DAY_WIDTH + 3;
-                      let right = ((ei !== -1 ? ei : si) + 1) * DAY_WIDTH - 3;
+                      barLeft = si * dayWidth + 3;
+                      let right = ((ei !== -1 ? ei : si) + 1) * dayWidth - 3;
 
                       if (drag && drag.stepId === step._id) {
                          const pixelDelta = drag.currentX - drag.startX;
-                         const deltaDays = Math.round(pixelDelta / DAY_WIDTH);
-                         const smoothOffset = pixelDelta - (deltaDays * DAY_WIDTH);
+                         const deltaDays = Math.round(pixelDelta / dayWidth);
+                         const smoothOffset = pixelDelta - (deltaDays * dayWidth);
 
                          if (drag.type === "move") {
                            barLeft += smoothOffset;
@@ -741,7 +782,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   return (
                     <div key={step._id} style={{ display: "flex", position: "relative", height: ROW_HEIGHT, borderBottom: "1px solid #161b22", background: step.done ? "rgba(63,185,80,0.02)" : index % 2 === 0 ? "#0d1117" : "#0f1318" }}>
                       {days.map(day => (
-                        <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isToday ? `${PRIMARY}05` : day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />
+                        <div key={day.dateStr} style={{ width: dayWidth, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isToday ? `${PRIMARY}05` : day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />
                       ))}
 
                       {/* Bar */}
@@ -799,14 +840,14 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                 {/* Add row placeholder */}
                 {isAddRowActive && (
                   <div style={{ height: ROW_HEIGHT, display: "flex", alignItems: "center", borderBottom: "1px solid #161b22", background: `rgba(212,29,60,0.02)` }}>
-                    {days.map(day => <div key={day.dateStr} style={{ width: DAY_WIDTH, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />)}
+                    {days.map(day => <div key={day.dateStr} style={{ width: dayWidth, flexShrink: 0, height: ROW_HEIGHT, borderRight: day.isWeekend ? "1px solid #21262d" : "1px solid #161b22", background: day.isWeekend ? "rgba(255,255,255,0.015)" : "transparent" }} />)}
                   </div>
                 )}
 
                 {/* ── SVG dependency lines ── */}
                 {depLines.length > 0 && (
                   <svg
-                    style={{ position: "absolute", top: 0, left: 0, width: days.length * DAY_WIDTH, height: totalTimelineHeight, pointerEvents: "none", zIndex: 15, overflow: "visible" }}
+                    style={{ position: "absolute", top: 0, left: 0, width: days.length * dayWidth, height: totalTimelineHeight, pointerEvents: "none", zIndex: 15, overflow: "visible" }}
                   >
                     <defs>
                       <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
