@@ -357,7 +357,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
 
   // ── SVG dependency lines data
   const depLines = useMemo(() => {
-    const lines: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    const lines: { x1: number; y1: number; x2: number; y2: number; reverse: boolean }[] = [];
     for (let i = 0; i < flatRows.length; i++) {
       const { step, parentStep } = flatRows[i];
       if (!parentStep) continue;
@@ -366,7 +366,16 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
       const parentRect = getBarRect(parentStep._id, parentIdx);
       const childRect = getBarRect(step._id, i);
       if (!parentRect || !childRect) continue;
-      lines.push({ x1: parentRect.right, y1: parentRect.centerY, x2: childRect.left, y2: childRect.centerY });
+
+      // If child is to the left of parent's right edge → connect right-to-right
+      const reverse = childRect.left < parentRect.right - 8;
+      lines.push({
+        x1: parentRect.right,
+        y1: parentRect.centerY,
+        x2: reverse ? childRect.right : childRect.left,
+        y2: childRect.centerY,
+        reverse,
+      });
     }
     return lines;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -803,19 +812,35 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                       <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                         <path d="M0,0 L0,6 L6,3 z" fill="rgba(255,255,255,0.75)" />
                       </marker>
+                      <marker id="arrowhead-left" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto">
+                        <path d="M6,0 L6,6 L0,3 z" fill="rgba(255,255,255,0.75)" />
+                      </marker>
                     </defs>
                     {depLines.map((line, i) => {
-                      const cx1 = line.x1 + Math.max(24, Math.abs(line.x2 - line.x1) * 0.3);
-                      const cx2 = line.x2 - Math.max(24, Math.abs(line.x2 - line.x1) * 0.3);
+                      // For normal (left-to-right) lines: curve right then sweep left to target
+                      // For reversed (right-to-right) lines: both anchors bow outward to the right
+                      let d: string;
+                      const span = Math.abs(line.x2 - line.x1);
+                      const bow = Math.max(32, span * 0.35);
+                      if (line.reverse) {
+                        // Both endpoints point right → control points go further right
+                        const cx1 = line.x1 + bow;
+                        const cx2 = line.x2 + bow;
+                        d = `M${line.x1},${line.y1} C${cx1},${line.y1} ${cx2},${line.y2} ${line.x2},${line.y2}`;
+                      } else {
+                        const cx1 = line.x1 + bow;
+                        const cx2 = line.x2 - bow;
+                        d = `M${line.x1},${line.y1} C${cx1},${line.y1} ${cx2},${line.y2} ${line.x2},${line.y2}`;
+                      }
                       return (
                         <path
                           key={i}
-                          d={`M${line.x1},${line.y1} C${cx1},${line.y1} ${cx2},${line.y2} ${line.x2},${line.y2}`}
+                          d={d}
                           stroke="rgba(255,255,255,0.75)"
                           strokeWidth={2}
                           strokeDasharray="7,4"
                           fill="none"
-                          markerEnd="url(#arrowhead)"
+                          markerEnd={line.reverse ? "url(#arrowhead-left)" : "url(#arrowhead)"}
                         />
                       );
                     })}
