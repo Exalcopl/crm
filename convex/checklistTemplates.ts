@@ -38,6 +38,69 @@ export const saveTemplate = mutation({
   },
 });
 
+/** Aktualizuje nazwy, listy i punkty istniejącego szablonu */
+export const updateTemplate = mutation({
+  args: {
+    id: v.id("checklistTemplates"),
+    name: v.string(),
+    lists: v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        color: v.string(),
+        items: v.array(
+          v.object({
+            id: v.string(),
+            label: v.string(),
+            checked: v.boolean(),
+          })
+        ),
+      })
+    ),
+  },
+  handler: async (ctx, { id, name, lists }) => {
+    await ctx.db.patch(id, {
+      name,
+      lists,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** Ustawia wybrany szablon jako domyślny dla Wycen lub Zleceń */
+export const setDefaultTemplate = mutation({
+  args: {
+    id: v.id("checklistTemplates"),
+    type: v.union(v.literal("quote"), v.literal("order")),
+    isDefault: v.boolean(),
+  },
+  handler: async (ctx, { id, type, isDefault }) => {
+    const field = type === "quote" ? "isDefaultQuote" : "isDefaultOrder";
+
+    // Unset current defaults if setting to true
+    if (isDefault) {
+      const all = await ctx.db.query("checklistTemplates").collect();
+      for (const t of all) {
+        if (t._id !== id && t[field]) {
+          await ctx.db.patch(t._id, { [field]: false });
+        }
+      }
+    }
+
+    await ctx.db.patch(id, { [field]: isDefault });
+  },
+});
+
+/** Pobiera domyślny szablon dla Wycen lub Zleceń */
+export const getDefaultTemplate = query({
+  args: { type: v.union(v.literal("quote"), v.literal("order")) },
+  handler: async (ctx, { type }) => {
+    const field = type === "quote" ? "isDefaultQuote" : "isDefaultOrder";
+    const templates = await ctx.db.query("checklistTemplates").collect();
+    return templates.find((t) => Boolean(t[field])) ?? null;
+  },
+});
+
 /** Usuwa szablon o podanym ID */
 export const removeTemplate = mutation({
   args: { id: v.id("checklistTemplates") },
@@ -74,6 +137,53 @@ export const testCustomChecklists = mutation({
     await ctx.db.delete(templateId);
 
     return "SUCCESS: Custom checklists schema & template read/write test passed!";
+  },
+});
+
+/** Test weryfikacyjny konfiguracji szablonów (edycja i oznaczanie jako domyślne) */
+export const testKonfiguracjeFlow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Utwórz szablon testowy
+    const id = await ctx.db.insert("checklistTemplates", {
+      name: "Szablon Konfiguratora Test",
+      lists: [
+        {
+          id: "l1",
+          title: "Lista Testowa",
+          color: "#3b82f6",
+          items: [{ id: "i1", label: "Punkt 1", checked: false }],
+        },
+      ],
+      createdAt: Date.now(),
+    });
+
+    // 2. Oznacz jako domyślny dla Wycen
+    const allBefore = await ctx.db.query("checklistTemplates").collect();
+    for (const t of allBefore) {
+      if (t._id !== id && t.isDefaultQuote) {
+        await ctx.db.patch(t._id, { isDefaultQuote: false });
+      }
+    }
+    await ctx.db.patch(id, { isDefaultQuote: true });
+
+    // 3. Sprawdź czy jest domyślny
+    const updated = await ctx.db.get(id);
+    if (!updated || !updated.isDefaultQuote) {
+      throw new Error("Błąd weryfikacji domyślnego szablonu dla Wycen!");
+    }
+
+    // 4. Edytuj nazwę
+    await ctx.db.patch(id, { name: "Zaktualizowana Nazwa Szablonu" });
+    const reFetched = await ctx.db.get(id);
+    if (!reFetched || reFetched.name !== "Zaktualizowana Nazwa Szablonu") {
+      throw new Error("Błąd weryfikacji edycji szablonu!");
+    }
+
+    // 5. Usuń szablon testowy
+    await ctx.db.delete(id);
+
+    return "SUCCESS: Konfiguracje templates CRUD and default assignment test passed!";
   },
 });
 

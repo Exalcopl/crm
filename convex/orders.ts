@@ -87,6 +87,12 @@ export const create = mutation({
       .withIndex("by_quote", (q) => q.eq("quoteId", args.quoteId))
       .collect();
 
+    const allTemplates = await ctx.db.query("checklistTemplates").collect();
+    const defaultOrderTpl = allTemplates.find((t) => Boolean(t.isDefaultOrder));
+    const initialOrderChecklists = (quote.checklists && (Array.isArray(quote.checklists) ? quote.checklists.length > 0 : Object.keys(quote.checklists).length > 0))
+      ? quote.checklists
+      : (defaultOrderTpl ? defaultOrderTpl.lists : []);
+
     const orderId = await ctx.db.insert("orders", {
       quoteId: args.quoteId,
       quoteVersionId: args.quoteVersionId,
@@ -94,6 +100,7 @@ export const create = mutation({
       status: "nowe",
       clientId: quote.clientId,
       investment: quote.investment || undefined,
+      checklists: initialOrderChecklists,
       notes: undefined,
       valueNetto: version ? version.valueNetto : (quote.value || 0),
       valueVat: version ? version.valueVat : 0,

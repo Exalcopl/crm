@@ -238,6 +238,9 @@ export const create = mutation({
       contact: args.contact,
     });
 
+    const allTemplates = await ctx.db.query("checklistTemplates").collect();
+    const defaultQuoteTpl = allTemplates.find((t) => Boolean(t.isDefaultQuote));
+
     const quoteId: Id<"quotes"> = await ctx.db.insert("quotes", {
       code,
       clientId,
@@ -249,6 +252,7 @@ export const create = mutation({
       ownerId: args.ownerId,
       archived: false,
       source: "admin",
+      checklists: defaultQuoteTpl ? defaultQuoteTpl.lists : [],
       configuration: args.configuration ?? undefined,
       customLabel: args.customLabel,
       investment: args.investment

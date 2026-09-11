@@ -583,7 +583,10 @@ export default defineSchema({
         ),
       })
     ),
+    isDefaultQuote: v.optional(v.boolean()),
+    isDefaultOrder: v.optional(v.boolean()),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
   }),
 
   orderCounters: defineTable({
