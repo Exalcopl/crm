@@ -138,10 +138,11 @@ function AdminShell({ children }: { children: ReactNode }) {
   return (
     <div className="fluent-shell" data-theme="carbon" data-density="compact">
       <div className="fluent-titlebar">
-        <div className="brand">
+        <Link href="/admin/panel" className="brand" title="Przejdź do Panelu">
           <div className="brand-mark">E</div>
           <span>Exalco CRM</span>
-        </div>
+        </Link>
+
 
         <div
           className="global-search"
