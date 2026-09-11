@@ -132,21 +132,9 @@ export function SearchCommandPalette({ isOpen, onClose }: SearchCommandPalettePr
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (query.trim().length > 0 && items[selectedIndex]) {
-          const selected = items[selectedIndex];
-          saveRecentSearch({
-            id: selected.id,
-            title: selected.title,
-            subtitle: selected.subtitle,
-            type: selected.type,
-            url: selected.url,
-            timestamp: Date.now(),
-          });
-          router.push(selected.url);
-          onClose();
+          handleSelectResult(items[selectedIndex]);
         } else if (query.trim().length === 0 && recentItems[selectedIndex]) {
-          const selected = recentItems[selectedIndex];
-          router.push(selected.url);
-          onClose();
+          handleSelectResult(recentItems[selectedIndex]);
         }
       }
     }
@@ -173,17 +161,25 @@ export function SearchCommandPalette({ isOpen, onClose }: SearchCommandPalettePr
     type: "wyceny" | "zlecenia";
     url: string;
   }) {
+    // Normalize URL if stored in legacy query string format (?id= -> /id)
+    let targetUrl = item.url;
+    if (targetUrl.includes("?id=")) {
+      const [basePath, idVal] = targetUrl.split("?id=");
+      targetUrl = `${basePath}/${idVal}`;
+    }
+
     saveRecentSearch({
       id: item.id,
       title: item.title,
       subtitle: item.subtitle,
       type: item.type,
-      url: item.url,
+      url: targetUrl,
       timestamp: Date.now(),
     });
     onClose();
-    router.push(item.url);
+    router.push(targetUrl);
   }
+
 
 
   return (
