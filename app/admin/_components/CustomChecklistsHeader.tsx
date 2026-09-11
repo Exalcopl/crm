@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckSquare, Square, Plus, Trash2, Edit2, Palette, BookmarkPlus, Check, X, FolderOpen, AlertTriangle } from "lucide-react";
+import { CheckSquare, Square, Plus, Trash2, Edit2, Palette, BookmarkPlus, Check, X, FolderOpen, AlertTriangle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export type ChecklistItem = {
@@ -26,81 +26,6 @@ export const COLOR_PALETTE = [
   { hex: "#f59e0b", name: "Bursztynowy" },
   { hex: "#ec4899", name: "Różowy" },
   { hex: "#06b6d4", name: "Cyjan" },
-];
-
-export const BUILTIN_PRESETS: { id?: string; name: string; lists: CustomList[] }[] = [
-  {
-    name: "Standardowa Wycena",
-    lists: [
-      {
-        id: "p1_1",
-        title: "Analiza & Wymagania",
-        color: "#3b82f6",
-        items: [
-          { id: "i1", label: "Analiza zapytań / Wymagań", checked: false },
-          { id: "i2", label: "Dane kontaktowe i adres", checked: false },
-          { id: "i3", label: "Weryfikacja techniczna", checked: false },
-          { id: "i4", label: "Konfiguracja wybrana", checked: false },
-        ],
-      },
-      {
-        id: "p1_2",
-        title: "Kalkulacja & Wycena",
-        color: "#8b5cf6",
-        items: [
-          { id: "i5", label: "Kalkulacja materiałowa", checked: false },
-          { id: "i6", label: "Wycena dostawców / Szyb", checked: false },
-          { id: "i7", label: "Rabat / Marża ustalona", checked: false },
-          { id: "i8", label: "Generowanie oferty PDF", checked: false },
-        ],
-      },
-      {
-        id: "p1_3",
-        title: "Oferta & Akceptacja",
-        color: "#10b981",
-        items: [
-          { id: "i9", label: "Wysłanie oferty do klienta", checked: false },
-          { id: "i10", label: "Potwierdzenie warunków", checked: false },
-          { id: "i11", label: "Zgoda klienta / Umowa", checked: false },
-        ],
-      },
-    ],
-  },
-  {
-    name: "Zlecenie i Montaż",
-    lists: [
-      {
-        id: "p2_1",
-        title: "Przygotowanie",
-        color: "#3b82f6",
-        items: [
-          { id: "i12", label: "Pomiar końcowy na budowie", checked: false },
-          { id: "i13", label: "Weryfikacja zamawianej stolarki", checked: false },
-          { id: "i14", label: "Zaliczka zaksięgowana", checked: false },
-        ],
-      },
-      {
-        id: "p2_2",
-        title: "Zamówienie & Produkcja",
-        color: "#f59e0b",
-        items: [
-          { id: "i15", label: "Zamówienie profili i szyb", checked: false },
-          { id: "i16", label: "Potwierdzenie terminu fabryki", checked: false },
-          { id: "i17", label: "Kontrola jakości dostawy", checked: false },
-        ],
-      },
-      {
-        id: "p2_3",
-        title: "Logistyka & Montaż",
-        color: "#10b981",
-        items: [
-          { id: "i18", label: "Pakowanie / Magazyn", checked: false },
-          { id: "i19", label: "Transport na budowę", checked: false },
-          { id: "i20", label: "Montaż i odbiór końcowy", checked: false },
-        ],
-      },
-    ],
-  },
 ];
 
 export function normalizeChecklists(raw: any): CustomList[] {
@@ -172,10 +97,11 @@ export function CustomChecklistsHeader({
   const [deletingTemplate, setDeletingTemplate] = useState<{ id: any; name: string } | null>(null);
   const [deletingList, setDeletingList] = useState<{ id: string; title: string } | null>(null);
 
-  // Convex query & mutation for templates
+  // Convex query & mutations for templates
   const userTemplates = useQuery(api.checklistTemplates.list) ?? [];
   const saveTemplateMut = useMutation(api.checklistTemplates.saveTemplate);
   const removeTemplateMut = useMutation(api.checklistTemplates.removeTemplate);
+  const seedDefaultsMut = useMutation(api.checklistTemplates.seedDefaults);
 
   useEffect(() => {
     setLists(normalized);
@@ -315,8 +241,10 @@ export function CustomChecklistsHeader({
     try {
       if (deletingTemplate.id) {
         await removeTemplateMut({ id: deletingTemplate.id });
+        toast.success(`Usunięto szablon „${deletingTemplate.name}”`);
+      } else {
+        toast.error("Brak identyfikatora szablonu do usunięcia");
       }
-      toast.success(`Usunięto szablon „${deletingTemplate.name}”`);
     } catch {
       toast.error("Nie udało się usunąć szablonu");
     } finally {
@@ -324,10 +252,16 @@ export function CustomChecklistsHeader({
     }
   }
 
-  const remainingSlots = Math.max(0, 3 - lists.length);
+  async function handleRestoreDefaults() {
+    try {
+      await seedDefaultsMut();
+      toast.success("Przywrócono domyślne szablony!");
+    } catch {
+      toast.error("Nie udało się przywrócić szablonów");
+    }
+  }
 
-  // Combine userTemplates with BUILTIN_PRESETS if userTemplates is empty
-  const allTemplatesList = userTemplates.length > 0 ? userTemplates : BUILTIN_PRESETS;
+  const remainingSlots = Math.max(0, 3 - lists.length);
 
   return (
     <div style={{ background: "rgba(13, 17, 23, 0.85)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 10, marginTop: 4 }}>
@@ -409,43 +343,73 @@ export function CustomChecklistsHeader({
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
                     Dostępne szablony
                   </div>
-                  {allTemplatesList.map((t: any) => (
-                    <div
-                      key={t._id || t.name}
-                      onClick={() => handleApplyPreset(t.lists)}
-                      style={{
-                        width: "100%",
-                        borderRadius: 4,
-                        padding: "5px 8px",
-                        fontSize: 11,
-                        color: "#c9d1d9",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 6,
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                    >
-                      <span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {t.name}
-                      </span>
+
+                  {userTemplates.length > 0 ? (
+                    userTemplates.map((t: any) => (
+                      <div
+                        key={t._id}
+                        onClick={() => handleApplyPreset(t.lists)}
+                        style={{
+                          width: "100%",
+                          borderRadius: 4,
+                          padding: "5px 8px",
+                          fontSize: 11,
+                          color: "#c9d1d9",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 6,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      >
+                        <span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletingTemplate({ id: t._id, name: t.name });
+                          }}
+                          style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "2px 4px", borderRadius: 3 }}
+                          title="Usuń ten szablon"
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: "8px 6px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
+                      <span>Brak szablonów</span>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingTemplate({ id: t._id ?? null, name: t.name });
+                        onClick={() => void handleRestoreDefaults()}
+                        style={{
+                          marginTop: 6,
+                          width: "100%",
+                          background: "rgba(59, 130, 246, 0.15)",
+                          border: "1px solid rgba(59, 130, 246, 0.3)",
+                          borderRadius: 4,
+                          color: "#60a5fa",
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: "4px 6px",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 4,
                         }}
-                        style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "2px 4px", borderRadius: 3 }}
-                        title="Usuń ten szablon"
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                       >
-                        <Trash2 size={11} />
+                        <RotateCcw size={11} />
+                        <span>Przywróć domyślne</span>
                       </button>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
