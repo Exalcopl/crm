@@ -76,3 +76,27 @@ export const testCustomChecklists = mutation({
     return "SUCCESS: Custom checklists schema & template read/write test passed!";
   },
 });
+
+/** Czyszczenie wszystkich checklist we wszystkich wycenach i zleceniach */
+export const clearAllChecklists = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const quotes = await ctx.db.query("quotes").collect();
+    let qCount = 0;
+    for (const q of quotes) {
+      if (q.checklists && (Array.isArray(q.checklists) ? q.checklists.length > 0 : Object.keys(q.checklists).length > 0)) {
+        await ctx.db.patch(q._id, { checklists: [] });
+        qCount++;
+      }
+    }
+    const orders = await ctx.db.query("orders").collect();
+    let oCount = 0;
+    for (const o of orders) {
+      if (o.checklists && (Array.isArray(o.checklists) ? o.checklists.length > 0 : Object.keys(o.checklists).length > 0)) {
+        await ctx.db.patch(o._id, { checklists: [] });
+        oCount++;
+      }
+    }
+    return `SUCCESS: Cleared checklists for ${qCount} quotes and ${oCount} orders.`;
+  },
+});
