@@ -252,15 +252,6 @@ export function CustomChecklistsHeader({
     }
   }
 
-  async function handleRestoreDefaults() {
-    try {
-      await seedDefaultsMut();
-      toast.success("Przywrócono domyślne szablony!");
-    } catch {
-      toast.error("Nie udało się przywrócić szablonów");
-    }
-  }
-
   const remainingSlots = Math.max(0, 3 - lists.length);
 
   return (
@@ -384,30 +375,7 @@ export function CustomChecklistsHeader({
                     ))
                   ) : (
                     <div style={{ padding: "8px 6px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
-                      <span>Brak szablonów</span>
-                      <button
-                        type="button"
-                        onClick={() => void handleRestoreDefaults()}
-                        style={{
-                          marginTop: 6,
-                          width: "100%",
-                          background: "rgba(59, 130, 246, 0.15)",
-                          border: "1px solid rgba(59, 130, 246, 0.3)",
-                          borderRadius: 4,
-                          color: "#60a5fa",
-                          fontSize: 10,
-                          fontWeight: 600,
-                          padding: "4px 6px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <RotateCcw size={11} />
-                        <span>Przywróć domyślne</span>
-                      </button>
+                      Brak szablonów
                     </div>
                   )}
                 </div>
