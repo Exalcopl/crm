@@ -40,6 +40,7 @@ import type * as quoteOcr from "../quoteOcr.js";
 import type * as quoteVersions from "../quoteVersions.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
+import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as sharepoint from "../sharepoint.js";
 import type * as sharepointWebhook from "../sharepointWebhook.js";
@@ -51,6 +52,7 @@ import type * as testing_calendar from "../testing_calendar.js";
 import type * as testing_it_tickets from "../testing_it_tickets.js";
 import type * as testing_orders from "../testing_orders.js";
 import type * as testing_partners from "../testing_partners.js";
+import type * as testing_search from "../testing_search.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -93,6 +95,7 @@ declare const fullApi: ApiFromModules<{
   quoteVersions: typeof quoteVersions;
   quotes: typeof quotes;
   roles: typeof roles;
+  search: typeof search;
   seed: typeof seed;
   sharepoint: typeof sharepoint;
   sharepointWebhook: typeof sharepointWebhook;
@@ -104,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   testing_it_tickets: typeof testing_it_tickets;
   testing_orders: typeof testing_orders;
   testing_partners: typeof testing_partners;
+  testing_search: typeof testing_search;
   users: typeof users;
   webhooks: typeof webhooks;
 }>;

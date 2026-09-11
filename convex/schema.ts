@@ -569,7 +569,22 @@ export default defineSchema({
 
   checklistTemplates: defineTable({
     name: v.string(),
+    scope: v.optional(v.union(v.literal("single"), v.literal("full_set"))),
     lists: v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        color: v.string(),
+        items: v.array(
+          v.object({
+            id: v.string(),
+            label: v.string(),
+            checked: v.boolean(),
+          })
+        ),
+      })
+    ),
+    singleList: v.optional(
       v.object({
         id: v.string(),
         title: v.string(),
@@ -585,6 +600,8 @@ export default defineSchema({
     ),
     isDefaultQuote: v.optional(v.boolean()),
     isDefaultOrder: v.optional(v.boolean()),
+    defaultSlotQuote: v.optional(v.union(v.literal("slot1"), v.literal("slot2"), v.literal("slot3"), v.null())),
+    defaultSlotOrder: v.optional(v.union(v.literal("slot1"), v.literal("slot2"), v.literal("slot3"), v.null())),
     createdAt: v.number(),
     updatedAt: v.optional(v.number()),
   }),

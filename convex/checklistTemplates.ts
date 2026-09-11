@@ -31,10 +31,92 @@ export const saveTemplate = mutation({
   handler: async (ctx, { name, lists }) => {
     const id = await ctx.db.insert("checklistTemplates", {
       name,
+      scope: "full_set",
       lists,
       createdAt: Date.now(),
     });
     return id;
+  },
+});
+
+/** Zapisuje pojedynczą listę jako szablon 1 kolumny */
+export const saveSingleTemplate = mutation({
+  args: {
+    name: v.string(),
+    singleList: v.object({
+      id: v.string(),
+      title: v.string(),
+      color: v.string(),
+      items: v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          checked: v.boolean(),
+        })
+      ),
+    }),
+  },
+  handler: async (ctx, { name, singleList }) => {
+    const id = await ctx.db.insert("checklistTemplates", {
+      name,
+      scope: "single",
+      lists: [singleList],
+      singleList,
+      createdAt: Date.now(),
+    });
+    return id;
+  },
+});
+
+/** Aktualizuje pojedynczy szablon listy */
+export const updateSingleTemplate = mutation({
+  args: {
+    id: v.id("checklistTemplates"),
+    name: v.string(),
+    singleList: v.object({
+      id: v.string(),
+      title: v.string(),
+      color: v.string(),
+      items: v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          checked: v.boolean(),
+        })
+      ),
+    }),
+  },
+  handler: async (ctx, { id, name, singleList }) => {
+    await ctx.db.patch(id, {
+      name,
+      lists: [singleList],
+      singleList,
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** Ustawia szablon 1 kolumny jako domyślny dla Slota 1, 2 lub 3 */
+export const setDefaultSlotTemplate = mutation({
+  args: {
+    id: v.id("checklistTemplates"),
+    target: v.union(v.literal("quote"), v.literal("order")),
+    slot: v.union(v.literal("slot1"), v.literal("slot2"), v.literal("slot3")),
+    isDefault: v.boolean(),
+  },
+  handler: async (ctx, { id, target, slot, isDefault }) => {
+    const field = target === "quote" ? "defaultSlotQuote" : "defaultSlotOrder";
+
+    if (isDefault) {
+      const all = await ctx.db.query("checklistTemplates").collect();
+      for (const t of all) {
+        if (t._id !== id && t[field] === slot) {
+          await ctx.db.patch(t._id, { [field]: null });
+        }
+      }
+    }
+
+    await ctx.db.patch(id, { [field]: isDefault ? slot : null });
   },
 });
 
@@ -297,3 +379,49 @@ export const seedDefaults = mutation({
     return "SUCCESS: Seeded default checklist templates!";
   },
 });
+
+/** Test weryfikacyjny dla szablonów jednokolumnowych (slotów) */
+export const testSingleSlotChecklistsFlow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Utwórz szablon jednokolumnowy
+    const singleList = {
+      id: "single_1",
+      title: "Testowa Lista Slotowa",
+      color: "#ec4899",
+      items: [
+        { id: "i1", label: "Punkt Slotowy 1", checked: false },
+        { id: "i2", label: "Punkt Slotowy 2", checked: true },
+      ],
+    };
+
+    const templateId = await ctx.db.insert("checklistTemplates", {
+      name: "Szablon Slot 1 Test",
+      scope: "single",
+      lists: [singleList],
+      singleList,
+      createdAt: Date.now(),
+    });
+
+    // 2. Ustaw go jako domyślny dla slot1 w wycenie
+    const all = await ctx.db.query("checklistTemplates").collect();
+    for (const t of all) {
+      if (t._id !== templateId && t.defaultSlotQuote === "slot1") {
+        await ctx.db.patch(t._id, { defaultSlotQuote: null });
+      }
+    }
+    await ctx.db.patch(templateId, { defaultSlotQuote: "slot1" });
+
+    // 3. Sprawdź pobranie i domyślny slot
+    const fetched = await ctx.db.get(templateId);
+    if (!fetched || fetched.defaultSlotQuote !== "slot1" || fetched.scope !== "single") {
+      throw new Error("Błąd weryfikacji domyślnego slotu dla wyceny!");
+    }
+
+    // 4. Posprzątaj po teście
+    await ctx.db.delete(templateId);
+
+    return "SUCCESS: Single slot template CRUD and default assignment test passed!";
+  },
+});
+

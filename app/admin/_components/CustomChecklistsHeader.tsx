@@ -93,6 +93,20 @@ export function CustomChecklistsHeader({
   const [templateName, setTemplateName] = useState("");
   const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
 
+  // Single column save modal
+  const [savingSingleList, setSavingSingleList] = useState<CustomList | null>(null);
+  const [singleTemplateName, setSingleTemplateName] = useState("");
+
+  // Single column load dropdowns
+  const [activeSingleLoadListId, setActiveSingleLoadListId] = useState<string | null>(null);
+  const [activeSingleLoadSlotIndex, setActiveSingleLoadSlotIndex] = useState<number | null>(null);
+
+  // Conflict modal state
+  const [conflictState, setConflictState] = useState<{
+    targetSlotIndex: number;
+    incomingList: CustomList;
+  } | null>(null);
+
   // Potykacze (Confirmation Modals)
   const [deletingTemplate, setDeletingTemplate] = useState<{ id: any; name: string } | null>(null);
   const [deletingList, setDeletingList] = useState<{ id: string; title: string } | null>(null);
@@ -100,8 +114,12 @@ export function CustomChecklistsHeader({
   // Convex query & mutations for templates
   const userTemplates = useQuery(api.checklistTemplates.list) ?? [];
   const saveTemplateMut = useMutation(api.checklistTemplates.saveTemplate);
+  const saveSingleTemplateMut = useMutation(api.checklistTemplates.saveSingleTemplate);
   const removeTemplateMut = useMutation(api.checklistTemplates.removeTemplate);
   const seedDefaultsMut = useMutation(api.checklistTemplates.seedDefaults);
+
+  const singleTemplates = useMemo(() => userTemplates.filter((t: any) => t.scope === "single"), [userTemplates]);
+  const fullSetTemplates = useMemo(() => userTemplates.filter((t: any) => t.scope !== "single"), [userTemplates]);
 
   useEffect(() => {
     setLists(normalized);
@@ -218,6 +236,55 @@ export function CustomChecklistsHeader({
     toast.success("Wczytano zestaw list z szablonu");
   }
 
+  function handleSelectSingleTemplate(template: any, slotIndex: number) {
+    if (disabled) return;
+    const incomingList: CustomList = template.singleList ?? template.lists?.[0] ?? {
+      id: `list_${Date.now()}`,
+      title: template.name,
+      color: "#3b82f6",
+      items: [],
+    };
+
+    const targetList = lists[slotIndex];
+    if (targetList && targetList.items.length > 0) {
+      setConflictState({
+        targetSlotIndex: slotIndex,
+        incomingList,
+      });
+    } else {
+      applySingleTemplateToSlot(slotIndex, incomingList, "replace");
+    }
+
+    setActiveSingleLoadListId(null);
+    setActiveSingleLoadSlotIndex(null);
+  }
+
+  function applySingleTemplateToSlot(slotIndex: number, incoming: CustomList, mode: "replace" | "append") {
+    const targetList = lists[slotIndex];
+
+    const freshList: CustomList = {
+      id: mode === "replace" || !targetList ? `list_${Date.now()}_${slotIndex}` : targetList.id,
+      title: mode === "replace" || !targetList ? incoming.title : targetList.title,
+      color: mode === "replace" || !targetList ? incoming.color : targetList.color,
+      items: mode === "replace" || !targetList
+        ? incoming.items.map((i, idx) => ({ id: `item_${Date.now()}_${idx}`, label: i.label, checked: false }))
+        : [
+            ...targetList.items,
+            ...incoming.items.map((i, idx) => ({ id: `item_${Date.now()}_append_${idx}`, label: i.label, checked: false })),
+          ],
+    };
+
+    const next = [...lists];
+    if (slotIndex < next.length) {
+      next[slotIndex] = freshList;
+    } else {
+      next.push(freshList);
+    }
+
+    void updateAndSave(next);
+    toast.success(mode === "replace" ? `Wczytano szablon do slotu ${slotIndex + 1}` : `Dołączono punkty szablonu do slotu ${slotIndex + 1}`);
+  }
+
   async function handleSaveAsTemplate() {
     if (!templateName.trim()) {
       toast.error("Wpisz nazwę szablonu");
@@ -230,7 +297,25 @@ export function CustomChecklistsHeader({
       });
       setIsSaveTemplateModalOpen(false);
       setTemplateName("");
-      toast.success("Szablon został pomyślnie zapisany!");
+      toast.success("Szablon zestawu został pomyślnie zapisany!");
+    } catch {
+      toast.error("Błąd zapisywania szablonu");
+    }
+  }
+
+  async function handleSaveSingleAsTemplate() {
+    if (!savingSingleList || !singleTemplateName.trim()) {
+      toast.error("Wpisz nazwę szablonu");
+      return;
+    }
+    try {
+      await saveSingleTemplateMut({
+        name: singleTemplateName.trim(),
+        singleList: savingSingleList,
+      });
+      setSavingSingleList(null);
+      setSingleTemplateName("");
+      toast.success(`Zapisano szablon listy „${savingSingleList.title}”!`);
     } catch {
       toast.error("Błąd zapisywania szablonu");
     }
@@ -284,10 +369,10 @@ export function CustomChecklistsHeader({
                 gap: 4,
                 transition: "all 0.15s ease",
               }}
-              title="Zapisz obecny zestaw list jako szablon"
+              title="Zapisz obecny zestaw 3 list jako szablon"
             >
               <BookmarkPlus size={12} style={{ color: "#f59e0b" }} />
-              <span>Zapisz jako szablon</span>
+              <span>Zapisz zestaw jako szablon</span>
             </button>
           )}
 
@@ -312,7 +397,7 @@ export function CustomChecklistsHeader({
                 }}
               >
                 <FolderOpen size={12} />
-                <span>Wczytaj szablon</span>
+                <span>Wczytaj zestaw list</span>
               </button>
 
               {isPresetDropdownOpen && (
@@ -332,11 +417,11 @@ export function CustomChecklistsHeader({
                   }}
                 >
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
-                    Dostępne szablony
+                    Dostępne zestawy 3 list
                   </div>
 
-                  {userTemplates.length > 0 ? (
-                    userTemplates.map((t: any) => (
+                  {fullSetTemplates.length > 0 ? (
+                    fullSetTemplates.map((t: any) => (
                       <div
                         key={t._id}
                         onClick={() => handleApplyPreset(t.lists)}
@@ -375,7 +460,7 @@ export function CustomChecklistsHeader({
                     ))
                   ) : (
                     <div style={{ padding: "8px 6px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
-                      Brak szablonów
+                      Brak zapisanych zestawów
                     </div>
                   )}
                 </div>
@@ -388,10 +473,11 @@ export function CustomChecklistsHeader({
       {/* Grid of 3 columns */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
         {/* Render Existing Custom Lists */}
-        {lists.map((list) => {
+        {lists.map((list, slotIdx) => {
           const doneCount = list.items.filter((i) => i.checked).length;
           const totalCount = list.items.length;
           const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+          const isLoadSingleOpen = activeSingleLoadListId === list.id;
 
           return (
             <div
@@ -474,74 +560,155 @@ export function CustomChecklistsHeader({
                   )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: list.color, background: `${list.color}15`, border: `1px solid ${list.color}33`, padding: "1px 6px", borderRadius: 10 }}>
-                    {doneCount}/{totalCount} · {pct}%
+                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: list.color, background: `${list.color}15`, border: `1px solid ${list.color}33`, padding: "1px 5px", borderRadius: 10 }}>
+                    {doneCount}/{totalCount}
                   </span>
 
                   {!disabled && (
-                    <div style={{ position: "relative" }}>
+                    <>
+                      {/* Save single list as template button */}
                       <button
                         type="button"
-                        onClick={() => setOpenColorPickerId(openColorPickerId === list.id ? null : list.id)}
-                        style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 2, display: "flex" }}
-                        title="Zmień kolor akcentu"
+                        onClick={() => {
+                          setSavingSingleList(list);
+                          setSingleTemplateName(list.title);
+                        }}
+                        style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", padding: 2, display: "flex" }}
+                        title="Zapisz tę pojedynczą listę jako szablon"
                       >
-                        <Palette size={12} />
+                        <BookmarkPlus size={12} />
                       </button>
 
-                      {openColorPickerId === list.id && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            right: 0,
-                            marginTop: 4,
-                            background: "#0d1117",
-                            border: "1px solid #30363d",
-                            borderRadius: 6,
-                            padding: 6,
-                            display: "flex",
-                            gap: 4,
-                            boxShadow: "0 6px 16px rgba(0,0,0,0.4)",
-                            zIndex: 20,
-                          }}
+                      {/* Load single list template to this slot */}
+                      <div style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSingleLoadListId(isLoadSingleOpen ? null : list.id)}
+                          style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 2, display: "flex" }}
+                          title="Wczytaj szablon do tej kolumny"
                         >
-                          {COLOR_PALETTE.map((c) => (
-                            <button
-                              key={c.hex}
-                              type="button"
-                              onClick={() => handleChangeColor(list.id, c.hex)}
-                              style={{
-                                width: 16,
-                                height: 16,
-                                borderRadius: "50%",
-                                background: c.hex,
-                                border: list.color === c.hex ? "2px solid #fff" : "none",
-                                cursor: "pointer",
-                              }}
-                              title={c.name}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                          <FolderOpen size={12} />
+                        </button>
 
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={() => setDeletingList({ id: list.id, title: list.title })}
-                      style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 2, display: "flex" }}
-                      title="Usuń całą listę"
-                      onMouseEnter={(e) => (e.currentTarget.style.color = "#f85149")}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = "#484f58")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                        {isLoadSingleOpen && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "100%",
+                              right: 0,
+                              marginTop: 4,
+                              width: 220,
+                              background: "#161b22",
+                              border: "1px solid #30363d",
+                              borderRadius: 6,
+                              padding: 6,
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                              zIndex: 100,
+                            }}
+                          >
+                            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
+                              Szablony dla kolumny {slotIdx + 1}
+                            </div>
+                            {singleTemplates.length > 0 ? (
+                              singleTemplates.map((st: any) => (
+                                <div
+                                  key={st._id}
+                                  onClick={() => handleSelectSingleTemplate(st, slotIdx)}
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: 4,
+                                    padding: "5px 8px",
+                                    fontSize: 11,
+                                    color: "#c9d1d9",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                >
+                                  <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {st.name}
+                                  </span>
+                                  <span style={{ fontSize: 9, color: "#8b949e" }}>
+                                    {(st.singleList?.items?.length ?? st.lists?.[0]?.items?.length ?? 0)} pkt
+                                  </span>
+                                </div>
+                              ))
+                            ) : (
+                              <div style={{ padding: "6px", fontStyle: "italic", fontSize: 10, color: "#8b949e", textAlign: "center" }}>
+                                Brak szablonów 1 kolumny
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Color picker toggle */}
+                      <div style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenColorPickerId(openColorPickerId === list.id ? null : list.id)}
+                          style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 2, display: "flex" }}
+                          title="Zmień kolor akcentu"
+                        >
+                          <Palette size={12} />
+                        </button>
+
+                        {openColorPickerId === list.id && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "100%",
+                              right: 0,
+                              marginTop: 4,
+                              background: "#0d1117",
+                              border: "1px solid #30363d",
+                              borderRadius: 6,
+                              padding: 6,
+                              display: "flex",
+                              gap: 4,
+                              boxShadow: "0 6px 16px rgba(0,0,0,0.4)",
+                              zIndex: 20,
+                            }}
+                          >
+                            {COLOR_PALETTE.map((c) => (
+                              <button
+                                key={c.hex}
+                                type="button"
+                                onClick={() => handleChangeColor(list.id, c.hex)}
+                                style={{
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: "50%",
+                                  background: c.hex,
+                                  border: list.color === c.hex ? "2px solid #fff" : "none",
+                                  cursor: "pointer",
+                                }}
+                                title={c.name}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDeletingList({ id: list.id, title: list.title })}
+                        style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 2, display: "flex" }}
+                        title="Usuń całą listę"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#f85149")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#484f58")}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
+
 
               {/* Progress bar */}
               <div style={{ width: "100%", height: 3, background: "#21262d", borderRadius: 2, overflow: "hidden" }}>
@@ -751,63 +918,140 @@ export function CustomChecklistsHeader({
             );
           }
 
+          const isLoadSingleSlotOpen = activeSingleLoadSlotIndex === slotIndex;
+
           return (
             <div
               key={`empty_slot_${slotIndex}`}
-              onClick={() => {
-                if (disabled) return;
-                setIsAddingList(true);
-                setNewListTitle("");
-              }}
               style={{
                 background: "rgba(22, 27, 34, 0.4)",
                 border: "1.5px dashed rgba(255,255,255,0.12)",
                 borderRadius: 6,
-                padding: "20px 10px",
+                padding: "16px 10px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
-                cursor: disabled ? "default" : "pointer",
-                transition: "all 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (!disabled) {
-                  e.currentTarget.style.background = "rgba(59, 130, 246, 0.05)";
-                  e.currentTarget.style.borderColor = "rgba(59, 130, 246, 0.4)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!disabled) {
-                  e.currentTarget.style.background = "rgba(22, 27, 34, 0.4)";
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)";
-                }
+                gap: 8,
+                position: "relative",
               }}
             >
-              <div
-                style={{
-                  width: 26,
-                  height: 26,
-                  borderRadius: "50%",
-                  background: "rgba(255,255,255,0.05)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#60a5fa",
-                }}
-              >
-                <Plus size={14} />
+              <div style={{ fontSize: 11, fontWeight: 600, color: "#8b949e" }}>
+                Pusty slot {slotIndex + 1}/3
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#8b949e" }}>
-                + Dodaj nową listę (slot {slotIndex + 1}/3)
-              </span>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (disabled) return;
+                    setIsAddingList(true);
+                    setNewListTitle("");
+                  }}
+                  style={{
+                    background: "rgba(59, 130, 246, 0.12)",
+                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                    borderRadius: 5,
+                    color: "#60a5fa",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: "4px 8px",
+                    cursor: disabled ? "default" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>+ Nowa lista</span>
+                </button>
+
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (disabled) return;
+                      setActiveSingleLoadSlotIndex(isLoadSingleSlotOpen ? null : slotIndex);
+                    }}
+                    style={{
+                      background: "rgba(236, 72, 153, 0.12)",
+                      border: "1px solid rgba(236, 72, 153, 0.3)",
+                      borderRadius: 5,
+                      color: "#f472b6",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      padding: "4px 8px",
+                      cursor: disabled ? "default" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <FolderOpen size={12} />
+                    <span>Wczytaj szablon</span>
+                  </button>
+
+                  {isLoadSingleSlotOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        right: 0,
+                        marginTop: 4,
+                        width: 220,
+                        background: "#161b22",
+                        border: "1px solid #30363d",
+                        borderRadius: 6,
+                        padding: 6,
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                        zIndex: 100,
+                      }}
+                    >
+                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
+                        Szablony dla slotu {slotIndex + 1}
+                      </div>
+                      {singleTemplates.length > 0 ? (
+                        singleTemplates.map((st: any) => (
+                          <div
+                            key={st._id}
+                            onClick={() => handleSelectSingleTemplate(st, slotIndex)}
+                            style={{
+                              width: "100%",
+                              borderRadius: 4,
+                              padding: "5px 8px",
+                              fontSize: 11,
+                              color: "#c9d1d9",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                          >
+                            <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {st.name}
+                            </span>
+                            <span style={{ fontSize: 9, color: "#8b949e" }}>
+                              {(st.singleList?.items?.length ?? st.lists?.[0]?.items?.length ?? 0)} pkt
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <div style={{ padding: "6px", fontStyle: "italic", fontSize: 10, color: "#8b949e", textAlign: "center" }}>
+                          Brak szablonów 1 kolumny
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}
       </div>
 
-      {/* Save Template Modal */}
+      {/* Save Full Set Template Modal */}
       {isSaveTemplateModalOpen && (
         <div
           style={{
@@ -830,19 +1074,19 @@ export function CustomChecklistsHeader({
               border: "1px solid #30363d",
               borderRadius: 8,
               padding: 16,
-              width: 320,
+              width: 340,
               display: "flex",
               flexDirection: "column",
               gap: 12,
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Zapisz obecne listy jako szablon</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Zapisz obecne 3 listy jako zestaw szablonów</div>
             <input
               type="text"
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Wpisz nazwę szablonu (np. Montaż Rolet)..."
+              placeholder="Wpisz nazwę szablonu (np. Montaż Rolet Zestaw)..."
               autoFocus
               style={{
                 background: "#0d1117",
@@ -876,12 +1120,197 @@ export function CustomChecklistsHeader({
                   cursor: "pointer",
                 }}
               >
-                Zapisz
+                Zapisz Zestaw
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Save Single Column Template Modal */}
+      {savingSingleList && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setSavingSingleList(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              borderRadius: 8,
+              padding: 16,
+              width: 340,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>
+              Zapisz listę „{savingSingleList.title}” jako szablon
+            </div>
+            <input
+              type="text"
+              value={singleTemplateName}
+              onChange={(e) => setSingleTemplateName(e.target.value)}
+              placeholder="Nazwa szablonu (np. Kontrola Pomiary)..."
+              autoFocus
+              style={{
+                background: "#0d1117",
+                border: "1px solid #30363d",
+                borderRadius: 4,
+                padding: "6px 10px",
+                fontSize: 12,
+                color: "#f0f6fc",
+                outline: "none",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setSavingSingleList(null)}
+                style={{ background: "transparent", border: "none", color: "#8b949e", fontSize: 11, cursor: "pointer" }}
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSaveSingleAsTemplate()}
+                style={{
+                  background: "#f59e0b",
+                  border: "none",
+                  borderRadius: 4,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "5px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Zapisz Szablon Listy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Modal: "Potykacz przy konflikcie" (Replace vs Append) */}
+      {conflictState && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setConflictState(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid rgba(245, 158, 11, 0.4)",
+              borderRadius: 8,
+              padding: 20,
+              width: 420,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              boxShadow: "0 16px 40px rgba(0,0,0,0.7)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#f59e0b", fontSize: 14, fontWeight: 700 }}>
+              <AlertTriangle size={18} />
+              <span>Wczytanie szablonu do zajętego slotu</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#c9d1d9", lineHeight: 1.5 }}>
+              Slot {conflictState.targetSlotIndex + 1} zawiera już listę <strong style={{ color: "#f0f6fc" }}>„{lists[conflictState.targetSlotIndex]?.title}”</strong> z {lists[conflictState.targetSlotIndex]?.items.length} punktami.
+              <br />
+              Wybierz, w jaki sposób chcesz wczytać szablon <strong style={{ color: "#f0f6fc" }}>„{conflictState.incomingList.title}”</strong>:
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  applySingleTemplateToSlot(conflictState.targetSlotIndex, conflictState.incomingList, "replace");
+                  setConflictState(null);
+                }}
+                style={{
+                  background: "#da3633",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                Zastąp obecną listę
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  applySingleTemplateToSlot(conflictState.targetSlotIndex, conflictState.incomingList, "append");
+                  setConflictState(null);
+                }}
+                style={{
+                  background: "#238636",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                Dołącz punkty na koniec
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConflictState(null)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #30363d",
+                  borderRadius: 6,
+                  color: "#8b949e",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  textAlign: "center",
+                }}
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       {/* Potykacz: Confirmation modal for deleting a template */}
       {deletingTemplate && (

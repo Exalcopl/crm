@@ -3,24 +3,35 @@
 import React, { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Id } from "@/convex/_generated/dataModel";
 import { TemplateEditorModal } from "./_components/TemplateEditorModal";
+import { SingleTemplateEditorModal } from "./_components/SingleTemplateEditorModal";
 import { type CustomList } from "../_components/CustomChecklistsHeader";
-import { CheckSquare, Plus, Edit3, Trash2, Star, Search, Sliders, AlertTriangle, FileText, ListTodo } from "lucide-react";
+import { CheckSquare, Plus, Edit3, Trash2, Star, Search, Sliders, AlertTriangle, FileText, ListTodo, Layers, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 
-type SubTab = "szablony-checklist" | "domyslne-zadania" | "szybkie-notatki";
+type MainTab = "szablony-checklist" | "domyslne-zadania" | "szybkie-notatki";
+type TemplateScopeTab = "single" | "full_set";
 
 export default function KonfiguracjePage() {
-  const [activeTab, setActiveTab] = useState<SubTab>("szablony-checklist");
+  const [activeTab, setActiveTab] = useState<MainTab>("szablony-checklist");
+  const [templateScopeTab, setTemplateScopeTab] = useState<TemplateScopeTab>("single");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Editor modal state
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<{
+  // Editor modal states
+  const [isFullSetEditorOpen, setIsFullSetEditorOpen] = useState(false);
+  const [editingFullSetTemplate, setEditingFullSetTemplate] = useState<{
     id: Id<"checklistTemplates">;
     name: string;
     lists: CustomList[];
+  } | null>(null);
+
+  const [isSingleEditorOpen, setIsSingleEditorOpen] = useState(false);
+  const [editingSingleTemplate, setEditingSingleTemplate] = useState<{
+    id: Id<"checklistTemplates">;
+    name: string;
+    singleList?: CustomList | null;
+    lists?: CustomList[];
   } | null>(null);
 
   // Potykacz (Confirmation modal for deletion)
@@ -31,13 +42,18 @@ export default function KonfiguracjePage() {
 
   const templates = useQuery(api.checklistTemplates.list) ?? [];
   const setDefaultMut = useMutation(api.checklistTemplates.setDefaultTemplate);
+  const setDefaultSlotMut = useMutation(api.checklistTemplates.setDefaultSlotTemplate);
   const removeTemplateMut = useMutation(api.checklistTemplates.removeTemplate);
 
-  const filteredTemplates = templates.filter((t) =>
+  const singleTemplates = templates.filter((t) => t.scope === "single");
+  const fullSetTemplates = templates.filter((t) => t.scope !== "single");
+
+  const currentScopeTemplates = templateScopeTab === "single" ? singleTemplates : fullSetTemplates;
+  const filteredTemplates = currentScopeTemplates.filter((t) =>
     t.name.toLowerCase().includes(searchQuery.toLowerCase().trim())
   );
 
-  async function handleToggleDefault(id: Id<"checklistTemplates">, type: "quote" | "order", currentValue: boolean) {
+  async function handleToggleDefaultFullSet(id: Id<"checklistTemplates">, type: "quote" | "order", currentValue: boolean) {
     try {
       await setDefaultMut({
         id,
@@ -46,12 +62,40 @@ export default function KonfiguracjePage() {
       });
       const typeLabel = type === "quote" ? "Wycen" : "Zleceń";
       if (!currentValue) {
-        toast.success(`Ustawiono szablon jako domyślny dla ${typeLabel}`);
+        toast.success(`Ustawiono zestaw jako domyślny dla ${typeLabel}`);
       } else {
-        toast.info(`Odznaczono domyślny szablon dla ${typeLabel}`);
+        toast.info(`Odznaczono domyślny zestaw dla ${typeLabel}`);
       }
     } catch {
-      toast.error("Błąd zmiany domyślnego szablonu");
+      toast.error("Błąd zmiany domyślnego zestawu");
+    }
+  }
+
+  async function handleToggleDefaultSlot(
+    id: Id<"checklistTemplates">,
+    target: "quote" | "order",
+    slot: "slot1" | "slot2" | "slot3",
+    currentSlot: string | null | undefined
+  ) {
+    try {
+      const isAlreadyThisSlot = currentSlot === slot;
+      await setDefaultSlotMut({
+        id,
+        target,
+        slot,
+        isDefault: !isAlreadyThisSlot,
+      });
+
+      const slotLabel = slot === "slot1" ? "Slota 1" : slot === "slot2" ? "Slota 2" : "Slota 3";
+      const targetLabel = target === "quote" ? "Wycen" : "Zleceń";
+
+      if (!isAlreadyThisSlot) {
+        toast.success(`Przypisano jako domyślny dla ${slotLabel} w ${targetLabel}`);
+      } else {
+        toast.info(`Usunięto przypisanie domyślne z ${slotLabel} w ${targetLabel}`);
+      }
+    } catch {
+      toast.error("Błąd zmiany domyślnego slotu");
     }
   }
 
@@ -81,40 +125,49 @@ export default function KonfiguracjePage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingTemplate(null);
-            setIsEditorOpen(true);
-          }}
-          style={{
-            background: "#238636",
-            border: "none",
-            borderRadius: 6,
-            color: "#fff",
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "8px 16px",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            boxShadow: "0 2px 8px rgba(35, 134, 54, 0.4)",
-          }}
-        >
-          <Plus size={15} />
-          <span>+ Nowy Szablon</span>
-        </button>
+        {activeTab === "szablony-checklist" && (
+          <button
+            type="button"
+            onClick={() => {
+              if (templateScopeTab === "single") {
+                setEditingSingleTemplate(null);
+                setIsSingleEditorOpen(true);
+              } else {
+                setEditingFullSetTemplate(null);
+                setIsFullSetEditorOpen(true);
+              }
+            }}
+            style={{
+              background: "#238636",
+              border: "none",
+              borderRadius: 6,
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: 700,
+              padding: "8px 16px",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              boxShadow: "0 2px 8px rgba(35, 134, 54, 0.4)",
+            }}
+          >
+            <Plus size={15} />
+            <span>
+              {templateScopeTab === "single" ? "+ Nowy Szablon Pojedynczej Listy" : "+ Nowy Szablon Zestawu List"}
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* Sub-tabs Navigation Bar */}
+      {/* Main Sub-tabs Navigation Bar */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 6,
           borderBottom: "1px solid #30363d",
-          marginBottom: 20,
+          marginBottom: 16,
           paddingBottom: 2,
         }}
       >
@@ -190,168 +243,365 @@ export default function KonfiguracjePage() {
       {/* Tab Content: Szablony Checklist */}
       {activeTab === "szablony-checklist" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Action & Filter Bar */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ position: "relative", width: 280 }}>
+          {/* Scope Sub-tabs (Single List vs Full Set) */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#161b22", padding: "6px 12px", borderRadius: 8, border: "1px solid #30363d" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setTemplateScopeTab("single")}
+                style={{
+                  background: templateScopeTab === "single" ? "#21262d" : "transparent",
+                  border: templateScopeTab === "single" ? "1px solid #30363d" : "1px solid transparent",
+                  borderRadius: 6,
+                  color: templateScopeTab === "single" ? "#f0f6fc" : "#8b949e",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <LayoutGrid size={14} style={{ color: templateScopeTab === "single" ? "#ec4899" : "#8b949e" }} />
+                <span>Szablony pojedynczych list ({singleTemplates.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTemplateScopeTab("full_set")}
+                style={{
+                  background: templateScopeTab === "full_set" ? "#21262d" : "transparent",
+                  border: templateScopeTab === "full_set" ? "1px solid #30363d" : "1px solid transparent",
+                  borderRadius: 6,
+                  color: templateScopeTab === "full_set" ? "#f0f6fc" : "#8b949e",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Layers size={14} style={{ color: templateScopeTab === "full_set" ? "#3b82f6" : "#8b949e" }} />
+                <span>Zestawy 3 list ({fullSetTemplates.length})</span>
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ position: "relative", width: 260 }}>
               <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#8b949e" }} />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Szukaj szablonu..."
+                placeholder="Szukaj..."
                 style={{
                   width: "100%",
-                  background: "#161b22",
+                  background: "#0d1117",
                   border: "1px solid #30363d",
                   borderRadius: 6,
-                  padding: "6px 10px 6px 32px",
+                  padding: "5px 10px 5px 30px",
                   fontSize: 12,
                   color: "#f0f6fc",
                   outline: "none",
                 }}
               />
             </div>
-
-            <div style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 12 }}>
-              <span>Znaleziono: <strong style={{ color: "#f0f6fc" }}>{filteredTemplates.length}</strong></span>
-            </div>
           </div>
 
-          {/* Cards Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
-            {filteredTemplates.map((t) => {
-              const listsCount = t.lists.length;
-              const totalItemsCount = t.lists.reduce((acc, l) => acc + l.items.length, 0);
+          {/* VIEW: Single List Templates */}
+          {templateScopeTab === "single" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+              {filteredTemplates.map((t) => {
+                const listData = t.singleList ?? t.lists?.[0] ?? { title: "Brak", color: "#3b82f6", items: [] };
+                const itemsCount = listData.items?.length ?? 0;
 
-              return (
-                <div
-                  key={t._id}
-                  style={{
-                    background: "#161b22",
-                    border: t.isDefaultQuote || t.isDefaultOrder ? "1px solid rgba(59, 130, 246, 0.4)" : "1px solid #30363d",
-                    borderRadius: 8,
-                    padding: 14,
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                    position: "relative",
-                  }}
-                >
-                  {/* Card Header */}
-                  <div>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
-                      <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                        {t.name}
-                      </h2>
+                return (
+                  <div
+                    key={t._id}
+                    style={{
+                      background: "#161b22",
+                      border: t.defaultSlotQuote || t.defaultSlotOrder ? "1px solid rgba(236, 72, 153, 0.4)" : "1px solid #30363d",
+                      borderRadius: 8,
+                      padding: 14,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    <div>
+                      {/* Top Header */}
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+                        <div>
+                          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc", margin: 0 }}>
+                            {t.name}
+                          </h2>
+                          <div style={{ fontSize: 11, color: listData.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: listData.color }} />
+                            <span>{listData.title}</span>
+                          </div>
+                        </div>
 
-                      {/* Action buttons */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingTemplate({ id: t._id, name: t.name, lists: t.lists as CustomList[] });
-                            setIsEditorOpen(true);
-                          }}
-                          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #30363d", borderRadius: 4, color: "#c9d1d9", cursor: "pointer", padding: "3px 6px" }}
-                          title="Edytuj szablon"
-                        >
-                          <Edit3 size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeletingTemplate({ id: t._id, name: t.name })}
-                          style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", borderRadius: 4, color: "#f85149", cursor: "pointer", padding: "3px 6px" }}
-                          title="Usuń szablon"
-                        >
-                          <Trash2 size={12} />
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingSingleTemplate({
+                                id: t._id,
+                                name: t.name,
+                                singleList: t.singleList,
+                                lists: t.lists as CustomList[],
+                              });
+                              setIsSingleEditorOpen(true);
+                            }}
+                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #30363d", borderRadius: 4, color: "#c9d1d9", cursor: "pointer", padding: "3px 6px" }}
+                            title="Edytuj szablon pojedynczej listy"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingTemplate({ id: t._id, name: t.name })}
+                            style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", borderRadius: 4, color: "#f85149", cursor: "pointer", padding: "3px 6px" }}
+                            title="Usuń szablon"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Default Slot Assignment Controls */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "#0d1117", padding: 8, borderRadius: 6, border: "1px solid #21262d", marginBottom: 10 }}>
+                        {/* Wyceny slots */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10 }}>
+                          <span style={{ color: "#8b949e", fontWeight: 600 }}>Domyślny dla Wycen:</span>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {(["slot1", "slot2", "slot3"] as const).map((s, idx) => {
+                              const active = t.defaultSlotQuote === s;
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => void handleToggleDefaultSlot(t._id, "quote", s, t.defaultSlotQuote)}
+                                  style={{
+                                    background: active ? "rgba(245, 158, 11, 0.2)" : "rgba(255,255,255,0.03)",
+                                    border: active ? "1px solid #fbbf24" : "1px solid #30363d",
+                                    borderRadius: 4,
+                                    color: active ? "#fbbf24" : "#8b949e",
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    padding: "2px 5px",
+                                    cursor: "pointer",
+                                  }}
+                                  title={`Ustaw jako domyślny dla Slota ${idx + 1} w Wycenach`}
+                                >
+                                  {active ? `★ Slot ${idx + 1}` : `Slot ${idx + 1}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Zlecenia slots */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10 }}>
+                          <span style={{ color: "#8b949e", fontWeight: 600 }}>Domyślny dla Zleceń:</span>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {(["slot1", "slot2", "slot3"] as const).map((s, idx) => {
+                              const active = t.defaultSlotOrder === s;
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => void handleToggleDefaultSlot(t._id, "order", s, t.defaultSlotOrder)}
+                                  style={{
+                                    background: active ? "rgba(16, 185, 129, 0.2)" : "rgba(255,255,255,0.03)",
+                                    border: active ? "1px solid #34d399" : "1px solid #30363d",
+                                    borderRadius: 4,
+                                    color: active ? "#34d399" : "#8b949e",
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    padding: "2px 5px",
+                                    cursor: "pointer",
+                                  }}
+                                  title={`Ustaw jako domyślny dla Slota ${idx + 1} w Zleceniach`}
+                                >
+                                  {active ? `★ Slot ${idx + 1}` : `Slot ${idx + 1}`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Items Preview */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "#0d1117", padding: 8, borderRadius: 6, border: "1px solid #21262d", maxHeight: 120, overflowY: "auto" }}>
+                        {listData.items && listData.items.length > 0 ? (
+                          listData.items.map((item: any, idx: number) => (
+                            <div key={item.id || idx} style={{ fontSize: 11, color: "#c9d1d9", display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ color: listData.color }}>•</span>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: 10, color: "#8b949e", fontStyle: "italic" }}>Brak punktów w szablonie</div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Default Badges & Toggles */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => void handleToggleDefault(t._id, "quote", Boolean(t.isDefaultQuote))}
-                        style={{
-                          background: t.isDefaultQuote ? "rgba(245, 158, 11, 0.15)" : "rgba(255,255,255,0.03)",
-                          border: t.isDefaultQuote ? "1px solid rgba(245, 158, 11, 0.4)" : "1px dashed rgba(255,255,255,0.12)",
-                          borderRadius: 4,
-                          color: t.isDefaultQuote ? "#fbbf24" : "#8b949e",
-                          fontSize: 10,
-                          fontWeight: 600,
-                          padding: "2px 6px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                        title="Kliknij, aby zmienić domyślność dla Wycen"
-                      >
-                        <Star size={11} fill={t.isDefaultQuote ? "#fbbf24" : "none"} />
-                        <span>Domyślny Wyceny</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => void handleToggleDefault(t._id, "order", Boolean(t.isDefaultOrder))}
-                        style={{
-                          background: t.isDefaultOrder ? "rgba(16, 185, 129, 0.15)" : "rgba(255,255,255,0.03)",
-                          border: t.isDefaultOrder ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(255,255,255,0.12)",
-                          borderRadius: 4,
-                          color: t.isDefaultOrder ? "#34d399" : "#8b949e",
-                          fontSize: 10,
-                          fontWeight: 600,
-                          padding: "2px 6px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                        title="Kliknij, aby zmienić domyślność dla Zleceń"
-                      >
-                        <Star size={11} fill={t.isDefaultOrder ? "#34d399" : "none"} />
-                        <span>Domyślny Zlecenia</span>
-                      </button>
+                    {/* Footer count */}
+                    <div style={{ fontSize: 10, color: "#8b949e", borderTop: "1px solid #21262d", paddingTop: 8 }}>
+                      Punktów w liście: <strong style={{ color: "#f0f6fc" }}>{itemsCount}</strong>
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-                    {/* Lists structure preview */}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, background: "#0d1117", padding: 8, borderRadius: 6, border: "1px solid #21262d" }}>
-                      {t.lists.map((l: any, lIdx: number) => (
-                        <div key={l.id || lIdx} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", background: l.color ?? "#3b82f6", flexShrink: 0 }} />
-                            <span>{l.title}</span>
-                          </div>
-                          <div style={{ fontSize: 9, color: "#8b949e" }}>
-                            {l.items?.length ?? 0} punkty
-                          </div>
+          {/* VIEW: Full 3-List Set Templates */}
+          {templateScopeTab === "full_set" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 16 }}>
+              {filteredTemplates.map((t) => {
+                const listsCount = t.lists.length;
+                const totalItemsCount = t.lists.reduce((acc, l) => acc + l.items.length, 0);
+
+                return (
+                  <div
+                    key={t._id}
+                    style={{
+                      background: "#161b22",
+                      border: t.isDefaultQuote || t.isDefaultOrder ? "1px solid rgba(59, 130, 246, 0.4)" : "1px solid #30363d",
+                      borderRadius: 8,
+                      padding: 14,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+                        <h2 style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                          {t.name}
+                        </h2>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingFullSetTemplate({ id: t._id, name: t.name, lists: t.lists as CustomList[] });
+                              setIsFullSetEditorOpen(true);
+                            }}
+                            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid #30363d", borderRadius: 4, color: "#c9d1d9", cursor: "pointer", padding: "3px 6px" }}
+                            title="Edytuj zestaw szablonu"
+                          >
+                            <Edit3 size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeletingTemplate({ id: t._id, name: t.name })}
+                            style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", borderRadius: 4, color: "#f85149", cursor: "pointer", padding: "3px 6px" }}
+                            title="Usuń szablon"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </div>
-                      ))}
+                      </div>
+
+                      {/* Default Badges & Toggles */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleDefaultFullSet(t._id, "quote", Boolean(t.isDefaultQuote))}
+                          style={{
+                            background: t.isDefaultQuote ? "rgba(245, 158, 11, 0.15)" : "rgba(255,255,255,0.03)",
+                            border: t.isDefaultQuote ? "1px solid rgba(245, 158, 11, 0.4)" : "1px dashed rgba(255,255,255,0.12)",
+                            borderRadius: 4,
+                            color: t.isDefaultQuote ? "#fbbf24" : "#8b949e",
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title="Kliknij, aby zmienić domyślność dla Wycen"
+                        >
+                          <Star size={11} fill={t.isDefaultQuote ? "#fbbf24" : "none"} />
+                          <span>Domyślny Wyceny</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => void handleToggleDefaultFullSet(t._id, "order", Boolean(t.isDefaultOrder))}
+                          style={{
+                            background: t.isDefaultOrder ? "rgba(16, 185, 129, 0.15)" : "rgba(255,255,255,0.03)",
+                            border: t.isDefaultOrder ? "1px solid rgba(16, 185, 129, 0.4)" : "1px dashed rgba(255,255,255,0.12)",
+                            borderRadius: 4,
+                            color: t.isDefaultOrder ? "#34d399" : "#8b949e",
+                            fontSize: 10,
+                            fontWeight: 600,
+                            padding: "2px 6px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                          title="Kliknij, aby zmienić domyślność dla Zleceń"
+                        >
+                          <Star size={11} fill={t.isDefaultOrder ? "#34d399" : "none"} />
+                          <span>Domyślny Zlecenia</span>
+                        </button>
+                      </div>
+
+                      {/* Lists structure preview */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, background: "#0d1117", padding: 8, borderRadius: 6, border: "1px solid #21262d" }}>
+                        {t.lists.map((l: any, lIdx: number) => (
+                          <div key={l.id || lIdx} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: l.color ?? "#3b82f6", flexShrink: 0 }} />
+                              <span>{l.title}</span>
+                            </div>
+                            <div style={{ fontSize: 9, color: "#8b949e" }}>
+                              {l.items?.length ?? 0} punkty
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ fontSize: 10, color: "#8b949e", borderTop: "1px solid #21262d", paddingTop: 8 }}>
+                      Łącznie: <strong>{totalItemsCount}</strong> punktów w <strong>{listsCount}</strong> listach
                     </div>
                   </div>
-
-                  {/* Card Footer Meta */}
-                  <div style={{ fontSize: 10, color: "#8b949e", borderTop: "1px solid #21262d", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>Łącznie: <strong>{totalItemsCount}</strong> punktów w <strong>{listsCount}</strong> listach</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
           {filteredTemplates.length === 0 && (
             <div style={{ textAlign: "center", padding: "40px 20px", background: "#161b22", borderRadius: 8, border: "1px solid #30363d" }}>
               <CheckSquare size={32} style={{ color: "#484f58", marginBottom: 8 }} />
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc" }}>Brak szablonów spełniających kryteria</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc" }}>
+                Brak szablonów w tej kategroii ({templateScopeTab === "single" ? "pojedyncze listy" : "zestawy 3 list"})
+              </div>
               <p style={{ fontSize: 12, color: "#8b949e", margin: "4px 0 12px 0" }}>Stwórz nowy szablon przyciskiem poniżej.</p>
               <button
                 type="button"
                 onClick={() => {
-                  setEditingTemplate(null);
-                  setIsEditorOpen(true);
+                  if (templateScopeTab === "single") {
+                    setEditingSingleTemplate(null);
+                    setIsSingleEditorOpen(true);
+                  } else {
+                    setEditingFullSetTemplate(null);
+                    setIsFullSetEditorOpen(true);
+                  }
                 }}
                 style={{
                   background: "#238636",
@@ -382,12 +632,21 @@ export default function KonfiguracjePage() {
         </div>
       )}
 
-      {/* Template Visual Editor Modal */}
-      {isEditorOpen && (
+      {/* Full Set Template Editor Modal */}
+      {isFullSetEditorOpen && (
         <TemplateEditorModal
-          initialData={editingTemplate}
-          onClose={() => setIsEditorOpen(false)}
-          onSuccess={() => setIsEditorOpen(false)}
+          initialData={editingFullSetTemplate}
+          onClose={() => setIsFullSetEditorOpen(false)}
+          onSuccess={() => setIsFullSetEditorOpen(false)}
+        />
+      )}
+
+      {/* Single Template Editor Modal */}
+      {isSingleEditorOpen && (
+        <SingleTemplateEditorModal
+          initialData={editingSingleTemplate}
+          onClose={() => setIsSingleEditorOpen(false)}
+          onSuccess={() => setIsSingleEditorOpen(false)}
         />
       )}
 

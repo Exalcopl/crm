@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { Toaster } from "sonner";
 import { AdministracjaRibbon } from "./_components/administracja-ribbon";
 import { CalendarPanel } from "./_components/calendar-panel";
+import { SearchCommandPalette } from "./_components/search-command-palette";
 import { I } from "./_lib/icons";
 import {
   PermissionGate,
@@ -101,12 +102,23 @@ function ownerInitials(name: string | null, email: string | null) {
   }
   return (email ?? "??").slice(0, 2).toUpperCase();
 }
-
 function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? "/admin";
   const router = useRouter();
   const { user, isLoading, has } = usePermissions();
   const { signOut } = useAuthActions();
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -129,11 +141,24 @@ function AdminShell({ children }: { children: ReactNode }) {
           <span>Exalco CRM</span>
         </div>
 
-        <div className="global-search">
+        <div
+          className="global-search"
+          onClick={() => setIsSearchOpen(true)}
+          style={{ cursor: "pointer" }}
+        >
           <I.search s={14} />
-          <input placeholder="Wyszukaj zlecenia, klientów, faktury, profile…" />
+          <input
+            readOnly
+            placeholder="Wyszukaj zlecenia, wyceny, klientów… (⌘K)"
+            style={{ cursor: "pointer" }}
+          />
           <span className="kbd">⌘K</span>
         </div>
+
+        <SearchCommandPalette
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+        />
 
         <div className="global-actions">
           <button type="button" className="icon-btn" title="Powiadomienia">
