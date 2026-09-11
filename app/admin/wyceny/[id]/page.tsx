@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useRef, useState, useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
+import { CheckSquare, Square } from "lucide-react";
 import {
   getProjectTypeStyle,
   QUOTE_STATUSES,
@@ -606,16 +607,9 @@ function QuoteDetailMain({
         />
         {activeTab === "szczegoly" ? (
           <div className="quote-detail-grid-customizable">
-            {/* Kolumna 1: zadania + pytania pomocnicze */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div className="quote-widget-item">
-                <TasksKanban quote={quote} archived={archived} />
-              </div>
-              <div className="quote-widget-item">
-                <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
-                  <HelperQuestionsSection quoteId={quote._id} />
-                </Section>
-              </div>
+            {/* Kolumna 1: Pliki */}
+            <div className="quote-widget-item quote-widget-span-1">
+              <QuoteFileBrowser quote={quote} archived={archived} />
             </div>
 
             {/* Kolumny 2-3 (środek): Notatki */}
@@ -629,9 +623,16 @@ function QuoteDetailMain({
               </Section>
             </div>
 
-            {/* Kolumna 4: Pliki */}
-            <div className="quote-widget-item quote-widget-span-1">
-              <QuoteFileBrowser quote={quote} archived={archived} />
+            {/* Kolumna 4: Zadania + pytania pomocnicze */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div className="quote-widget-item">
+                <TasksKanban quote={quote} archived={archived} />
+              </div>
+              <div className="quote-widget-item">
+                <Section title="Pytania pomocnicze" icon={<I.help s={14} />}>
+                  <HelperQuestionsSection quoteId={quote._id} />
+                </Section>
+              </div>
             </div>
           </div>
         ) : (
@@ -788,6 +789,260 @@ function QuoteClientNoteBanner({ quote }: { quote: Quote }) {
   );
 }
 
+function ClientContactStrip({ quote }: { quote: Quote }) {
+  const router = useRouter();
+  const ensureLink = useMutation(api.clients.ensureLinkedToQuote);
+  const [linking, setLinking] = useState(false);
+  const contact = quote.contact;
+  const initials = ownerInitials(contact.name);
+  const address = [contact.street, contact.postalCity].filter(Boolean).join(", ");
+  const nip = contact.nip;
+  const clientType = contact.clientType;
+  const typeLabel = clientType === "business" ? "Firma" : clientType === "individual" ? "Osoba prywatna" : null;
+  const phone = contact.phone;
+  const email = contact.email;
+
+  async function openClient() {
+    if (linking) return;
+    if ((quote as Quote & { clientId?: Id<"clients"> }).clientId) {
+      router.push(`/admin/klienci/${(quote as Quote & { clientId?: Id<"clients"> }).clientId}`);
+      return;
+    }
+    setLinking(true);
+    try {
+      const clientId = await ensureLink({ quoteId: quote._id });
+      router.push(`/admin/klienci/${clientId}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Nie udało się otworzyć klienta");
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  return (
+    <button type="button" className="quote-detail-client-strip is-clickable" onClick={() => void openClient()} title="Otwórz szczegóły klienta" disabled={linking} style={{ padding: "4px 8px" }}>
+      <span className="quote-detail-client-avatar" aria-hidden style={{ width: 26, height: 26, fontSize: 11 }}>{initials}</span>
+      <span className="quote-detail-client-info" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <span className="quote-detail-client-name" style={{ fontSize: 13, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          {contact.name}
+          {typeLabel && (
+            <span style={{ fontSize: 9, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px", color: "var(--text-muted)", fontWeight: 500 }}>
+              {typeLabel}
+            </span>
+          )}
+          <span className="quote-detail-client-arrow" aria-hidden><I.arrow s={10} sw={2} /></span>
+        </span>
+        {(nip || phone || address || email) && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap", fontWeight: 400 }}>
+            {nip && <span>NIP: {nip}</span>}
+            {address && <span>📍 {address}</span>}
+            {phone && <span>📞 {phone}</span>}
+            {email && <span>✉️ {email}</span>}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+}
+
+type ChecklistItem = { id: string; label: string; checked: boolean };
+type ChecklistsData = {
+  col1?: ChecklistItem[];
+  col2?: ChecklistItem[];
+  col3?: ChecklistItem[];
+};
+
+const DEFAULT_QUOTE_CHECKLISTS: ChecklistsData = {
+  col1: [
+    { id: "qc1_1", label: "Analiza zapytań / Wymagań", checked: false },
+    { id: "qc1_2", label: "Dane kontaktowe i adres", checked: false },
+    { id: "qc1_3", label: "Weryfikacja techniczna", checked: false },
+    { id: "qc1_4", label: "Konfiguracja wybrana", checked: false },
+  ],
+  col2: [
+    { id: "qc2_1", label: "Kalkulacja materiałowa", checked: false },
+    { id: "qc2_2", label: "Wycena dostawców / Szyb", checked: false },
+    { id: "qc2_3", label: "Rabat / Marża ustalona", checked: false },
+    { id: "qc2_4", label: "Generowanie oferty PDF", checked: false },
+  ],
+  col3: [
+    { id: "qc3_1", label: "Wysłano ofertę do klienta", checked: false },
+    { id: "qc3_2", label: "Kontakt telefoniczny / Follow-up", checked: false },
+    { id: "qc3_3", label: "Uzgodnienie poprawek", checked: false },
+    { id: "qc3_4", label: "Decyzja / Przekazano do zlecenia", checked: false },
+  ],
+};
+
+function QuoteHeaderChecklists({ quote, archived }: { quote: Quote; archived: boolean }) {
+  const updateChecklistsMut = useMutation(api.quotes.updateChecklists);
+
+  const currentData: ChecklistsData = useMemo(() => {
+    return {
+      col1: (quote as any).checklists?.col1?.length ? (quote as any).checklists.col1 : DEFAULT_QUOTE_CHECKLISTS.col1,
+      col2: (quote as any).checklists?.col2?.length ? (quote as any).checklists.col2 : DEFAULT_QUOTE_CHECKLISTS.col2,
+      col3: (quote as any).checklists?.col3?.length ? (quote as any).checklists.col3 : DEFAULT_QUOTE_CHECKLISTS.col3,
+    };
+  }, [(quote as any).checklists]);
+
+  const [localChecklists, setLocalChecklists] = useState<ChecklistsData>(currentData);
+  const [newInputs, setNewInputs] = useState<{ col1: string; col2: string; col3: string }>({ col1: "", col2: "", col3: "" });
+
+  useEffect(() => {
+    setLocalChecklists(currentData);
+  }, [currentData]);
+
+  async function saveChecklists(updated: ChecklistsData) {
+    if (archived) return;
+    setLocalChecklists(updated);
+    try {
+      await updateChecklistsMut({ id: quote._id, checklists: updated });
+    } catch {
+      toast.error("Błąd zapisu checklisty");
+    }
+  }
+
+  function handleToggle(colKey: "col1" | "col2" | "col3", itemId: string) {
+    if (archived) return;
+    const list = localChecklists[colKey] || [];
+    const nextList = list.map(item => item.id === itemId ? { ...item, checked: !item.checked } : item);
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    void saveChecklists(nextData);
+  }
+
+  function handleAddItem(colKey: "col1" | "col2" | "col3") {
+    if (archived) return;
+    const label = newInputs[colKey].trim();
+    if (!label) return;
+    const list = localChecklists[colKey] || [];
+    const newItem: ChecklistItem = { id: `custom_${Date.now()}`, label, checked: false };
+    const nextList = [...list, newItem];
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    setNewInputs(prev => ({ ...prev, [colKey]: "" }));
+    void saveChecklists(nextData);
+  }
+
+  function handleRemoveItem(colKey: "col1" | "col2" | "col3", itemId: string) {
+    if (archived) return;
+    const list = localChecklists[colKey] || [];
+    const nextList = list.filter(item => item.id !== itemId);
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    void saveChecklists(nextData);
+  }
+
+  const columnsConfig: { key: "col1" | "col2" | "col3"; title: string; icon: string; color: string }[] = [
+    { key: "col1", title: "Przygotowanie i Wymagania", icon: "📋", color: "#58a6ff" },
+    { key: "col2", title: "Kalkulacja i Oferta", icon: "🏭", color: "#f0883e" },
+    { key: "col3", title: "Kontakt i Akceptacja", icon: "🚚", color: "#3fb950" },
+  ];
+
+  return (
+    <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 8, padding: 10, marginTop: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+        {columnsConfig.map((col) => {
+          const items = localChecklists[col.key] || [];
+          const doneCount = items.filter(i => i.checked).length;
+          const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
+
+          return (
+            <div key={col.key} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 6, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {/* Header row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{col.icon}</span>
+                  <span>{col.title}</span>
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: col.color, background: `${col.color}15`, border: `1px solid ${col.color}33`, padding: "1px 6px", borderRadius: 10 }}>
+                  {doneCount}/{items.length} · {pct}%
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ width: "100%", height: 3, background: "#21262d", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: col.color, transition: "width 0.2s ease" }} />
+              </div>
+
+              {/* Items list */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "2px 4px",
+                      borderRadius: 4,
+                      background: item.checked ? "rgba(63,185,80,0.05)" : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={archived}
+                      onClick={() => handleToggle(col.key, item.id)}
+                      style={{ background: "none", border: "none", cursor: archived ? "default" : "pointer", padding: 0, display: "flex", alignItems: "center", color: item.checked ? "#3fb950" : "#475569" }}
+                    >
+                      {item.checked ? <CheckSquare size={13} /> : <Square size={13} />}
+                    </button>
+                    <span
+                      onClick={() => handleToggle(col.key, item.id)}
+                      style={{
+                        flex: 1,
+                        fontSize: 11,
+                        color: item.checked ? "#6e7681" : "#c9d1d9",
+                        textDecoration: item.checked ? "line-through" : "none",
+                        cursor: archived ? "default" : "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                    {!archived && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(col.key, item.id)}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2, opacity: 0.5 }}
+                        title="Usuń pozycję"
+                        onMouseEnter={e => { e.currentTarget.style.color = "#f85149"; e.currentTarget.style.opacity = "1"; }}
+                        onMouseLeave={e => { e.currentTarget.style.color = "#475569"; e.currentTarget.style.opacity = "0.5"; }}
+                      >
+                        <I.x s={11} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add item input */}
+              {!archived && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, paddingTop: 4, borderTop: "1px solid #21262d" }}>
+                  <input
+                    type="text"
+                    placeholder="+ Dodaj punkt…"
+                    value={newInputs[col.key]}
+                    onChange={e => setNewInputs(prev => ({ ...prev, [col.key]: e.target.value }))}
+                    onKeyDown={e => { if (e.key === "Enter") handleAddItem(col.key); }}
+                    style={{ flex: 1, background: "transparent", border: "none", color: "#f0f6fc", fontSize: 11, outline: "none", padding: "2px 0" }}
+                  />
+                  {newInputs[col.key].trim() && (
+                    <button
+                      type="button"
+                      onClick={() => handleAddItem(col.key)}
+                      style={{ background: col.color, border: "none", borderRadius: 4, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", cursor: "pointer" }}
+                    >
+                      Dodaj
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function QuoteDetailHeader({
   quote,
   archived,
@@ -799,75 +1054,15 @@ function QuoteDetailHeader({
 }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
-  const tone = deadlineTone(quote.deadline);
-  const hasValue = quote.value !== null;
   const statusIndex = QUOTE_STATUSES.indexOf(quote.status);
-  const ownerName = useOwnerName(quote);
   const [idCopied, setIdCopied] = useState(false);
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
-  const [isEditingLabel, setIsEditingLabel] = useState(false);
-  const [tempLabel, setTempLabel] = useState("");
-  const updateLabel = useMutation(api.quotes.updateCustomLabel);
-  const ignoreBlurLabelRef = useRef(false);
-
-  const [isEditingValue, setIsEditingValue] = useState(false);
-  const [tempValue, setTempValue] = useState("");
-  const updateValueMutation = useMutation(api.quotes.updateValue);
-  const ignoreBlurValueRef = useRef(false);
-
-  async function handleSaveValue() {
-    let finalVal: number | null = null;
-    if (tempValue.trim() !== "") {
-      const cleanVal = tempValue.replace(/\s/g, "").replace(",", ".");
-      const parsed = Number(cleanVal);
-      if (isNaN(parsed) || parsed < 0) {
-        toast.error("Podaj poprawną wartość nieujemną");
-        return;
-      }
-      finalVal = parsed;
-    }
-    if ((finalVal ?? null) === (quote.value ?? null)) {
-      setIsEditingValue(false);
-      return;
-    }
-    setIsEditingValue(false);
-    try {
-      await updateValueMutation({ id: quote._id, value: finalVal });
-      toast.success("Zaktualizowano wartość wyceny");
-    } catch {
-      toast.error("Błąd zapisu");
-    }
-  }
-
-  async function handleSaveLabel() {
-    const cleaned = tempLabel.trim() || undefined;
-    if ((cleaned ?? undefined) === (quote.customLabel ?? undefined)) {
-      setIsEditingLabel(false);
-      return;
-    }
-    setIsEditingLabel(false);
-    try {
-      await updateLabel({ id: quote._id, customLabel: cleaned });
-      toast.success("Zaktualizowano wyróżnik B2B");
-    } catch {
-      toast.error("Błąd zapisu");
-    }
-  }
 
   const investmentLabel = quote.investment?.name
     ? quote.investment.name
     : quote.investment?.address
       ? quote.investment.address
       : "Ustaw lokalizację";
-
-  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
-    try {
-      await setStatusMutation({ id: quote._id, status: newStatus });
-      toast.success(`Status zmieniony na „${newStatus}"`);
-    } catch {
-      toast.error("Nie udało się zmienić statusu");
-    }
-  }
 
   async function copyId() {
     try {
@@ -880,22 +1075,86 @@ function QuoteDetailHeader({
     }
   }
 
+  async function handleStatusChange(newStatus: typeof QUOTE_STATUSES[number]) {
+    try {
+      await setStatusMutation({ id: quote._id, status: newStatus });
+      toast.success(`Status zmieniony na „${newStatus}"`);
+    } catch {
+      toast.error("Nie udało się zmienić statusu");
+    }
+  }
+
+  const updateCustomLabel = useMutation(api.quotes.updateCustomLabel);
+  const updateValue = useMutation(api.quotes.updateValue);
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [tempLabel, setTempLabel] = useState("");
+  const ignoreBlurLabelRef = useRef(false);
+
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [tempValue, setTempValue] = useState("");
+  const ignoreBlurValueRef = useRef(false);
+
+  const ownerName = useOwnerName(quote);
+
+  async function handleSaveLabel() {
+    const cleaned = tempLabel.trim() || undefined;
+    if ((cleaned ?? undefined) === (quote.customLabel ?? undefined)) {
+      setIsEditingLabel(false);
+      return;
+    }
+    setIsEditingLabel(false);
+    try {
+      await updateCustomLabel({ id: quote._id, customLabel: cleaned });
+      toast.success("Zaktualizowano wyróżnik B2B");
+    } catch {
+      toast.error("Nie udało się zaktualizować wyróżnika B2B");
+    }
+  }
+
+  async function handleSaveValue() {
+    if (tempValue.trim() === "") {
+      setIsEditingValue(false);
+      return;
+    }
+    const cleanVal = tempValue.replace(/\s/g, "").replace(",", ".");
+    const parsed = Number(cleanVal);
+    if (isNaN(parsed) || parsed < 0) {
+      toast.error("Podaj poprawną wartość nieujemną");
+      return;
+    }
+    if (parsed === quote.value) {
+      setIsEditingValue(false);
+      return;
+    }
+    setIsEditingValue(false);
+    try {
+      await updateValue({ id: quote._id, value: parsed });
+      toast.success("Zaktualizowano wartość wyceny");
+    } catch {
+      toast.error("Błąd zapisu wartości");
+    }
+  }
+
+  const hasValue = quote.value !== null && quote.value !== undefined;
+  const tone = deadlineTone(quote.deadline);
+
   return (
-    <div className="quote-detail-header">
-      <div className="quote-detail-header-row">
-        <div className="quote-detail-header-main">
-          <div className="quote-detail-hero">
+    <div className="quote-detail-header" style={{ padding: "12px 16px 10px", gap: 10 }}>
+      <div className="quote-detail-header-row" style={{ gap: 12, alignItems: "center" }}>
+        <div className="quote-detail-header-main" style={{ gap: 4 }}>
+          <div className="quote-detail-hero" style={{ alignItems: "center", gap: 8 }}>
             <button
               type="button"
               className={`quote-detail-id-pill${idCopied ? " is-copied" : ""}`}
               onClick={() => void copyId()}
               title="Kliknij, aby skopiować ID"
               aria-label={`Skopiuj ID wyceny ${quote.id}`}
+              style={{ padding: "4px 8px" }}
             >
-              <span className="quote-detail-id-label">ID wyceny</span>
-              <span className="quote-detail-id-value">{quote.id}</span>
+              <span className="quote-detail-id-label" style={{ fontSize: 9 }}>ID wyceny</span>
+              <span className="quote-detail-id-value" style={{ fontSize: 13, fontWeight: 700 }}>{quote.id}</span>
               <span className="quote-detail-id-icon" aria-hidden>
-                {idCopied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}
+                {idCopied ? <I.check s={12} sw={2.4} /> : <I.doc s={12} />}
               </span>
             </button>
             <ClientContactStrip quote={quote} />
@@ -911,9 +1170,10 @@ function QuoteDetailHeader({
               }}
               title="Pokaż lokalizację inwestycji"
               aria-label="Lokalizacja inwestycji"
+              style={{ padding: "4px 8px", fontSize: 12 }}
             >
               <span className="quote-detail-investment-trigger-icon">
-                <I.pin s={14} sw={2} />
+                <I.pin s={13} sw={2} />
               </span>
               <span className="quote-detail-investment-trigger-value">
                 {investmentLabel}
@@ -921,12 +1181,12 @@ function QuoteDetailHeader({
               {quote.investment?.notes?.trim() && (
                 <span
                   style={{
-                    fontSize: "10.5px",
+                    fontSize: "10px",
                     fontWeight: 600,
                     background: "rgba(245, 158, 11, 0.2)",
                     color: "#fbbf24",
                     border: "1px solid rgba(245, 158, 11, 0.4)",
-                    padding: "1px 6px",
+                    padding: "1px 5px",
                     borderRadius: "4px",
                     marginLeft: "4px",
                     display: "inline-flex",
@@ -939,116 +1199,116 @@ function QuoteDetailHeader({
                 </span>
               )}
             </button>
-            <div className="quote-detail-hero-types">
-              {quote.projectType.map((t) => {
-                const s = getProjectTypeStyle(projectTypes, t);
-                return (
+            {isEditingLabel ? (
+              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <input
+                  type="text"
+                  value={tempLabel}
+                  onChange={(e) => setTempLabel(e.target.value)}
+                  onBlur={() => {
+                    if (ignoreBlurLabelRef.current) return;
+                    void handleSaveLabel();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleSaveLabel();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      ignoreBlurLabelRef.current = true;
+                      setIsEditingLabel(false);
+                    }
+                  }}
+                  placeholder="Wpisz wyróżnik B2B (np. inwestycję)..."
+                  className="fluent-input"
+                  style={{ padding: "3px 8px", fontSize: "11px", width: "200px", borderLeft: "3px solid var(--accent-primary)" }}
+                  autoFocus
+                />
+              </div>
+            ) : (
+              <div
+                onClick={() => {
+                  if (archived) return;
+                  ignoreBlurLabelRef.current = false;
+                  setTempLabel(quote.customLabel || "");
+                  setIsEditingLabel(true);
+                }}
+                style={{
+                  cursor: archived ? "default" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center"
+                }}
+                title={archived ? undefined : "Kliknij, aby edytować wyróżnik B2B"}
+              >
+                {quote.customLabel ? (
                   <span
-                    key={t}
-                    className="kanban-chip kanban-chip-type"
                     style={{
-                      background: s.bg,
-                      color: s.fg,
-                      borderColor: s.border,
+                      fontSize: "10.5px",
+                      fontWeight: "bold",
+                      textTransform: "uppercase",
+                      color: "var(--accent-primary)",
+                      background: "var(--accent-soft)",
+                      border: "1px solid var(--accent-line)",
+                      padding: "2px 8px",
+                      borderRadius: "5px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+                      transition: "all 0.15s ease"
                     }}
                   >
-                    <span className="kanban-chip-dot" style={{ background: s.fg }} />
-                    {t}
+                    <strong>{quote.customLabel}</strong>
                   </span>
-                );
-              })}
-            </div>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      color: "var(--text-muted)",
+                      fontStyle: "italic",
+                      padding: "2px 6px",
+                      border: "1px dashed var(--border-color)",
+                      borderRadius: "5px",
+                      background: "rgba(0,0,0,0.02)",
+                      transition: "all 0.15s ease"
+                    }}
+                  >
+                    🏷️ + Tekst własny (B2B)
+                  </span>
+                )}
+              </div>
+            )}
+            {quote.projectType.length > 0 && (
+              <div className="quote-detail-hero-types">
+                {quote.projectType.map((t) => {
+                  const s = getProjectTypeStyle(projectTypes, t);
+                  return (
+                    <span
+                      key={t}
+                      className="kanban-chip kanban-chip-type"
+                      style={{
+                        background: s.bg,
+                        color: s.fg,
+                        borderColor: s.border,
+                        fontSize: 11,
+                        padding: "2px 7px",
+                      }}
+                    >
+                      <span className="kanban-chip-dot" style={{ background: s.fg }} />
+                      {t}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {quote.contact.clientType === "business" && (
-            <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-              {isEditingLabel ? (
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  <input
-                    type="text"
-                    value={tempLabel}
-                    onChange={(e) => setTempLabel(e.target.value)}
-                    onBlur={() => {
-                      if (ignoreBlurLabelRef.current) return;
-                      void handleSaveLabel();
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        void handleSaveLabel();
-                      } else if (e.key === "Escape") {
-                        e.preventDefault();
-                        ignoreBlurLabelRef.current = true;
-                        setIsEditingLabel(false);
-                      }
-                    }}
-                    placeholder="Wpisz wyróżnik B2B (np. inwestycję)..."
-                    className="fluent-input"
-                    style={{ padding: "4px 10px", fontSize: "12px", width: "260px", borderLeft: "3px solid var(--accent-primary)" }}
-                    autoFocus
-                  />
-                </div>
-              ) : (
-                <div
-                  onClick={() => {
-                    if (archived) return;
-                    ignoreBlurLabelRef.current = false;
-                    setTempLabel(quote.customLabel || "");
-                    setIsEditingLabel(true);
-                  }}
-                  style={{
-                    cursor: archived ? "default" : "pointer",
-                    display: "inline-flex",
-                    alignItems: "center"
-                  }}
-                  title={archived ? undefined : "Kliknij, aby edytować wyróżnik B2B"}
-                >
-                  {quote.customLabel ? (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "bold",
-                        textTransform: "uppercase",
-                        color: "var(--accent-primary)",
-                        background: "var(--accent-soft)",
-                        border: "1px solid var(--accent-line)",
-                        padding: "3px 10px",
-                        borderRadius: "6px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      <strong>{quote.customLabel}</strong>
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        fontStyle: "italic",
-                        padding: "3px 8px",
-                        border: "1px dashed var(--border-color)",
-                        borderRadius: "6px",
-                        background: "rgba(0,0,0,0.02)",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      🏷️ + Dodaj wyróżnik B2B (tekst własny)
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
-        <div className="quote-detail-header-meta">
+        <div className="quote-detail-header-meta" style={{ gap: 12, alignItems: "center" }}>
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Wartość</div>
+            <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Wartość</div>
             <div className="quote-detail-meta-value">
               {isEditingValue ? (
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                   <input
                     type="text"
                     value={tempValue}
@@ -1067,12 +1327,12 @@ function QuoteDetailHeader({
                         setIsEditingValue(false);
                       }
                     }}
-                    placeholder="Kwota netto..."
+                    placeholder="Kwota..."
                     className="fluent-input"
-                    style={{ padding: "3px 6px", fontSize: "11px", width: "90px", textAlign: "right" }}
+                    style={{ padding: "2px 5px", fontSize: "11px", width: "80px", textAlign: "right" }}
                     autoFocus
                   />
-                  <span style={{ fontSize: "11px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
                 </div>
               ) : (
                 <div
@@ -1085,9 +1345,9 @@ function QuoteDetailHeader({
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "4px",
                     cursor: archived ? "default" : "pointer",
-                    padding: "2px 4px",
+                    padding: "1px 4px",
                     borderRadius: "4px",
                     transition: "background 0.15s ease"
                   }}
@@ -1095,11 +1355,11 @@ function QuoteDetailHeader({
                 >
                   {hasValue ? (
                     <>
-                      <span className="quote-detail-meta-num">{formatPLN(quote.value!)}</span>
-                      <span className="quote-detail-meta-unit">PLN</span>
+                      <span className="quote-detail-meta-num" style={{ fontSize: 14, fontWeight: 700 }}>{formatPLN(quote.value!)}</span>
+                      <span className="quote-detail-meta-unit" style={{ fontSize: 11 }}>PLN</span>
                     </>
                   ) : (
-                    <span className="quote-detail-meta-empty">— brak —</span>
+                    <span className="quote-detail-meta-empty" style={{ fontSize: 11 }}>— brak —</span>
                   )}
                 </div>
               )}
@@ -1107,15 +1367,15 @@ function QuoteDetailHeader({
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Termin</div>
+            <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Termin</div>
             <div className={`quote-detail-meta-value tone-${tone}`}>
-              <span className="quote-detail-meta-num">{formatDeadline(quote.deadline)}</span>
-              <span className="quote-detail-meta-unit">{deadlineRelative(quote.deadline)}</span>
+              <span className="quote-detail-meta-num" style={{ fontSize: 13 }}>{formatDeadline(quote.deadline)}</span>
+              <span className="quote-detail-meta-unit" style={{ fontSize: 10 }}>{deadlineRelative(quote.deadline)}</span>
             </div>
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Opiekun</div>
+            <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Opiekun</div>
             <OwnerEditor quote={quote} ownerName={ownerName} disabled={archived} />
           </div>
         </div>
@@ -1124,7 +1384,9 @@ function QuoteDetailHeader({
         currentIndex={statusIndex}
         disabled={archived}
         onStatusChange={handleStatusChange}
+        isCompact={true}
       />
+      <QuoteHeaderChecklists quote={quote} archived={archived} />
       {isInvestmentOpen && (
         <InvestmentModal
           quote={quote}
@@ -1133,60 +1395,6 @@ function QuoteDetailHeader({
         />
       )}
     </div>
-  );
-}
-
-function ClientContactStrip({ quote }: { quote: Quote }) {
-  const router = useRouter();
-  const ensureLink = useMutation(api.clients.ensureLinkedToQuote);
-  const [linking, setLinking] = useState(false);
-  const contact = quote.contact;
-  const initials = ownerInitials(contact.name);
-  const address = [contact.street, contact.postalCity]
-    .filter(Boolean)
-    .join(", ");
-
-  async function openClient() {
-    if (linking) return;
-    if ((quote as Quote & { clientId?: Id<"clients"> }).clientId) {
-      router.push(
-        `/admin/klienci/${(quote as Quote & { clientId?: Id<"clients"> }).clientId}`,
-      );
-      return;
-    }
-    setLinking(true);
-    try {
-      const clientId = await ensureLink({ quoteId: quote._id });
-      router.push(`/admin/klienci/${clientId}`);
-    } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : "Nie udało się otworzyć klienta",
-      );
-    } finally {
-      setLinking(false);
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      className="quote-detail-client-strip is-clickable"
-      onClick={() => void openClient()}
-      title="Otwórz szczegóły klienta"
-      disabled={linking}
-    >
-      <span className="quote-detail-client-avatar" aria-hidden>
-        {initials}
-      </span>
-      <span className="quote-detail-client-info">
-        <span className="quote-detail-client-name">
-          {contact.name}
-          <span className="quote-detail-client-arrow" aria-hidden>
-            <I.arrow s={11} sw={2} />
-          </span>
-        </span>
-      </span>
-    </button>
   );
 }
 

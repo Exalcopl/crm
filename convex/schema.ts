@@ -180,6 +180,13 @@ export default defineSchema({
     // Stan kalkulatora konfiguratora (override cen grup, własne pozycje, stawka VAT)
     calculator: v.optional(v.any()),
     notes: v.optional(v.string()),
+    checklists: v.optional(
+      v.object({
+        col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+        col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+        col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+      })
+    ),
     publicUploadToken: v.optional(v.string()),
     publicUploadTokenExpiresAt: v.optional(v.number()),
     sharepoint: v.optional(
