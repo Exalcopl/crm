@@ -298,10 +298,13 @@ export const seedDefaults = mutation({
   args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("checklistTemplates").collect();
-    if (existing.length > 0) return "Templates already exist";
+    const hasFullSet = existing.some((t) => t.scope !== "single");
+    if (hasFullSet) return "Full set templates already exist";
 
     await ctx.db.insert("checklistTemplates", {
       name: "Standardowa Wycena",
+      scope: "full_set",
+      isDefaultQuote: true,
       lists: [
         {
           id: "p1_1",
@@ -341,6 +344,8 @@ export const seedDefaults = mutation({
 
     await ctx.db.insert("checklistTemplates", {
       name: "Zlecenie i Montaż",
+      scope: "full_set",
+      isDefaultOrder: true,
       lists: [
         {
           id: "p2_1",
@@ -376,7 +381,7 @@ export const seedDefaults = mutation({
       createdAt: Date.now(),
     });
 
-    return "SUCCESS: Seeded default checklist templates!";
+    return "SUCCESS: Seeded default 3-list set templates!";
   },
 });
 

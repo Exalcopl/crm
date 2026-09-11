@@ -36,7 +36,7 @@ const POLISH_CHAR_MAP: Record<string, string> = {
 
 export function normalizeText(text: string): string {
   if (!text) return "";
-  let str = text.toLowerCase();
+  const str = text.toLowerCase();
   let normalized = "";
   for (let i = 0; i < str.length; i++) {
     const char = str[i];
