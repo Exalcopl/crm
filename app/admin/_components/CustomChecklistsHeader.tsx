@@ -416,7 +416,7 @@ export function CustomChecklistsHeader({
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
-                        justify: "space-between",
+                        justifyContent: "space-between",
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -445,7 +445,7 @@ export function CustomChecklistsHeader({
                             cursor: "pointer",
                             display: "flex",
                             alignItems: "center",
-                            justify: "space-between",
+                            justifyContent: "space-between",
                           }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -642,7 +642,7 @@ export function CustomChecklistsHeader({
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justify: "space-between",
+                      justifyContent: "space-between",
                       gap: 6,
                       padding: "2px 4px",
                       borderRadius: 4,
