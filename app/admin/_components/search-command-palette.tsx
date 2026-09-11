@@ -182,12 +182,6 @@ export function SearchCommandPalette({ isOpen, onClose }: SearchCommandPalettePr
       timestamp: Date.now(),
     });
     router.push(item.url);
-    onClose();
-  }
-
-  function handleCopyCode(e: React.MouseEvent, code: string) {
-    e.stopPropagation();
-    navigator.clipboard.writeText(code);
   }
 
   return (
@@ -316,28 +310,7 @@ export function SearchCommandPalette({ isOpen, onClose }: SearchCommandPalettePr
                     )}
                   </div>
 
-                  <div className="search-row-actions">
-                    <button
-                      type="button"
-                      className="search-row-action-btn"
-                      title="Kopiuj numer"
-                      onClick={(e) => handleCopyCode(e, item.title)}
-                    >
-                      <I.cog s={12} /> Kopiuj
-                    </button>
-                    {item.sharepointWebUrl && (
-                      <a
-                        href={item.sharepointWebUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="search-row-action-btn sharepoint-btn"
-                        title="Otwórz folder SharePoint"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        SharePoint ↗
-                      </a>
-                    )}
-                  </div>
+                  <div className="search-row-arrow">→</div>
                 </div>
               );
             })}

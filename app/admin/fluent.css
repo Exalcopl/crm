@@ -8692,41 +8692,19 @@ select.fluent-input {
   font-weight: 500;
 }
 
-.search-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
+.search-row-arrow {
+  font-size: 14px;
+  color: #6e7681;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.15s ease;
 }
 
-.search-result-row:hover .search-row-actions,
-.search-result-row.selected .search-row-actions {
+.search-result-row:hover .search-row-arrow,
+.search-result-row.selected .search-row-arrow {
   opacity: 1;
-}
-
-.search-row-action-btn {
-  background: #21262d;
-  border: 1px solid #30363d;
-  color: #c9d1d9;
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  text-decoration: none;
-}
-
-.search-row-action-btn:hover {
-  background: #30363d;
-  color: #ffffff;
-}
-
-.sharepoint-btn {
-  color: #58a6ff;
-  border-color: rgba(56, 139, 253, 0.3);
+  color: #d41d3c;
+  transform: translateX(0);
 }
 
 .recent-searches-wrapper {
