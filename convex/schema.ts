@@ -554,6 +554,13 @@ export default defineSchema({
         lastTriedAt: v.number(),
       })
     ),
+    checklists: v.optional(
+      v.object({
+        col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+        col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+        col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+      })
+    ),
     archived: v.optional(v.boolean()),
     partnerId: v.optional(v.id("partners")),
     createdAt: v.number(),

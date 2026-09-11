@@ -1066,3 +1066,22 @@ export const testNotesTransferFromQuote = mutation({
   },
 });
 
+/** Aktualizuje stan 3 kolumn checkboxów dla zlecenia */
+export const updateChecklists = mutation({
+  args: {
+    id: v.id("orders"),
+    checklists: v.object({
+      col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+      col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+      col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
+    }),
+  },
+  handler: async (ctx, { id, checklists }) => {
+    await ctx.db.patch(id, { checklists });
+  },
+});
+
+
+
+
+

@@ -1,11 +1,12 @@
 "use client";
 
-import { use, useState, useEffect, useRef, useCallback } from "react";
+import { use, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
+import { CheckSquare, Square } from "lucide-react";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -289,24 +290,217 @@ function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote
   }
 
   return (
-    <button type="button" className="quote-detail-client-strip is-clickable" onClick={() => void openClient()} title="Otwórz szczegóły klienta" disabled={linking}>
-      <span className="quote-detail-client-avatar" aria-hidden>{ownerInitials(name)}</span>
-      <span className="quote-detail-client-info">
-        <span className="quote-detail-client-name">
+    <button type="button" className="quote-detail-client-strip is-clickable" onClick={() => void openClient()} title="Otwórz szczegóły klienta" disabled={linking} style={{ padding: "4px 8px" }}>
+      <span className="quote-detail-client-avatar" aria-hidden style={{ width: 26, height: 26, fontSize: 11 }}>{ownerInitials(name)}</span>
+      <span className="quote-detail-client-info" style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <span className="quote-detail-client-name" style={{ fontSize: 13, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
           {name}
-          <span className="quote-detail-client-arrow" aria-hidden><I.arrow s={11} sw={2} /></span>
+          {typeLabel && (
+            <span style={{ fontSize: 9, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4, padding: "0 5px", color: "var(--text-muted)", fontWeight: 500 }}>
+              {typeLabel}
+            </span>
+          )}
+          <span className="quote-detail-client-arrow" aria-hidden><I.arrow s={10} sw={2} /></span>
         </span>
-        {(nip || address || typeLabel || phone || email) && (
-          <span style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, color: "var(--text-muted)", marginTop: 4, textAlign: "left", fontWeight: 400 }}>
-            {typeLabel && <span>{typeLabel}</span>}
+        {(nip || phone || address || email) && (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "var(--text-muted)", flexWrap: "wrap", fontWeight: 400 }}>
             {nip && <span>NIP: {nip}</span>}
-            {address && <span>{address}</span>}
+            {address && <span>📍 {address}</span>}
             {phone && <span>📞 {phone}</span>}
             {email && <span>✉️ {email}</span>}
           </span>
         )}
       </span>
     </button>
+  );
+}
+
+type ChecklistItem = { id: string; label: string; checked: boolean };
+type ChecklistsData = {
+  col1?: ChecklistItem[];
+  col2?: ChecklistItem[];
+  col3?: ChecklistItem[];
+};
+
+const DEFAULT_CHECKLISTS: ChecklistsData = {
+  col1: [
+    { id: "c1_1", label: "Akceptacja oferty / Umowa", checked: false },
+    { id: "c1_2", label: "Zaliczka zaksięgowana", checked: false },
+    { id: "c1_3", label: "Pomiar końcowy", checked: false },
+    { id: "c1_4", label: "Dokumentacja sprawdzona", checked: false },
+  ],
+  col2: [
+    { id: "c2_1", label: "Zamówienie profili", checked: false },
+    { id: "c2_2", label: "Zamówienie szyb / wypełnień", checked: false },
+    { id: "c2_3", label: "Okucia i akcesoria", checked: false },
+    { id: "c2_4", label: "Produkcja w toku / gotowa", checked: false },
+  ],
+  col3: [
+    { id: "c3_1", label: "Kontrola jakości", checked: false },
+    { id: "c3_2", label: "Pakowanie / Magazyn", checked: false },
+    { id: "c3_3", label: "Transport na budowę", checked: false },
+    { id: "c3_4", label: "Montaż i odbiór", checked: false },
+  ],
+};
+
+function OrderHeaderChecklists({ order }: { order: Doc<"orders"> }) {
+  const updateChecklistsMut = useMutation(api.orders.updateChecklists);
+
+  const currentData: ChecklistsData = useMemo(() => {
+    return {
+      col1: order.checklists?.col1?.length ? order.checklists.col1 : DEFAULT_CHECKLISTS.col1,
+      col2: order.checklists?.col2?.length ? order.checklists.col2 : DEFAULT_CHECKLISTS.col2,
+      col3: order.checklists?.col3?.length ? order.checklists.col3 : DEFAULT_CHECKLISTS.col3,
+    };
+  }, [order.checklists]);
+
+  const [localChecklists, setLocalChecklists] = useState<ChecklistsData>(currentData);
+  const [newInputs, setNewInputs] = useState<{ col1: string; col2: string; col3: string }>({ col1: "", col2: "", col3: "" });
+
+  useEffect(() => {
+    setLocalChecklists(currentData);
+  }, [currentData]);
+
+  async function saveChecklists(updated: ChecklistsData) {
+    setLocalChecklists(updated);
+    try {
+      await updateChecklistsMut({ id: order._id, checklists: updated });
+    } catch {
+      toast.error("Błąd zapisu checklisty");
+    }
+  }
+
+  function handleToggle(colKey: "col1" | "col2" | "col3", itemId: string) {
+    const list = localChecklists[colKey] || [];
+    const nextList = list.map(item => item.id === itemId ? { ...item, checked: !item.checked } : item);
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    void saveChecklists(nextData);
+  }
+
+  function handleAddItem(colKey: "col1" | "col2" | "col3") {
+    const label = newInputs[colKey].trim();
+    if (!label) return;
+    const list = localChecklists[colKey] || [];
+    const newItem: ChecklistItem = { id: `custom_${Date.now()}`, label, checked: false };
+    const nextList = [...list, newItem];
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    setNewInputs(prev => ({ ...prev, [colKey]: "" }));
+    void saveChecklists(nextData);
+  }
+
+  function handleRemoveItem(colKey: "col1" | "col2" | "col3", itemId: string) {
+    const list = localChecklists[colKey] || [];
+    const nextList = list.filter(item => item.id !== itemId);
+    const nextData = { ...localChecklists, [colKey]: nextList };
+    void saveChecklists(nextData);
+  }
+
+  const columnsConfig: { key: "col1" | "col2" | "col3"; title: string; icon: string; color: string }[] = [
+    { key: "col1", title: "Dokumentacja i Przygotowanie", icon: "📋", color: "#58a6ff" },
+    { key: "col2", title: "Zamówienia i Produkcja", icon: "🏭", color: "#f0883e" },
+    { key: "col3", title: "Logistyka i Montaż", icon: "🚚", color: "#3fb950" },
+  ];
+
+  return (
+    <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 8, padding: 10, marginTop: 4 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+        {columnsConfig.map((col) => {
+          const items = localChecklists[col.key] || [];
+          const doneCount = items.filter(i => i.checked).length;
+          const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
+
+          return (
+            <div key={col.key} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 6, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {/* Header row */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>{col.icon}</span>
+                  <span>{col.title}</span>
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: col.color, background: `${col.color}15`, border: `1px solid ${col.color}33`, padding: "1px 6px", borderRadius: 10 }}>
+                  {doneCount}/{items.length} · {pct}%
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ width: "100%", height: 3, background: "#21262d", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: col.color, transition: "width 0.2s ease" }} />
+              </div>
+
+              {/* Items list */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "2px 4px",
+                      borderRadius: 4,
+                      background: item.checked ? "rgba(63,185,80,0.05)" : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(col.key, item.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", color: item.checked ? "#3fb950" : "#475569" }}
+                    >
+                      {item.checked ? <CheckSquare size={13} /> : <Square size={13} />}
+                    </button>
+                    <span
+                      onClick={() => handleToggle(col.key, item.id)}
+                      style={{
+                        flex: 1,
+                        fontSize: 11,
+                        color: item.checked ? "#6e7681" : "#c9d1d9",
+                        textDecoration: item.checked ? "line-through" : "none",
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      {item.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(col.key, item.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2, opacity: 0.5 }}
+                      title="Usuń pozycję"
+                      onMouseEnter={e => { e.currentTarget.style.color = "#f85149"; e.currentTarget.style.opacity = "1"; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = "#475569"; e.currentTarget.style.opacity = "0.5"; }}
+                    >
+                      <I.x s={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add item input */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, paddingTop: 4, borderTop: "1px solid #21262d" }}>
+                <input
+                  type="text"
+                  placeholder="+ Dodaj punkt…"
+                  value={newInputs[col.key]}
+                  onChange={e => setNewInputs(prev => ({ ...prev, [col.key]: e.target.value }))}
+                  onKeyDown={e => { if (e.key === "Enter") handleAddItem(col.key); }}
+                  style={{ flex: 1, background: "transparent", border: "none", color: "#f0f6fc", fontSize: 11, outline: "none", padding: "2px 0" }}
+                />
+                {newInputs[col.key].trim() && (
+                  <button
+                    type="button"
+                    onClick={() => handleAddItem(col.key)}
+                    style={{ background: col.color, border: "none", borderRadius: 4, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", cursor: "pointer" }}
+                  >
+                    Dodaj
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -336,9 +530,9 @@ function OrderOwnerEditor({ order, ownerName }: { order: Doc<"orders">; ownerNam
   return (
     <div className="quote-detail-meta-owner-wrap" ref={wrapperRef}>
       <button type="button" className="quote-detail-meta-value quote-detail-meta-owner quote-detail-meta-owner-trigger"
-        onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open}>
-        <span className="kanban-card-owner-avatar">{ownerInitials(ownerName)}</span>
-        <span className="quote-detail-meta-num">{ownerName}</span>
+        onClick={() => setOpen((v) => !v)} aria-haspopup="listbox" aria-expanded={open} style={{ padding: "2px 4px" }}>
+        <span className="kanban-card-owner-avatar" style={{ width: 22, height: 22, fontSize: 9 }}>{ownerInitials(ownerName)}</span>
+        <span className="quote-detail-meta-num" style={{ fontSize: 13 }}>{ownerName}</span>
         <span className="quote-detail-meta-owner-caret" aria-hidden>▾</span>
       </button>
       {open && (
@@ -446,16 +640,17 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
   const pTypes = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
 
   return (
-    <div className="quote-detail-header">
-      <div className="quote-detail-header-row">
-        <div className="quote-detail-header-main">
-          <div className="quote-detail-hero">
+    <div className="quote-detail-header" style={{ padding: "12px 16px 10px", gap: 10 }}>
+      <div className="quote-detail-header-row" style={{ gap: 12, alignItems: "center" }}>
+        <div className="quote-detail-header-main" style={{ gap: 4 }}>
+          <div className="quote-detail-hero" style={{ alignItems: "center", gap: 8 }}>
             <button type="button" className={`quote-detail-id-pill${copied ? " is-copied" : ""}`}
               onClick={() => void copyNumber()} title="Kliknij, aby skopiować numer zlecenia"
-              aria-label={`Skopiuj numer zlecenia ${order.orderNumber}`}>
-              <span className="quote-detail-id-label">Numer zlecenia</span>
-              <span className="quote-detail-id-value">{order.orderNumber}</span>
-              <span className="quote-detail-id-icon" aria-hidden>{copied ? <I.check s={14} sw={2.4} /> : <I.doc s={14} />}</span>
+              aria-label={`Skopiuj numer zlecenia ${order.orderNumber}`}
+              style={{ padding: "4px 8px" }}>
+              <span className="quote-detail-id-label" style={{ fontSize: 9 }}>Numer zlecenia</span>
+              <span className="quote-detail-id-value" style={{ fontSize: 13, fontWeight: 700 }}>{order.orderNumber}</span>
+              <span className="quote-detail-id-icon" aria-hidden>{copied ? <I.check s={12} sw={2.4} /> : <I.doc s={12} />}</span>
             </button>
             <OrderClientStrip order={order} quote={quote ?? null} />
             {(quote || order.investment?.address) && (
@@ -464,18 +659,18 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                 else if (quote) setIsInvestmentOpen(true);
               }}
                 title="Pokaż lokalizację inwestycji" aria-label="Lokalizacja inwestycji"
-                style={{ cursor: (quote || onOpenInvestmentModal) ? "pointer" : "default" }}>
-                <span className="quote-detail-investment-trigger-icon"><I.pin s={14} sw={2} /></span>
+                style={{ cursor: (quote || onOpenInvestmentModal) ? "pointer" : "default", padding: "4px 8px", fontSize: 12 }}>
+                <span className="quote-detail-investment-trigger-icon"><I.pin s={13} sw={2} /></span>
                 <span className="quote-detail-investment-trigger-value">{investmentLabel}</span>
                 {(order.investment?.notes || quote?.investment?.notes)?.trim() && (
                   <span
                     style={{
-                      fontSize: "10.5px",
+                      fontSize: "10px",
                       fontWeight: 600,
                       background: "rgba(245, 158, 11, 0.2)",
                       color: "#fbbf24",
                       border: "1px solid rgba(245, 158, 11, 0.4)",
-                      padding: "1px 6px",
+                      padding: "1px 5px",
                       borderRadius: "4px",
                       marginLeft: "4px",
                       display: "inline-flex",
@@ -511,7 +706,7 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                   }}
                   placeholder="Wpisz wyróżnik B2B / tekst własny..."
                   className="fluent-input"
-                  style={{ padding: "4px 10px", fontSize: "12px", width: "240px", borderLeft: "3px solid var(--accent-primary)" }}
+                  style={{ padding: "3px 8px", fontSize: "11px", width: "200px", borderLeft: "3px solid var(--accent-primary)" }}
                   autoFocus
                 />
               </div>
@@ -528,17 +723,17 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                 {customLabel ? (
                   <span
                     style={{
-                      fontSize: "11px",
+                      fontSize: "10.5px",
                       fontWeight: "bold",
                       textTransform: "uppercase",
                       color: "var(--accent-primary)",
                       background: "var(--accent-soft)",
                       border: "1px solid var(--accent-line)",
-                      padding: "3px 10px",
-                      borderRadius: "6px",
+                      padding: "2px 8px",
+                      borderRadius: "5px",
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: "6px",
+                      gap: "4px",
                       boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
                       transition: "all 0.15s ease"
                     }}
@@ -548,17 +743,17 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                 ) : (
                   <span
                     style={{
-                      fontSize: "11px",
+                      fontSize: "10.5px",
                       color: "var(--text-muted)",
                       fontStyle: "italic",
-                      padding: "3px 8px",
+                      padding: "2px 6px",
                       border: "1px dashed var(--border-color)",
-                      borderRadius: "6px",
+                      borderRadius: "5px",
                       background: "rgba(0,0,0,0.02)",
                       transition: "all 0.15s ease"
                     }}
                   >
-                    🏷️ + Dodaj tekst własny (wyróżnik B2B)
+                    🏷️ + Tekst własny (B2B)
                   </span>
                 )}
               </div>
@@ -568,7 +763,7 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
                 {pTypes.map((t) => {
                   const s = getProjectTypeStyle(projectTypes, t);
                   return (
-                    <span key={t} className="kanban-chip kanban-chip-type" style={{ background: s.bg, color: s.fg, borderColor: s.border }}>
+                    <span key={t} className="kanban-chip kanban-chip-type" style={{ background: s.bg, color: s.fg, borderColor: s.border, fontSize: 11, padding: "2px 7px" }}>
                       <span className="kanban-chip-dot" style={{ background: s.fg }} />
                       {t}
                     </span>
@@ -578,46 +773,51 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
             )}
           </div>
         </div>
-        <div className="quote-detail-header-meta">
+        <div className="quote-detail-header-meta" style={{ gap: 12, alignItems: "center" }}>
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Wartość netto</div>
+            <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Wartość netto</div>
             <div className="quote-detail-meta-value">
               {isEditingValue ? (
-                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                   <input type="text" value={tempValue} onChange={(e) => setTempValue(e.target.value)}
                     onBlur={() => { if (ignoreBlurValueRef.current) return; void handleSaveValue(); }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") { e.preventDefault(); void handleSaveValue(); }
                       else if (e.key === "Escape") { e.preventDefault(); ignoreBlurValueRef.current = true; setIsEditingValue(false); }
                     }}
-                    placeholder="Kwota netto..." className="fluent-input"
-                    style={{ padding: "3px 6px", fontSize: "11px", width: "90px", textAlign: "right" }} autoFocus />
-                  <span style={{ fontSize: "11px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
+                    placeholder="Kwota..." className="fluent-input"
+                    style={{ padding: "2px 5px", fontSize: "11px", width: "80px", textAlign: "right" }} autoFocus />
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)", marginRight: "2px" }}>PLN</span>
                 </div>
               ) : (
                 <div onClick={() => { ignoreBlurValueRef.current = false; setTempValue(String(order.valueNetto)); setIsEditingValue(true); }}
-                  style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", padding: "2px 4px", borderRadius: "4px" }}
+                  style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer", padding: "1px 4px", borderRadius: "4px" }}
                   title="Kliknij, aby edytować wartość netto">
-                  <span className="quote-detail-meta-num">{formatPLN(order.valueNetto)}</span>
-                  <span className="quote-detail-meta-unit">PLN</span>
+                  <span className="quote-detail-meta-num" style={{ fontSize: 14, fontWeight: 700 }}>{formatPLN(order.valueNetto)}</span>
+                  <span className="quote-detail-meta-unit" style={{ fontSize: 11 }}>PLN</span>
                 </div>
               )}
             </div>
           </div>
           <div className="quote-detail-meta-divider" />
           <div className="quote-detail-meta-item">
-            <div className="quote-detail-meta-label">Opiekun</div>
+            <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Opiekun</div>
             <OrderOwnerEditor order={order} ownerName={ownerName} />
           </div>
         </div>
       </div>
-      <OrderStatusPipeline currentIndex={statusIndex} disabled={updating} onStatusChange={onStatusChange} />
+
+      <OrderStatusPipeline currentIndex={statusIndex} disabled={updating} onStatusChange={onStatusChange} isCompact={true} />
+
+      <OrderHeaderChecklists order={order} />
+
       {isInvestmentOpen && quote && (
         <InvestmentModal quote={quote} archived={false} onClose={() => setIsInvestmentOpen(false)} />
       )}
     </div>
   );
 }
+
 
 // ─── Terminy zlecenia (wydarzenia kalendarza) ───────────────────────────────────
 
