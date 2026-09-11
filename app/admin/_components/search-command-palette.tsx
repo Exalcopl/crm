@@ -181,8 +181,10 @@ export function SearchCommandPalette({ isOpen, onClose }: SearchCommandPalettePr
       url: item.url,
       timestamp: Date.now(),
     });
+    onClose();
     router.push(item.url);
   }
+
 
   return (
     <div className="search-modal-backdrop" onClick={onClose}>

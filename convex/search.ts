@@ -217,7 +217,7 @@ export const querySearch = query({
               label: q.status,
               variant: getQuoteStatusVariant(q.status),
             },
-            url: `/admin/wyceny?id=${q._id}`,
+            url: `/admin/wyceny/${q._id}`,
             score,
             snippet,
             sharepointWebUrl: q.sharepoint?.webUrl,
@@ -264,7 +264,8 @@ export const querySearch = query({
               label: o.status,
               variant: getOrderStatusVariant(o.status),
             },
-            url: `/admin/zlecenia?id=${o._id}`,
+            url: `/admin/zlecenia/${o._id}`,
+
             score,
             snippet,
             sharepointWebUrl: o.sharepoint?.webUrl,
