@@ -8,7 +8,9 @@ import { Toaster } from "sonner";
 import { AdministracjaRibbon } from "./_components/administracja-ribbon";
 import { CalendarPanel } from "./_components/calendar-panel";
 import { SearchCommandPalette } from "./_components/search-command-palette";
+import { NotificationCenter } from "./_components/NotificationCenter";
 import { I } from "./_lib/icons";
+
 import {
   PermissionGate,
   PermissionsProvider,
@@ -161,17 +163,9 @@ function AdminShell({ children }: { children: ReactNode }) {
         />
 
         <div className="global-actions">
-          <button type="button" className="icon-btn" title="Powiadomienia">
-            <I.bell s={15} />
-            <span className="dot-indicator" />
-          </button>
-          <button type="button" className="icon-btn" title="Pomoc">
-            <I.help s={15} />
-          </button>
-          <Link href="/account" className="icon-btn" title="Ustawienia konta">
-            <I.cog s={15} />
-          </Link>
+          <NotificationCenter />
           <div className="divider" />
+
           <Link href="/account" className="profile" title="Twoje konto">
             <div className="av">
               {isLoading

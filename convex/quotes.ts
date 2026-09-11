@@ -10,6 +10,8 @@ import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { normalizePhone } from "./_lib/phone";
 import type { Id, Doc } from "./_generated/dataModel";
+import { triggerNotification } from "./notifications";
+
 
 const STATUS_VALUES = v.union(
   v.literal("Do zrobienia"),
@@ -272,7 +274,16 @@ export const create = mutation({
       quoteId,
     });
 
+    await triggerNotification(ctx, {
+      type: "new_quote",
+      title: `Nowa wycena ${code}`,
+      message: `Utworzono nową wycenę dla: ${args.contact.name}`,
+      link: `/admin/wyceny/${quoteId}`,
+      entityId: quoteId,
+    });
+
     return { _id: quoteId, code };
+
   },
 });
 
@@ -606,7 +617,15 @@ export const createPublic = mutation({
       quoteId,
     });
 
-    return { code, quoteId, uploadToken };
+    await triggerNotification(ctx, {
+      type: "new_quote",
+      title: `Nowa wycena ${code} (Formularz)`,
+      message: `Zgłoszenie publiczne od: ${contactName}`,
+      link: `/admin/wyceny/${quoteId}`,
+      entityId: quoteId,
+    });
+
+    return { quoteId, code, uploadToken };
   },
 });
 

@@ -704,5 +704,28 @@ export default defineSchema({
     .index("by_apiKeyHash", ["apiKeyHash"])
     .index("by_client", ["clientId"])
     .index("by_active", ["isActive"]),
+
+  notifications: defineTable({
+    type: v.string(), // "new_quote" | "new_order" | string
+    title: v.string(),
+    message: v.string(),
+    link: v.string(),
+    targetUserId: v.optional(v.id("users")),
+    readBy: v.array(v.id("users")),
+    entityId: v.optional(v.string()),
+    createdAt: v.number(),
+    metadata: v.optional(v.any()),
+  })
+    .index("by_createdAt", ["createdAt"])
+    .index("by_type", ["type"]),
+
+  notificationSettings: defineTable({
+    key: v.string(), // "global_settings"
+    enabledTypes: v.array(v.string()), // e.g. ["new_quote", "new_order"]
+    soundEnabled: v.boolean(),
+    updatedAt: v.number(),
+    updatedBy: v.optional(v.id("users")),
+  }).index("by_key", ["key"]),
 });
+
 

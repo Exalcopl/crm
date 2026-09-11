@@ -4,6 +4,8 @@ import { mutation, query, internalQuery, internalMutation } from "./_generated/s
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { generateCode } from "./quotes";
+import { triggerNotification } from "./notifications";
+
 
 const CONTACT_VALUE = v.object({
   name: v.string(),
@@ -116,6 +118,15 @@ export const create = mutation({
       customLabel: quote.customLabel || undefined,
       createdAt: Date.now(),
     });
+
+    await triggerNotification(ctx, {
+      type: "new_order",
+      title: `Nowe zlecenie ${orderNumber}`,
+      message: `Utworzono zlecenie dla klienta: ${quote.contact.name}`,
+      link: `/admin/zlecenia/${orderId}`,
+      entityId: orderId,
+    });
+
 
     // Przeniesienie notatek z feedu wyceny (quoteNotes) jako osobne wpisy w orderNotes
     if (quoteNotes.length > 0) {
