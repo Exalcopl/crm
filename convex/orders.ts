@@ -408,6 +408,15 @@ export const createStandalone = mutation({
     // Uruchomienie schedulera do tworzenia folderu SharePoint dla zlecenia
     await ctx.scheduler.runAfter(0, internal.sharepoint.createFolderForOrder, { orderId });
 
+    await triggerNotification(ctx, {
+      type: "new_order",
+      title: `Nowe zlecenie ${orderNumber}`,
+      message: `Utworzono nowe zlecenie dla klienta: ${args.contact.name}`,
+      link: `/admin/zlecenia/${orderId}`,
+      entityId: orderId,
+    });
+
+
     const user = await ctx.db.get(userId);
 
     if (args.initialNotes && args.initialNotes.length > 0) {
@@ -782,6 +791,15 @@ export const createFromPartnerApi = internalMutation({
         lastTriedAt: 0,
       },
     });
+
+    await triggerNotification(ctx, {
+      type: "new_order",
+      title: `Nowe zlecenie ${orderNumber}`,
+      message: `Utworzono zlecenie dla klienta: ${args.clientName}`,
+      link: `/admin/zlecenia/${orderId}`,
+      entityId: orderId,
+    });
+
 
     // Wstawianie notatek początkowych od Partnera do komunikatora orderNotes
     if (args.notes) {
