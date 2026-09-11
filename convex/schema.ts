@@ -180,13 +180,7 @@ export default defineSchema({
     // Stan kalkulatora konfiguratora (override cen grup, własne pozycje, stawka VAT)
     calculator: v.optional(v.any()),
     notes: v.optional(v.string()),
-    checklists: v.optional(
-      v.object({
-        col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-        col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-        col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-      })
-    ),
+    checklists: v.optional(v.any()),
     publicUploadToken: v.optional(v.string()),
     publicUploadTokenExpiresAt: v.optional(v.number()),
     sharepoint: v.optional(
@@ -561,13 +555,7 @@ export default defineSchema({
         lastTriedAt: v.number(),
       })
     ),
-    checklists: v.optional(
-      v.object({
-        col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-        col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-        col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-      })
-    ),
+    checklists: v.optional(v.any()),
     archived: v.optional(v.boolean()),
     partnerId: v.optional(v.id("partners")),
     createdAt: v.number(),
@@ -578,6 +566,25 @@ export default defineSchema({
     .index("by_orderNumber", ["orderNumber"])
     .index("by_archived", ["archived"])
     .index("by_partner", ["partnerId"]),
+
+  checklistTemplates: defineTable({
+    name: v.string(),
+    lists: v.array(
+      v.object({
+        id: v.string(),
+        title: v.string(),
+        color: v.string(),
+        items: v.array(
+          v.object({
+            id: v.string(),
+            label: v.string(),
+            checked: v.boolean(),
+          })
+        ),
+      })
+    ),
+    createdAt: v.number(),
+  }),
 
   orderCounters: defineTable({
     year: v.number(),

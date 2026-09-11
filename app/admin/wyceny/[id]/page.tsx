@@ -30,6 +30,7 @@ import { QuoteFileBrowser } from "./_components/quote-file-browser";
 import { QuoteVersionsManager } from "./_components/quote-versions-manager";
 import { QuoteConfigurator } from "./_components/quote-configurator";
 import { QuoteNotesFeed } from "./_components/quote-notes-feed";
+import { CustomChecklistsHeader, type CustomList } from "../../_components/CustomChecklistsHeader";
 
 type DetailTab = "szczegoly" | "pozycje" | "pomiary" | "aktywnosc" | "powiazane";
 
@@ -845,201 +846,20 @@ function ClientContactStrip({ quote }: { quote: Quote }) {
   );
 }
 
-type ChecklistItem = { id: string; label: string; checked: boolean };
-type ChecklistsData = {
-  col1?: ChecklistItem[];
-  col2?: ChecklistItem[];
-  col3?: ChecklistItem[];
-};
-
-const DEFAULT_QUOTE_CHECKLISTS: ChecklistsData = {
-  col1: [
-    { id: "qc1_1", label: "Analiza zapytań / Wymagań", checked: false },
-    { id: "qc1_2", label: "Dane kontaktowe i adres", checked: false },
-    { id: "qc1_3", label: "Weryfikacja techniczna", checked: false },
-    { id: "qc1_4", label: "Konfiguracja wybrana", checked: false },
-  ],
-  col2: [
-    { id: "qc2_1", label: "Kalkulacja materiałowa", checked: false },
-    { id: "qc2_2", label: "Wycena dostawców / Szyb", checked: false },
-    { id: "qc2_3", label: "Rabat / Marża ustalona", checked: false },
-    { id: "qc2_4", label: "Generowanie oferty PDF", checked: false },
-  ],
-  col3: [
-    { id: "qc3_1", label: "Wysłano ofertę do klienta", checked: false },
-    { id: "qc3_2", label: "Kontakt telefoniczny / Follow-up", checked: false },
-    { id: "qc3_3", label: "Uzgodnienie poprawek", checked: false },
-    { id: "qc3_4", label: "Decyzja / Przekazano do zlecenia", checked: false },
-  ],
-};
-
 function QuoteHeaderChecklists({ quote, archived }: { quote: Quote; archived: boolean }) {
   const updateChecklistsMut = useMutation(api.quotes.updateChecklists);
 
-  const currentData: ChecklistsData = useMemo(() => {
-    return {
-      col1: (quote as any).checklists?.col1?.length ? (quote as any).checklists.col1 : DEFAULT_QUOTE_CHECKLISTS.col1,
-      col2: (quote as any).checklists?.col2?.length ? (quote as any).checklists.col2 : DEFAULT_QUOTE_CHECKLISTS.col2,
-      col3: (quote as any).checklists?.col3?.length ? (quote as any).checklists.col3 : DEFAULT_QUOTE_CHECKLISTS.col3,
-    };
-  }, [(quote as any).checklists]);
-
-  const [localChecklists, setLocalChecklists] = useState<ChecklistsData>(currentData);
-  const [newInputs, setNewInputs] = useState<{ col1: string; col2: string; col3: string }>({ col1: "", col2: "", col3: "" });
-
-  useEffect(() => {
-    setLocalChecklists(currentData);
-  }, [currentData]);
-
-  async function saveChecklists(updated: ChecklistsData) {
+  async function handleSave(updatedLists: CustomList[]) {
     if (archived) return;
-    setLocalChecklists(updated);
-    try {
-      await updateChecklistsMut({ id: quote._id, checklists: updated });
-    } catch {
-      toast.error("Błąd zapisu checklisty");
-    }
+    await updateChecklistsMut({ id: quote._id, checklists: updatedLists });
   }
-
-  function handleToggle(colKey: "col1" | "col2" | "col3", itemId: string) {
-    if (archived) return;
-    const list = localChecklists[colKey] || [];
-    const nextList = list.map(item => item.id === itemId ? { ...item, checked: !item.checked } : item);
-    const nextData = { ...localChecklists, [colKey]: nextList };
-    void saveChecklists(nextData);
-  }
-
-  function handleAddItem(colKey: "col1" | "col2" | "col3") {
-    if (archived) return;
-    const label = newInputs[colKey].trim();
-    if (!label) return;
-    const list = localChecklists[colKey] || [];
-    const newItem: ChecklistItem = { id: `custom_${Date.now()}`, label, checked: false };
-    const nextList = [...list, newItem];
-    const nextData = { ...localChecklists, [colKey]: nextList };
-    setNewInputs(prev => ({ ...prev, [colKey]: "" }));
-    void saveChecklists(nextData);
-  }
-
-  function handleRemoveItem(colKey: "col1" | "col2" | "col3", itemId: string) {
-    if (archived) return;
-    const list = localChecklists[colKey] || [];
-    const nextList = list.filter(item => item.id !== itemId);
-    const nextData = { ...localChecklists, [colKey]: nextList };
-    void saveChecklists(nextData);
-  }
-
-  const columnsConfig: { key: "col1" | "col2" | "col3"; title: string; icon: string; color: string }[] = [
-    { key: "col1", title: "Przygotowanie i Wymagania", icon: "📋", color: "#58a6ff" },
-    { key: "col2", title: "Kalkulacja i Oferta", icon: "🏭", color: "#f0883e" },
-    { key: "col3", title: "Kontakt i Akceptacja", icon: "🚚", color: "#3fb950" },
-  ];
 
   return (
-    <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 8, padding: 10, marginTop: 4 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
-        {columnsConfig.map((col) => {
-          const items = localChecklists[col.key] || [];
-          const doneCount = items.filter(i => i.checked).length;
-          const pct = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
-
-          return (
-            <div key={col.key} style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 6, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-              {/* Header row */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>{col.icon}</span>
-                  <span>{col.title}</span>
-                </span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: col.color, background: `${col.color}15`, border: `1px solid ${col.color}33`, padding: "1px 6px", borderRadius: 10 }}>
-                  {doneCount}/{items.length} · {pct}%
-                </span>
-              </div>
-
-              {/* Progress bar */}
-              <div style={{ width: "100%", height: 3, background: "#21262d", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{ width: `${pct}%`, height: "100%", background: col.color, transition: "width 0.2s ease" }} />
-              </div>
-
-              {/* Items list */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2 }}>
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "2px 4px",
-                      borderRadius: 4,
-                      background: item.checked ? "rgba(63,185,80,0.05)" : "transparent",
-                      transition: "background 0.15s",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      disabled={archived}
-                      onClick={() => handleToggle(col.key, item.id)}
-                      style={{ background: "none", border: "none", cursor: archived ? "default" : "pointer", padding: 0, display: "flex", alignItems: "center", color: item.checked ? "#3fb950" : "#475569" }}
-                    >
-                      {item.checked ? <CheckSquare size={13} /> : <Square size={13} />}
-                    </button>
-                    <span
-                      onClick={() => handleToggle(col.key, item.id)}
-                      style={{
-                        flex: 1,
-                        fontSize: 11,
-                        color: item.checked ? "#6e7681" : "#c9d1d9",
-                        textDecoration: item.checked ? "line-through" : "none",
-                        cursor: archived ? "default" : "pointer",
-                        userSelect: "none",
-                      }}
-                    >
-                      {item.label}
-                    </span>
-                    {!archived && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItem(col.key, item.id)}
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#475569", padding: 2, opacity: 0.5 }}
-                        title="Usuń pozycję"
-                        onMouseEnter={e => { e.currentTarget.style.color = "#f85149"; e.currentTarget.style.opacity = "1"; }}
-                        onMouseLeave={e => { e.currentTarget.style.color = "#475569"; e.currentTarget.style.opacity = "0.5"; }}
-                      >
-                        <I.x s={11} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Add item input */}
-              {!archived && (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2, paddingTop: 4, borderTop: "1px solid #21262d" }}>
-                  <input
-                    type="text"
-                    placeholder="+ Dodaj punkt…"
-                    value={newInputs[col.key]}
-                    onChange={e => setNewInputs(prev => ({ ...prev, [col.key]: e.target.value }))}
-                    onKeyDown={e => { if (e.key === "Enter") handleAddItem(col.key); }}
-                    style={{ flex: 1, background: "transparent", border: "none", color: "#f0f6fc", fontSize: 11, outline: "none", padding: "2px 0" }}
-                  />
-                  {newInputs[col.key].trim() && (
-                    <button
-                      type="button"
-                      onClick={() => handleAddItem(col.key)}
-                      style={{ background: col.color, border: "none", borderRadius: 4, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 6px", cursor: "pointer" }}
-                    >
-                      Dodaj
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <CustomChecklistsHeader
+      initialChecklists={(quote as any).checklists}
+      onSave={handleSave}
+      disabled={archived}
+    />
   );
 }
 

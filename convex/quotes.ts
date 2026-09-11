@@ -1245,11 +1245,7 @@ export const updateValue = mutation({
 export const updateChecklists = mutation({
   args: {
     id: v.id("quotes"),
-    checklists: v.object({
-      col1: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-      col2: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-      col3: v.optional(v.array(v.object({ id: v.string(), label: v.string(), checked: v.boolean() }))),
-    }),
+    checklists: v.any(),
   },
   handler: async (ctx, { id, checklists }) => {
     await ctx.db.patch(id, { checklists });

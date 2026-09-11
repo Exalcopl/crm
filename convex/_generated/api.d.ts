@@ -14,6 +14,7 @@ import type * as auth from "../auth.js";
 import type * as authPin from "../authPin.js";
 import type * as calendarCategories from "../calendarCategories.js";
 import type * as calendarEvents from "../calendarEvents.js";
+import type * as checklistTemplates from "../checklistTemplates.js";
 import type * as clientNotes from "../clientNotes.js";
 import type * as clients from "../clients.js";
 import type * as configurator from "../configurator.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   authPin: typeof authPin;
   calendarCategories: typeof calendarCategories;
   calendarEvents: typeof calendarEvents;
+  checklistTemplates: typeof checklistTemplates;
   clientNotes: typeof clientNotes;
   clients: typeof clients;
   configurator: typeof configurator;
