@@ -861,7 +861,7 @@ export function CustomChecklistsHeader({
                   background: "rgba(255,255,255,0.05)",
                   display: "flex",
                   alignItems: "center",
-                  justify: "center",
+                  justifyContent: "center",
                   color: "#60a5fa",
                 }}
               >
