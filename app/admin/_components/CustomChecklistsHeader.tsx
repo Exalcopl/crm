@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckSquare, Square, Plus, Trash2, Edit2, Palette, Bookmark, BookmarkPlus, Check, X, FolderOpen } from "lucide-react";
+import { CheckSquare, Square, Plus, Trash2, Edit2, Palette, BookmarkPlus, Check, X, FolderOpen, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 export type ChecklistItem = {
@@ -28,7 +28,7 @@ export const COLOR_PALETTE = [
   { hex: "#06b6d4", name: "Cyjan" },
 ];
 
-export const BUILTIN_PRESETS: { name: string; lists: CustomList[] }[] = [
+export const BUILTIN_PRESETS: { id?: string; name: string; lists: CustomList[] }[] = [
   {
     name: "Standardowa Wycena",
     lists: [
@@ -168,6 +168,10 @@ export function CustomChecklistsHeader({
   const [templateName, setTemplateName] = useState("");
   const [isPresetDropdownOpen, setIsPresetDropdownOpen] = useState(false);
 
+  // Potykacze (Confirmation Modals)
+  const [deletingTemplate, setDeletingTemplate] = useState<{ id: any; name: string } | null>(null);
+  const [deletingList, setDeletingList] = useState<{ id: string; title: string } | null>(null);
+
   // Convex query & mutation for templates
   const userTemplates = useQuery(api.checklistTemplates.list) ?? [];
   const saveTemplateMut = useMutation(api.checklistTemplates.saveTemplate);
@@ -246,12 +250,12 @@ export function CustomChecklistsHeader({
     toast.success(`Utworzono listę: „${title}”`);
   }
 
-  function handleRemoveList(listId: string) {
-    if (disabled) return;
-    const target = lists.find((l) => l.id === listId);
-    const next = lists.filter((l) => l.id !== listId);
+  function confirmRemoveList() {
+    if (!deletingList) return;
+    const next = lists.filter((l) => l.id !== deletingList.id);
     void updateAndSave(next);
-    toast.success(`Usunięto listę „${target?.title ?? ""}"`);
+    toast.success(`Usunięto listę „${deletingList.title}”`);
+    setDeletingList(null);
   }
 
   function handleSaveTitle(listId: string) {
@@ -273,7 +277,6 @@ export function CustomChecklistsHeader({
 
   function handleApplyPreset(presetLists: CustomList[]) {
     if (disabled) return;
-    // Clone items with fresh ids
     const freshLists: CustomList[] = presetLists.map((l, idx) => ({
       id: `list_${Date.now()}_${idx}`,
       title: l.title,
@@ -307,17 +310,24 @@ export function CustomChecklistsHeader({
     }
   }
 
-  async function handleDeleteTemplate(id: any, name: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  async function confirmDeleteTemplate() {
+    if (!deletingTemplate) return;
     try {
-      await removeTemplateMut({ id });
-      toast.success(`Usunięto szablon „${name}”`);
+      if (deletingTemplate.id) {
+        await removeTemplateMut({ id: deletingTemplate.id });
+      }
+      toast.success(`Usunięto szablon „${deletingTemplate.name}”`);
     } catch {
       toast.error("Nie udało się usunąć szablonu");
+    } finally {
+      setDeletingTemplate(null);
     }
   }
 
   const remainingSlots = Math.max(0, 3 - lists.length);
+
+  // Combine userTemplates with BUILTIN_PRESETS if userTemplates is empty
+  const allTemplatesList = userTemplates.length > 0 ? userTemplates : BUILTIN_PRESETS;
 
   return (
     <div style={{ background: "rgba(13, 17, 23, 0.85)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 10, marginTop: 4 }}>
@@ -387,7 +397,7 @@ export function CustomChecklistsHeader({
                     top: "100%",
                     right: 0,
                     marginTop: 4,
-                    width: 230,
+                    width: 250,
                     background: "#161b22",
                     border: "1px solid #30363d",
                     borderRadius: 6,
@@ -397,18 +407,14 @@ export function CustomChecklistsHeader({
                   }}
                 >
                   <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
-                    Domyślne presety
+                    Dostępne szablony
                   </div>
-                  {BUILTIN_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => handleApplyPreset(preset.lists)}
+                  {allTemplatesList.map((t: any) => (
+                    <div
+                      key={t._id || t.name}
+                      onClick={() => handleApplyPreset(t.lists)}
                       style={{
                         width: "100%",
-                        textAlign: "left",
-                        background: "transparent",
-                        border: "none",
                         borderRadius: 4,
                         padding: "5px 8px",
                         fontSize: 11,
@@ -417,52 +423,29 @@ export function CustomChecklistsHeader({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
+                        gap: 6,
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
-                      <span>{preset.name}</span>
-                      <span style={{ fontSize: 9, color: "#8b949e" }}>({preset.lists.length} listy)</span>
-                    </button>
+                      <span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {t.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingTemplate({ id: t._id ?? null, name: t.name });
+                        }}
+                        style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "2px 4px", borderRadius: 3 }}
+                        title="Usuń ten szablon"
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   ))}
-
-                  {userTemplates.length > 0 && (
-                    <>
-                      <div style={{ height: 1, background: "#30363d", margin: "6px 0" }} />
-                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
-                        Twoje własne szablony
-                      </div>
-                      {userTemplates.map((t: any) => (
-                        <div
-                          key={t._id}
-                          onClick={() => handleApplyPreset(t.lists)}
-                          style={{
-                            width: "100%",
-                            borderRadius: 4,
-                            padding: "5px 8px",
-                            fontSize: 11,
-                            color: "#c9d1d9",
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                        >
-                          <span style={{ fontWeight: 600 }}>{t.name}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => void handleDeleteTemplate(t._id, t.name, e)}
-                            style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: 2 }}
-                            title="Usuń szablon"
-                          >
-                            <Trash2 size={11} />
-                          </button>
-                        </div>
-                      ))}
-                    </>
-                  )}
                 </div>
               )}
             </div>
@@ -477,7 +460,6 @@ export function CustomChecklistsHeader({
           const doneCount = list.items.filter((i) => i.checked).length;
           const totalCount = list.items.length;
           const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
-          const colorObj = COLOR_PALETTE.find((c) => c.hex === list.color) || COLOR_PALETTE[0];
 
           return (
             <div
@@ -617,7 +599,7 @@ export function CustomChecklistsHeader({
                   {!disabled && (
                     <button
                       type="button"
-                      onClick={() => handleRemoveList(list.id)}
+                      onClick={() => setDeletingList({ id: list.id, title: list.title })}
                       style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 2, display: "flex" }}
                       title="Usuń całą listę"
                       onMouseEnter={(e) => (e.currentTarget.style.color = "#f85149")}
@@ -879,7 +861,7 @@ export function CustomChecklistsHeader({
                   background: "rgba(255,255,255,0.05)",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  justify: "center",
                   color: "#60a5fa",
                 }}
               >
@@ -963,6 +945,158 @@ export function CustomChecklistsHeader({
                 }}
               >
                 Zapisz
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potykacz: Confirmation modal for deleting a template */}
+      {deletingTemplate && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setDeletingTemplate(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid rgba(248, 81, 73, 0.4)",
+              borderRadius: 8,
+              padding: 18,
+              width: 360,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#f85149", fontSize: 14, fontWeight: 700 }}>
+              <AlertTriangle size={18} />
+              <span>Usunięcie szablonu</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#c9d1d9", lineHeight: 1.5 }}>
+              Czy na pewno chcesz usunąć szablon <strong style={{ color: "#f0f6fc" }}>„{deletingTemplate.name}”</strong>? Operacji tej nie można cofnąć.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setDeletingTemplate(null)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #30363d",
+                  borderRadius: 5,
+                  color: "#8b949e",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteTemplate()}
+                style={{
+                  background: "#da3633",
+                  border: "none",
+                  borderRadius: 5,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                Tak, usuń szablon
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potykacz: Confirmation modal for deleting a custom list */}
+      {deletingList && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+          onClick={() => setDeletingList(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid rgba(248, 81, 73, 0.4)",
+              borderRadius: 8,
+              padding: 18,
+              width: 360,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#f85149", fontSize: 14, fontWeight: 700 }}>
+              <AlertTriangle size={18} />
+              <span>Usunięcie listy</span>
+            </div>
+            <div style={{ fontSize: 12, color: "#c9d1d9", lineHeight: 1.5 }}>
+              Czy na pewno chcesz usunąć całą listę <strong style={{ color: "#f0f6fc" }}>„{deletingList.title}”</strong> wraz ze wszystkimi punktami?
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+              <button
+                type="button"
+                onClick={() => setDeletingList(null)}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #30363d",
+                  borderRadius: 5,
+                  color: "#8b949e",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoveList}
+                style={{
+                  background: "#da3633",
+                  border: "none",
+                  borderRadius: 5,
+                  color: "#fff",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "6px 14px",
+                  cursor: "pointer",
+                }}
+              >
+                Tak, usuń listę
               </button>
             </div>
           </div>

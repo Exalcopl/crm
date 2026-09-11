@@ -100,3 +100,90 @@ export const clearAllChecklists = mutation({
     return `SUCCESS: Cleared checklists for ${qCount} quotes and ${oCount} orders.`;
   },
 });
+
+/** Inicjalizuje domyślne szablony, jeśli baza jest pusta */
+export const seedDefaults = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db.query("checklistTemplates").collect();
+    if (existing.length > 0) return "Templates already exist";
+
+    await ctx.db.insert("checklistTemplates", {
+      name: "Standardowa Wycena",
+      lists: [
+        {
+          id: "p1_1",
+          title: "Analiza & Wymagania",
+          color: "#3b82f6",
+          items: [
+            { id: "i1", label: "Analiza zapytań / Wymagań", checked: false },
+            { id: "i2", label: "Dane kontaktowe i adres", checked: false },
+            { id: "i3", label: "Weryfikacja techniczna", checked: false },
+            { id: "i4", label: "Konfiguracja wybrana", checked: false },
+          ],
+        },
+        {
+          id: "p1_2",
+          title: "Kalkulacja & Wycena",
+          color: "#8b5cf6",
+          items: [
+            { id: "i5", label: "Kalkulacja materiałowa", checked: false },
+            { id: "i6", label: "Wycena dostawców / Szyb", checked: false },
+            { id: "i7", label: "Rabat / Marża ustalona", checked: false },
+            { id: "i8", label: "Generowanie oferty PDF", checked: false },
+          ],
+        },
+        {
+          id: "p1_3",
+          title: "Oferta & Akceptacja",
+          color: "#10b981",
+          items: [
+            { id: "i9", label: "Wysłanie oferty do klienta", checked: false },
+            { id: "i10", label: "Potwierdzenie warunków", checked: false },
+            { id: "i11", label: "Zgoda klienta / Umowa", checked: false },
+          ],
+        },
+      ],
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("checklistTemplates", {
+      name: "Zlecenie i Montaż",
+      lists: [
+        {
+          id: "p2_1",
+          title: "Przygotowanie",
+          color: "#3b82f6",
+          items: [
+            { id: "i12", label: "Pomiar końcowy na budowie", checked: false },
+            { id: "i13", label: "Weryfikacja zamawianej stolarki", checked: false },
+            { id: "i14", label: "Zaliczka zaksięgowana", checked: false },
+          ],
+        },
+        {
+          id: "p2_2",
+          title: "Zamówienie & Produkcja",
+          color: "#f59e0b",
+          items: [
+            { id: "i15", label: "Zamówienie profili i szyb", checked: false },
+            { id: "i16", label: "Potwierdzenie terminu fabryki", checked: false },
+            { id: "i17", label: "Kontrola jakości dostawy", checked: false },
+          ],
+        },
+        {
+          id: "p2_3",
+          title: "Logistyka & Montaż",
+          color: "#10b981",
+          items: [
+            { id: "i18", label: "Pakowanie / Magazyn", checked: false },
+            { id: "i19", label: "Transport na budowę", checked: false },
+            { id: "i20", label: "Montaż i odbiór końcowy", checked: false },
+          ],
+        },
+      ],
+      createdAt: Date.now(),
+    });
+
+    return "SUCCESS: Seeded default checklist templates!";
+  },
+});
