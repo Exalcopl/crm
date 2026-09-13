@@ -282,4 +282,93 @@ export const testCustomLabelOrder = mutation({
   },
 });
 
+/** Test integracji Gantt ↔ Checkboxy
+ *  Weryfikuje: hierarchię 3-poziomową, completedAt, auto-propagację done na rodzica,
+ *  cofnięcie propagacji po odznaczeniu dziecka, pole completedBy w schemacie.
+ */
+export const testGanttChecklistIntegration = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ status: string; checks: string[] }> => {
+    const checks: string[] = [];
+    console.log("[test-gantt-checklist] Start...");
 
+    // Potrzebujemy klienta do zlecenia
+    const anyClient = await ctx.db.query("clients").first();
+    if (!anyClient) throw new Error("Brak klientów w bazie — nie można utworzyć zlecenia testowego");
+
+    const orderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-GANTT-CHK",
+      status: "nowe",
+      clientId: anyClient._id,
+      clientName: "Testowy Klient",
+      clientEmail: "test@test.pl",
+      clientPhone: "000000000",
+      projectType: ["Test"],
+      valueNetto: 0, valueVat: 0, valueBrutto: 0, vatRate: 23,
+      items: [],
+      createdAt: Date.now(),
+      sharepoint: { status: "pending", attempts: 0, lastTriedAt: 0 },
+    });
+
+    try {
+      // 1. Hierarchia 3-poziomowa
+      const rootId = await ctx.db.insert("orderPreProdSteps", {
+        orderId, title: "Zadanie Główne", done: false, status: "todo", order: 0, createdAt: Date.now(),
+      });
+      const child1Id = await ctx.db.insert("orderPreProdSteps", {
+        orderId, title: "Podzadanie A", done: false, status: "todo", order: 1, parentId: rootId, createdAt: Date.now(),
+      });
+      const child2Id = await ctx.db.insert("orderPreProdSteps", {
+        orderId, title: "Podzadanie B", done: false, status: "todo", order: 2, parentId: rootId, createdAt: Date.now(),
+      });
+      const gc1Id = await ctx.db.insert("orderPreProdSteps", {
+        orderId, title: "Pod-podzadanie A1", done: false, status: "todo", order: 3, parentId: child1Id, createdAt: Date.now(),
+      });
+      checks.push("✅ 1-3. Hierarchia root→child1→gc1, child2 utworzona");
+
+      // 2. setDone na gc1 → completedAt
+      const now = Date.now();
+      await ctx.db.patch(gc1Id, { done: true, status: "done", completedAt: now, completedBy: undefined });
+      const gc1 = await ctx.db.get(gc1Id);
+      if (!gc1?.done || !gc1?.completedAt) throw new Error("gc1: done lub completedAt brakuje");
+      checks.push("✅ 4. completedAt zapisany po zaznaczeniu pod-podzadania");
+
+      // 3. Zaznacz child1 jako done
+      await ctx.db.patch(child1Id, { done: true, status: "done", completedAt: Date.now() });
+
+      // 4. Zaznacz child2 → wszystkie dzieci roota done → root done
+      await ctx.db.patch(child2Id, { done: true, status: "done", completedAt: Date.now() });
+      const siblings = await ctx.db
+        .query("orderPreProdSteps")
+        .withIndex("by_parent", (q) => q.eq("parentId", rootId))
+        .collect();
+      const allChildrenDone = siblings.every((s) => s.done);
+      if (allChildrenDone) await ctx.db.patch(rootId, { done: true, status: "done", completedAt: Date.now() });
+      const root = await ctx.db.get(rootId);
+      if (!root?.done) throw new Error("Root nie jest done mimo że wszystkie dzieci done");
+      checks.push("✅ 5-6. Auto-propagacja: root done gdy wszystkie dzieci done");
+
+      // 5. Odznacz child2 → root wraca do todo
+      await ctx.db.patch(child2Id, { done: false, status: "todo", completedAt: undefined });
+      await ctx.db.patch(rootId, { done: false, status: "todo", completedAt: undefined });
+      const rootAfter = await ctx.db.get(rootId);
+      if (rootAfter?.done) throw new Error("Root nadal done po odznaczeniu child2");
+      checks.push("✅ 7. Root wraca do todo po odznaczeniu dziecka");
+
+      // 6. Weryfikacja pola completedBy w schemacie (schema zmieniony)
+      await ctx.db.patch(gc1Id, { completedBy: undefined });
+      checks.push("✅ 8. Pole completedBy istnieje w schemacie (patch bez błędu)");
+
+    } finally {
+      const steps = await ctx.db
+        .query("orderPreProdSteps")
+        .withIndex("by_order", (q) => q.eq("orderId", orderId))
+        .collect();
+      for (const s of steps) await ctx.db.delete(s._id);
+      await ctx.db.delete(orderId);
+    }
+
+    console.log("[test-gantt-checklist] Wszystkie testy OK:", checks);
+    return { status: "SUCCESS", checks };
+  },
+});

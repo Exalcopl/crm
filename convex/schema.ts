@@ -265,6 +265,7 @@ export default defineSchema({
     done: v.boolean(),
     status: v.optional(v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"))),
     completedAt: v.optional(v.number()),
+    completedBy: v.optional(v.id("users")),  // kto zaznaczył jako ukończone
     archived: v.optional(v.boolean()),
     order: v.number(),                    // kolejność na liście
     parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica

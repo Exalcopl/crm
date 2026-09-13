@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 /** Pobiera wszystkie kroki (zadania + podzadania) zlecenia, posortowane wg pola order */
 export const list = query({
@@ -102,18 +103,79 @@ export const updateTitle = mutation({
   },
 });
 
-/** Toggle ukończenia zadania z wykresu Gantta */
+/** Toggle ukończenia zadania z wykresu Gantta lub modułu checkboxów */
 export const setDone = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
     done: v.boolean(),
   },
   handler: async (ctx, { id, done }) => {
-    await ctx.db.patch(id, { 
+    // Pobierz aktualnego użytkownika (opcjonalnie — może być null w sesjach PIN)
+    const userId = await getAuthUserId(ctx).catch(() => null);
+
+    const now = Date.now();
+
+    await ctx.db.patch(id, {
       done,
       status: done ? "done" : "todo",
-      completedAt: done ? Date.now() : undefined,
+      completedAt: done ? now : undefined,
+      completedBy: done && userId ? userId : undefined,
     });
+
+    // Auto-propagacja: gdy zaznaczono jako done, sprawdź rodzeństwo → zaktualizuj rodzica
+    const step = await ctx.db.get(id);
+    if (step?.parentId) {
+      const siblings = await ctx.db
+        .query("orderPreProdSteps")
+        .withIndex("by_parent", (q) => q.eq("parentId", step.parentId!))
+        .collect();
+      // Użyj aktualnego stanu done przekazanego do mutacji (step.done może być jeszcze stary)
+      const allDone = siblings.every((s) => (s._id === id ? done : s.done));
+      if (done && allDone) {
+        // Wszystkie rodzeństwa są done → rodzic też done
+        await ctx.db.patch(step.parentId, {
+          done: true,
+          status: "done",
+          completedAt: now,
+          completedBy: userId ?? undefined,
+        });
+        // Sprawdź jeden poziom wyżej (pod-podzadania → podzadania → zadanie główne)
+        const parent = await ctx.db.get(step.parentId);
+        if (parent?.parentId) {
+          const grandSiblings = await ctx.db
+            .query("orderPreProdSteps")
+            .withIndex("by_parent", (q) => q.eq("parentId", parent.parentId!))
+            .collect();
+          const allGrandDone = grandSiblings.every((s) => (s._id === step.parentId ? true : s.done));
+          if (allGrandDone) {
+            await ctx.db.patch(parent.parentId, {
+              done: true,
+              status: "done",
+              completedAt: now,
+              completedBy: userId ?? undefined,
+            });
+          }
+        }
+      } else if (!done) {
+        // Odznaczono → rodzic z powrotem todo
+        await ctx.db.patch(step.parentId, {
+          done: false,
+          status: "todo",
+          completedAt: undefined,
+          completedBy: undefined,
+        });
+        // Sprawdź jeden poziom wyżej
+        const parent = await ctx.db.get(step.parentId);
+        if (parent?.parentId) {
+          await ctx.db.patch(parent.parentId, {
+            done: false,
+            status: "todo",
+            completedAt: undefined,
+            completedBy: undefined,
+          });
+        }
+      }
+    }
   },
 });
 
@@ -124,10 +186,13 @@ export const updateStatus = mutation({
     status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
   },
   handler: async (ctx, { id, status }) => {
+    const userId = await getAuthUserId(ctx).catch(() => null);
+    const done = status === "done";
     await ctx.db.patch(id, {
       status,
-      done: status === "done",
-      completedAt: status === "done" ? Date.now() : undefined,
+      done,
+      completedAt: done ? Date.now() : undefined,
+      completedBy: done && userId ? userId : undefined,
     });
   },
 });

@@ -16,7 +16,7 @@ import { OrderRwView } from "./_components/order-rw-view";
 import { OrderNotesFeed } from "./_components/order-notes-feed";
 import { OrderPreProdGantt } from "../../_components/order-pre-prod-gantt";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
-import { CustomChecklistsHeader, type CustomList } from "../../_components/CustomChecklistsHeader";
+import { CustomChecklistsHeader, type CustomList, COLOR_PALETTE } from "../../_components/CustomChecklistsHeader";
 import {
   getProjectTypeStyle,
   formatDeadline,
@@ -316,20 +316,142 @@ function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote
   );
 }
 
-function OrderHeaderChecklists({ order }: { order: Doc<"orders"> }) {
-  const updateChecklistsMut = useMutation(api.orders.updateChecklists);
+
+// ─── Bridge: Gantt → CustomChecklistsHeader ────────────────────────────────
+// Konwertuje orderPreProdSteps (Gantt) na format CustomList[] i renderuje
+// istniejący UI CustomChecklistsHeader.
+// Pełna synchronizacja dwukierunkowa:
+//   • Nowy checkbox → tworzy podzadanie w Gantt
+//   • Zmiana tytułu checkboxa → aktualizuje tytuł kroku w Gantt
+//   • Usunięcie checkboxa → usuwa krok z Gantt
+//   • Zmiana done → setDone na kroku Gantt
+function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
+  const steps = useQuery(api.orderPreProdSteps.list, { orderId }) ?? [];
+  const setDoneMut    = useMutation(api.orderPreProdSteps.setDone);
+  const addMut        = useMutation(api.orderPreProdSteps.add);
+  const removeMut     = useMutation(api.orderPreProdSteps.remove);
+  const renameMut     = useMutation(api.orderPreProdSteps.updateTitle);
+
+  // Konwertuj Gantt → CustomList[]
+  // Zadania root (bez parentId) → listy
+  // Podzadania (level 1) i pod-podzadania (level 2) → items (płasko, własny tytuł)
+  const ganttChecklists = useMemo((): CustomList[] => {
+    const active = steps.filter((s) => !s.archived).sort((a, b) => a.order - b.order);
+    const roots = active.filter((s) => !s.parentId);
+
+    return roots.map((root, i) => {
+      const items: CustomList["items"] = [];
+      const children = active
+        .filter((s) => s.parentId === root._id)
+        .sort((a, b) => a.order - b.order);
+
+      for (const child of children) {
+        const grandchildren = active
+          .filter((s) => s.parentId === child._id)
+          .sort((a, b) => a.order - b.order);
+
+        if (grandchildren.length > 0) {
+          // Podzadanie z pod-podzadaniami → pokaż pod-podzadania jako checkboxy
+          // Używamy własnego tytułu kroku (nie flatten) żeby sync działał poprawnie
+          for (const gc of grandchildren) {
+            items.push({ id: gc._id, label: gc.title, checked: gc.done });
+          }
+        } else {
+          items.push({ id: child._id, label: child.title, checked: child.done });
+        }
+      }
+
+      return {
+        id: root._id,
+        title: root.title,
+        color: COLOR_PALETTE[i % COLOR_PALETTE.length].hex,
+        items,
+      };
+    });
+  }, [steps]);
+
+  // Klucz wymusza re-sync gdy stan Gantt zmienia się zewnętrznie (done, tytuły, liczba kroków)
+  const syncKey = useMemo(
+    () => steps.map((s) => `${s._id}:${s.done ? 1 : 0}:${s.title}`).join(","),
+    [steps]
+  );
 
   async function handleSave(updatedLists: CustomList[]) {
-    await updateChecklistsMut({ id: order._id, checklists: updatedLists });
+    const stepMap = new Map(steps.filter((s) => !s.archived).map((s) => [s._id as string, s]));
+
+    // Śledź które kroki Gantt są nadal w updated lists (do usunięcia tych których nie ma)
+    const seenIds = new Set<string>();
+
+    for (const list of updatedLists) {
+      let rootId: Id<"orderPreProdSteps">;
+
+      // ── Obsłuż listę (root task) ─────────────────────────────────────
+      if (stepMap.has(list.id)) {
+        // Istniejąca lista → sprawdź czy tytuł się zmienił
+        rootId = list.id as Id<"orderPreProdSteps">;
+        seenIds.add(list.id);
+        const root = stepMap.get(list.id)!;
+        if (root.title !== list.title) {
+          await renameMut({ id: rootId, title: list.title });
+        }
+      } else {
+        // Nowa lista → utwórz root task w Gantt
+        rootId = await addMut({ orderId, title: list.title });
+        seenIds.add(rootId);
+      }
+
+      // ── Obsłuż checkboxy (items = podzadania) ────────────────────────
+      for (const item of list.items) {
+        if (stepMap.has(item.id)) {
+          // Istniejący krok → sync done i tytuł
+          const step = stepMap.get(item.id)!;
+          seenIds.add(item.id);
+          if (step.done !== item.checked) {
+            await setDoneMut({ id: step._id, done: item.checked });
+          }
+          if (step.title !== item.label) {
+            await renameMut({ id: step._id, title: item.label });
+          }
+        } else {
+          // Nowy checkbox → utwórz podzadanie w Gantt pod daną listą
+          const newId = await addMut({ orderId, title: item.label, parentId: rootId });
+          seenIds.add(newId);
+          if (item.checked) {
+            await setDoneMut({ id: newId, done: true });
+          }
+        }
+      }
+    }
+
+    // ── Usuń kroki Gantt których nie ma w updated lists ──────────────
+    const activeSteps = steps.filter((s) => !s.archived);
+    const toDelete = activeSteps.filter((s) => !seenIds.has(s._id));
+    const toDeleteIds = new Set(toDelete.map((s) => s._id as string));
+
+    for (const step of toDelete) {
+      // Pomiń kroki których rodzic jest też w kolejce do usunięcia —
+      // rodzic's remove() usuwa dzieci rekurencyjnie (1 poziom)
+      // i unikamy podwójnego delete na już nieistniejącym dokumencie
+      const parentAlsoDeleted = step.parentId && toDeleteIds.has(step.parentId as string);
+      if (!parentAlsoDeleted) {
+        await removeMut({ id: step._id });
+      }
+    }
   }
+
+  // Pokaż komponent nawet gdy steps.length === 0 — żeby użytkownik mógł dodać pierwszą listę
+  // ale ukryj gdy jeszcze ładujemy (steps === undefined)
+  if (steps === undefined) return null;
 
   return (
     <CustomChecklistsHeader
-      initialChecklists={(order as any).checklists}
+      key={syncKey}
+      initialChecklists={ganttChecklists}
       onSave={handleSave}
     />
   );
 }
+
 
 function OrderOwnerEditor({ order, ownerName }: { order: Doc<"orders">; ownerName: string }) {
   const [open, setOpen] = useState(false);
@@ -636,7 +758,7 @@ function OrderDetailHeader({ order, quote, onStatusChange, updating, onOpenInves
 
       <OrderStatusPipeline currentIndex={statusIndex} disabled={updating} onStatusChange={onStatusChange} isCompact={true} />
 
-      <OrderHeaderChecklists order={order} />
+      <OrderGanttChecklists orderId={order._id} />
 
       {isInvestmentOpen && quote && (
         <InvestmentModal quote={quote} archived={false} onClose={() => setIsInvestmentOpen(false)} />
@@ -1261,7 +1383,7 @@ export default function OrderDetailPage({
 
   // Liczba zadań przedprodukcyjnych dla tego zlecenia
   const preProdSteps = useQuery(api.orderPreProdSteps.list, { orderId });
-  const preProdCount = preProdSteps?.length ?? 0;
+  const preProdCount = preProdSteps?.filter((s) => !s.archived).length ?? 0;
 
   const archiveOrder = useMutation(api.orders.archive);
   const restoreOrder = useMutation(api.orders.restore);

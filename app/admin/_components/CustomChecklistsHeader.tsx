@@ -340,38 +340,41 @@ export function CustomChecklistsHeader({
   const remainingSlots = Math.max(0, 3 - lists.length);
 
   return (
-    <div style={{ background: "rgba(13, 17, 23, 0.85)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 10, marginTop: 4 }}>
+    <div style={{ background: "rgba(13, 17, 23, 0.95)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, padding: "16px 18px", marginTop: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}>
       {/* Bar top control: Header title & Presets */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, padding: "0 2px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <CheckSquare size={13} style={{ color: "#3b82f6" }} />
-            <span>Listy zadań i weryfikacji ({lists.length}/3)</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, padding: "0 2px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.6px", color: "var(--text-main)", display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <CheckSquare size={17} style={{ color: "#3b82f6" }} />
+            <span>Listy zadań i weryfikacji</span>
+            <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)", padding: "2px 8px", borderRadius: 12 }}>
+              {lists.length}/3
+            </span>
           </span>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {lists.length > 0 && !disabled && (
             <button
               type="button"
               onClick={() => setIsSaveTemplateModalOpen(true)}
               style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 5,
-                color: "var(--text-main)",
-                fontSize: 10,
+                background: "rgba(245, 158, 11, 0.12)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                borderRadius: 6,
+                color: "#fbbf24",
+                fontSize: 12,
                 fontWeight: 600,
-                padding: "3px 8px",
+                padding: "6px 12px",
                 cursor: "pointer",
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 4,
+                gap: 6,
                 transition: "all 0.15s ease",
               }}
               title="Zapisz obecny zestaw 3 list jako szablon"
             >
-              <BookmarkPlus size={12} style={{ color: "#f59e0b" }} />
+              <BookmarkPlus size={14} style={{ color: "#f59e0b" }} />
               <span>Zapisz zestaw jako szablon</span>
             </button>
           )}
@@ -385,18 +388,19 @@ export function CustomChecklistsHeader({
                 style={{
                   background: "rgba(59, 130, 246, 0.12)",
                   border: "1px solid rgba(59, 130, 246, 0.3)",
-                  borderRadius: 5,
+                  borderRadius: 6,
                   color: "#60a5fa",
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 600,
-                  padding: "3px 8px",
+                  padding: "6px 12px",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 6,
+                  transition: "all 0.15s ease",
                 }}
               >
-                <FolderOpen size={12} />
+                <FolderOpen size={14} />
                 <span>Wczytaj zestaw list</span>
               </button>
 
@@ -406,17 +410,17 @@ export function CustomChecklistsHeader({
                     position: "absolute",
                     top: "100%",
                     right: 0,
-                    marginTop: 4,
-                    width: 250,
+                    marginTop: 6,
+                    width: 270,
                     background: "#161b22",
                     border: "1px solid #30363d",
-                    borderRadius: 6,
-                    padding: 6,
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                    borderRadius: 8,
+                    padding: 8,
+                    boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
                     zIndex: 100,
                   }}
                 >
-                  <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#8b949e", padding: "4px 6px", marginBottom: 4 }}>
                     Dostępne zestawy 3 list
                   </div>
 
@@ -427,17 +431,18 @@ export function CustomChecklistsHeader({
                         onClick={() => handleApplyPreset(t.lists)}
                         style={{
                           width: "100%",
-                          borderRadius: 4,
-                          padding: "5px 8px",
-                          fontSize: 11,
+                          borderRadius: 6,
+                          padding: "7px 10px",
+                          fontSize: 12,
                           color: "#c9d1d9",
                           cursor: "pointer",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          gap: 6,
+                          gap: 8,
+                          transition: "background 0.15s",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                       >
                         <span style={{ fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -449,17 +454,17 @@ export function CustomChecklistsHeader({
                             e.stopPropagation();
                             setDeletingTemplate({ id: t._id, name: t.name });
                           }}
-                          style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "2px 4px", borderRadius: 3 }}
+                          style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "3px 6px", borderRadius: 4 }}
                           title="Usuń ten szablon"
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)")}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(248, 81, 73, 0.18)")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                         >
-                          <Trash2 size={11} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     ))
                   ) : (
-                    <div style={{ padding: "8px 6px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
+                    <div style={{ padding: "10px 8px", fontStyle: "italic", fontSize: 12, color: "#8b949e", textAlign: "center" }}>
                       Brak zapisanych zestawów
                     </div>
                   )}
@@ -471,7 +476,7 @@ export function CustomChecklistsHeader({
       </div>
 
       {/* Grid of 3 columns */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: lists.length === 1 ? "1fr" : lists.length === 2 ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
         {/* Render Existing Custom Lists */}
         {lists.map((list, slotIdx) => {
           const doneCount = list.items.filter((i) => i.checked).length;
@@ -484,31 +489,32 @@ export function CustomChecklistsHeader({
               key={list.id}
               style={{
                 background: "#161b22",
-                border: `1px solid ${list.color}35`,
-                borderRadius: 6,
-                padding: "8px 10px",
+                border: `1px solid ${list.color}45`,
+                borderRadius: 10,
+                padding: "14px 16px",
                 display: "flex",
                 flexDirection: "column",
-                gap: 6,
+                gap: 10,
                 position: "relative",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
               }}
             >
               {/* Header row */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                   <span
                     style={{
-                      width: 8,
-                      height: 8,
+                      width: 10,
+                      height: 10,
                       borderRadius: "50%",
                       background: list.color,
-                      boxShadow: `0 0 8px ${list.color}88`,
+                      boxShadow: `0 0 10px ${list.color}aa`,
                       flexShrink: 0,
                     }}
                   />
 
                   {editingTitleId === list.id ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1 }}>
                       <input
                         type="text"
                         value={editingTitleText}
@@ -521,20 +527,21 @@ export function CustomChecklistsHeader({
                         style={{
                           background: "#0d1117",
                           border: `1px solid ${list.color}`,
-                          borderRadius: 4,
+                          borderRadius: 6,
                           color: "#f0f6fc",
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: 700,
-                          padding: "1px 5px",
+                          padding: "3px 8px",
                           width: "100%",
+                          outline: "none",
                         }}
                       />
                       <button
                         type="button"
                         onClick={() => handleSaveTitle(list.id)}
-                        style={{ background: "none", border: "none", color: "#3fb950", cursor: "pointer", padding: 1 }}
+                        style={{ background: "none", border: "none", color: "#3fb950", cursor: "pointer", padding: 2 }}
                       >
-                        <Check size={12} />
+                        <Check size={15} />
                       </button>
                     </div>
                   ) : (
@@ -545,9 +552,9 @@ export function CustomChecklistsHeader({
                         setEditingTitleText(list.title);
                       }}
                       style={{
-                        fontSize: 11,
+                        fontSize: 13,
                         fontWeight: 700,
-                        color: "#f0f6fc",
+                        color: "#ffffff",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -560,8 +567,8 @@ export function CustomChecklistsHeader({
                   )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: list.color, background: `${list.color}15`, border: `1px solid ${list.color}33`, padding: "1px 5px", borderRadius: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: list.color, background: `${list.color}20`, border: `1px solid ${list.color}44`, padding: "2px 7px", borderRadius: 10 }}>
                     {doneCount}/{totalCount}
                   </span>
 
@@ -574,10 +581,10 @@ export function CustomChecklistsHeader({
                           setSavingSingleList(list);
                           setSingleTemplateName(list.title);
                         }}
-                        style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", padding: 2, display: "flex" }}
+                        style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
                         title="Zapisz tę pojedynczą listę jako szablon"
                       >
-                        <BookmarkPlus size={12} />
+                        <BookmarkPlus size={14} />
                       </button>
 
                       {/* Load single list template to this slot */}
@@ -585,10 +592,10 @@ export function CustomChecklistsHeader({
                         <button
                           type="button"
                           onClick={() => setActiveSingleLoadListId(isLoadSingleOpen ? null : list.id)}
-                          style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 2, display: "flex" }}
+                          style={{ background: "none", border: "none", color: "#60a5fa", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
                           title="Wczytaj szablon do tej kolumny"
                         >
-                          <FolderOpen size={12} />
+                          <FolderOpen size={14} />
                         </button>
 
                         {isLoadSingleOpen && (
@@ -597,17 +604,17 @@ export function CustomChecklistsHeader({
                               position: "absolute",
                               top: "100%",
                               right: 0,
-                              marginTop: 4,
-                              width: 220,
+                              marginTop: 6,
+                              width: 240,
                               background: "#161b22",
                               border: "1px solid #30363d",
-                              borderRadius: 6,
-                              padding: 6,
-                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                              borderRadius: 8,
+                              padding: 8,
+                              boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
                               zIndex: 100,
                             }}
                           >
-                            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "4px 6px", marginBottom: 4 }}>
                               Szablony dla kolumny {slotIdx + 1}
                             </div>
                             {singleTemplates.length > 0 ? (
@@ -617,28 +624,29 @@ export function CustomChecklistsHeader({
                                   onClick={() => handleSelectSingleTemplate(st, slotIdx)}
                                   style={{
                                     width: "100%",
-                                    borderRadius: 4,
-                                    padding: "5px 8px",
-                                    fontSize: 11,
+                                    borderRadius: 6,
+                                    padding: "6px 8px",
+                                    fontSize: 12,
                                     color: "#c9d1d9",
                                     cursor: "pointer",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
+                                    transition: "background 0.15s",
                                   }}
-                                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                                   onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                                 >
                                   <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                     {st.name}
                                   </span>
-                                  <span style={{ fontSize: 9, color: "#8b949e" }}>
+                                  <span style={{ fontSize: 10, color: "#8b949e", background: "rgba(255,255,255,0.05)", padding: "1px 5px", borderRadius: 4 }}>
                                     {(st.singleList?.items?.length ?? st.lists?.[0]?.items?.length ?? 0)} pkt
                                   </span>
                                 </div>
                               ))
                             ) : (
-                              <div style={{ padding: "6px", fontStyle: "italic", fontSize: 10, color: "#8b949e", textAlign: "center" }}>
+                              <div style={{ padding: "8px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
                                 Brak szablonów 1 kolumny
                               </div>
                             )}
@@ -651,10 +659,10 @@ export function CustomChecklistsHeader({
                         <button
                           type="button"
                           onClick={() => setOpenColorPickerId(openColorPickerId === list.id ? null : list.id)}
-                          style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 2, display: "flex" }}
+                          style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
                           title="Zmień kolor akcentu"
                         >
-                          <Palette size={12} />
+                          <Palette size={14} />
                         </button>
 
                         {openColorPickerId === list.id && (
@@ -663,14 +671,14 @@ export function CustomChecklistsHeader({
                               position: "absolute",
                               top: "100%",
                               right: 0,
-                              marginTop: 4,
+                              marginTop: 6,
                               background: "#0d1117",
                               border: "1px solid #30363d",
-                              borderRadius: 6,
-                              padding: 6,
+                              borderRadius: 8,
+                              padding: 8,
                               display: "flex",
-                              gap: 4,
-                              boxShadow: "0 6px 16px rgba(0,0,0,0.4)",
+                              gap: 6,
+                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
                               zIndex: 20,
                             }}
                           >
@@ -680,12 +688,13 @@ export function CustomChecklistsHeader({
                                 type="button"
                                 onClick={() => handleChangeColor(list.id, c.hex)}
                                 style={{
-                                  width: 16,
-                                  height: 16,
+                                  width: 20,
+                                  height: 20,
                                   borderRadius: "50%",
                                   background: c.hex,
                                   border: list.color === c.hex ? "2px solid #fff" : "none",
                                   cursor: "pointer",
+                                  transition: "transform 0.15s ease",
                                 }}
                                 title={c.name}
                               />
@@ -697,26 +706,25 @@ export function CustomChecklistsHeader({
                       <button
                         type="button"
                         onClick={() => setDeletingList({ id: list.id, title: list.title })}
-                        style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 2, display: "flex" }}
+                        style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
                         title="Usuń całą listę"
                         onMouseEnter={(e) => (e.currentTarget.style.color = "#f85149")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#484f58")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#8b949e")}
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     </>
                   )}
                 </div>
               </div>
 
-
               {/* Progress bar */}
-              <div style={{ width: "100%", height: 3, background: "#21262d", borderRadius: 2, overflow: "hidden" }}>
-                <div style={{ width: `${pct}%`, height: "100%", background: list.color, transition: "width 0.2s ease" }} />
+              <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.06)", borderRadius: 4, overflow: "hidden", marginTop: 2 }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: list.color, borderRadius: 4, boxShadow: `0 0 8px ${list.color}88`, transition: "width 0.25s ease-out" }} />
               </div>
 
               {/* Items list */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 2, flex: 1 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4, flex: 1 }}>
                 {list.items.map((item) => (
                   <div
                     key={item.id}
@@ -724,11 +732,18 @@ export function CustomChecklistsHeader({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      gap: 6,
-                      padding: "2px 4px",
-                      borderRadius: 4,
-                      background: item.checked ? "rgba(63,185,80,0.05)" : "transparent",
-                      transition: "background 0.15s",
+                      gap: 8,
+                      padding: "7px 10px",
+                      borderRadius: 6,
+                      background: item.checked ? "rgba(63,185,80,0.06)" : "rgba(255,255,255,0.02)",
+                      border: item.checked ? "1px solid rgba(63,185,80,0.18)" : "1px solid rgba(255,255,255,0.04)",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!item.checked) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!item.checked) e.currentTarget.style.background = "rgba(255,255,255,0.02)";
                     }}
                   >
                     <button
@@ -742,18 +757,20 @@ export function CustomChecklistsHeader({
                         padding: 0,
                         display: "flex",
                         alignItems: "center",
-                        gap: 6,
+                        gap: 8,
                         color: item.checked ? "#3fb950" : "#8b949e",
                         textAlign: "left",
                         flex: 1,
                       }}
                     >
-                      {item.checked ? <CheckSquare size={13} style={{ flexShrink: 0 }} /> : <Square size={13} style={{ flexShrink: 0 }} />}
+                      {item.checked ? <CheckSquare size={17} style={{ flexShrink: 0 }} /> : <Square size={17} style={{ flexShrink: 0 }} />}
                       <span
                         style={{
-                          fontSize: 11,
-                          color: item.checked ? "#8b949e" : "#c9d1d9",
+                          fontSize: 13,
+                          fontWeight: item.checked ? 400 : 500,
+                          color: item.checked ? "#8b949e" : "#f0f6fc",
                           textDecoration: item.checked ? "line-through" : "none",
+                          lineHeight: 1.4,
                         }}
                       >
                         {item.label}
@@ -764,12 +781,18 @@ export function CustomChecklistsHeader({
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(list.id, item.id)}
-                        style={{ background: "none", border: "none", color: "#30363d", cursor: "pointer", padding: 2, display: "flex" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = "#f85149")}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = "#30363d")}
+                        style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = "#f85149";
+                          e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.color = "#484f58";
+                          e.currentTarget.style.background = "transparent";
+                        }}
                         title="Usuń punkt"
                       >
-                        <X size={11} />
+                        <X size={14} />
                       </button>
                     )}
                   </div>
@@ -778,7 +801,7 @@ export function CustomChecklistsHeader({
 
               {/* Add item input */}
               {!disabled && (
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
                   <input
                     type="text"
                     value={newItemText[list.id] || ""}
@@ -790,13 +813,16 @@ export function CustomChecklistsHeader({
                     style={{
                       background: "#0d1117",
                       border: "1px solid #30363d",
-                      borderRadius: 4,
-                      padding: "3px 6px",
-                      fontSize: 10,
-                      color: "#c9d1d9",
+                      borderRadius: 6,
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      color: "#f0f6fc",
                       flex: 1,
                       outline: "none",
+                      transition: "border-color 0.15s ease",
                     }}
+                    onFocus={(e) => (e.target.style.borderColor = list.color)}
+                    onBlur={(e) => (e.target.style.borderColor = "#30363d")}
                   />
                   {newItemText[list.id]?.trim() && (
                     <button
@@ -805,12 +831,13 @@ export function CustomChecklistsHeader({
                       style={{
                         background: list.color,
                         border: "none",
-                        borderRadius: 4,
+                        borderRadius: 6,
                         color: "#fff",
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: "2px 6px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        padding: "6px 12px",
                         cursor: "pointer",
+                        transition: "opacity 0.15s ease",
                       }}
                     >
                       Dodaj
@@ -833,14 +860,14 @@ export function CustomChecklistsHeader({
                 style={{
                   background: "#161b22",
                   border: "1px solid #3b82f6",
-                  borderRadius: 6,
-                  padding: 10,
+                  borderRadius: 10,
+                  padding: "14px 16px",
                   display: "flex",
                   flexDirection: "column",
-                  gap: 8,
+                  gap: 12,
                 }}
               >
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#f0f6fc" }}>Nowa lista checkboxów</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Nowa lista checkboxów</div>
                 <input
                   type="text"
                   value={newListTitle}
@@ -854,25 +881,25 @@ export function CustomChecklistsHeader({
                   style={{
                     background: "#0d1117",
                     border: "1px solid #30363d",
-                    borderRadius: 4,
-                    padding: "4px 8px",
-                    fontSize: 11,
+                    borderRadius: 6,
+                    padding: "6px 10px",
+                    fontSize: 12,
                     color: "#f0f6fc",
                     outline: "none",
                   }}
                 />
 
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 10, color: "#8b949e" }}>Kolor:</span>
-                  <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, color: "#8b949e" }}>Kolor:</span>
+                  <div style={{ display: "flex", gap: 6 }}>
                     {COLOR_PALETTE.map((c) => (
                       <button
                         key={c.hex}
                         type="button"
                         onClick={() => setNewListColor(c.hex)}
                         style={{
-                          width: 16,
-                          height: 16,
+                          width: 20,
+                          height: 20,
                           borderRadius: "50%",
                           background: c.hex,
                           border: newListColor === c.hex ? "2px solid #fff" : "none",
@@ -883,18 +910,18 @@ export function CustomChecklistsHeader({
                   </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                   <button
                     type="button"
                     onClick={handleCreateList}
                     style={{
                       background: "#3b82f6",
                       border: "none",
-                      borderRadius: 4,
+                      borderRadius: 6,
                       color: "#fff",
-                      fontSize: 11,
+                      fontSize: 12,
                       fontWeight: 600,
-                      padding: "4px 10px",
+                      padding: "6px 14px",
                       cursor: "pointer",
                     }}
                   >
@@ -907,7 +934,7 @@ export function CustomChecklistsHeader({
                       background: "transparent",
                       border: "none",
                       color: "#8b949e",
-                      fontSize: 11,
+                      fontSize: 12,
                       cursor: "pointer",
                     }}
                   >
@@ -925,22 +952,22 @@ export function CustomChecklistsHeader({
               key={`empty_slot_${slotIndex}`}
               style={{
                 background: "rgba(22, 27, 34, 0.4)",
-                border: "1.5px dashed rgba(255,255,255,0.12)",
-                borderRadius: 6,
-                padding: "16px 10px",
+                border: "2px dashed rgba(255,255,255,0.12)",
+                borderRadius: 10,
+                padding: "24px 16px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 8,
+                gap: 12,
                 position: "relative",
               }}
             >
-              <div style={{ fontSize: 11, fontWeight: 600, color: "#8b949e" }}>
-                Pusty slot {slotIndex + 1}/3
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", letterSpacing: "0.5px" }}>
+                PUSTY SLOT {slotIndex + 1}/3
               </div>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -951,18 +978,18 @@ export function CustomChecklistsHeader({
                   style={{
                     background: "rgba(59, 130, 246, 0.12)",
                     border: "1px solid rgba(59, 130, 246, 0.3)",
-                    borderRadius: 5,
+                    borderRadius: 6,
                     color: "#60a5fa",
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: 600,
-                    padding: "4px 8px",
+                    padding: "6px 12px",
                     cursor: disabled ? "default" : "pointer",
                     display: "inline-flex",
                     alignItems: "center",
-                    gap: 4,
+                    gap: 6,
                   }}
                 >
-                  <Plus size={12} />
+                  <Plus size={14} />
                   <span>+ Nowa lista</span>
                 </button>
 
@@ -976,18 +1003,18 @@ export function CustomChecklistsHeader({
                     style={{
                       background: "rgba(236, 72, 153, 0.12)",
                       border: "1px solid rgba(236, 72, 153, 0.3)",
-                      borderRadius: 5,
+                      borderRadius: 6,
                       color: "#f472b6",
-                      fontSize: 10,
+                      fontSize: 12,
                       fontWeight: 600,
-                      padding: "4px 8px",
+                      padding: "6px 12px",
                       cursor: disabled ? "default" : "pointer",
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 6,
                     }}
                   >
-                    <FolderOpen size={12} />
+                    <FolderOpen size={14} />
                     <span>Wczytaj szablon</span>
                   </button>
 
@@ -997,17 +1024,17 @@ export function CustomChecklistsHeader({
                         position: "absolute",
                         top: "100%",
                         right: 0,
-                        marginTop: 4,
-                        width: 220,
+                        marginTop: 6,
+                        width: 240,
                         background: "#161b22",
                         border: "1px solid #30363d",
-                        borderRadius: 6,
-                        padding: 6,
-                        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+                        borderRadius: 8,
+                        padding: 8,
+                        boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
                         zIndex: 100,
                       }}
                     >
-                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "3px 6px", marginBottom: 4 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", padding: "4px 6px", marginBottom: 4 }}>
                         Szablony dla slotu {slotIndex + 1}
                       </div>
                       {singleTemplates.length > 0 ? (
@@ -1017,28 +1044,28 @@ export function CustomChecklistsHeader({
                             onClick={() => handleSelectSingleTemplate(st, slotIndex)}
                             style={{
                               width: "100%",
-                              borderRadius: 4,
-                              padding: "5px 8px",
-                              fontSize: 11,
+                              borderRadius: 6,
+                              padding: "6px 8px",
+                              fontSize: 12,
                               color: "#c9d1d9",
                               cursor: "pointer",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "space-between",
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.08)")}
                             onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                           >
                             <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {st.name}
                             </span>
-                            <span style={{ fontSize: 9, color: "#8b949e" }}>
+                            <span style={{ fontSize: 10, color: "#8b949e" }}>
                               {(st.singleList?.items?.length ?? st.lists?.[0]?.items?.length ?? 0)} pkt
                             </span>
                           </div>
                         ))
                       ) : (
-                        <div style={{ padding: "6px", fontStyle: "italic", fontSize: 10, color: "#8b949e", textAlign: "center" }}>
+                        <div style={{ padding: "8px", fontStyle: "italic", fontSize: 11, color: "#8b949e", textAlign: "center" }}>
                           Brak szablonów 1 kolumny
                         </div>
                       )}
