@@ -344,9 +344,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     return groups;
   }, [days]);
 
-  // ── Drag logic
   const handleBarMouseDown = useCallback((e: React.MouseEvent, type: DragState["type"], step: Step) => {
-    e.preventDefault();
     const dates = localDates[step._id];
     if (!dates) return;
     setDrag({ type, stepId: step._id, startX: e.clientX, currentX: e.clientX, initialStart: dates.start, initialEnd: dates.end });
@@ -937,6 +935,10 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                           data-bar="true"
                           style={{ position: "absolute", left: barLeft, top: barTop, width: barWidth, height: barH, background: step.done ? "linear-gradient(135deg,rgba(63,185,80,0.22),rgba(63,185,80,0.12))" : isSubtask ? `linear-gradient(135deg,rgba(212,29,60,0.22),rgba(212,29,60,0.12))` : `linear-gradient(135deg,rgba(212,29,60,0.32),rgba(212,29,60,0.18))`, border: `1px solid ${step.done ? "#3fb95066" : PRIMARY + (isSubtask ? "44" : "77")}`, borderRadius: isSubtask ? 5 : 7, cursor: "grab", opacity: isMutating ? 0.5 : 1, transition: "opacity 0.15s", display: "flex", flexDirection: "column", justifyContent: "center", userSelect: "none", overflow: "hidden", boxShadow: step.done ? "0 2px 8px rgba(63,185,80,0.14)" : `0 2px 8px rgba(212,29,60,${isSubtask ? "0.12" : "0.22"})` }}
                           onMouseDown={e => handleBarMouseDown(e, "move", step)}
+                          onClick={e => {
+                            e.stopPropagation();
+                            openDatePicker(step);
+                          }}
                         >
                           {/* Resize left */}
                           <div style={{ position: "absolute", left: 0, top: 0, width: 8, height: "100%", cursor: "ew-resize" }} onMouseDown={e => { e.stopPropagation(); handleBarMouseDown(e, "resize-start", step); }} />
@@ -1120,15 +1122,18 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                     type="date"
                     value={tempStartDate}
                     onChange={(e) => setTempStartDate(e.target.value)}
+                    onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch {} }}
                     style={{
                       background: "#0d1117",
                       border: "1px solid #30363d",
                       borderRadius: 6,
                       padding: "8px 10px",
                       color: "#f0f6fc",
+                      colorScheme: "dark",
                       fontSize: 12,
                       fontWeight: 600,
                       outline: "none",
+                      cursor: "pointer",
                     }}
                   />
                 </label>
@@ -1139,15 +1144,18 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                     type="date"
                     value={tempEndDate}
                     onChange={(e) => setTempEndDate(e.target.value)}
+                    onClick={(e) => { try { (e.currentTarget as any).showPicker?.(); } catch {} }}
                     style={{
                       background: "#0d1117",
                       border: "1px solid #30363d",
                       borderRadius: 6,
                       padding: "8px 10px",
                       color: "#f0f6fc",
+                      colorScheme: "dark",
                       fontSize: 12,
                       fontWeight: 600,
                       outline: "none",
+                      cursor: "pointer",
                     }}
                   />
                 </label>
