@@ -100,9 +100,12 @@ export const updateDates = mutation({
     if (step.calendarEventId && ns) {
       const calEvent = await ctx.db.get(step.calendarEventId);
       if (calEvent) {
+        const neDate = ne ?? ns;
+        const isMultiDay = ns !== neDate;
         await ctx.db.patch(step.calendarEventId, {
           date: ns,
-          endDate: ne ?? ns,
+          endDate: neDate,
+          isAllDay: isMultiDay || calEvent.isAllDay || false,
         });
       }
     }
@@ -118,6 +121,7 @@ export const saveCalendarIntegration = mutation({
     category: v.optional(v.string()),
     startTime: v.optional(v.string()),
     endTime: v.optional(v.string()),
+    isAllDay: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx).catch(() => null);
@@ -145,6 +149,8 @@ export const saveCalendarIntegration = mutation({
 
     const date = step.startDate || new Date().toISOString().split("T")[0];
     const endDate = step.endDate || date;
+    const isMultiDay = date !== endDate;
+    const isAllDay = args.isAllDay !== undefined ? args.isAllDay : isMultiDay;
     const startTime = args.startTime || "08:00";
     const endTime = args.endTime || "16:00";
     const eventType = args.type || "company";
@@ -160,6 +166,7 @@ export const saveCalendarIntegration = mutation({
           endDate,
           startTime,
           endTime,
+          isAllDay,
           type: eventType,
           isPrivate,
           category,
@@ -175,6 +182,7 @@ export const saveCalendarIntegration = mutation({
       endDate,
       startTime,
       endTime,
+      isAllDay,
       type: eventType,
       isPrivate,
       category,

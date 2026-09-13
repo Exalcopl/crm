@@ -364,6 +364,10 @@ export const update = mutation({
       patch.endDate = targetDate;
     }
 
+    if (targetDate && targetEndDate && targetEndDate > targetDate) {
+      patch.isAllDay = true;
+    }
+
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(id, patch);
     }

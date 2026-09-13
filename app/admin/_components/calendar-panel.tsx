@@ -2023,6 +2023,10 @@ export function CalendarPanel() {
     setSaving(true);
     try {
       const targetDate = form.date || dateStr;
+      const targetEndDate = form.endDate && form.endDate >= targetDate ? form.endDate : targetDate;
+      const isMultiDay = targetEndDate > targetDate;
+      const isAllDay = !!form.isAllDay || isMultiDay;
+
       if (form.mode === "create") {
         await createEvent({
           title: form.title,
@@ -2030,8 +2034,8 @@ export function CalendarPanel() {
           date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
-          isAllDay: form.isAllDay,
-          endDate: form.isAllDay && form.endDate ? form.endDate : form.date,
+          isAllDay,
+          endDate: targetEndDate,
           recurrence: form.recurrence,
           recurrenceInterval: form.recurrence !== "none" ? form.recurrenceInterval : undefined,
           recurrenceEndDate: form.recurrenceEndDate || undefined,
@@ -2048,8 +2052,8 @@ export function CalendarPanel() {
           date: targetDate,
           startTime: form.startTime,
           endTime: form.endTime,
-          isAllDay: form.isAllDay,
-          endDate: form.isAllDay && form.endDate ? form.endDate : targetDate,
+          isAllDay,
+          endDate: targetEndDate,
           isPrivate: form.isPrivate,
           type: form.type,
           category: form.type === "company" ? form.category : null,
@@ -2582,7 +2586,7 @@ export function CalendarPanel() {
                       const allDayEvs = Array.isArray(companyEvents) ? (companyEvents as CalEvent[]).filter(ev => {
                         if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
                         const evEnd = ev.endDate || ev.date;
-                        return !!ev.isAllDay || (!ev.startTime && evEnd > ev.date);
+                        return !!ev.isAllDay || evEnd > ev.date;
                       }) : [];
                       
                       // For simplicity, we just stack them. A real algorithm would pack them vertically without overlap.
@@ -2717,7 +2721,7 @@ export function CalendarPanel() {
                         if (eventDate !== dayStr) return false;
                         if (selectedCategory !== "all" && ev.category !== selectedCategory) return false;
                         const evEnd = ev.endDate || ev.date;
-                        if (ev.isAllDay || (!ev.startTime && evEnd > ev.date)) return false; // In all-day tray
+                        if (ev.isAllDay || evEnd > ev.date) return false; // In all-day tray
                         return true;
                       }) : [];
 
