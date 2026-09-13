@@ -367,10 +367,21 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
       setLocalDates(prev => ({ ...prev, [initialDrag.stepId]: { start: ns, end: ne } }));
     };
     
-    const onUp = () => {
+    const onUp = (upEv: MouseEvent) => {
       setDrag(prev => {
         if (!prev) return null;
-        const finalDelta = Math.round((prev.currentX - prev.startX) / dayWidth);
+        const totalMovedPixels = Math.abs(upEv.clientX - prev.startX);
+
+        // Jeśli mysz przesunęła się o mniej niż 5px – to był klik w kafelek
+        if (totalMovedPixels < 5) {
+          const stepToOpen = steps.find(s => s._id === prev.stepId);
+          if (stepToOpen) {
+            setTimeout(() => openDatePicker(stepToOpen), 10);
+          }
+          return null;
+        }
+
+        const finalDelta = Math.round((upEv.clientX - prev.startX) / dayWidth);
         let ns = prev.initialStart, ne = prev.initialEnd;
         if (prev.type === "move") { ns = addDays(prev.initialStart, finalDelta); ne = addDays(prev.initialEnd, finalDelta); }
         else if (prev.type === "resize-start") { ns = addDays(prev.initialStart, finalDelta); if (ns > ne) ns = ne; }
@@ -699,57 +710,7 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                         </div>
                       )}
 
-                      {/* Date Picker Popover */}
-                      {datePickerStepId === step._id && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: "calc(100% - 20px)",
-                            left: 12 + depth * 18,
-                            zIndex: 9999,
-                            background: "#161b22",
-                            border: `1px solid ${PRIMARY}aa`,
-                            borderRadius: 8,
-                            padding: 12,
-                            width: 250,
-                            boxShadow: "0 16px 40px rgba(0,0,0,0.85)",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 10
-                          }}
-                          onClick={e => e.stopPropagation()}
-                        >
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#f0f6fc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>Daty: {step.title}</span>
-                            <button type="button" onClick={() => setDatePickerStepId(null)} style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer" }}><X size={14} /></button>
-                          </div>
 
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <label style={{ fontSize: 10, color: "#8b949e", display: "flex", flexDirection: "column", gap: 2 }}>Początek:
-                              <input type="date" value={tempStartDate} onChange={e => setTempStartDate(e.target.value)} style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 4, padding: "5px 8px", color: "#f0f6fc", fontSize: 11, outline: "none" }} />
-                            </label>
-                            <label style={{ fontSize: 10, color: "#8b949e", display: "flex", flexDirection: "column", gap: 2 }}>Koniec:
-                              <input type="date" value={tempEndDate} onChange={e => setTempEndDate(e.target.value)} style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 4, padding: "5px 8px", color: "#f0f6fc", fontSize: 11, outline: "none" }} />
-                            </label>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                            <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 2)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "3px 7px", fontSize: 9, color: "#c9d1d9", cursor: "pointer" }}>Dziś (3d)</button>
-                            <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 6)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "3px 7px", fontSize: 9, color: "#c9d1d9", cursor: "pointer" }}>7 dni</button>
-                            <button type="button" onClick={() => { setTempStartDate(addDays(today, 1)); setTempEndDate(addDays(today, 14)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "3px 7px", fontSize: 9, color: "#c9d1d9", cursor: "pointer" }}>2 tyg.</button>
-                          </div>
-
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4, borderTop: "1px solid #21262d", paddingTop: 8 }}>
-                            {dates ? (
-                              <button type="button" onClick={() => handleClearDates(step._id)} style={{ background: "none", border: "none", color: "#f85149", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>Usuń daty</button>
-                            ) : <div />}
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <button type="button" onClick={() => setDatePickerStepId(null)} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 4, padding: "4px 8px", color: "#8b949e", fontSize: 10, cursor: "pointer" }}>Anuluj</button>
-                              <button type="button" onClick={() => handleSaveDatePicker(step._id)} style={{ background: PRIMARY, border: "none", borderRadius: 4, padding: "4px 10px", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>Zapisz</button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                     </div>
 
@@ -1087,6 +1048,166 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
           </div>
         </div>
       </div>
+
+      {/* ── Small Date Edit Modal ── */}
+      {datePickerStepId && (() => {
+        const stepToEdit = steps.find(s => s._id === datePickerStepId);
+        if (!stepToEdit) return null;
+        const currentDates = localDates[stepToEdit._id];
+        const parentStep = stepToEdit.parentId ? steps.find(s => s._id === stepToEdit.parentId) : null;
+        const daysDiff = tempStartDate && tempEndDate ? getDaysDiff(tempStartDate, tempEndDate) + 1 : 0;
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0, 0, 0, 0.75)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 99999,
+            }}
+            onClick={() => setDatePickerStepId(null)}
+          >
+            <div
+              style={{
+                background: "#161b22",
+                border: `1px solid ${PRIMARY}bb`,
+                borderRadius: 12,
+                padding: 20,
+                width: 380,
+                boxShadow: "0 20px 50px rgba(0,0,0,0.85)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: PRIMARY, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Calendar size={14} /> Edycja terminu realizacji
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+                    {stepToEdit.title}
+                  </div>
+                  {parentStep && (
+                    <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
+                      W ramach: <strong style={{ color: "#c9d1d9" }}>{parentStep.title}</strong>
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDatePickerStepId(null)}
+                  style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 4, borderRadius: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form inputs */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 600, color: "#8b949e" }}>
+                  Początek:
+                  <input
+                    type="date"
+                    value={tempStartDate}
+                    onChange={(e) => setTempStartDate(e.target.value)}
+                    style={{
+                      background: "#0d1117",
+                      border: "1px solid #30363d",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                      color: "#f0f6fc",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      outline: "none",
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 600, color: "#8b949e" }}>
+                  Koniec:
+                  <input
+                    type="date"
+                    value={tempEndDate}
+                    onChange={(e) => setTempEndDate(e.target.value)}
+                    style={{
+                      background: "#0d1117",
+                      border: "1px solid #30363d",
+                      borderRadius: 6,
+                      padding: "8px 10px",
+                      color: "#f0f6fc",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      outline: "none",
+                    }}
+                  />
+                </label>
+              </div>
+
+              {/* Duration badge */}
+              {daysDiff > 0 && (
+                <div style={{ fontSize: 11, color: "#8b949e", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, padding: "6px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>Czas trwania:</span>
+                  <strong style={{ color: PRIMARY, fontWeight: 700 }}>{daysDiff} {daysDiff === 1 ? "dzień" : "dni"}</strong>
+                </div>
+              )}
+
+              {/* Quick Presets */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "#8b949e", marginBottom: 6 }}>
+                  Szybki wybór okresu:
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(today); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>1 dzień</button>
+                  <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 2)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>3 dni</button>
+                  <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 6)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>7 dni</button>
+                  <button type="button" onClick={() => { setTempStartDate(addDays(today, 1)); setTempEndDate(addDays(today, 14)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>2 tyg.</button>
+                  <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 29)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>30 dni</button>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid #21262d", paddingTop: 14, marginTop: 4 }}>
+                {currentDates ? (
+                  <button
+                    type="button"
+                    onClick={() => handleClearDates(stepToEdit._id)}
+                    style={{ background: "none", border: "1px solid rgba(248, 81, 73, 0.4)", borderRadius: 6, color: "#f85149", fontSize: 11, fontWeight: 600, padding: "6px 12px", cursor: "pointer" }}
+                  >
+                    Usuń daty
+                  </button>
+                ) : <div />}
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDatePickerStepId(null)}
+                    style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, color: "#8b949e", fontSize: 12, fontWeight: 600, padding: "6px 12px", cursor: "pointer" }}
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSaveDatePicker(stepToEdit._id)}
+                    style={{ background: PRIMARY, border: "none", borderRadius: 6, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 16px", cursor: "pointer" }}
+                  >
+                    Zapisz daty
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
