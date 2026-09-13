@@ -177,8 +177,8 @@ export function CustomChecklistsHeader({
   function handleCreateList() {
     if (disabled) return;
     const title = newListTitle.trim() || `Lista ${lists.length + 1}`;
-    if (lists.length >= 3) {
-      toast.error("Maksymalnie możesz utworzyć 3 listy");
+    if (lists.length >= 20) {
+      toast.error("Osiągnięto maksymalną liczbę list (20)");
       return;
     }
     const newList: CustomList = {
@@ -348,7 +348,7 @@ export function CustomChecklistsHeader({
             <CheckSquare size={17} style={{ color: "#3b82f6" }} />
             <span>Listy zadań i weryfikacji</span>
             <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(59, 130, 246, 0.15)", color: "#60a5fa", border: "1px solid rgba(59, 130, 246, 0.3)", padding: "2px 8px", borderRadius: 12 }}>
-              {lists.length}/3
+              {lists.length} {lists.length === 1 ? "lista" : lists.length >= 2 && lists.length <= 4 ? "listy" : "list"}
             </span>
           </span>
         </div>
