@@ -141,12 +141,15 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   const allUsers = (useQuery(api.users.listAllAssignable) ?? []) as any[];
   const usersMap = useMemo(() => new Map(allUsers.map((u: any) => [u._id, u])), [allUsers]);
 
+  const calendarCategories = (useQuery(api.calendarCategories.listForApp) ?? []) as any[];
+
   const addStepMut = useMutation(api.orderPreProdSteps.add);
   const updateDates = useMutation(api.orderPreProdSteps.updateDates);
   const updateTitle = useMutation(api.orderPreProdSteps.updateTitle);
   const setDone = useMutation(api.orderPreProdSteps.setDone);
   const setAssigneeIds = useMutation(api.orderPreProdSteps.setAssigneeIds);
   const removeStep = useMutation(api.orderPreProdSteps.remove);
+  const saveCalendarMut = useMutation(api.orderPreProdSteps.saveCalendarIntegration);
 
   // ── Timeline – stały punkt startowy: 180 dni wstecz
   const timelineStart = useMemo(() => {
@@ -277,10 +280,17 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
   // ── Assignee dropdown
   const [assigneeDropId, setAssigneeDropId] = useState<Id<"orderPreProdSteps"> | null>(null);
 
-  // ── Date picker popover
+  // ── Date picker popover & Calendar integration
   const [datePickerStepId, setDatePickerStepId] = useState<Id<"orderPreProdSteps"> | null>(null);
   const [tempStartDate, setTempStartDate] = useState("");
   const [tempEndDate, setTempEndDate] = useState("");
+
+  // Calendar integration state
+  const [addToCalendar, setAddToCalendar] = useState(false);
+  const [calType, setCalType] = useState<"company" | "private">("company");
+  const [calCategory, setCalCategory] = useState<string>("montaz");
+  const [calStartTime, setCalStartTime] = useState<string>("08:00");
+  const [calEndTime, setCalEndTime] = useState<string>("16:00");
 
   const openDatePicker = useCallback((step: Step) => {
     const current = localDates[step._id];
@@ -288,6 +298,14 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     setTempEndDate(current?.end ?? addDays(today, 2));
     setDatePickerStepId(step._id);
     setAssigneeDropId(null);
+
+    // Initialize calendar state based on whether task is already linked to a calendar event
+    const hasCal = Boolean((step as any).calendarEventId);
+    setAddToCalendar(hasCal);
+    setCalType("company");
+    setCalCategory("montaz");
+    setCalStartTime("08:00");
+    setCalEndTime("16:00");
   }, [localDates, today]);
 
   async function handleSaveDatePicker(stepId: Id<"orderPreProdSteps">) {
@@ -303,10 +321,21 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
       setMutatingId(stepId);
       await updateDates({ id: stepId, startDate: tempStartDate, endDate: tempEndDate });
       setLocalDates(prev => ({ ...prev, [stepId]: { start: tempStartDate, end: tempEndDate } }));
-      toast.success("Zapisano daty zadania");
+
+      // Synchronizuj wydarzenie w kalendarzu
+      await saveCalendarMut({
+        stepId,
+        addToCalendar,
+        type: calType,
+        category: calType === "company" ? calCategory : undefined,
+        startTime: calStartTime,
+        endTime: calEndTime,
+      });
+
+      toast.success(addToCalendar ? "Zapisano daty i zaktualizowano kalendarz" : "Zapisano daty zadania");
       setDatePickerStepId(null);
-    } catch {
-      toast.error("Błąd zapisu dat");
+    } catch (err: any) {
+      toast.error("Błąd zapisu: " + (err?.message || "Spróbuj ponownie"));
     } finally {
       setMutatingId(null);
     }
@@ -316,6 +345,13 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
     try {
       setMutatingId(stepId);
       await updateDates({ id: stepId, startDate: null, endDate: null });
+
+      // Usunięcie wpisu z kalendarza przy usunięciu dat
+      await saveCalendarMut({
+        stepId,
+        addToCalendar: false,
+      });
+
       setLocalDates(prev => {
         const next = { ...prev };
         delete next[stepId];
@@ -1181,6 +1217,148 @@ export function OrderPreProdGantt({ orderId, orderNumber, clientName, onClose }:
                   <button type="button" onClick={() => { setTempStartDate(addDays(today, 1)); setTempEndDate(addDays(today, 14)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>2 tyg.</button>
                   <button type="button" onClick={() => { setTempStartDate(today); setTempEndDate(addDays(today, 29)); }} style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, padding: "4px 8px", fontSize: 11, color: "#c9d1d9", cursor: "pointer" }}>30 dni</button>
                 </div>
+              </div>
+
+              {/* ── Sekcja: Dodaj do Kalendarza ── */}
+              <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#f0f6fc", userSelect: "none" }}>
+                  <input
+                    type="checkbox"
+                    checked={addToCalendar}
+                    onChange={(e) => setAddToCalendar(e.target.checked)}
+                    style={{ accentColor: PRIMARY, width: 16, height: 16, cursor: "pointer" }}
+                  />
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <Calendar size={14} style={{ color: "#3b82f6" }} />
+                    <span>Dodaj wydarzenie do kalendarza</span>
+                  </span>
+                </label>
+
+                {addToCalendar && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4, paddingLeft: 4 }}>
+                    {/* Typ kalendarza: Firmowy vs Prywatny */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#8b949e", textTransform: "uppercase" }}>Typ kalendarza:</span>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => setCalType("company")}
+                          style={{
+                            flex: 1,
+                            background: calType === "company" ? "rgba(59, 130, 246, 0.2)" : "#0d1117",
+                            border: `1px solid ${calType === "company" ? "#3b82f6" : "#30363d"}`,
+                            borderRadius: 6,
+                            color: calType === "company" ? "#60a5fa" : "#8b949e",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: "6px 8px",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          🏢 Firmowy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCalType("private")}
+                          style={{
+                            flex: 1,
+                            background: calType === "private" ? "rgba(139, 92, 246, 0.2)" : "#0d1117",
+                            border: `1px solid ${calType === "private" ? "#8b5cf6" : "#30363d"}`,
+                            borderRadius: 6,
+                            color: calType === "private" ? "#c084fc" : "#8b949e",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            padding: "6px 8px",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          🔒 Prywatny
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Kategoria dla kalendarza firmowego */}
+                    {calType === "company" && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "#8b949e", textTransform: "uppercase" }}>Kategoria:</span>
+                        <select
+                          value={calCategory}
+                          onChange={(e) => setCalCategory(e.target.value)}
+                          style={{
+                            background: "#0d1117",
+                            border: "1px solid #30363d",
+                            borderRadius: 6,
+                            padding: "6px 10px",
+                            color: "#f0f6fc",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            outline: "none",
+                          }}
+                        >
+                          {calendarCategories.length > 0 ? (
+                            calendarCategories.map((cat: any) => (
+                              <option key={cat.code || cat._id} value={cat.code || cat._id}>
+                                {cat.name}
+                              </option>
+                            ))
+                          ) : (
+                            <>
+                              <option value="montaz">Montaż</option>
+                              <option value="pomiary">Pomiary</option>
+                              <option value="spotkanie">Spotkanie</option>
+                              <option value="inne">Inne</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Godziny od - do */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10, color: "#8b949e", fontWeight: 600 }}>
+                        Godzina od:
+                        <input
+                          type="time"
+                          value={calStartTime}
+                          onChange={(e) => setCalStartTime(e.target.value)}
+                          style={{
+                            background: "#0d1117",
+                            border: "1px solid #30363d",
+                            borderRadius: 6,
+                            padding: "5px 8px",
+                            color: "#f0f6fc",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            colorScheme: "dark",
+                            outline: "none",
+                          }}
+                        />
+                      </label>
+
+                      <label style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 10, color: "#8b949e", fontWeight: 600 }}>
+                        Godzina do:
+                        <input
+                          type="time"
+                          value={calEndTime}
+                          onChange={(e) => setCalEndTime(e.target.value)}
+                          style={{
+                            background: "#0d1117",
+                            border: "1px solid #30363d",
+                            borderRadius: 6,
+                            padding: "5px 8px",
+                            color: "#f0f6fc",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            colorScheme: "dark",
+                            outline: "none",
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Modal Actions */}

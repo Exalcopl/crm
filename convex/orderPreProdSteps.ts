@@ -85,10 +85,106 @@ export const updateDates = mutation({
     endDate: v.union(v.string(), v.null()),
   },
   handler: async (ctx, { id, startDate, endDate }) => {
+    const step = await ctx.db.get(id);
+    if (!step) return;
+
+    const ns = startDate ?? undefined;
+    const ne = endDate ?? undefined;
+
     await ctx.db.patch(id, {
-      startDate: startDate ?? undefined,
-      endDate: endDate ?? undefined,
+      startDate: ns,
+      endDate: ne,
     });
+
+    // Auto-sync calendar event if step is linked to one
+    if (step.calendarEventId && ns) {
+      const calEvent = await ctx.db.get(step.calendarEventId);
+      if (calEvent) {
+        await ctx.db.patch(step.calendarEventId, {
+          date: ns,
+          endDate: ne ?? ns,
+        });
+      }
+    }
+  },
+});
+
+/** Tworzy, aktualizuje lub usuwa powiązane wydarzenie w kalendarzu dla danego kroku Gantt */
+export const saveCalendarIntegration = mutation({
+  args: {
+    stepId: v.id("orderPreProdSteps"),
+    addToCalendar: v.boolean(),
+    type: v.optional(v.union(v.literal("private"), v.literal("company"))),
+    category: v.optional(v.string()),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx).catch(() => null);
+    if (!userId) throw new Error("Brak autoryzacji");
+
+    const step = await ctx.db.get(args.stepId);
+    if (!step) throw new Error("Krok nie istnieje");
+
+    // Jeśli użytkownik odznaczył "Dodaj do kalendarza"
+    if (!args.addToCalendar) {
+      if (step.calendarEventId) {
+        const calEvent = await ctx.db.get(step.calendarEventId);
+        if (calEvent) {
+          await ctx.db.delete(step.calendarEventId);
+        }
+        await ctx.db.patch(args.stepId, { calendarEventId: undefined });
+      }
+      return null;
+    }
+
+    // Dodaj lub zaktualizuj w kalendarzu
+    const order = await ctx.db.get(step.orderId);
+    const orderPrefix = order ? `[${order.orderNumber}] ` : "";
+    const eventTitle = `${orderPrefix}${step.title}`;
+
+    const date = step.startDate || new Date().toISOString().split("T")[0];
+    const endDate = step.endDate || date;
+    const startTime = args.startTime || "08:00";
+    const endTime = args.endTime || "16:00";
+    const eventType = args.type || "company";
+    const isPrivate = eventType === "private";
+    const category = eventType === "company" ? (args.category || "montaz") : undefined;
+
+    if (step.calendarEventId) {
+      const existingCal = await ctx.db.get(step.calendarEventId);
+      if (existingCal) {
+        await ctx.db.patch(step.calendarEventId, {
+          title: eventTitle,
+          date,
+          endDate,
+          startTime,
+          endTime,
+          type: eventType,
+          isPrivate,
+          category,
+        });
+        return step.calendarEventId;
+      }
+    }
+
+    // Utwórz nowy wpis w calendarEvents
+    const newCalId = await ctx.db.insert("calendarEvents", {
+      title: eventTitle,
+      date,
+      endDate,
+      startTime,
+      endTime,
+      type: eventType,
+      isPrivate,
+      category,
+      orderId: step.orderId,
+      createdBy: userId,
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.patch(args.stepId, { calendarEventId: newCalId });
+    return newCalId;
   },
 });
 

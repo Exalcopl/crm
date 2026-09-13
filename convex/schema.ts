@@ -269,6 +269,7 @@ export default defineSchema({
     archived: v.optional(v.boolean()),
     order: v.number(),                    // kolejność na liście
     parentId: v.optional(v.id("orderPreProdSteps")), // podzadanie — ID rodzica
+    calendarEventId: v.optional(v.id("calendarEvents")), // powiązane wydarzenie w kalendarzu
     createdAt: v.number(),
   })
     .index("by_order", ["orderId"])

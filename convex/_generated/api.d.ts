@@ -50,6 +50,7 @@ import type * as systemSettings from "../systemSettings.js";
 import type * as tasks from "../tasks.js";
 import type * as testing from "../testing.js";
 import type * as testing_calendar from "../testing_calendar.js";
+import type * as testing_gantt_calendar from "../testing_gantt_calendar.js";
 import type * as testing_it_tickets from "../testing_it_tickets.js";
 import type * as testing_notifications from "../testing_notifications.js";
 import type * as testing_orders from "../testing_orders.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   testing: typeof testing;
   testing_calendar: typeof testing_calendar;
+  testing_gantt_calendar: typeof testing_gantt_calendar;
   testing_it_tickets: typeof testing_it_tickets;
   testing_notifications: typeof testing_notifications;
   testing_orders: typeof testing_orders;
