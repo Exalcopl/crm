@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckSquare, Square, Plus, Trash2, Edit2, Palette, BookmarkPlus, Check, X, FolderOpen, AlertTriangle, RotateCcw } from "lucide-react";
+import { CheckSquare, Square, Plus, Trash2, Edit2, BookmarkPlus, Check, X, FolderOpen, AlertTriangle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 export type ChecklistItem = {
@@ -654,54 +654,7 @@ export function CustomChecklistsHeader({
                         )}
                       </div>
 
-                      {/* Color picker toggle */}
-                      <div style={{ position: "relative" }}>
-                        <button
-                          type="button"
-                          onClick={() => setOpenColorPickerId(openColorPickerId === list.id ? null : list.id)}
-                          style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
-                          title="Zmień kolor akcentu"
-                        >
-                          <Palette size={14} />
-                        </button>
 
-                        {openColorPickerId === list.id && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: "100%",
-                              right: 0,
-                              marginTop: 6,
-                              background: "#0d1117",
-                              border: "1px solid #30363d",
-                              borderRadius: 8,
-                              padding: 8,
-                              display: "flex",
-                              gap: 6,
-                              boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
-                              zIndex: 20,
-                            }}
-                          >
-                            {COLOR_PALETTE.map((c) => (
-                              <button
-                                key={c.hex}
-                                type="button"
-                                onClick={() => handleChangeColor(list.id, c.hex)}
-                                style={{
-                                  width: 20,
-                                  height: 20,
-                                  borderRadius: "50%",
-                                  background: c.hex,
-                                  border: list.color === c.hex ? "2px solid #fff" : "none",
-                                  cursor: "pointer",
-                                  transition: "transform 0.15s ease",
-                                }}
-                                title={c.name}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
 
                       <button
                         type="button"
