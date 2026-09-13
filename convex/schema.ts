@@ -274,7 +274,8 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_parent", ["parentId"])
-    .index("by_archived", ["archived"]),
+    .index("by_archived", ["archived"])
+    .index("by_calendarEvent", ["calendarEventId"]),
 
   publicSubmissionAttempts: defineTable({
     ip: v.string(),

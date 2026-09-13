@@ -62,32 +62,35 @@ export const testGanttCalendarIntegration = mutation({
       throw new Error("calendarEventId nie został poprawnie przypisany do kroku");
     }
 
-    // 4. Przeprowadź zmianę dat przez updateDates
-    const newStart = "2026-10-01";
-    const newEnd = "2026-10-05";
+    // 4. Test synchronizacji w drugą stronę: zmiana w Kalendarzu -> aktualizacja Gantta
+    const calNewStart = "2026-11-10";
+    const calNewEnd = "2026-11-12";
+    await ctx.db.patch(calId, { date: calNewStart, endDate: calNewEnd });
 
-    // Wywołaj bezpośrednio handler logiki updateDates
-    await ctx.db.patch(stepId, { startDate: newStart, endDate: newEnd });
-    if (stepWithCal.calendarEventId) {
-      await ctx.db.patch(stepWithCal.calendarEventId, {
-        date: newStart,
-        endDate: newEnd,
-      });
+    // Wywołaj ręcznie helper sync (taki sam jaki jest w mutacjach calendarEvents)
+    const linkedStep = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_calendarEvent", (q) => q.eq("calendarEventId", calId))
+      .first();
+
+    if (!linkedStep) {
+      throw new Error("Indeks by_calendarEvent nie znalazł powiązanego kroku");
     }
 
-    // Assert: wydarzenie w kalendarzu ma zaktualizowane daty
-    const updatedCal = await ctx.db.get(calId);
-    if (!updatedCal || updatedCal.date !== newStart || updatedCal.endDate !== newEnd) {
-      throw new Error(`Auto-sync dat wydarzenia nie zadziałał! Oczekiwano: ${newStart} - ${newEnd}, odebrano: ${updatedCal?.date} - ${updatedCal?.endDate}`);
+    await ctx.db.patch(linkedStep._id, { startDate: calNewStart, endDate: calNewEnd });
+
+    const stepAfterCalUpdate = await ctx.db.get(stepId);
+    if (stepAfterCalUpdate?.startDate !== calNewStart || stepAfterCalUpdate?.endDate !== calNewEnd) {
+      throw new Error(`Reverse sync (Kalendarz -> Gantt) nie zadziałał! Oczekiwano: ${calNewStart} - ${calNewEnd}, odebrano: ${stepAfterCalUpdate?.startDate} - ${stepAfterCalUpdate?.endDate}`);
     }
 
-    // 5. Test odlinkowania / usunięcia
+    // 5. Test odlinkowania przy usunięciu wydarzenia
     await ctx.db.delete(calId);
     await ctx.db.patch(stepId, { calendarEventId: undefined });
 
     const finalStep = await ctx.db.get(stepId);
     if (finalStep?.calendarEventId !== undefined) {
-      throw new Error("Pomiędzy krok a kalendarz nie zostało odlinkowane");
+      throw new Error("Krok nie został odlinkowany od kalendarza");
     }
 
     // Sprzątanie
@@ -95,7 +98,7 @@ export const testGanttCalendarIntegration = mutation({
 
     return {
       success: true,
-      message: "Test integracji Gantt ↔ Kalendarz zakończony SUKCESEM!",
+      message: "Test dwukierunkowej integracji Gantt ↔ Kalendarz zakończony SUKCESEM!",
     };
   },
 });

@@ -244,6 +244,56 @@ export const create = mutation({
   },
 });
 
+/** Pomocnicza funkcja synchronizująca zmiany z wydarzenia w kalendarzu do powiązanego kroku w Gantcie (orderPreProdSteps) */
+async function syncCalendarToGanttStep(
+  ctx: { db: any },
+  calendarEventId: Id<"calendarEvents">,
+  newDate?: string,
+  newEndDate?: string,
+) {
+  const step = await ctx.db
+    .query("orderPreProdSteps")
+    .withIndex("by_calendarEvent", (q: any) => q.eq("calendarEventId", calendarEventId))
+    .first();
+
+  if (step) {
+    const patch: Record<string, unknown> = {};
+    if (newDate !== undefined) patch.startDate = newDate;
+    if (newEndDate !== undefined) {
+      patch.endDate = newEndDate;
+    } else if (newDate !== undefined) {
+      if (!step.endDate || step.endDate === step.startDate) {
+        patch.endDate = newDate;
+      } else {
+        const oldStart = new Date(step.startDate).getTime();
+        const oldEnd = new Date(step.endDate).getTime();
+        if (!isNaN(oldStart) && !isNaN(oldEnd) && oldEnd >= oldStart) {
+          const durationDays = Math.max(0, Math.round((oldEnd - oldStart) / (1000 * 60 * 60 * 24)));
+          const newStartDt = new Date(newDate);
+          newStartDt.setDate(newStartDt.getDate() + durationDays);
+          patch.endDate = newStartDt.toISOString().split("T")[0];
+        } else {
+          patch.endDate = newDate;
+        }
+      }
+    }
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(step._id, patch);
+    }
+  }
+}
+
+/** Pomocnicza funkcja odlinkowująca krok Gantta gdy wydarzenie w kalendarzu zostanie usunięte */
+async function unlinkGanttStep(ctx: { db: any }, calendarEventId: Id<"calendarEvents">) {
+  const step = await ctx.db
+    .query("orderPreProdSteps")
+    .withIndex("by_calendarEvent", (q: any) => q.eq("calendarEventId", calendarEventId))
+    .first();
+  if (step) {
+    await ctx.db.patch(step._id, { calendarEventId: undefined });
+  }
+}
+
 export const update = mutation({
   args: {
     id: v.id("calendarEvents"),
@@ -317,6 +367,10 @@ export const update = mutation({
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch(id, patch);
     }
+
+    if (fields.date !== undefined || fields.endDate !== undefined) {
+      await syncCalendarToGanttStep(ctx, id, targetDate, targetEndDate);
+    }
   },
 });
 
@@ -335,6 +389,7 @@ export const remove = mutation({
       throw new Error("Brak uprawnień do usunięcia tego wydarzenia");
 
     await ctx.db.delete(id);
+    await unlinkGanttStep(ctx, id);
 
     if (removeAllSeries) {
       const seriesRootId = event.parentEventId || id;
@@ -462,6 +517,10 @@ export const updateForOrder = mutation({
       patch.description = fields.description === null ? undefined : fields.description.trim() || undefined;
     await ctx.db.patch(id, patch);
 
+    if (fields.date !== undefined) {
+      await syncCalendarToGanttStep(ctx, id, fields.date, undefined);
+    }
+
     if (order.quoteId) {
       const { name: catName } = await categoryMeta(ctx, event.category);
       const user = await ctx.db.get(userId);
@@ -488,6 +547,7 @@ export const removeForOrder = mutation({
     if (!event) throw new Error("Wydarzenie nie istnieje");
     const order = event.orderId ? await ctx.db.get(event.orderId) : null;
     await ctx.db.delete(id);
+    await unlinkGanttStep(ctx, id);
     if (order && order.quoteId) {
       const { name: catName } = await categoryMeta(ctx, event.category);
       const user = await ctx.db.get(userId);
@@ -638,6 +698,10 @@ export const updateEventForApp = mutation({
     if (!patch.title) throw new Error("Tytuł nie może być pusty");
 
     await ctx.db.patch(id, patch);
+
+    if (fields.date !== undefined) {
+      await syncCalendarToGanttStep(ctx, id, fields.date, undefined);
+    }
   },
 });
 
@@ -651,5 +715,6 @@ export const removeEventForApp = mutation({
     }
 
     await ctx.db.delete(id);
+    await unlinkGanttStep(ctx, id);
   },
 });
