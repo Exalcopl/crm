@@ -674,7 +674,7 @@ http.route({
       );
     }
 
-    const { orderIdOrNumber, notes, authorName } = body;
+    const { orderIdOrNumber, notes, authorName, threadId, parentNoteId } = body;
 
     if (!orderIdOrNumber || typeof orderIdOrNumber !== "string") {
       return new Response(
@@ -690,18 +690,22 @@ http.route({
       );
     }
 
+    const targetThread = typeof threadId === "string" ? threadId : (typeof parentNoteId === "string" ? parentNoteId : undefined);
+
     // 4. Dopisywanie notatki do zlecenia
     try {
       const result = await ctx.runMutation(internal.orders.appendNotesFromPartnerApi, {
         orderIdOrNumber,
         notes,
         authorName: typeof authorName === "string" && authorName.trim() ? authorName.trim() : "ADK Okna",
+        threadId: targetThread,
       });
 
       return new Response(
         JSON.stringify({
           success: true,
           orderId: result.orderId,
+          threadId: result.threadId,
           notes: result.notes,
         }),
         { status: 200, headers: jsonHeaders }

@@ -228,7 +228,15 @@ export default defineSchema({
     authorName: v.string(),
     createdAt: v.number(),
     isPartner: v.optional(v.boolean()),
-  }).index("by_order", ["orderId"]),
+    threadId: v.optional(v.id("orderNotes")),
+    parentNoteId: v.optional(v.id("orderNotes")),
+    isPartnerThreadRoot: v.optional(v.boolean()),
+    threadStatus: v.optional(
+      v.union(v.literal("pending_response"), v.literal("replied"), v.literal("closed")),
+    ),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_thread", ["threadId"]),
 
   tasks: defineTable({
     quoteId: v.optional(v.id("quotes")),

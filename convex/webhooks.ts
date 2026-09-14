@@ -19,6 +19,8 @@ export const triggerPartnerWebhook = internalAction({
         text: v.string(),
         authorName: v.string(),
         createdAt: v.number(),
+        threadId: v.optional(v.string()),
+        noteId: v.optional(v.string()),
       })
     ),
   },
