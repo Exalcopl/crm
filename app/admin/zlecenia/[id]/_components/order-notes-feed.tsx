@@ -162,6 +162,9 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     }
   }
 
+  type FeedTab = "all" | "internal" | "partner";
+  const [activeTab, setActiveTab] = useState<FeedTab>("all");
+
   // Grupowanie notatek: oddziel wpisy wolne od odpowiedzi w pod-wątkach
   const threadMap = new Map<string, OrderNote[]>();
   const rootNotes: OrderNote[] = [];
@@ -180,8 +183,120 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
 
   const orderedRoots = [...rootNotes].reverse();
 
+  // Statystyki dla odznak (badges)
+  const internalCount = orderedRoots.filter((n) => !n.isPartnerThreadRoot && !n.isPartner).length;
+  const partnerRoots = orderedRoots.filter((n) => n.isPartnerThreadRoot || n.isPartner);
+  const partnerCount = partnerRoots.length;
+  const pendingPartnerCount = partnerRoots.filter((n) => n.threadStatus === "pending_response").length;
+
+  const filteredRoots = activeTab === "internal"
+    ? orderedRoots.filter((n) => !n.isPartnerThreadRoot && !n.isPartner)
+    : activeTab === "partner"
+    ? partnerRoots
+    : orderedRoots;
+
   return (
     <div className="client-detail-notes">
+      {/* ── Przełącznik Segmentowy (Segmented Control) ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#0d1117",
+          border: "1px solid #30363d",
+          borderRadius: 8,
+          padding: 4,
+          marginBottom: 12,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveTab("all")}
+          style={{
+            flex: 1,
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+            background: activeTab === "all" ? "#21262d" : "transparent",
+            color: activeTab === "all" ? "#f0f6fc" : "#8b949e",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <span>Wszystkie</span>
+          <span style={{ fontSize: 10, background: activeTab === "all" ? "#30363d" : "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 10 }}>
+            {orderedRoots.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("internal")}
+          style={{
+            flex: 1,
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            border: "none",
+            cursor: "pointer",
+            background: activeTab === "internal" ? "#21262d" : "transparent",
+            color: activeTab === "internal" ? "#f0f6fc" : "#8b949e",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <span>📝 Wewnętrzne</span>
+          <span style={{ fontSize: 10, background: activeTab === "internal" ? "rgba(35, 134, 54, 0.2)" : "rgba(255,255,255,0.05)", color: activeTab === "internal" ? "#3fb950" : "#8b949e", padding: "1px 6px", borderRadius: 10 }}>
+            {internalCount}
+          </span>
+        </button>
+
+        {hasPartner && (
+          <button
+            type="button"
+            onClick={() => setActiveTab("partner")}
+            style={{
+              flex: 1,
+              padding: "6px 10px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: activeTab === "partner" ? "rgba(37,99,235,0.2)" : "transparent",
+              color: activeTab === "partner" ? "#60a5fa" : "#8b949e",
+              border: activeTab === "partner" ? "1px solid rgba(37,99,235,0.4)" : "1px solid transparent",
+              transition: "all 0.15s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            <span>💬 {partnerName}</span>
+            {pendingPartnerCount > 0 ? (
+              <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.2)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.4)", padding: "1px 6px", borderRadius: 10 }}>
+                🟡 {pendingPartnerCount}
+              </span>
+            ) : partnerCount > 0 ? (
+              <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", padding: "1px 6px", borderRadius: 10 }}>
+                {partnerCount}
+              </span>
+            ) : null}
+          </button>
+        )}
+      </div>
+
       {/* ── Tworzenie Nowej Notatki / Wątku do Partnera ── */}
       {!archived && (
         <div
@@ -197,7 +312,11 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
           <textarea
             className="client-detail-notes-textarea"
             placeholder={
-              hasPartner
+              activeTab === "partner"
+                ? `Wpisz treść zapytania do ${partnerName} (utworzy wątek)…`
+                : activeTab === "internal"
+                ? "Napisz notatkę wewnętrzną Exalco…"
+                : hasPartner
                 ? `Napisz notatkę wewnętrzną Exalco lub treść zapytania do ${partnerName}…`
                 : "Napisz notatkę wewnętrzną Exalco…"
             }
@@ -228,32 +347,38 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
             }}
           >
             <span className="client-detail-notes-hint" style={{ fontSize: 11, color: "#8b949e" }}>
-              {hasPartner
-                ? `💡 Notatka wewnętrzna widoczna tylko w Exalco. Wiadomość do ${partnerName} tworzy wątek z partnerem.`
+              {activeTab === "partner"
+                ? `💡 Wiadomość utworzy nowy oficjalny wątek zapytania do ${partnerName}.`
+                : activeTab === "internal"
+                ? "💡 Notatka wewnętrzna widoczna tylko dla pracowników Exalco."
+                : hasPartner
+                ? `💡 Notatka wewnętrzna widoczna w Exalco. Wiadomość do ${partnerName} tworzy wątek.`
                 : "💡 Notatki wewnętrzne są widoczne tylko dla pracowników Exalco."}
             </span>
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                className="fluent-btn fluent-btn-ghost fluent-btn-sm"
-                disabled={!draft.trim() || submitting}
-                onClick={() => void handleAdd({ isPartnerThread: false })}
-                style={{
-                  background: "#21262d",
-                  border: "1px solid #30363d",
-                  color: "#c9d1d9",
-                  borderRadius: 6,
-                  padding: "6px 12px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                📝 Notatka wewnętrzna
-              </button>
+              {activeTab !== "partner" && (
+                <button
+                  type="button"
+                  className="fluent-btn fluent-btn-ghost fluent-btn-sm"
+                  disabled={!draft.trim() || submitting}
+                  onClick={() => void handleAdd({ isPartnerThread: false })}
+                  style={{
+                    background: "#21262d",
+                    border: "1px solid #30363d",
+                    color: "#c9d1d9",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  📝 Notatka wewnętrzna
+                </button>
+              )}
 
-              {hasPartner && (
+              {hasPartner && activeTab !== "internal" && (
                 <button
                   type="button"
                   className="fluent-btn fluent-btn-primary fluent-btn-sm"
@@ -285,13 +410,17 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
       {/* ── Lista Notatek i Wątków ── */}
       <div className="client-detail-notes-list" style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
         {notes === undefined && <div className="client-detail-notes-empty">Wczytywanie wiadomości…</div>}
-        {notes !== undefined && orderedRoots.length === 0 && (
+        {notes !== undefined && filteredRoots.length === 0 && (
           <div className="client-detail-notes-empty" style={{ textAlign: "center", color: "#8b949e", padding: 20, background: "#0d1117", borderRadius: 8, border: "1px solid #21262d" }}>
-            Brak notatek w tym zleceniu. Napisz pierwszą powyżej.
+            {activeTab === "partner"
+              ? `Brak wątków komunikacji z ${partnerName}. Napisz pierwsze zapytanie powyżej.`
+              : activeTab === "internal"
+              ? "Brak notatek wewnętrznych w tym zleceniu."
+              : "Brak notatek w tym zleceniu. Napisz pierwszą powyżej."}
           </div>
         )}
 
-        {orderedRoots.map((n) => {
+        {filteredRoots.map((n) => {
           const isThread = !!n.isPartnerThreadRoot;
           const replies = isThread ? (threadMap.get(n._id) ?? []) : [];
           const isPartnerMsg = n.isPartner || n.authorName.includes("ADK") || !n.authorId;
