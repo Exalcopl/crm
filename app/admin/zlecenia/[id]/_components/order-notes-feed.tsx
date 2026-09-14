@@ -311,6 +311,9 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
               key={n._id}
               className="client-detail-note"
               style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
                 borderRadius: 8,
                 padding: 14,
                 background: isThread
@@ -383,17 +386,18 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
               )}
 
               {/* Główna wiadomość */}
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div
                   className="client-detail-note-avatar"
                   aria-hidden
-                  style={
-                    isPartnerMsg
+                  style={{
+                    flexShrink: 0,
+                    ...(isPartnerMsg
                       ? { background: "rgba(56, 189, 248, 0.2)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" }
                       : color
                       ? { background: `${color}22`, color, borderColor: `${color}55` }
-                      : undefined
-                  }
+                      : {}),
+                  }}
                 >
                   {isPartnerMsg ? "🏢" : ownerInitials(n.authorName)}
                 </div>
