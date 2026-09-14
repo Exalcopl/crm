@@ -90,26 +90,39 @@ export const add = mutation({
       }
     }
 
-    // Wysyłaj Webhook do ADK Okna TYLKO jeśli wiadomość jest jawnie skierowana do partnera
+    // Wysyłaj Webhook do partnera TYLKO jeśli wiadomość jest skierowana do partnera
     // (jest korzeniem nowego wątku partnera LUB jest odpowiedzią w wątku partnera)
     const shouldSendToPartner = (isThreadRoot || !!threadId) && !isPartner;
     if (shouldSendToPartner) {
       const order = await ctx.db.get(orderId);
-      if (order && order.partnerId) {
-        const targetThreadId = isThreadRoot ? noteId : threadId!;
-        await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
-          partnerId: order.partnerId,
-          orderId: order._id,
-          orderNumber: order.orderNumber,
-          event: "order.note_added",
-          note: {
-            text: trimmed,
-            authorName,
-            createdAt,
-            threadId: targetThreadId,
-            noteId,
-          },
-        });
+      if (order) {
+        let partnerId = order.partnerId;
+        if (!partnerId && order.clientId) {
+          const partner = await ctx.db
+            .query("partners")
+            .withIndex("by_client", (q) => q.eq("clientId", order.clientId!))
+            .first();
+          if (partner && partner.isActive) {
+            partnerId = partner._id;
+            await ctx.db.patch(orderId, { partnerId });
+          }
+        }
+        if (partnerId) {
+          const targetThreadId = isThreadRoot ? noteId : threadId!;
+          await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
+            partnerId,
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            event: "order.note_added",
+            note: {
+              text: trimmed,
+              authorName,
+              createdAt,
+              threadId: targetThreadId,
+              noteId,
+            },
+          });
+        }
       }
     }
 

@@ -475,8 +475,8 @@ export function CustomChecklistsHeader({
         </div>
       </div>
 
-      {/* Grid of 3 columns */}
-      <div style={{ display: "grid", gridTemplateColumns: lists.length === 1 ? "1fr" : lists.length === 2 ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(280px, 1fr))", gap: 14 }}>
+      {/* Grid of columns - kept in a single line */}
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(3, lists.length)}, minmax(0, 1fr))`, gap: 14 }}>
         {/* Render Existing Custom Lists */}
         {lists.map((list, slotIdx) => {
           const doneCount = list.items.filter((i) => i.checked).length;

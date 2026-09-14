@@ -477,4 +477,98 @@ export const testPartnerThreadWorkflow = mutation({
   },
 });
 
+export const testPartnerOrderScoping = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // 1. Create client and partner
+    const clientId = await ctx.db.insert("clients", {
+      name: "Klient Partnera ADK",
+      nameNormalized: "klient partnera adk",
+      createdAt: now,
+    });
+
+    const partnerId = await ctx.db.insert("partners", {
+      name: "ADK Okna",
+      apiKeyHash: "dummyhash123",
+      apiKeyPrefix: "pk_live_123",
+      clientId,
+      clientName: "Klient Partnera ADK",
+      projectType: ["Standard"],
+      margin: 10,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // 2. Order for client with partner
+    const partnerOrderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-PARTNER-SCOPE-001",
+      clientId,
+      clientName: "Klient Partnera ADK",
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      items: [],
+      status: "nowe",
+      createdAt: now,
+    });
+
+    // 3. Order for client WITHOUT partner
+    const regularClientId = await ctx.db.insert("clients", {
+      name: "Klient Bez Partnera",
+      nameNormalized: "klient bez partnera",
+      createdAt: now,
+    });
+
+    const regularOrderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-PARTNER-SCOPE-002",
+      clientId: regularClientId,
+      clientName: "Klient Bez Partnera",
+      valueNetto: 500,
+      valueVat: 115,
+      valueBrutto: 615,
+      vatRate: 23,
+      items: [],
+      status: "nowe",
+      createdAt: now,
+    });
+
+    // Test Partner Resolution
+    const orderWithPartner = await ctx.db.get(partnerOrderId);
+    const foundPartnerForScopedOrder = await ctx.db
+      .query("partners")
+      .withIndex("by_client", (q) => q.eq("clientId", orderWithPartner!.clientId!))
+      .first();
+
+    const orderWithoutPartner = await ctx.db.get(regularOrderId);
+    const foundPartnerForRegularOrder = await ctx.db
+      .query("partners")
+      .withIndex("by_client", (q) => q.eq("clientId", orderWithoutPartner!.clientId!))
+      .first();
+
+    if (!foundPartnerForScopedOrder || foundPartnerForScopedOrder.name !== "ADK Okna") {
+      throw new Error("❌ FAIL: nie odnaleziono partnera dla zlecenia z przypisanym partnerem");
+    }
+
+    if (foundPartnerForRegularOrder !== null) {
+      throw new Error("❌ FAIL: odnaleziono partnera dla zlecenia bez partnera!");
+    }
+
+    // Cleanup
+    await ctx.db.delete(partnerOrderId);
+    await ctx.db.delete(regularOrderId);
+    await ctx.db.delete(partnerId);
+    await ctx.db.delete(clientId);
+    await ctx.db.delete(regularClientId);
+
+    return {
+      success: true,
+      message: "Test zawężania partnera per klient/zlecenie zakończony SUKCESEM!",
+    };
+  },
+});
+
 

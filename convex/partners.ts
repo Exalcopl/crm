@@ -41,6 +41,46 @@ export const get = query({
   },
 });
 
+export const getPartnerForOrder = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const order = await ctx.db.get(orderId);
+    if (!order) return null;
+
+    if (order.partnerId) {
+      const partner = await ctx.db.get(order.partnerId);
+      if (partner && partner.isActive) {
+        return {
+          _id: partner._id,
+          name: partner.name,
+          clientName: partner.clientName,
+          isActive: partner.isActive,
+        };
+      }
+    }
+
+    if (order.clientId) {
+      const partner = await ctx.db
+        .query("partners")
+        .withIndex("by_client", (q) => q.eq("clientId", order.clientId!))
+        .first();
+      if (partner && partner.isActive) {
+        return {
+          _id: partner._id,
+          name: partner.name,
+          clientName: partner.clientName,
+          isActive: partner.isActive,
+        };
+      }
+    }
+
+    return null;
+  },
+});
+
 // ─── Zapytania (internal – używane przez HTTP action) ──────────────────────────
 
 export const getByApiKeyHash = internalQuery({

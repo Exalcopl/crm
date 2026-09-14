@@ -36,9 +36,12 @@ function relTime(ts: number): string {
   if (d < 7) return `${d} dni temu`;
   return new Date(ts).toLocaleDateString("pl-PL", { day: "2-digit", month: "short", year: "numeric" });
 }
-
 export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; archived?: boolean }) {
   const notes = useQuery(api.orderNotes.list, { orderId }) as OrderNote[] | undefined;
+  const partner = useQuery(api.partners.getPartnerForOrder, { orderId });
+  const partnerName = partner?.name || "Partnera";
+  const hasPartner = Boolean(partner);
+
   const add = useMutation(api.orderNotes.add);
   const update = useMutation(api.orderNotes.update);
   const remove = useMutation(api.orderNotes.remove);
@@ -76,7 +79,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
       setDraft("");
       toast.success(
         opts.isPartnerThread
-          ? "Wysłano wiadomość do ADK Okna (utworzono wątek)"
+          ? `Wysłano wiadomość do ${partnerName} (utworzono wątek)`
           : "Dodano notatkę wewnętrzną Exalco"
       );
     } catch (e) {
@@ -99,7 +102,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
       });
       setReplyDrafts((prev) => ({ ...prev, [threadId]: "" }));
       setReplyingThreadId(null);
-      toast.success("Odpowiedź została wysłana do ADK Okna");
+      toast.success(`Odpowiedź została wysłana do ${partnerName}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Nie udało się wysłać odpowiedzi");
     } finally {
@@ -107,25 +110,23 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     }
   }
 
-  async function commitEdit(id: Id<"orderNotes">, value: string) {
+  function commitEdit(id: Id<"orderNotes">, value: string) {
     const text = value.trim();
     if (!text) return;
-    try {
-      await update({ id, text });
-    } catch (e) {
+    void update({ id, text }).catch((e) => {
       toast.error(e instanceof Error ? e.message : "Nie udało się zapisać edycji");
-    }
+    });
   }
 
   function onEditChange(id: Id<"orderNotes">, value: string) {
     setEditDraft(value);
     if (editTimer.current) clearTimeout(editTimer.current);
-    editTimer.current = setTimeout(() => void commitEdit(id, value), 700);
+    editTimer.current = setTimeout(() => commitEdit(id, value), 700);
   }
 
   function finishEdit(id: Id<"orderNotes">) {
     if (editTimer.current) clearTimeout(editTimer.current);
-    void commitEdit(id, editDraft);
+    commitEdit(id, editDraft);
     setEditId(null);
     setEditDraft("");
   }
@@ -151,10 +152,10 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     try {
       if (rootNote.threadStatus === "closed") {
         await reopenThread({ threadId: rootNote._id });
-        toast.success("Otworzono ponownie wątek z ADK Okna");
+        toast.success(`Otworzono ponownie wątek z ${partnerName}`);
       } else {
         await closeThread({ threadId: rootNote._id });
-        toast.success("Zamknięto wątek z ADK Okna");
+        toast.success(`Zamknięto wątek z ${partnerName}`);
       }
     } catch (e) {
       toast.error("Błąd zmiany stanu wątku");
@@ -181,7 +182,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
 
   return (
     <div className="client-detail-notes">
-      {/* ── Tworzenie Nowej Notatki / Wątku do ADK ── */}
+      {/* ── Tworzenie Nowej Notatki / Wątku do Partnera ── */}
       {!archived && (
         <div
           className="client-detail-notes-composer"
@@ -195,7 +196,11 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
         >
           <textarea
             className="client-detail-notes-textarea"
-            placeholder="Napisz notatkę wewnętrzną Exalco lub treść zapytania do ADK Okna…"
+            placeholder={
+              hasPartner
+                ? `Napisz notatkę wewnętrzną Exalco lub treść zapytania do ${partnerName}…`
+                : "Napisz notatkę wewnętrzną Exalco…"
+            }
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
@@ -223,7 +228,9 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
             }}
           >
             <span className="client-detail-notes-hint" style={{ fontSize: 11, color: "#8b949e" }}>
-              💡 Notatka wewnętrzna widoczna tylko w Exalco. Wiadomość do ADK tworzy wątek z partnerem.
+              {hasPartner
+                ? `💡 Notatka wewnętrzna widoczna tylko w Exalco. Wiadomość do ${partnerName} tworzy wątek z partnerem.`
+                : "💡 Notatki wewnętrzne są widoczne tylko dla pracowników Exalco."}
             </span>
 
             <div style={{ display: "flex", gap: 8 }}>
@@ -246,28 +253,30 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                 📝 Notatka wewnętrzna
               </button>
 
-              <button
-                type="button"
-                className="fluent-btn fluent-btn-primary fluent-btn-sm"
-                disabled={!draft.trim() || submitting}
-                onClick={() => void handleAdd({ isPartnerThread: true })}
-                style={{
-                  background: "#2563eb",
-                  border: "none",
-                  color: "#ffffff",
-                  borderRadius: 6,
-                  padding: "6px 14px",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  boxShadow: "0 2px 6px rgba(37,99,235,0.4)",
-                }}
-              >
-                📤 Wyślij wiadomość do ADK Okna
-              </button>
+              {hasPartner && (
+                <button
+                  type="button"
+                  className="fluent-btn fluent-btn-primary fluent-btn-sm"
+                  disabled={!draft.trim() || submitting}
+                  onClick={() => void handleAdd({ isPartnerThread: true })}
+                  style={{
+                    background: "#2563eb",
+                    border: "none",
+                    color: "#ffffff",
+                    borderRadius: 6,
+                    padding: "6px 14px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(37,99,235,0.4)",
+                  }}
+                >
+                  📤 Wyślij wiadomość do {partnerName}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -334,16 +343,16 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa" }}>
-                      💬 Wątek komunikacji z ADK Okna
+                      💬 Wątek komunikacji z {partnerName}
                     </span>
                     {status === "pending_response" && (
                       <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.15)", color: "#facc15", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(234, 179, 8, 0.3)" }}>
-                        🟡 Oczekuje na odpowiedź ADK
+                        🟡 Oczekuje na odpowiedź {partnerName}
                       </span>
                     )}
                     {status === "replied" && (
                       <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(34, 197, 94, 0.3)" }}>
-                        🟢 Odpowiedziano przez ADK
+                        🟢 Odpowiedziano przez {partnerName}
                       </span>
                     )}
                     {status === "closed" && (
@@ -407,7 +416,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                           {n.authorName}{" "}
                           <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: isThread ? "rgba(37,99,235,0.2)" : "rgba(35, 134, 54, 0.2)", color: isThread ? "#60a5fa" : "#3fb950", padding: "1px 5px", borderRadius: 4 }}>
-                            {isThread ? "Zytanie do ADK" : "ALCO Wewnętrzna"}
+                            {isThread ? `Zapytanie do ${partnerName}` : "ALCO Wewnętrzna"}
                           </span>
                         </span>
                       )}
@@ -528,7 +537,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                       {replyingThreadId === n._id ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "#161b22", padding: 8, borderRadius: 6, border: "1px solid #30363d" }}>
                           <textarea
-                            placeholder="Wpisz odpowiedź w tym wątku do ADK Okna…"
+                            placeholder={`Wpisz odpowiedź w tym wątku do ${partnerName}…`}
                             value={replyDrafts[n._id] ?? ""}
                             onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [n._id]: e.target.value }))}
                             rows={2}
@@ -548,7 +557,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                               disabled={!(replyDrafts[n._id] ?? "").trim() || submitting}
                               style={{ background: "#2563eb", border: "none", color: "#fff", borderRadius: 4, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                             >
-                              Wyślij odpowiedź do ADK
+                              Wyślij odpowiedź do {partnerName}
                             </button>
                           </div>
                         </div>
@@ -569,7 +578,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                             textAlign: "left",
                           }}
                         >
-                          💬 Odpowiedz w tym wątku do ADK Okna…
+                          💬 Odpowiedz w tym wątku do {partnerName}…
                         </button>
                       )}
                     </div>
