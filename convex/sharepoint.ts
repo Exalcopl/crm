@@ -935,12 +935,9 @@ export const runOcrForFile = action({
     const base64 = Buffer.from(buffer).toString("base64");
 
     const modelsToTry = [
-      "claude-3-7-sonnet-20250219",
-      "claude-3-5-sonnet-latest",
       "claude-3-5-sonnet-20241022",
-      "claude-3-5-sonnet-20240620",
+      "claude-3-7-sonnet-20250219",
       "claude-3-5-haiku-20241022",
-      "claude-3-haiku-20240307",
     ];
 
     const promptText = `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij WSZYSTKIE dostępne dane.
@@ -1010,7 +1007,8 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
 
     let rawText = "";
 
-    if (ocrProvider === "gemini") {
+    async function executeGeminiOcr(): Promise<string> {
+      if (!geminiKey) throw new Error("Brak klucza GEMINI_API_KEY w konfiguracji Convex");
       const geminiModelsToTry = [
         "gemini-2.0-flash",
         "gemini-1.5-flash",
@@ -1079,7 +1077,11 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
         }>;
       };
 
-      rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      return geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    }
+
+    if (ocrProvider === "gemini") {
+      rawText = await executeGeminiOcr();
     } else {
       let anthropicRes: Response | null = null;
       let lastErrorText = "";
@@ -1120,61 +1122,53 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
       }
 
       for (const model of modelsToTry) {
-        const res = await tryModel(model);
-        if (res.ok) {
-          anthropicRes = res;
-          break;
-        } else {
-          const text = await res.text();
-          lastErrorText = text;
+        try {
+          const res = await tryModel(model);
+          if (res.ok) {
+            anthropicRes = res;
+            break;
+          } else {
+            const text = await res.text();
+            lastErrorText = text;
 
-          if (
-            text.includes("credit balance is too low") ||
-            text.includes("insufficient_quota") ||
-            text.includes("billing_error")
-          ) {
-            throw new Error(
-              "Brak środków (kredytów) na koncie Anthropic API. Doładuj saldo w panelu Anthropic (Plans & Billing) lub zmień dostawcę OCR na Gemini w Ustawieniach."
-            );
+            if (
+              res.status === 404 ||
+              text.includes("not_found_error") ||
+              text.includes("invalid_request_error") ||
+              res.status === 400
+            ) {
+              console.warn(`Model ${model} niedostępny lub odrzucony (${res.status}), próbuję kolejny model...`);
+              continue;
+            }
+            break;
           }
-          if (text.includes("invalid_api_key") || text.includes("authentication_error")) {
-            throw new Error(
-              "Klucz ANTHROPIC_API_KEY w konfiguracji Convex jest nieprawidłowy. Sprawdź klucz w ustawieniach Convex."
-            );
-          }
-
-          if (
-            res.status === 404 ||
-            text.includes("not_found_error") ||
-            text.includes("invalid_request_error") ||
-            res.status === 400
-          ) {
-            console.warn(`Model ${model} niedostępny lub odrzucony (${res.status}), próbuję kolejny model...`);
-            continue;
-          }
-          throw new Error(`Błąd API Claude (${res.status}): ${text.slice(0, 250)}`);
+        } catch (err: any) {
+          console.warn(`Nie udało się połączyć z modelem ${model}:`, err);
         }
       }
 
       if (!anthropicRes || !anthropicRes.ok) {
-        if (
-          lastErrorText.includes("credit balance is too low") ||
-          lastErrorText.includes("insufficient_quota")
-        ) {
+        // Spróbuj automatycznego awaryjnego przełączenia na Gemini jeśli klucz Gemini jest dostępny
+        if (geminiKey) {
+          console.warn("[sharepoint] Anthropic API niedostępne lub brak środków. Automatyczne przełączenie na Gemini API...");
+          try {
+            rawText = await executeGeminiOcr();
+          } catch (geminiFallbackErr: any) {
+            throw new Error(
+              `Brak środków/dostępu w Anthropic API, a próba użycia Gemini API zwróciła błąd: ${geminiFallbackErr.message}. Zmień dostawcę OCR w Ustawieniach Systemowych.`
+            );
+          }
+        } else {
           throw new Error(
-            "Brak środków (kredytów) na koncie Anthropic API. Doładuj saldo w panelu Anthropic (Plans & Billing) lub zmień dostawcę OCR na Gemini w Ustawieniach."
+            "Brak aktywnych środków na koncie Anthropic API. Zmień dostawcę silnika AI na 'Google Gemini API' w Ustawieniach Systemowych lub doładuj saldo w panelu Anthropic."
           );
         }
-        throw new Error(
-          `Klucz API Anthropic nie posiada dostępu do aktywnych modeli lub wyczerpał limit zapytań. ${lastErrorText ? "Ostatni błąd: " + lastErrorText.slice(0, 250) : ""}`
-        );
+      } else {
+        const anthropicData = (await anthropicRes.json()) as {
+          content: Array<{ type: string; text: string }>;
+        };
+        rawText = anthropicData.content.find((c) => c.type === "text")?.text ?? "";
       }
-
-      const anthropicData = (await anthropicRes.json()) as {
-        content: Array<{ type: string; text: string }>;
-      };
-
-      rawText = anthropicData.content.find((c) => c.type === "text")?.text ?? "";
     }
 
     function cleanAndParseJson(raw: string): any {
