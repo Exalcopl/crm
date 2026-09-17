@@ -249,11 +249,14 @@ export function WycenaOcrSection({ quote }: { quote: Quote }) {
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Błąd pobierania plików";
       const msg = raw
-        .replace(/^\[CONVEX [^\]]+\]\s*/i, "")
-        .replace(/^\[Request ID: [^\]]+\]\s*/i, "")
-        .replace(/^Server Error Called by client\s*/i, "")
+        .replace(/\[CONVEX [^\]]+\]/gi, "")
+        .replace(/\[Request ID: [^\]]+\]/gi, "")
+        .replace(/Uncaught Error:/gi, "")
+        .replace(/Server Error/gi, "")
+        .replace(/Called by client/gi, "")
+        .replace(/^Error:\s*/gi, "")
         .trim();
-      setFilesError(msg || "Błąd pobierania plików");
+      setFilesError(msg && msg.toLowerCase() !== "error" ? msg : "Błąd pobierania plików z SharePoint");
     } finally {
       setIsLoadingFiles(false);
     }

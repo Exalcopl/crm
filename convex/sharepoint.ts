@@ -833,48 +833,57 @@ export const deleteClientCascade = action({
 export const listWycenaSubfolderFiles = action({
   args: { quoteId: v.id("quotes") },
   handler: async (ctx, { quoteId }) => {
-    const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
-    const sp = quote?.sharepoint;
-    if (!sp?.subfolderItemId || !sp?.driveId || sp.status !== "created") return [];
+    try {
+      const quote = await ctx.runQuery(api.quotes.get, { id: quoteId });
+      const sp = quote?.sharepoint;
+      if (!sp?.subfolderItemId || !sp?.driveId || sp.status !== "created") return [];
 
-    const tenantId = process.env.MS_TENANT_ID;
-    const clientId = process.env.MS_CLIENT_ID;
-    const clientSecret = process.env.MS_CLIENT_SECRET;
-    if (!tenantId || !clientId || !clientSecret) return [];
+      const tenantId = process.env.MS_TENANT_ID;
+      const clientId = process.env.MS_CLIENT_ID;
+      const clientSecret = process.env.MS_CLIENT_SECRET;
+      if (!tenantId || !clientId || !clientSecret) return [];
 
-    const token = await getGraphToken(tenantId, clientId, clientSecret);
-    const res = await fetch(
-      `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Wycena:/children` +
-        `?$select=id,name,size,lastModifiedDateTime,file`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+      const token = await getGraphToken(tenantId, clientId, clientSecret);
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/drives/${sp.driveId}/items/${sp.subfolderItemId}:/Wycena:/children` +
+          `?$select=id,name,size,lastModifiedDateTime,file`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
-    if (res.status === 404) return [];
+      if (res.status === 404 || res.status === 400) {
+        console.warn(`[sharepoint] Podfolder Wycena dla wyceny ${quoteId} nie został odnaleziony (status ${res.status})`);
+        return [];
+      }
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Graph list Wycena files ${res.status}: ${text}`);
+      if (!res.ok) {
+        const text = await res.text();
+        console.warn(`[sharepoint] Graph list Wycena files ${res.status}: ${text}`);
+        return [];
+      }
+
+      const data = (await res.json()) as {
+        value: Array<{
+          id: string;
+          name: string;
+          size: number;
+          lastModifiedDateTime: string;
+          file?: { mimeType: string };
+        }>;
+      };
+
+      return (data.value || [])
+        .filter((item) => !!item.file && item.name.toLowerCase().endsWith(".pdf"))
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          size: item.size,
+          lastModifiedDateTime: item.lastModifiedDateTime,
+          mimeType: item.file?.mimeType ?? "application/pdf",
+        }));
+    } catch (err: any) {
+      console.error("[sharepoint] Błąd pobierania plików z podfolderu Wycena:", err);
+      return [];
     }
-
-    const data = (await res.json()) as {
-      value: Array<{
-        id: string;
-        name: string;
-        size: number;
-        lastModifiedDateTime: string;
-        file?: { mimeType: string };
-      }>;
-    };
-
-    return data.value
-      .filter((item) => !!item.file && item.name.toLowerCase().endsWith(".pdf"))
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        size: item.size,
-        lastModifiedDateTime: item.lastModifiedDateTime,
-        mimeType: item.file?.mimeType ?? "application/pdf",
-      }));
   },
 });
 

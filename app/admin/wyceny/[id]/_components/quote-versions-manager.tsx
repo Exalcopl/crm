@@ -1021,17 +1021,16 @@ function PdfViewer({ data }: { data: Uint8Array }) {
 function formatConvexErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? "Błąd operacji");
   let cleaned = raw
-    .replace(/^\[CONVEX [^\]]+\]\s*/i, "")
-    .replace(/^\[Request ID: [^\]]+\]\s*/i, "")
-    .replace(/^Server Error Called by client\s*/i, "")
+    .replace(/\[CONVEX [^\]]+\]/gi, "")
+    .replace(/\[Request ID: [^\]]+\]/gi, "")
+    .replace(/Uncaught Error:/gi, "")
+    .replace(/Server Error/gi, "")
+    .replace(/Called by client/gi, "")
+    .replace(/^Error:\s*/gi, "")
     .trim();
 
-  if (cleaned.startsWith("Server Error")) {
-    cleaned = cleaned.replace(/^Server Error\s*:?\s*/i, "").trim();
-  }
-
-  if (!cleaned || cleaned === "Server Error") {
-    return "Wystąpił błąd serwera podczas przetwarzania. Sprawdź konfigurację API i stan połączenia.";
+  if (!cleaned || cleaned.toLowerCase() === "error") {
+    return "Wystąpił błąd serwera podczas przetwarzania. Sprawdź połączenie lub konfigurację serwera.";
   }
 
   return cleaned;
