@@ -1623,9 +1623,30 @@ function ItemDatePickerPopover({
   const [start, setStart] = useState(item.startDate || "");
   const [end, setEnd] = useState(item.endDate || "");
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const applyPreset = (days: number) => {
+    const s = start || todayStr;
+    const startDateObj = new Date(s + "T00:00:00");
+    startDateObj.setDate(startDateObj.getDate() + days);
+    const e = startDateObj.toISOString().split("T")[0];
+    setStart(s);
+    setEnd(e);
+  };
+
+  const handleSave = () => {
+    if (start && end && start > end) {
+      toast.error("Data rozpoczęcia nie może być późniejsza niż data zakończenia");
+      return;
+    }
+    onSave(start, end);
+  };
+
   return (
     <div
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         top: "100%",
@@ -1635,52 +1656,117 @@ function ItemDatePickerPopover({
         background: "#161b22",
         border: "1px solid #30363d",
         borderRadius: 8,
-        padding: "10px 12px",
-        boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
-        width: 220,
+        padding: "12px 14px",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.75)",
+        width: 240,
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: 10,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#c9d1d9", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 4 }}>
-        Ustaw daty zadania
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#c9d1d9", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span>Ustaw daty zadania</span>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 2 }}
+        >
+          <X size={14} />
+        </button>
       </div>
+
       <div>
-        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 2 }}>Data rozpoczęcia</label>
+        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 3, fontWeight: 600 }}>Data rozpoczęcia</label>
         <input
           type="date"
           value={start}
           onChange={(e) => setStart(e.target.value)}
+          onClick={(e) => {
+            e.stopPropagation();
+            try { (e.currentTarget as any).showPicker?.(); } catch {}
+          }}
+          onFocus={(e) => {
+            try { (e.currentTarget as any).showPicker?.(); } catch {}
+          }}
           style={{
             width: "100%",
             background: "#0d1117",
             border: "1px solid #30363d",
-            borderRadius: 4,
+            borderRadius: 6,
             color: "#f0f6fc",
+            colorScheme: "dark",
             fontSize: 11,
-            padding: "4px 6px",
+            padding: "5px 8px",
+            outline: "none",
+            cursor: "pointer",
           }}
         />
       </div>
+
       <div>
-        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 2 }}>Data zakończenia (Termin)</label>
+        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 3, fontWeight: 600 }}>Data zakończenia (Termin)</label>
         <input
           type="date"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
+          onClick={(e) => {
+            e.stopPropagation();
+            try { (e.currentTarget as any).showPicker?.(); } catch {}
+          }}
+          onFocus={(e) => {
+            try { (e.currentTarget as any).showPicker?.(); } catch {}
+          }}
           style={{
             width: "100%",
             background: "#0d1117",
             border: "1px solid #30363d",
-            borderRadius: 4,
+            borderRadius: 6,
             color: "#f0f6fc",
+            colorScheme: "dark",
             fontSize: 11,
-            padding: "4px 6px",
+            padding: "5px 8px",
+            outline: "none",
+            cursor: "pointer",
           }}
         />
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
+
+      {/* Szybki wybór okresu */}
+      <div>
+        <div style={{ fontSize: 9, color: "#8b949e", marginBottom: 4, fontWeight: 600, textTransform: "uppercase" }}>Szybki wybór:</div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => { setStart(todayStr); setEnd(todayStr); }}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "#c9d1d9", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
+          >
+            Dziś
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset(3)}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "#c9d1d9", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
+          >
+            +3 dni
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset(7)}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "#c9d1d9", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
+          >
+            +7 dni
+          </button>
+          <button
+            type="button"
+            onClick={() => applyPreset(14)}
+            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 4, color: "#c9d1d9", fontSize: 10, padding: "2px 6px", cursor: "pointer" }}
+          >
+            +14 dni
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 4, paddingTop: 6, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
         <button
           type="button"
           onClick={() => {
@@ -1691,44 +1777,48 @@ function ItemDatePickerPopover({
           style={{
             background: "none",
             border: "none",
-            color: "#8b949e",
-            fontSize: 11,
+            color: "#f85149",
+            fontSize: 10,
+            fontWeight: 600,
             cursor: "pointer",
+            padding: "2px 4px",
           }}
         >
           Wyczyść
         </button>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 4,
-            color: "#c9d1d9",
-            fontSize: 11,
-            padding: "3px 8px",
-            cursor: "pointer",
-          }}
-        >
-          Anuluj
-        </button>
-        <button
-          type="button"
-          onClick={() => onSave(start, end)}
-          style={{
-            background: "#238636",
-            border: "none",
-            borderRadius: 4,
-            color: "#ffffff",
-            fontSize: 11,
-            fontWeight: 600,
-            padding: "3px 10px",
-            cursor: "pointer",
-          }}
-        >
-          Zapisz
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 4,
+              color: "#c9d1d9",
+              fontSize: 11,
+              padding: "4px 8px",
+              cursor: "pointer",
+            }}
+          >
+            Anuluj
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            style={{
+              background: "#238636",
+              border: "none",
+              borderRadius: 4,
+              color: "#ffffff",
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "4px 12px",
+              cursor: "pointer",
+            }}
+          >
+            Zapisz
+          </button>
+        </div>
       </div>
     </div>
   );

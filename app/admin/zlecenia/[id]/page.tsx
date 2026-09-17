@@ -419,13 +419,15 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
           if (step.title !== item.label) {
             await renameMut({ id: step._id, title: item.label });
           }
-          const normStart = item.startDate || undefined;
-          const normEnd = item.endDate || undefined;
-          if (step.startDate !== normStart || step.endDate !== normEnd) {
+          const normStart = item.startDate || null;
+          const normEnd = item.endDate || null;
+          const stepStart = step.startDate || null;
+          const stepEnd = step.endDate || null;
+          if (stepStart !== normStart || stepEnd !== normEnd) {
             await updateDatesMut({
               id: step._id,
-              startDate: item.startDate || null,
-              endDate: item.endDate || null,
+              startDate: normStart,
+              endDate: normEnd,
               shiftSubtasks: true,
             });
           }

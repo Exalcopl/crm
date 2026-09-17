@@ -1,5 +1,8 @@
 import { internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
+
 
 export const checkTaskDeadlines = internalMutation({
   args: {},
@@ -75,3 +78,47 @@ export const checkTaskDeadlines = internalMutation({
     }
   },
 });
+
+export const sendTaskNotificationScript = internalMutation({
+  args: {
+    orderIdStr: v.string(),
+  },
+  handler: async (ctx, { orderIdStr }) => {
+    const orderId = orderIdStr as Id<"orders">;
+    const order = await ctx.db.get(orderId);
+    const orderNumStr = order && "orderNumber" in order && (order as any).orderNumber ? `#${(order as any).orderNumber}` : "";
+
+    // Znajdź zadanie dla zlecenia
+    const steps = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .collect();
+
+    // Szukamy kroku o nazwie zawierającej "Test 1" lub "test 2" lub pierwszego podzadania
+    const targetStep = steps.find(
+      (s) => s.title.toLowerCase().includes("test 1") || s.title.toLowerCase().includes("test 2")
+    ) || steps[0];
+
+    const stepTitle = targetStep ? targetStep.title : "Test 1";
+    const now = Date.now();
+
+    const notifId = await ctx.db.insert("notifications", {
+      type: "task_due_soon",
+      title: "⏳ Zbliża się termin zadania",
+      message: `Zadanie „${stepTitle}” w zleceniu ${orderNumStr} wymaga Twojej uwagi.`,
+      link: `/admin/zlecenia/${orderIdStr}`,
+      readBy: [],
+      entityId: targetStep ? (targetStep._id as string) : undefined,
+      createdAt: now,
+    });
+
+    return {
+      success: true,
+      notificationId: notifId,
+      stepTitle,
+      orderNumber: orderNumStr,
+      stepsFound: steps.map((s) => ({ id: s._id, title: s.title, parentId: s.parentId })),
+    };
+  },
+});
+
