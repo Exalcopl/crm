@@ -10,7 +10,9 @@ export type ChecklistItem = {
   id: string;
   label: string;
   checked: boolean;
+  level?: number;
 };
+
 
 export type CustomList = {
   id: string;
@@ -678,79 +680,113 @@ export function CustomChecklistsHeader({
 
               {/* Items list */}
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4, flex: 1 }}>
-                {list.items.map((item) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                      padding: "7px 10px",
-                      borderRadius: 6,
-                      background: item.checked ? "rgba(63,185,80,0.06)" : "rgba(255,255,255,0.02)",
-                      border: item.checked ? "1px solid rgba(63,185,80,0.18)" : "1px solid rgba(255,255,255,0.04)",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!item.checked) e.currentTarget.style.background = "rgba(255,255,255,0.05)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!item.checked) e.currentTarget.style.background = "rgba(255,255,255,0.02)";
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleItem(list.id, item.id)}
-                      disabled={disabled}
+                {list.items.map((item) => {
+                  const level = item.level ?? 0;
+                  const indentPx = level * 18;
+
+                  return (
+                    <div
+                      key={item.id}
                       style={{
-                        background: "none",
-                        border: "none",
-                        cursor: disabled ? "default" : "pointer",
-                        padding: 0,
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "space-between",
                         gap: 8,
-                        color: item.checked ? "#3fb950" : "#8b949e",
-                        textAlign: "left",
-                        flex: 1,
+                        padding: "7px 10px",
+                        marginLeft: indentPx,
+                        borderRadius: 6,
+                        background: item.checked
+                          ? "rgba(63,185,80,0.06)"
+                          : level > 0
+                            ? "rgba(255,255,255,0.03)"
+                            : "rgba(255,255,255,0.02)",
+                        border: item.checked
+                          ? "1px solid rgba(63,185,80,0.18)"
+                          : "1px solid rgba(255,255,255,0.04)",
+                        borderLeft: level > 0
+                          ? `3px solid ${list.color}cc`
+                          : item.checked
+                            ? "1px solid rgba(63,185,80,0.18)"
+                            : "1px solid rgba(255,255,255,0.04)",
+                        transition: "all 0.15s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!item.checked) e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!item.checked)
+                          e.currentTarget.style.background = level > 0 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.02)";
                       }}
                     >
-                      {item.checked ? <CheckSquare size={17} style={{ flexShrink: 0 }} /> : <Square size={17} style={{ flexShrink: 0 }} />}
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: item.checked ? 400 : 500,
-                          color: item.checked ? "#8b949e" : "#f0f6fc",
-                          textDecoration: item.checked ? "line-through" : "none",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {item.label}
-                      </span>
-                    </button>
-
-                    {!disabled && (
                       <button
                         type="button"
-                        onClick={() => handleRemoveItem(list.id, item.id)}
-                        style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.color = "#f85149";
-                          e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)";
+                        onClick={() => handleToggleItem(list.id, item.id)}
+                        disabled={disabled}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: disabled ? "default" : "pointer",
+                          padding: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          color: item.checked ? "#3fb950" : level > 0 ? list.color : "#8b949e",
+                          textAlign: "left",
+                          flex: 1,
                         }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.color = "#484f58";
-                          e.currentTarget.style.background = "transparent";
-                        }}
-                        title="Usuń punkt"
                       >
-                        <X size={14} />
+                        {level > 0 && (
+                          <span
+                            style={{
+                              color: list.color,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              flexShrink: 0,
+                              opacity: 0.85,
+                              marginRight: -2,
+                            }}
+                            title={`Podzadanie (Poziom ${level})`}
+                          >
+                            ↳
+                          </span>
+                        )}
+                        {item.checked ? <CheckSquare size={17} style={{ flexShrink: 0 }} /> : <Square size={17} style={{ flexShrink: 0 }} />}
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: item.checked ? 400 : level > 0 ? 500 : 600,
+                            color: item.checked ? "#8b949e" : "#f0f6fc",
+                            textDecoration: item.checked ? "line-through" : "none",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {item.label}
+                        </span>
                       </button>
-                    )}
-                  </div>
-                ))}
+
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(list.id, item.id)}
+                          style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = "#f85149";
+                            e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = "#484f58";
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                          title="Usuń punkt"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
 
               {/* Add item input */}
               {!disabled && (

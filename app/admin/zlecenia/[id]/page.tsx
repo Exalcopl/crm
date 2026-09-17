@@ -333,33 +333,37 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
   const renameMut     = useMutation(api.orderPreProdSteps.updateTitle);
 
   // Konwertuj Gantt → CustomList[]
-  // Zadania root (bez parentId) → listy
-  // Podzadania (level 1) i pod-podzadania (level 2) → items (płasko, własny tytuł)
+  // Zadania root (bez parentId) → listy (sekcje)
+  // Podzadania i kolejne zagnieżdżenia → items z poziomem zagnieżdżenia (level: 0, 1, 2...)
   const ganttChecklists = useMemo((): CustomList[] => {
     const active = steps.filter((s) => !s.archived).sort((a, b) => a.order - b.order);
     const roots = active.filter((s) => !s.parentId);
 
-    return roots.map((root, i) => {
-      const items: CustomList["items"] = [];
+    function buildTreeItems(parentId: Id<"orderPreProdSteps">, currentLevel: number): CustomList["items"] {
       const children = active
-        .filter((s) => s.parentId === root._id)
+        .filter((s) => s.parentId === parentId)
         .sort((a, b) => a.order - b.order);
 
-      for (const child of children) {
-        const grandchildren = active
-          .filter((s) => s.parentId === child._id)
-          .sort((a, b) => a.order - b.order);
+      const items: CustomList["items"] = [];
 
-        if (grandchildren.length > 0) {
-          // Podzadanie z pod-podzadaniami → pokaż pod-podzadania jako checkboxy
-          // Używamy własnego tytułu kroku (nie flatten) żeby sync działał poprawnie
-          for (const gc of grandchildren) {
-            items.push({ id: gc._id, label: gc.title, checked: gc.done });
-          }
-        } else {
-          items.push({ id: child._id, label: child.title, checked: child.done });
-        }
+      for (const child of children) {
+        items.push({
+          id: child._id,
+          label: child.title,
+          checked: child.done,
+          level: currentLevel,
+        });
+
+        // Rekurencyjne pobranie kolejnych poziomów zagnieżdżenia (pod-podzadania itd.)
+        const subItems = buildTreeItems(child._id, currentLevel + 1);
+        items.push(...subItems);
       }
+
+      return items;
+    }
+
+    return roots.map((root, i) => {
+      const items = buildTreeItems(root._id, 0);
 
       return {
         id: root._id,
@@ -369,6 +373,7 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
       };
     });
   }, [steps]);
+
 
   // Klucz wymusza re-sync gdy stan Gantt zmienia się zewnętrznie (done, tytuły, liczba kroków)
   const syncKey = useMemo(
