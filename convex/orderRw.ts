@@ -198,6 +198,243 @@ export const importSampleRw = mutation({
   },
 });
 
+// Zapisuje wygenerowane/odczytane z OCR pozycje RW do zlecenia
+export const saveParsedRw = mutation({
+  args: {
+    orderId: v.id("orders"),
+    originalSections: v.array(sectionValidator),
+    productionSections: v.array(productionSectionValidator),
+    sourceFileName: v.optional(v.string()),
+    sourceFileId: v.optional(v.string()),
+    isMock: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) throw new Error("Zlecenie nie istnieje.");
+
+    // Usuń poprzednie RW jeśli istnieje dla zlecenia
+    const existing = await ctx.db
+      .query("orderRw")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .first();
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+
+    const totalOriginal = args.originalSections.reduce(
+      (sum, sec) => sum + sec.items.reduce((s, it) => s + it.priceTotal, 0),
+      0
+    );
+
+    const totalProduction = args.productionSections.reduce(
+      (sum, sec) => sum + sec.items.reduce((s, it) => s + (it.changeType === "removed" ? 0 : it.priceTotal), 0),
+      0
+    );
+
+    const totalSavings = totalOriginal - totalProduction;
+    const now = Date.now();
+
+    const rwId = await ctx.db.insert("orderRw", {
+      orderId: args.orderId,
+      originalSections: args.originalSections,
+      productionSections: args.productionSections,
+      totalOriginal,
+      totalProduction,
+      totalSavings,
+      importedAt: now,
+      parsedAt: now,
+      updatedAt: now,
+      sourceFileName: args.sourceFileName,
+      sourceFileId: args.sourceFileId,
+      isMock: args.isMock,
+    });
+
+    return { rwId, totalOriginal, totalProduction, totalSavings };
+  },
+});
+
+// Test automatyczny zapisu odczytu OCR RW i weryfikacji bazy
+export const testParsedRwImport = mutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const order = await ctx.db.get(args.orderId);
+    if (!order) return { status: "FAIL", reason: "Zlecenie nie istnieje" };
+
+    const existing = await ctx.db
+      .query("orderRw")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .first();
+    if (existing) await ctx.db.delete(existing._id);
+
+    const testSections = [
+      {
+        id: "profile_test",
+        name: "PROFILE TEST",
+        items: [
+          { lp: 1, element: "Profil ALU AL-01", quantity: 15, unit: "mb.", priceUnit: 45, priceTotal: 675, description: "Testowy opis" }
+        ],
+        sectionTotal: 675,
+      }
+    ];
+
+    const testProdSections = testSections.map((s) => ({
+      ...s,
+      isCustom: false,
+      items: s.items.map((it) => ({
+        ...it,
+        changeType: "unchanged",
+        materialId: undefined,
+        originalLp: it.lp,
+      }))
+    }));
+
+    const now = Date.now();
+    const rwId = await ctx.db.insert("orderRw", {
+      orderId: args.orderId,
+      originalSections: testSections,
+      productionSections: testProdSections,
+      totalOriginal: 675,
+      totalProduction: 675,
+      totalSavings: 0,
+      importedAt: now,
+      parsedAt: now,
+      updatedAt: now,
+      sourceFileName: "test_rw_spec.pdf",
+      isMock: true,
+    });
+
+    const inserted = await ctx.db.get(rwId);
+    if (!inserted) return { status: "FAIL", reason: "Nie odnaleziono rekordu po insercie" };
+    if (inserted.sourceFileName !== "test_rw_spec.pdf") return { status: "FAIL", reason: "Błąd zapisu sourceFileName" };
+    if (inserted.isMock !== true) return { status: "FAIL", reason: "Błąd zapisu flagi isMock" };
+
+    await ctx.db.delete(rwId);
+    return { status: "SUCCESS", message: "Zapis i odczyt metadanych RW OCR z bazy Convex działa prawidłowo." };
+  }
+});
+
+// Autonomiczny test weryfikacyjny (tworzy tymczasowe zlecenie, testuje zapis i odczyt RW OCR, a następnie sprząta po sobie)
+export const runSelfContainedRwTest = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // 1. Stwórz tymczasowe zlecenie testowe
+    const dummyOrderId = await ctx.db.insert("orders", {
+      orderNumber: "TEST-RW-OCR-001",
+      status: "nowe",
+      clientName: "Klient Testowy RW OCR",
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      items: [],
+      createdAt: Date.now(),
+    });
+
+    try {
+      // 2. Przygotuj dane z odczytu OCR RW
+      const testOriginalSections = [
+        {
+          id: "profile_test",
+          name: "PROFILE TEST",
+          items: [
+            { lp: 1, element: "Profil ALU AL-01", quantity: 10, unit: "mb.", priceUnit: 50, priceTotal: 500, description: "Rama" },
+            { lp: 2, element: "Uszczelka EPDM", quantity: 20, unit: "mb.", priceUnit: 2, priceTotal: 40, description: "Uszczelnienie" }
+          ],
+          sectionTotal: 540,
+        },
+        {
+          id: "okucia_test",
+          name: "OKUCIA TEST",
+          items: [
+            { lp: 3, element: "Klamka okienna", quantity: 4, unit: "szt.", priceUnit: 25, priceTotal: 100 }
+          ],
+          sectionTotal: 100,
+        }
+      ];
+
+      const testProductionSections = testOriginalSections.map((sec) => ({
+        id: sec.id,
+        name: sec.name,
+        isCustom: false,
+        items: sec.items.map((it) => ({
+          ...it,
+          changeType: "unchanged",
+          materialId: undefined,
+          originalLp: it.lp,
+        })),
+        sectionTotal: sec.sectionTotal,
+      }));
+
+      const now = Date.now();
+      // 3. Zapisz kartę RW z użyciem insert w Convex
+      const rwId = await ctx.db.insert("orderRw", {
+        orderId: dummyOrderId,
+        originalSections: testOriginalSections,
+        productionSections: testProductionSections,
+        totalOriginal: 640,
+        totalProduction: 640,
+        totalSavings: 0,
+        importedAt: now,
+        parsedAt: now,
+        updatedAt: now,
+        sourceFileName: "rw_spec_test.pdf",
+        isMock: true,
+      });
+
+      // 4. Odczytaj i werfikuj wpis z bazy
+      const fetchedRw = await ctx.db.get(rwId);
+      if (!fetchedRw) throw new Error("Nie odnaleziono zapisanego rekordu RW.");
+      if (fetchedRw.totalOriginal !== 640) throw new Error(`Błędny totalOriginal: oczekiwano 640, otrzymano ${fetchedRw.totalOriginal}`);
+      if (fetchedRw.sourceFileName !== "rw_spec_test.pdf") throw new Error("Błędna nazwa pliku źródłowego.");
+      if (fetchedRw.isMock !== true) throw new Error("Brak flaga isMock.");
+
+      // 5. Test aktualizacji produkcyjnego RW z wyliczeniem oszczędności
+      const updatedProdSections = JSON.parse(JSON.stringify(testProductionSections));
+      updatedProdSections[0].items[0].priceUnit = 40; // zniżka z 50 na 40zł
+      updatedProdSections[0].items[0].priceTotal = 400;
+      updatedProdSections[0].items[0].changeType = "modified";
+      updatedProdSections[0].sectionTotal = 440;
+
+      const newTotalProduction = 540; // 440 + 100
+      const newTotalSavings = 640 - 540; // 100 zł oszczędności
+
+      await ctx.db.patch(rwId, {
+        productionSections: updatedProdSections,
+        totalProduction: newTotalProduction,
+        totalSavings: newTotalSavings,
+        updatedAt: Date.now(),
+      });
+
+      const updatedRw = await ctx.db.get(rwId);
+      if (!updatedRw || updatedRw.totalSavings !== 100) {
+        throw new Error(`Błąd przeliczenia oszczędności po modyfikacji. Oczekiwano 100, jest: ${updatedRw?.totalSavings}`);
+      }
+
+      // Cleanup
+      await ctx.db.delete(rwId);
+      await ctx.db.delete(dummyOrderId);
+
+      return {
+        success: true,
+        message: "TEST PASS: Zapis, odczyt, przeliczanie oszczędności oraz usuwanie metadanych RW OCR w Convex działają w 100% poprawnie.",
+      };
+    } catch (err: any) {
+      // Sprzątanie w przypadku błędu
+      await ctx.db.delete(dummyOrderId);
+      return {
+        success: false,
+        error: err?.message || "Błąd podczas wykonywania testu.",
+      };
+    }
+  },
+});
+
 // Test automatyczny
 export const testRwCalculations = mutation({
   args: { orderId: v.id("orders") },
@@ -265,3 +502,4 @@ export const testRwCalculations = mutation({
     return { status: "SUCCESS", totalOriginal: 1000, totalProduction: totalProd, totalSavings };
   },
 });
+

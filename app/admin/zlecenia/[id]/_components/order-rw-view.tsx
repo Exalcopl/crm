@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
 import { I } from "../../../_lib/icons";
+import { RwOcrModal } from "./rw-ocr-modal";
 
 // ─── Typy ──────────────────────────────────────────────────────────────────────
 
@@ -665,6 +666,7 @@ export function OrderRwView({ orderId }: { orderId: Id<"orders"> }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showOcrModal, setShowOcrModal] = useState(false);
 
   // Synchronizuj lokalny stan gdy dane z bazy się zmienią
   const prodSections = localSections ?? (rw?.productionSections as ProdSection[] | undefined) ?? null;
@@ -725,43 +727,75 @@ export function OrderRwView({ orderId }: { orderId: Id<"orders"> }) {
 
   if (rw === null) {
     return (
-      <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 60, gap: 16 }}>
-        <div style={{ fontSize: 40 }}>📋</div>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#f0f6fc" }}>Brak karty RW</div>
-        <div style={{ fontSize: 13, color: "#8b949e", textAlign: "center" as const, maxWidth: 360 }}>
-          Dla tego zlecenia nie zaimportowano jeszcze Rozchodu Wewnętrznego.<br />
-          Kliknij poniżej, aby załadować przykładowe dane (symulacja OCR z pliku PDF).
+      <>
+        {showOcrModal && (
+          <RwOcrModal
+            orderId={orderId}
+            onClose={() => setShowOcrModal(false)}
+            onSuccess={() => setLocalSections(null)}
+          />
+        )}
+        <div style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", padding: 60, gap: 16 }}>
+          <div style={{ fontSize: 40 }}>📋</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#f0f6fc" }}>Brak karty RW w zleceniu</div>
+          <div style={{ fontSize: 13, color: "#8b949e", textAlign: "center" as const, maxWidth: 420 }}>
+            Dla tego zlecenia nie dodano jeszcze danych Rozchodu Wewnętrznego.<br />
+            Wybierz plik RW ze zlecenia lub wgraj nowy specyfikację, aby załadować dane za pomocą Claude API / OCR.
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-primary"
+              onClick={() => setShowOcrModal(true)}
+              style={{ gap: 8, background: "#1f6beb", borderColor: "#1f6beb" }}
+            >
+              <I.sparkles s={16} /> Załaduj i odczytaj RW (AI / OCR)
+            </button>
+            <button
+              type="button"
+              className="fluent-btn fluent-btn-ghost"
+              onClick={handleImport}
+              disabled={importing}
+              style={{ gap: 6 }}
+            >
+              {importing ? "Importowanie…" : "📥 Przykładowa symulacja"}
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          className="fluent-btn fluent-btn-primary"
-          onClick={handleImport}
-          disabled={importing}
-          style={{ gap: 8 }}
-        >
-          {importing ? "Importowanie…" : "📥 Importuj RW (Symulacja)"}
-        </button>
-      </div>
+      </>
     );
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column" as const, gap: 0 }}>
+      {showOcrModal && (
+        <RwOcrModal
+          orderId={orderId}
+          onClose={() => setShowOcrModal(false)}
+          onSuccess={() => setLocalSections(null)}
+        />
+      )}
+
       {/* Pasek akcji */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0 16px" }}>
-        <div style={{ fontSize: 13, color: "#8b949e" }}>
+        <div style={{ fontSize: 13, color: "#8b949e", display: "flex", alignItems: "center", gap: 10 }}>
           {rw.importedAt && (
             <span>Importowano: <strong style={{ color: "#f0f6fc" }}>{new Date(rw.importedAt).toLocaleDateString("pl-PL")}</strong></span>
+          )}
+          {rw.sourceFileName && (
+            <span style={{ fontSize: 11, background: "rgba(88, 166, 255, 0.12)", color: "#58a6ff", padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(88, 166, 255, 0.3)" }}>
+              📄 Plik: {rw.sourceFileName} {rw.isMock ? "(Mock OCR)" : "(Claude AI)"}
+            </span>
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="button"
-            className="fluent-btn fluent-btn-ghost fluent-btn-sm"
-            onClick={handleImport}
-            disabled={importing}
+            className="fluent-btn fluent-btn-primary fluent-btn-sm"
+            onClick={() => setShowOcrModal(true)}
+            style={{ gap: 6, background: "#1f6beb" }}
           >
-            {importing ? "…" : "📥 Reimportuj RW"}
+            <I.sparkles s={14} /> Odczytaj nowy plik (AI / OCR)
           </button>
           {dirty && (
             <button

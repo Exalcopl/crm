@@ -41,6 +41,7 @@ import type * as quoteOcr from "../quoteOcr.js";
 import type * as quoteVersions from "../quoteVersions.js";
 import type * as quotes from "../quotes.js";
 import type * as roles from "../roles.js";
+import type * as rwOcrAction from "../rwOcrAction.js";
 import type * as search from "../search.js";
 import type * as seed from "../seed.js";
 import type * as sharepoint from "../sharepoint.js";
@@ -100,6 +101,7 @@ declare const fullApi: ApiFromModules<{
   quoteVersions: typeof quoteVersions;
   quotes: typeof quotes;
   roles: typeof roles;
+  rwOcrAction: typeof rwOcrAction;
   search: typeof search;
   seed: typeof seed;
   sharepoint: typeof sharepoint;

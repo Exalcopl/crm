@@ -339,4 +339,20 @@ export const I = {
       <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
     </Icon>
   ),
+  sparkles: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+    </Icon>
+  ),
+  upload: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+    </Icon>
+  ),
+  info: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4M12 8h.01" />
+    </Icon>
+  ),
 };

@@ -694,6 +694,10 @@ export default defineSchema({
     totalSavings: v.number(),
     importedAt: v.optional(v.number()),
     updatedAt: v.number(),
+    sourceFileName: v.optional(v.string()),
+    sourceFileId: v.optional(v.string()),
+    parsedAt: v.optional(v.number()),
+    isMock: v.optional(v.boolean()),
   }).index("by_order", ["orderId"]),
 
   partners: defineTable({
