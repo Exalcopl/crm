@@ -405,7 +405,10 @@ export default defineSchema({
     // For OCR versions
     fileItemId: v.optional(v.string()),
     fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    fileCreatedAt: v.optional(v.union(v.number(), v.string())),
     // Display title, e.g. "Wersja z pliku: Oferta_V2.pdf"
+
     title: v.string(),
     // Financials
     valueNetto: v.number(),

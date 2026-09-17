@@ -16,6 +16,8 @@ type QuoteVersion = {
   source: "ocr" | "manual";
   fileItemId?: string;
   fileName?: string;
+  fileSize?: number;
+  fileCreatedAt?: number | string;
   title: string;
   valueNetto: number;
   valueVat: number;
@@ -60,6 +62,28 @@ function formatDate(ts: number) {
   });
 }
 
+function formatBytes(bytes?: number | null): string {
+  if (bytes == null || isNaN(bytes) || bytes <= 0) return "Nieznana waga";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB (${bytes.toLocaleString("pl-PL")} B)`;
+}
+
+function formatFullDate(val?: number | string | null): string {
+  if (!val) return "Brak daty";
+  const date = typeof val === "string" ? new Date(val) : new Date(val);
+  if (isNaN(date.getTime())) return String(val);
+  return date.toLocaleString("pl-PL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+
 function base64ToBytes(base64: string): Uint8Array {
   const bytes = atob(base64);
   const arr = new Uint8Array(bytes.length);
@@ -98,16 +122,27 @@ function VersionListItem({
   version,
   isActive,
   onClick,
+  spFile,
 }: {
   version: QuoteVersion;
   isActive: boolean;
   onClick: () => void;
+  spFile?: { size?: number; lastModifiedDateTime?: string; name?: string };
 }) {
+  const fileName = version.fileName || spFile?.name || version.title;
+  const fileSize = version.fileSize ?? spFile?.size;
+  const fileDate = version.fileCreatedAt || spFile?.lastModifiedDateTime || version.createdAt;
+
+  const formattedSize = formatBytes(fileSize);
+  const formattedDate = formatFullDate(fileDate);
+  const tooltipText = `Plik: ${fileName}\nWaga: ${formattedSize}\nData utworzenia: ${formattedDate}`;
+
   return (
     <button
       type="button"
       className={`qvm-version-item${isActive ? " qvm-version-item--active" : ""}`}
       onClick={onClick}
+      title={tooltipText}
     >
       <div className="qvm-version-item-header">
         <span className="qvm-version-item-num">Wersja {version.versionNumber}</span>
@@ -118,16 +153,42 @@ function VersionListItem({
           {STATUS_LABELS[version.status]}
         </span>
       </div>
-      <div className="qvm-version-item-title">{version.title}</div>
+      <div className="qvm-version-item-title" title={fileName}>{version.title}</div>
       <div className="qvm-version-item-meta">
         <span>{formatDate(version.createdAt)}</span>
         <span className="qvm-version-item-value">
           {formatCurrency(version.valueNetto)} PLN netto
         </span>
       </div>
+
+      <div className="qvm-version-tooltip">
+        <div className="qvm-tooltip-header">Informacje o pliku wyceny</div>
+        <div className="qvm-tooltip-row">
+          <span className="qvm-tooltip-icon">📄</span>
+          <div className="qvm-tooltip-content">
+            <span className="qvm-tooltip-label">Pełna nazwa pliku</span>
+            <span className="qvm-tooltip-val">{fileName}</span>
+          </div>
+        </div>
+        <div className="qvm-tooltip-row">
+          <span className="qvm-tooltip-icon">⚖️</span>
+          <div className="qvm-tooltip-content">
+            <span className="qvm-tooltip-label">Waga pliku</span>
+            <span className="qvm-tooltip-val">{formattedSize}</span>
+          </div>
+        </div>
+        <div className="qvm-tooltip-row">
+          <span className="qvm-tooltip-icon">📅</span>
+          <div className="qvm-tooltip-content">
+            <span className="qvm-tooltip-label">Data utworzenia</span>
+            <span className="qvm-tooltip-val">{formattedDate}</span>
+          </div>
+        </div>
+      </div>
     </button>
   );
 }
+
 
 // ─── Items table ──────────────────────────────────────────────────────────────
 
@@ -1041,10 +1102,13 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
   const [activeId, setActiveId] = useState<Id<"quoteVersions"> | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [spFiles, setSpFiles] = useState<Array<{ id: string; name: string; size: number; lastModifiedDateTime: string }>>([]);
   const [preview, setPreview] = useState<
     { fileName: string; data: Uint8Array | null; error: string | null; loading: boolean } | null
   >(null);
   const scannedRef = useRef(false);
+
+  const spFilesMap = useMemo(() => new Map(spFiles.map((f) => [f.id, f])), [spFiles]);
 
   const acceptVersion = useMutation(api.quoteVersions.acceptVersion);
   const rejectVersion = useMutation(api.quoteVersions.rejectVersion);
@@ -1092,6 +1156,7 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
       setScanError(null);
       try {
         const files = await listFiles({ quoteId: quote._id });
+        setSpFiles(files || []);
         const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
         if (pdfFiles.length === 0) { setScanning(false); return; }
 
@@ -1144,7 +1209,12 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
       {/* Left panel: version list */}
       <div className="qvm-sidebar">
         <div className="qvm-sidebar-header">
-          <span className="qvm-sidebar-title">Historia wycen</span>
+          <span
+            className="qvm-sidebar-title"
+            title="Historia wycen — Najedź kursor na wycenę, aby zobaczyć szczegóły pliku"
+          >
+            Historia wycen
+          </span>
           <button
             type="button"
             className="fluent-btn fluent-btn-ghost qvm-sidebar-refresh"
@@ -1155,6 +1225,7 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
               setScanError(null);
               void listFiles({ quoteId: quote._id })
                 .then(async (files) => {
+                  setSpFiles(files || []);
                   const pdfFiles = files.filter((f: any) => f.name.toLowerCase().endsWith(".pdf"));
                   const processedIds = new Set(versions.map((v) => v.fileItemId).filter(Boolean));
                   const newFiles = pdfFiles.filter((f: any) => !processedIds.has(f.id));
@@ -1205,12 +1276,14 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
             <VersionListItem
               key={v._id}
               version={v}
+              spFile={v.fileItemId ? spFilesMap.get(v.fileItemId) : undefined}
               isActive={v._id === activeId}
               onClick={() => setActiveId(v._id)}
             />
           ))}
         </div>
       </div>
+
 
       {/* Right panel: version detail */}
       <div className="qvm-main">

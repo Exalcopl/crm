@@ -1262,6 +1262,8 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
       quoteId,
       fileItemId,
       fileName,
+      fileSize: buffer.byteLength,
+      fileCreatedAt: Date.now(),
       valueNetto,
       valueVat,
       valueBrutto,
@@ -1269,6 +1271,7 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
       items,
       additionalData,
     });
+
 
     return ocrJson;
   },

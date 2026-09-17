@@ -69,6 +69,8 @@ export const _saveOcrVersion = internalMutation({
     quoteId: v.id("quotes"),
     fileItemId: v.string(),
     fileName: v.string(),
+    fileSize: v.optional(v.number()),
+    fileCreatedAt: v.optional(v.union(v.number(), v.string())),
     valueNetto: v.number(),
     valueVat: v.number(),
     valueBrutto: v.number(),
@@ -89,6 +91,8 @@ export const _saveOcrVersion = internalMutation({
     if (existing) {
       await ctx.db.patch(existing._id, {
         fileName: args.fileName,
+        fileSize: args.fileSize,
+        fileCreatedAt: args.fileCreatedAt,
         title: `Wersja z pliku: ${args.fileName}`,
         valueNetto: args.valueNetto,
         valueVat: args.valueVat,
@@ -108,6 +112,8 @@ export const _saveOcrVersion = internalMutation({
       source: "ocr",
       fileItemId: args.fileItemId,
       fileName: args.fileName,
+      fileSize: args.fileSize,
+      fileCreatedAt: args.fileCreatedAt,
       title: `Wersja z pliku: ${args.fileName}`,
       valueNetto: args.valueNetto,
       valueVat: args.valueVat,
@@ -122,6 +128,7 @@ export const _saveOcrVersion = internalMutation({
     });
     return id;
   },
+
 });
 
 // ─── Public mutations ────────────────────────────────────────────────────────
