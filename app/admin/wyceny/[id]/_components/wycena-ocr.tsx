@@ -247,7 +247,13 @@ export function WycenaOcrSection({ quote }: { quote: Quote }) {
       const result = await listFiles({ quoteId: quote._id });
       setFiles(result);
     } catch (err) {
-      setFilesError(err instanceof Error ? err.message : "Błąd pobierania plików");
+      const raw = err instanceof Error ? err.message : "Błąd pobierania plików";
+      const msg = raw
+        .replace(/^\[CONVEX [^\]]+\]\s*/i, "")
+        .replace(/^\[Request ID: [^\]]+\]\s*/i, "")
+        .replace(/^Server Error Called by client\s*/i, "")
+        .trim();
+      setFilesError(msg || "Błąd pobierania plików");
     } finally {
       setIsLoadingFiles(false);
     }
@@ -272,8 +278,13 @@ export function WycenaOcrSection({ quote }: { quote: Quote }) {
         fileName: file.name,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Błąd OCR";
-      setFileErrors((prev) => new Map(prev).set(file.id, msg));
+      const raw = err instanceof Error ? err.message : "Błąd OCR";
+      const msg = raw
+        .replace(/^\[CONVEX [^\]]+\]\s*/i, "")
+        .replace(/^\[Request ID: [^\]]+\]\s*/i, "")
+        .replace(/^Server Error Called by client\s*/i, "")
+        .trim();
+      setFileErrors((prev) => new Map(prev).set(file.id, msg || "Błąd OCR"));
     } finally {
       setProcessingIds((prev) => {
         const next = new Set(prev);

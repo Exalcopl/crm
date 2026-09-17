@@ -1018,6 +1018,25 @@ function PdfViewer({ data }: { data: Uint8Array }) {
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
+function formatConvexErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err ?? "Błąd operacji");
+  let cleaned = raw
+    .replace(/^\[CONVEX [^\]]+\]\s*/i, "")
+    .replace(/^\[Request ID: [^\]]+\]\s*/i, "")
+    .replace(/^Server Error Called by client\s*/i, "")
+    .trim();
+
+  if (cleaned.startsWith("Server Error")) {
+    cleaned = cleaned.replace(/^Server Error\s*:?\s*/i, "").trim();
+  }
+
+  if (!cleaned || cleaned === "Server Error") {
+    return "Wystąpił błąd serwera podczas przetwarzania. Sprawdź konfigurację API i stan połączenia.";
+  }
+
+  return cleaned;
+}
+
 export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archived: boolean }) {
   const versions = (useQuery(api.quoteVersions.listByQuote, { quoteId: quote._id }) ?? []) as QuoteVersion[];
   const [activeId, setActiveId] = useState<Id<"quoteVersions"> | null>(null);
@@ -1046,7 +1065,7 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
       setPreview({
         fileName,
         data: null,
-        error: e instanceof Error ? e.message : "Błąd podglądu",
+        error: formatConvexErrorMessage(e),
         loading: false,
       });
     }
@@ -1085,11 +1104,11 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
             await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
           } catch (ocrErr: any) {
             console.error("Błąd OCR podczas auto-skanowania:", ocrErr);
-            setScanError(ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+            setScanError(formatConvexErrorMessage(ocrErr));
           }
         }
       } catch (err) {
-        setScanError(err instanceof Error ? err.message : "Błąd skanowania");
+        setScanError(formatConvexErrorMessage(err));
       } finally {
         setScanning(false);
       }
@@ -1153,11 +1172,11 @@ export function QuoteVersionsManager({ quote, archived }: { quote: Quote; archiv
                       await runOcr({ quoteId: quote._id, fileItemId: file.id, fileName: file.name });
                     } catch (ocrErr: any) {
                       console.error("Błąd OCR:", ocrErr);
-                      setScanError(ocrErr instanceof Error ? ocrErr.message : String(ocrErr));
+                      setScanError(formatConvexErrorMessage(ocrErr));
                     }
                   }
                 })
-                .catch((e) => setScanError(e instanceof Error ? e.message : "Błąd skanowania"))
+                .catch((e) => setScanError(formatConvexErrorMessage(e)))
                 .finally(() => setScanning(false));
             }}
             disabled={scanning}
