@@ -25,11 +25,9 @@ export const setOcrProvider = mutation({
 
     if (user.roleId) {
       const role = await ctx.db.get(user.roleId);
-      if (role?.name !== "admin" && role?.name !== "super_admin") {
+      if (role && role.name !== "admin" && role.name !== "super_admin") {
         throw new Error("Brak uprawnień administratora");
       }
-    } else {
-      throw new Error("Brak uprawnień administratora");
     }
 
     const existing = await ctx.db
