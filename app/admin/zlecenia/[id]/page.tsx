@@ -327,14 +327,15 @@ function OrderClientStrip({ order, quote }: { order: Doc<"orders">; quote: Quote
 //   • Zmiana done → setDone na kroku Gantt
 function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
   const steps = useQuery(api.orderPreProdSteps.list, { orderId }) ?? [];
-  const setDoneMut    = useMutation(api.orderPreProdSteps.setDone);
-  const addMut        = useMutation(api.orderPreProdSteps.add);
-  const removeMut     = useMutation(api.orderPreProdSteps.remove);
-  const renameMut     = useMutation(api.orderPreProdSteps.updateTitle);
+  const setDoneMut      = useMutation(api.orderPreProdSteps.setDone);
+  const addMut          = useMutation(api.orderPreProdSteps.add);
+  const removeMut       = useMutation(api.orderPreProdSteps.remove);
+  const renameMut       = useMutation(api.orderPreProdSteps.updateTitle);
+  const updateDatesMut  = useMutation(api.orderPreProdSteps.updateDates);
 
   // Konwertuj Gantt → CustomList[]
   // Zadania root (bez parentId) → listy (sekcje)
-  // Podzadania i kolejne zagnieżdżenia → items z poziomem zagnieżdżenia (level: 0, 1, 2...)
+  // Podzadania i kolejne zagnieżdżenia → items z poziomem zagnieżdżenia oraz datami
   const ganttChecklists = useMemo((): CustomList[] => {
     const active = steps.filter((s) => !s.archived).sort((a, b) => a.order - b.order);
     const roots = active.filter((s) => !s.parentId);
@@ -351,6 +352,8 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
           id: child._id,
           label: child.title,
           checked: child.done,
+          startDate: child.startDate,
+          endDate: child.endDate,
           level: currentLevel,
         });
 
@@ -374,10 +377,9 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
     });
   }, [steps]);
 
-
-  // Klucz wymusza re-sync gdy stan Gantt zmienia się zewnętrznie (done, tytuły, liczba kroków)
+  // Klucz wymusza re-sync gdy stan Gantt zmienia się zewnętrznie (done, tytuły, daty)
   const syncKey = useMemo(
-    () => steps.map((s) => `${s._id}:${s.done ? 1 : 0}:${s.title}`).join(","),
+    () => steps.map((s) => `${s._id}:${s.done ? 1 : 0}:${s.title}:${s.startDate ?? ""}:${s.endDate ?? ""}`).join(","),
     [steps]
   );
 
@@ -408,7 +410,7 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
       // ── Obsłuż checkboxy (items = podzadania) ────────────────────────
       for (const item of list.items) {
         if (stepMap.has(item.id)) {
-          // Istniejący krok → sync done i tytuł
+          // Istniejący krok → sync done, tytuł oraz daty
           const step = stepMap.get(item.id)!;
           seenIds.add(item.id);
           if (step.done !== item.checked) {
@@ -417,6 +419,16 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
           if (step.title !== item.label) {
             await renameMut({ id: step._id, title: item.label });
           }
+          const normStart = item.startDate || undefined;
+          const normEnd = item.endDate || undefined;
+          if (step.startDate !== normStart || step.endDate !== normEnd) {
+            await updateDatesMut({
+              id: step._id,
+              startDate: item.startDate || null,
+              endDate: item.endDate || null,
+              shiftSubtasks: true,
+            });
+          }
         } else {
           // Nowy checkbox → utwórz podzadanie w Gantt pod daną listą
           const newId = await addMut({ orderId, title: item.label, parentId: rootId });
@@ -424,9 +436,17 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
           if (item.checked) {
             await setDoneMut({ id: newId, done: true });
           }
+          if (item.startDate || item.endDate) {
+            await updateDatesMut({
+              id: newId,
+              startDate: item.startDate || null,
+              endDate: item.endDate || null,
+            });
+          }
         }
       }
     }
+
 
     // ── Usuń kroki Gantt których nie ma w updated lists ──────────────
     const activeSteps = steps.filter((s) => !s.archived);

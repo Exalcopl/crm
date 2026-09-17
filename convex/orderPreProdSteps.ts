@@ -77,24 +77,80 @@ export const add = mutation({
   },
 });
 
-/** Aktualizuje daty zadania (wywoływane po przeciągnięciu paska na osi czasu) */
+async function shiftSubtaskDates(
+  ctx: any,
+  parentId: any,
+  deltaMs: number
+) {
+  if (!deltaMs) return;
+
+  const children = await ctx.db
+    .query("orderPreProdSteps")
+    .withIndex("by_parent", (q: any) => q.eq("parentId", parentId))
+    .collect();
+
+  for (const child of children) {
+    let newStart = child.startDate;
+    let newEnd = child.endDate;
+
+    if (child.startDate) {
+      const d = new Date(child.startDate);
+      d.setTime(d.getTime() + deltaMs);
+      newStart = d.toISOString().split("T")[0];
+    }
+    if (child.endDate) {
+      const d = new Date(child.endDate);
+      d.setTime(d.getTime() + deltaMs);
+      newEnd = d.toISOString().split("T")[0];
+    }
+
+    await ctx.db.patch(child._id, {
+      startDate: newStart,
+      endDate: newEnd,
+    });
+
+    await shiftSubtaskDates(ctx, child._id, deltaMs);
+  }
+}
+
+/** Aktualizuje daty zadania (wywoływane po przeciągnięciu paska na osi czasu lub z poziomu checklisty) */
 export const updateDates = mutation({
   args: {
     id: v.id("orderPreProdSteps"),
     startDate: v.union(v.string(), v.null()),
     endDate: v.union(v.string(), v.null()),
+    shiftSubtasks: v.optional(v.boolean()),
   },
-  handler: async (ctx, { id, startDate, endDate }) => {
+  handler: async (ctx, { id, startDate, endDate, shiftSubtasks = true }) => {
     const step = await ctx.db.get(id);
     if (!step) return;
 
     const ns = startDate ?? undefined;
     const ne = endDate ?? undefined;
 
+    let deltaMs = 0;
+    if (shiftSubtasks && ne && step.endDate) {
+      const oldMs = new Date(step.endDate).getTime();
+      const newMs = new Date(ne).getTime();
+      if (!isNaN(oldMs) && !isNaN(newMs)) {
+        deltaMs = newMs - oldMs;
+      }
+    } else if (shiftSubtasks && ns && step.startDate) {
+      const oldMs = new Date(step.startDate).getTime();
+      const newMs = new Date(ns).getTime();
+      if (!isNaN(oldMs) && !isNaN(newMs)) {
+        deltaMs = newMs - oldMs;
+      }
+    }
+
     await ctx.db.patch(id, {
       startDate: ns,
       endDate: ne,
     });
+
+    if (deltaMs !== 0) {
+      await shiftSubtaskDates(ctx, id, deltaMs);
+    }
 
     // Auto-sync calendar event if step is linked to one
     if (step.calendarEventId && ns) {
@@ -111,6 +167,7 @@ export const updateDates = mutation({
     }
   },
 });
+
 
 /** Tworzy, aktualizuje lub usuwa powiązane wydarzenie w kalendarzu dla danego kroku Gantt */
 export const saveCalendarIntegration = mutation({

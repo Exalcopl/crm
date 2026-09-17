@@ -23,6 +23,7 @@ import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as materials from "../materials.js";
 import type * as notifications from "../notifications.js";
+import type * as notificationsCron from "../notificationsCron.js";
 import type * as orderActivity from "../orderActivity.js";
 import type * as orderNotes from "../orderNotes.js";
 import type * as orderPreProdSteps from "../orderPreProdSteps.js";
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   materials: typeof materials;
   notifications: typeof notifications;
+  notificationsCron: typeof notificationsCron;
   orderActivity: typeof orderActivity;
   orderNotes: typeof orderNotes;
   orderPreProdSteps: typeof orderPreProdSteps;

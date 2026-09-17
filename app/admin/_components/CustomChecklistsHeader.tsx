@@ -3,16 +3,57 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckSquare, Square, Plus, Trash2, Edit2, BookmarkPlus, Check, X, FolderOpen, AlertTriangle, RotateCcw } from "lucide-react";
+import { CheckSquare, Square, Plus, Trash2, Edit2, BookmarkPlus, Check, X, FolderOpen, AlertTriangle, RotateCcw, Calendar, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 export type ChecklistItem = {
   id: string;
   label: string;
   checked: boolean;
+  startDate?: string;
+  endDate?: string;
   level?: number;
 };
 
+export function getDeadlineBadge(startDate?: string, endDate?: string, isDone?: boolean) {
+  if (isDone) return null;
+  if (!endDate) return null;
+
+  const now = Date.now();
+  const endMs = new Date(`${endDate}T23:59:59`).getTime();
+  if (isNaN(endMs)) return null;
+
+  const diffHours = (endMs - now) / (1000 * 60 * 60);
+
+  if (diffHours < 0) {
+    return {
+      type: "overdue" as const,
+      color: "#f85149",
+      bg: "rgba(248, 81, 73, 0.15)",
+      border: "rgba(248, 81, 73, 0.35)",
+      label: `Zaległe (${endDate})`,
+      icon: "🔴",
+    };
+  } else if (diffHours <= 24) {
+    return {
+      type: "due_soon" as const,
+      color: "#e3b341",
+      bg: "rgba(227, 179, 65, 0.15)",
+      border: "rgba(227, 179, 65, 0.35)",
+      label: `Dziś (${endDate})`,
+      icon: "🟡",
+    };
+  } else {
+    return {
+      type: "on_time" as const,
+      color: "#3fb950",
+      bg: "rgba(63, 185, 80, 0.12)",
+      border: "rgba(63, 185, 80, 0.25)",
+      label: endDate,
+      icon: "🟢",
+    };
+  }
+}
 
 export type CustomList = {
   id: string;
@@ -20,6 +61,7 @@ export type CustomList = {
   color: string;
   items: ChecklistItem[];
 };
+
 
 export const COLOR_PALETTE = [
   { hex: "#3b82f6", name: "Niebieski" },
@@ -103,6 +145,9 @@ export function CustomChecklistsHeader({
   const [activeSingleLoadListId, setActiveSingleLoadListId] = useState<string | null>(null);
   const [activeSingleLoadSlotIndex, setActiveSingleLoadSlotIndex] = useState<number | null>(null);
 
+  // Date picker state
+  const [editingDatesItemId, setEditingDatesItemId] = useState<string | null>(null);
+
   // Conflict modal state
   const [conflictState, setConflictState] = useState<{
     targetSlotIndex: number;
@@ -135,6 +180,24 @@ export function CustomChecklistsHeader({
       toast.error("Nie udało się zapisać zmian w checklistach");
     }
   }
+
+  function handleSaveItemDates(listId: string, itemId: string, startDate?: string, endDate?: string) {
+    if (disabled) return;
+    const next = lists.map((l) => {
+      if (l.id !== listId) return l;
+      return {
+        ...l,
+        items: l.items.map((i) =>
+          i.id === itemId
+            ? { ...i, startDate: startDate || undefined, endDate: endDate || undefined }
+            : i
+        ),
+      };
+    });
+    setEditingDatesItemId(null);
+    void updateAndSave(next);
+  }
+
 
   // --- Handlers ---
   function handleToggleItem(listId: string, itemId: string) {
@@ -764,24 +827,89 @@ export function CustomChecklistsHeader({
                         </span>
                       </button>
 
-                      {!disabled && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(list.id, item.id)}
-                          style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = "#f85149";
-                            e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = "#484f58";
-                            e.currentTarget.style.background = "transparent";
-                          }}
-                          title="Usuń punkt"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
+                      {/* Deadline status badge & Calendar picker trigger */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, position: "relative" }}>
+                        {(() => {
+                          const badge = getDeadlineBadge(item.startDate, item.endDate, item.checked);
+                          if (!badge) return null;
+                          return (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!disabled) setEditingDatesItemId(editingDatesItemId === item.id ? null : item.id);
+                              }}
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 600,
+                                color: badge.color,
+                                background: badge.bg,
+                                border: `1px solid ${badge.border}`,
+                                padding: "2px 6px",
+                                borderRadius: 8,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                whiteSpace: "nowrap",
+                                cursor: disabled ? "default" : "pointer",
+                              }}
+                              title={`Termin: ${item.startDate ? `${item.startDate} — ` : ""}${item.endDate}. Kliknij, aby zmienić.`}
+                            >
+                              <span>{badge.icon}</span>
+                              <span>{badge.label}</span>
+                            </span>
+                          );
+                        })()}
+
+                        {!disabled && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingDatesItemId(editingDatesItemId === item.id ? null : item.id);
+                            }}
+                            style={{
+                              background: editingDatesItemId === item.id ? "rgba(59, 130, 246, 0.2)" : "none",
+                              border: "none",
+                              color: item.endDate ? "#60a5fa" : "#484f58",
+                              cursor: "pointer",
+                              padding: 3,
+                              borderRadius: 4,
+                              display: "flex",
+                            }}
+                            title="Ustaw datę rozpoczęcia i termin zakończenia"
+                          >
+                            <Calendar size={14} />
+                          </button>
+                        )}
+
+                        {editingDatesItemId === item.id && (
+                          <ItemDatePickerPopover
+                            item={item}
+                            onSave={(start, end) => handleSaveItemDates(list.id, item.id, start, end)}
+                            onClose={() => setEditingDatesItemId(null)}
+                          />
+                        )}
+
+                        {!disabled && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(list.id, item.id)}
+                            style={{ background: "none", border: "none", color: "#484f58", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.color = "#f85149";
+                              e.currentTarget.style.background = "rgba(248, 81, 73, 0.15)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.color = "#484f58";
+                              e.currentTarget.style.background = "transparent";
+                            }}
+                            title="Usuń punkt"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+
                     </div>
                   );
                 })}
@@ -1482,3 +1610,127 @@ export function CustomChecklistsHeader({
     </div>
   );
 }
+
+function ItemDatePickerPopover({
+  item,
+  onSave,
+  onClose,
+}: {
+  item: ChecklistItem;
+  onSave: (startDate?: string, endDate?: string) => void;
+  onClose: () => void;
+}) {
+  const [start, setStart] = useState(item.startDate || "");
+  const [end, setEnd] = useState(item.endDate || "");
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: "absolute",
+        top: "100%",
+        right: 0,
+        marginTop: 4,
+        zIndex: 9999,
+        background: "#161b22",
+        border: "1px solid #30363d",
+        borderRadius: 8,
+        padding: "10px 12px",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
+        width: 220,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color: "#c9d1d9", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 4 }}>
+        Ustaw daty zadania
+      </div>
+      <div>
+        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 2 }}>Data rozpoczęcia</label>
+        <input
+          type="date"
+          value={start}
+          onChange={(e) => setStart(e.target.value)}
+          style={{
+            width: "100%",
+            background: "#0d1117",
+            border: "1px solid #30363d",
+            borderRadius: 4,
+            color: "#f0f6fc",
+            fontSize: 11,
+            padding: "4px 6px",
+          }}
+        />
+      </div>
+      <div>
+        <label style={{ fontSize: 10, color: "#8b949e", display: "block", marginBottom: 2 }}>Data zakończenia (Termin)</label>
+        <input
+          type="date"
+          value={end}
+          onChange={(e) => setEnd(e.target.value)}
+          style={{
+            width: "100%",
+            background: "#0d1117",
+            border: "1px solid #30363d",
+            borderRadius: 4,
+            color: "#f0f6fc",
+            fontSize: 11,
+            padding: "4px 6px",
+          }}
+        />
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={() => {
+            setStart("");
+            setEnd("");
+            onSave("", "");
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#8b949e",
+            fontSize: 11,
+            cursor: "pointer",
+          }}
+        >
+          Wyczyść
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: 4,
+            color: "#c9d1d9",
+            fontSize: 11,
+            padding: "3px 8px",
+            cursor: "pointer",
+          }}
+        >
+          Anuluj
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave(start, end)}
+          style={{
+            background: "#238636",
+            border: "none",
+            borderRadius: 4,
+            color: "#ffffff",
+            fontSize: 11,
+            fontWeight: 600,
+            padding: "3px 10px",
+            cursor: "pointer",
+          }}
+        >
+          Zapisz
+        </button>
+      </div>
+    </div>
+  );
+}
+
