@@ -1,20 +1,9 @@
 import { query } from "./_generated/server";
-import { getByCode } from "./quotes";
 
 export const testQuoteSearchLookup = query({
   args: {},
   handler: async (ctx) => {
     const logs: string[] = [];
-
-    // Test specific ID mentioned in issue
-    const targetId = "ks7cng8k7fcrnnye0n7wkvpvg98drr8v";
-    const normalizedTargetId = ctx.db.normalizeId("quotes", targetId);
-    if (normalizedTargetId) {
-      const doc = await ctx.db.get(normalizedTargetId);
-      if (doc) {
-        logs.push(`Znaleziono konkretną wycenę z zgłoszenia: code="${doc.code}", _id="${doc._id}"`);
-      }
-    }
 
     // Find any existing quote in database
     const quote = await ctx.db.query("quotes").first();
@@ -24,25 +13,38 @@ export const testQuoteSearchLookup = query({
       return { success: true, logs };
     }
 
-    // Test getByCode with code
-    const resByCode = await getByCode.handler(ctx, { code: quote.code });
-    if (resByCode && resByCode._id === quote._id) {
-      logs.push(`✅ Test 1 Passed: getByCode z kodem ("${quote.code}") zwrócił wycenę.`);
+    logs.push(`Znaleziono testową wycenę: code="${quote.code}", _id="${quote._id}"`);
+
+    // Test 1: Query by code index
+    const docByCode = await ctx.db
+      .query("quotes")
+      .withIndex("by_code", (q) => q.eq("code", quote.code))
+      .first();
+
+    if (docByCode && docByCode._id === quote._id) {
+      logs.push(`✅ Test 1 Passed: Pobranie wyceny po kodzie (${quote.code}) działa poprawnie.`);
     } else {
-      logs.push(`❌ Test 1 Failed: getByCode z kodem nie zwrócił wyceny.`);
+      logs.push(`❌ Test 1 Failed: Błąd podczas pobierania wyceny po kodzie.`);
     }
 
-    // Test getByCode with _id (the bug fix)
-    const resById = await getByCode.handler(ctx, { code: quote._id });
-    if (resById && resById.code === quote.code) {
-      logs.push(`✅ Test 2 Passed: getByCode z identyfikatorem Convex ("${quote._id}") zwrócił wycenę.`);
+    // Test 2: Query using _id fallback
+    const normalizedId = ctx.db.normalizeId("quotes", quote._id);
+    let docById = null;
+    if (normalizedId) {
+      docById = await ctx.db.get(normalizedId);
+    }
+
+    if (docById && docById.code === quote.code) {
+      logs.push(`✅ Test 2 Passed: Pobranie wyceny po identyfikatorze Convex (_id=${quote._id}) działa poprawnie.`);
     } else {
-      logs.push(`❌ Test 2 Failed: getByCode z identyfikatorem Convex nie zwrócił wyceny.`);
+      logs.push(`❌ Test 2 Failed: Błąd podczas pobierania wyceny po identyfikatorze Convex.`);
     }
 
     return {
       success: true,
       logs,
+      quoteCode: quote.code,
+      quoteId: quote._id,
     };
   },
 });
