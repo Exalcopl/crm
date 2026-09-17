@@ -173,8 +173,15 @@ export const getByCode = query({
       .query("quotes")
       .withIndex("by_code", (q) => q.eq("code", code))
       .first();
-    if (!doc) return null;
-    return toClientQuote(doc);
+    if (doc) return toClientQuote(doc);
+
+    const normalizedId = ctx.db.normalizeId("quotes", code);
+    if (normalizedId) {
+      const docById = await ctx.db.get(normalizedId);
+      if (docById) return toClientQuote(docById);
+    }
+
+    return null;
   },
 });
 
@@ -278,7 +285,7 @@ export const create = mutation({
       type: "new_quote",
       title: `Nowa wycena ${code}`,
       message: `Utworzono nową wycenę dla: ${args.contact.name}`,
-      link: `/admin/wyceny/${quoteId}`,
+      link: `/admin/wyceny/${code}`,
       entityId: quoteId,
     });
 
@@ -621,7 +628,7 @@ export const createPublic = mutation({
       type: "new_quote",
       title: `Nowa wycena ${code} (Formularz)`,
       message: `Zgłoszenie publiczne od: ${contactName}`,
-      link: `/admin/wyceny/${quoteId}`,
+      link: `/admin/wyceny/${code}`,
       entityId: quoteId,
     });
 

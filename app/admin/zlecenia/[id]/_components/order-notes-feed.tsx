@@ -262,39 +262,37 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
           </span>
         </button>
 
-        {hasPartner && (
-          <button
-            type="button"
-            onClick={() => setActiveTab("partner")}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              background: activeTab === "partner" ? "rgba(37,99,235,0.2)" : "transparent",
-              color: activeTab === "partner" ? "#60a5fa" : "#8b949e",
-              border: activeTab === "partner" ? "1px solid rgba(37,99,235,0.4)" : "1px solid transparent",
-              transition: "all 0.15s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-            }}
-          >
-            <span>💬 {partnerName}</span>
-            {pendingPartnerCount > 0 ? (
-              <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.2)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.4)", padding: "1px 6px", borderRadius: 10 }}>
-                🟡 {pendingPartnerCount}
-              </span>
-            ) : partnerCount > 0 ? (
-              <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", padding: "1px 6px", borderRadius: 10 }}>
-                {partnerCount}
-              </span>
-            ) : null}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setActiveTab("partner")}
+          style={{
+            flex: 1,
+            padding: "6px 10px",
+            borderRadius: 6,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            background: activeTab === "partner" ? "rgba(37,99,235,0.2)" : "transparent",
+            color: activeTab === "partner" ? "#60a5fa" : "#8b949e",
+            border: activeTab === "partner" ? "1px solid rgba(37,99,235,0.4)" : "1px solid transparent",
+            transition: "all 0.15s ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <span>💬 {hasPartner ? partnerName : "Komunikacja z Partnerem"}</span>
+          {pendingPartnerCount > 0 ? (
+            <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.2)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.4)", padding: "1px 6px", borderRadius: 10 }}>
+              🟡 {pendingPartnerCount}
+            </span>
+          ) : partnerCount > 0 ? (
+            <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", padding: "1px 6px", borderRadius: 10 }}>
+              {partnerCount}
+            </span>
+          ) : null}
+        </button>
       </div>
 
       {/* ── Tworzenie Nowej Notatki / Wątku do Partnera ── */}

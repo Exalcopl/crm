@@ -217,7 +217,7 @@ export const querySearch = query({
               label: q.status,
               variant: getQuoteStatusVariant(q.status),
             },
-            url: `/admin/wyceny/${q._id}`,
+            url: `/admin/wyceny/${q.code}`,
             score,
             snippet,
             sharepointWebUrl: q.sharepoint?.webUrl,
