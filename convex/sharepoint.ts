@@ -935,10 +935,14 @@ export const runOcrForFile = action({
     const base64 = Buffer.from(buffer).toString("base64");
 
     const modelsToTry = [
-      "claude-3-5-sonnet-20241022",
+      "claude-sonnet-4-5-20250929",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5-20251001",
+      "claude-opus-4-5-20251101",
       "claude-3-7-sonnet-20250219",
-      "claude-3-5-haiku-20241022",
+      "claude-3-5-sonnet-20241022",
     ];
+
 
     const promptText = `Przeanalizuj ten dokument oferty/wyceny i wyodrębnij WSZYSTKIE dostępne dane.
 
@@ -1130,38 +1134,44 @@ Pole "dodatkowe" wypełnij wszelkimi informacjami z dokumentu które nie zmieśc
           } else {
             const text = await res.text();
             lastErrorText = text;
+            console.warn(`[sharepoint] Anthropic model ${model} zwrócił status ${res.status}: ${text}`);
 
-            if (
-              res.status === 404 ||
-              text.includes("not_found_error") ||
-              text.includes("invalid_request_error") ||
-              res.status === 400
-            ) {
-              console.warn(`Model ${model} niedostępny lub odrzucony (${res.status}), próbuję kolejny model...`);
+            if (text.includes("credit balance is too low") || text.includes("insufficient_quota")) {
+              throw new Error("Brak środków (kredytów) na koncie Anthropic API. Doładuj saldo w panelu Anthropic (Plans & Billing).");
+            }
+            if (text.includes("invalid_api_key") || text.includes("authentication_error")) {
+              throw new Error("Klucz ANTHROPIC_API_KEY w konfiguracji Convex jest nieprawidłowy.");
+            }
+
+            if (res.status === 404 || text.includes("not_found_error")) {
               continue;
             }
             break;
           }
         } catch (err: any) {
+          if (err.message && (err.message.includes("Brak środków") || err.message.includes("Klucz ANTHROPIC_API_KEY"))) {
+            throw err;
+          }
           console.warn(`Nie udało się połączyć z modelem ${model}:`, err);
         }
       }
 
       if (!anthropicRes || !anthropicRes.ok) {
-        // Spróbuj automatycznego awaryjnego przełączenia na Gemini jeśli klucz Gemini jest dostępny
         if (geminiKey) {
-          console.warn("[sharepoint] Anthropic API niedostępne lub brak środków. Automatyczne przełączenie na Gemini API...");
+          console.warn("[sharepoint] Próba awaryjnego odczytu przez Gemini API...");
           try {
             rawText = await executeGeminiOcr();
           } catch (geminiFallbackErr: any) {
-            throw new Error(
-              `Brak środków/dostępu w Anthropic API, a próba użycia Gemini API zwróciła błąd: ${geminiFallbackErr.message}. Zmień dostawcę OCR w Ustawieniach Systemowych.`
-            );
+            throw new Error(`Błąd Anthropic API (${lastErrorText.slice(0, 150)}), a próba użycia Gemini API zwróciła: ${geminiFallbackErr.message}`);
           }
         } else {
-          throw new Error(
-            "Brak aktywnych środków na koncie Anthropic API. Zmień dostawcę silnika AI na 'Google Gemini API' w Ustawieniach Systemowych lub doładuj saldo w panelu Anthropic."
-          );
+          let cleanReason = lastErrorText;
+          try {
+            const parsedErr = JSON.parse(lastErrorText);
+            if (parsedErr.error?.message) cleanReason = parsedErr.error.message;
+          } catch (_) {}
+
+          throw new Error(`Błąd API Anthropic: ${cleanReason || "Nie udało się połączyć z żadnym modelem Anthropic"}`);
         }
       } else {
         const anthropicData = (await anthropicRes.json()) as {
@@ -2098,5 +2108,7 @@ export const uploadPartnerFileToOrder = internalAction({
     };
   },
 });
+
+
 
 

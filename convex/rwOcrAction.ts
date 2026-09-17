@@ -230,41 +230,70 @@ Zwróć WYŁĄCZNIE poprawny kod JSON pasujący do następującej struktury:
         };
       }
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: [
-            {
-              role: "user",
-              content: [
-                contentBlock,
-                { type: "text", text: "Odczytaj wszystkie pozycje z załączonego dokumentu RW i zwróć strukturę JSON." },
-              ],
-            },
-          ],
-        }),
-      });
+      const modelsToTry = [
+        "claude-sonnet-4-5-20250929",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001",
+        "claude-opus-4-5-20251101",
+        "claude-3-5-sonnet-20241022",
+      ];
 
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn(`Claude API error (${res.status}): ${errText}. Falling back to Mock Parser.`);
+      let res: Response | null = null;
+      let lastErrText = "";
+
+      for (const m of modelsToTry) {
+        try {
+          const fetchRes = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "x-api-key": anthropicKey,
+              "anthropic-version": "2023-06-01",
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              model: m,
+              max_tokens: 4096,
+              system: systemPrompt,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    contentBlock,
+                    { type: "text", text: "Odczytaj wszystkie pozycje z załączonego dokumentu RW i zwróć strukturę JSON." },
+                  ],
+                },
+              ],
+            }),
+          });
+
+          if (fetchRes.ok) {
+            res = fetchRes;
+            break;
+          } else {
+            lastErrText = await fetchRes.text();
+            console.warn(`[rwOcr] Anthropic model ${m} error (${fetchRes.status}): ${lastErrText}`);
+            if (fetchRes.status === 404 || lastErrText.includes("not_found_error")) {
+              continue;
+            }
+            break;
+          }
+        } catch (e: any) {
+          console.warn(`[rwOcr] Failed to connect to model ${m}:`, e);
+        }
+      }
+
+      if (!res || !res.ok) {
+        console.warn(`Claude API error: ${lastErrText}. Falling back to Mock Parser.`);
         const mockSections = await generateMockRwData(ctx, args.fileName);
         return {
           success: true,
           isMock: true,
           fileName: args.fileName,
           sections: mockSections,
-          message: `Odpowiedź Claude API: ${res.status}. Użyto automatycznego silnika symulacji (Mock OCR).`,
+          message: `Odpowiedź Claude API: ${lastErrText.slice(0, 150)}. Użyto automatycznego silnika symulacji (Mock OCR).`,
         };
       }
+
 
       const data = await res.json();
       const rawText = data.content?.[0]?.text || "";
