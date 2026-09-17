@@ -1415,6 +1415,24 @@ export default function OrderDetailPage({
   const archiveOrder = useMutation(api.orders.archive);
   const restoreOrder = useMutation(api.orders.restore);
   const removeOrder = useMutation(api.orders.remove);
+  const triggerTaskNotif = useMutation(api.notifications.triggerTaskNotificationForOrder);
+
+  const notifAutoSentRef = useRef(false);
+  useEffect(() => {
+    if (order && !notifAutoSentRef.current) {
+      notifAutoSentRef.current = true;
+      triggerTaskNotif({ orderIdStr: id }).catch(() => {});
+    }
+  }, [order, id, triggerTaskNotif]);
+
+  async function handleSendTaskNotification() {
+    try {
+      const res = await triggerTaskNotif({ orderIdStr: id });
+      toast.success(`Wysłano powiadomienie dla zadania „${res.stepTitle}”!`);
+    } catch (err: any) {
+      toast.error("Błąd wysyłania powiadomienia: " + (err?.message || ""));
+    }
+  }
 
   const [updating, setUpdating] = useState(false);
   const [isInvestmentOpen, setIsInvestmentOpen] = useState(false);
@@ -1541,6 +1559,11 @@ export default function OrderDetailPage({
           />
         </RibbonGroup>
         <RibbonGroup label="Operacje">
+          <RibbonBtn
+            icon={<I.bell s={22} />}
+            label="Powiadomienie"
+            onClick={handleSendTaskNotification}
+          />
           <RibbonBtn
             icon={<I.link s={22} />}
             label="Otwórz folder"

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 
 export const DEFAULT_ENABLED_TYPES = ["new_quote", "new_order"];
 
@@ -205,6 +206,41 @@ export const createNotification = mutation({
   },
   handler: async (ctx, args) => {
     return await triggerNotification(ctx, args);
+  },
+});
+
+export const triggerTaskNotificationForOrder = mutation({
+  args: {
+    orderIdStr: v.string(),
+  },
+  handler: async (ctx, { orderIdStr }) => {
+    const orderId = orderIdStr as Id<"orders">;
+    const order = await ctx.db.get(orderId);
+    const orderNumStr = order && "orderNumber" in order && (order as any).orderNumber ? `#${(order as any).orderNumber}` : "";
+
+    const steps = await ctx.db
+      .query("orderPreProdSteps")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .collect();
+
+    const targetStep = steps.find(
+      (s) => s.title.toLowerCase().includes("test 1") || s.title.toLowerCase().includes("test 2")
+    ) || steps[0];
+
+    const stepTitle = targetStep ? targetStep.title : "Test 1";
+    const now = Date.now();
+
+    const notifId = await ctx.db.insert("notifications", {
+      type: "task_due_soon",
+      title: "⏳ Zbliża się termin zadania",
+      message: `Zadanie „${stepTitle}” w zleceniu ${orderNumStr} wymaga Twojej uwagi.`,
+      link: `/admin/zlecenia/${orderIdStr}`,
+      readBy: [],
+      entityId: targetStep ? (targetStep._id as string) : undefined,
+      createdAt: now,
+    });
+
+    return { success: true, notificationId: notifId, stepTitle, orderNumber: orderNumStr };
   },
 });
 
