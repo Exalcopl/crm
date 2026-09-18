@@ -60,6 +60,8 @@ export type CustomList = {
   title: string;
   color: string;
   items: ChecklistItem[];
+  startDate?: string;
+  endDate?: string;
 };
 
 
@@ -192,6 +194,20 @@ export function CustomChecklistsHeader({
             ? { ...i, startDate: startDate || undefined, endDate: endDate || undefined }
             : i
         ),
+      };
+    });
+    setEditingDatesItemId(null);
+    void updateAndSave(next);
+  }
+
+  function handleSaveListDates(listId: string, startDate?: string, endDate?: string) {
+    if (disabled) return;
+    const next = lists.map((l) => {
+      if (l.id !== listId) return l;
+      return {
+        ...l,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
       };
     });
     setEditingDatesItemId(null);
@@ -632,10 +648,71 @@ export function CustomChecklistsHeader({
                   )}
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5, position: "relative" }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: list.color, background: `${list.color}20`, border: `1px solid ${list.color}44`, padding: "2px 7px", borderRadius: 10 }}>
                     {doneCount}/{totalCount}
                   </span>
+
+                  {(() => {
+                    const badge = getDeadlineBadge(list.startDate, list.endDate, totalCount > 0 && doneCount === totalCount);
+                    if (!badge) return null;
+                    return (
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!disabled) setEditingDatesItemId(editingDatesItemId === list.id ? null : list.id);
+                        }}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: badge.color,
+                          background: badge.bg,
+                          border: `1px solid ${badge.border}`,
+                          padding: "2px 6px",
+                          borderRadius: 8,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          whiteSpace: "nowrap",
+                          cursor: disabled ? "default" : "pointer",
+                        }}
+                        title={`Termin listy: ${list.startDate ? `${list.startDate} — ` : ""}${list.endDate}. Kliknij, aby zmienić.`}
+                      >
+                        <span>{badge.icon}</span>
+                        <span>{badge.label}</span>
+                      </span>
+                    );
+                  })()}
+
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingDatesItemId(editingDatesItemId === list.id ? null : list.id);
+                      }}
+                      style={{
+                        background: editingDatesItemId === list.id ? "rgba(59, 130, 246, 0.2)" : "none",
+                        border: "none",
+                        color: list.endDate ? "#60a5fa" : "#8b949e",
+                        cursor: "pointer",
+                        padding: 3,
+                        borderRadius: 4,
+                        display: "flex",
+                      }}
+                      title="Ustaw datę rozpoczęcia i termin zakończenia listy"
+                    >
+                      <Calendar size={14} />
+                    </button>
+                  )}
+
+                  {editingDatesItemId === list.id && (
+                    <ItemDatePickerPopover
+                      item={{ id: list.id, label: list.title, checked: false, startDate: list.startDate, endDate: list.endDate }}
+                      onSave={(start, end) => handleSaveListDates(list.id, start, end)}
+                      onClose={() => setEditingDatesItemId(null)}
+                    />
+                  )}
 
                   {!disabled && (
                     <>

@@ -373,6 +373,8 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
         title: root.title,
         color: COLOR_PALETTE[i % COLOR_PALETTE.length].hex,
         items,
+        startDate: root.startDate,
+        endDate: root.endDate,
       };
     });
   }, [steps]);
@@ -394,17 +396,36 @@ function OrderGanttChecklists({ orderId }: { orderId: Id<"orders"> }) {
 
       // ── Obsłuż listę (root task) ─────────────────────────────────────
       if (stepMap.has(list.id)) {
-        // Istniejąca lista → sprawdź czy tytuł się zmienił
+        // Istniejąca lista → sprawdź czy tytuł i daty się zmieniły
         rootId = list.id as Id<"orderPreProdSteps">;
         seenIds.add(list.id);
         const root = stepMap.get(list.id)!;
         if (root.title !== list.title) {
           await renameMut({ id: rootId, title: list.title });
         }
+        const normStart = list.startDate || null;
+        const normEnd = list.endDate || null;
+        const stepStart = root.startDate || null;
+        const stepEnd = root.endDate || null;
+        if (stepStart !== normStart || stepEnd !== normEnd) {
+          await updateDatesMut({
+            id: rootId,
+            startDate: normStart,
+            endDate: normEnd,
+            shiftSubtasks: true,
+          });
+        }
       } else {
         // Nowa lista → utwórz root task w Gantt
         rootId = await addMut({ orderId, title: list.title });
         seenIds.add(rootId);
+        if (list.startDate || list.endDate) {
+          await updateDatesMut({
+            id: rootId,
+            startDate: list.startDate || null,
+            endDate: list.endDate || null,
+          });
+        }
       }
 
       // ── Obsłuż checkboxy (items = podzadania) ────────────────────────
