@@ -746,6 +746,48 @@ export default defineSchema({
     .index("by_active", ["isActive"])
     .index("by_client", ["clientId"]),
 
+  products: defineTable({
+    name: v.string(),                         // Nazwa produktu / usługi / obróbki
+    code: v.optional(v.string()),             // Kod wewnętrzny / SKU
+    type: v.union(
+      v.literal("product"),
+      v.literal("service"),
+      v.literal("outsourcing")
+    ),                                        // Typ: produkt, usługa, obróbka zewnętrzna
+    description: v.optional(v.string()),      // Opis
+    unit: v.string(),                         // Jednostka miary (szt., mb., m², kg, kpl., godz.)
+    supplierId: v.optional(v.id("suppliers")),// Przypisany dostawca
+    supplierCode: v.optional(v.string()),     // Kod u dostawcy
+    priceNetto: v.optional(v.number()),       // Cena zakupu / obróbki netto
+    priceBrutto: v.optional(v.number()),      // Cena brutto
+    vatRate: v.optional(v.number()),          // Stawka VAT w % (np. 23)
+    currency: v.optional(v.string()),         // PLN / EUR / USD
+    leadTimeDays: v.optional(v.number()),     // Czas realizacji w dniach
+    category: v.optional(v.string()),        // Kategoria (np. Cięcie, Lakierowanie, Spawanie, CNC)
+    parameters: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+          unit: v.optional(v.string()),
+        })
+      )
+    ),                                        // Parametry techniczne / specyfikacja
+    notes: v.optional(v.string()),            // Notatki wewnętrzne
+    isActive: v.boolean(),                    // Czy aktywny
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_supplier", ["supplierId"])
+    .index("by_type", ["type"])
+    .index("by_category", ["category"])
+    .index("by_name", ["name"])
+    .index("by_active", ["isActive"])
+    .searchIndex("search_name", {
+      searchField: "name",
+      filterFields: ["type", "supplierId", "isActive"],
+    }),
+
   notifications: defineTable({
     type: v.string(), // "new_quote" | "new_order" | string
     title: v.string(),

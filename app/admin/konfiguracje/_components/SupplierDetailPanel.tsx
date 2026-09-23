@@ -385,6 +385,8 @@ export function SupplierDetailPanel({
             </div>
           </div>
         )}
+        {/* Powiązane produkty i usługi */}
+        <SupplierProductsSection supplierId={supplierId} />
 
         {/* Daty */}
         <div
@@ -434,6 +436,80 @@ export function SupplierDetailPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SupplierProductsSection({ supplierId }: { supplierId: Id<"suppliers"> }) {
+  const products = useQuery(api.products.listBySupplier, { supplierId });
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: "#484f58",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          marginBottom: 6,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <span>Oferowane produkty i obróbka ({products?.length ?? 0})</span>
+        <a
+          href="/admin/produkty"
+          style={{ color: "#60a5fa", textTransform: "none", fontSize: 11, fontWeight: 500 }}
+        >
+          + Katalog produktów
+        </a>
+      </div>
+
+      {!products ? (
+        <div style={{ fontSize: 11, color: "#8b949e" }}>Ładowanie produktów...</div>
+      ) : products.length === 0 ? (
+        <div style={{ fontSize: 11, color: "#6e7681", fontStyle: "italic", padding: "6px 0" }}>
+          Brak przypisanych produktów/usług.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {products.map((p) => (
+            <a
+              key={p._id}
+              href={`/admin/produkty/${p._id}`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                background: "#0d1117",
+                border: "1px solid #21262d",
+                borderRadius: 6,
+                padding: "8px 10px",
+                textDecoration: "none",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f6fc" }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 10, color: "#8b949e" }}>
+                  {p.code ? `SKU: ${p.code} • ` : ""}{p.category ?? p.type}
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#60a5fa" }}>
+                  {p.priceNetto !== undefined ? `${p.priceNetto.toFixed(2)} ${p.currency ?? "PLN"}` : "—"}
+                </div>
+                <div style={{ fontSize: 10, color: "#8b949e" }}>
+                  {p.leadTimeDays !== undefined ? `${p.leadTimeDays} dni` : ""}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

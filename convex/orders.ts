@@ -29,6 +29,16 @@ export const list = query({
   },
 });
 
+export const listForApp = query({
+  args: { currentUserId: v.optional(v.string()) },
+  handler: async (ctx) => {
+    const docs = await ctx.db.query("orders").collect();
+    return docs
+      .filter((d) => d.archived !== true)
+      .sort((a, b) => b._creationTime - a._creationTime);
+  },
+});
+
 export const get = query({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {

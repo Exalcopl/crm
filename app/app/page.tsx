@@ -135,6 +135,10 @@ export default function MobileAppPage() {
   const [editingEventId, setEditingEventId] = useState<Id<"calendarEvents"> | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
 
+  // Orders modal state
+  const [ordersOpen, setOrdersOpen] = useState(false);
+  const [orderSearch, setOrderSearch] = useState("");
+
   // Pre-select current user on task modal open
   useEffect(() => {
     if (newTaskOpen && session) {
@@ -161,6 +165,10 @@ export default function MobileAppPage() {
   const categories = useQuery(
     api.calendarCategories.listForApp,
     session ? {} : "skip",
+  ) ?? [];
+  const ordersList = useQuery(
+    api.orders.listForApp,
+    session ? { currentUserId: session.userId } : "skip",
   ) ?? [];
 
   // Monthly date ranges
@@ -714,6 +722,34 @@ export default function MobileAppPage() {
 
         {/* Sygnet – center elevated trigger */}
         <div className={`mobile-nav-sygnet-wrap ${fabExpanded ? "mobile-nav-sygnet-wrap--expanded" : ""}`}>
+          {/* Amber Zamówienia bubble (Top - Larger) */}
+          <button
+            type="button"
+            className="mobile-nav-bubble mobile-nav-bubble--orders"
+            onClick={() => {
+              setFabExpanded(false);
+              setOrdersOpen(true);
+            }}
+            aria-label="Zamówienia"
+            title="Zamówienia"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            <span className="mobile-nav-bubble-tag">Zamówienia</span>
+          </button>
+
           {/* Green Zadania bubble (Left) */}
           <button
             type="button"
@@ -726,8 +762,8 @@ export default function MobileAppPage() {
             title="Nowe zadanie"
           >
             <svg
-              width="22"
-              height="22"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -738,6 +774,7 @@ export default function MobileAppPage() {
               <path d="M9 11l3 3L22 4" />
               <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
             </svg>
+            <span className="mobile-nav-bubble-tag">Zadanie</span>
           </button>
 
           {/* Blue Zdarzenie bubble (Right) */}
@@ -751,7 +788,8 @@ export default function MobileAppPage() {
             aria-label="Utwórz zdarzenie"
             title="Nowe zdarzenie"
           >
-            <I.cal s={20} />
+            <I.cal s={18} />
+            <span className="mobile-nav-bubble-tag">Wydarzenie</span>
           </button>
 
           {/* Red + sygnet */}
@@ -1026,7 +1064,90 @@ export default function MobileAppPage() {
         </div>
       )}
 
-      {/* ── Confirm Dialog Sheet ── */}
+      {/* ── Bottom Sheet – Zamówienia ── */}
+      {ordersOpen && (
+        <div
+          className="mobile-sheet-backdrop"
+          onClick={(e) => e.target === e.currentTarget && setOrdersOpen(false)}
+        >
+          <div className="mobile-sheet" style={{ maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+            <div className="mobile-sheet-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <h2 className="mobile-sheet-title">Zamówienia</h2>
+                <span className="mobile-tab-badge" style={{ background: "#f59e0b", color: "#000", fontWeight: "700" }}>
+                  {ordersList.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="mobile-sheet-close"
+                onClick={() => setOrdersOpen(false)}
+                aria-label="Zamknij"
+              >
+                <I.x s={20} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div style={{ padding: "0 16px 12px" }}>
+              <input
+                type="text"
+                className="mobile-input"
+                placeholder="Szukaj zamówienia…"
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+              />
+            </div>
+
+            {/* List */}
+            <div style={{ overflowY: "auto", padding: "0 16px 24px", display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
+              {ordersList.length === 0 ? (
+                <div className="mobile-empty">
+                  <div style={{ fontSize: "28px", marginBottom: "6px" }}>📦</div>
+                  <div>Brak zamówień w bazie danych</div>
+                </div>
+              ) : (
+                ordersList
+                  .filter((ord: any) => {
+                    if (!orderSearch.trim()) return true;
+                    const q = orderSearch.toLowerCase();
+                    const code = (ord.code || "").toLowerCase();
+                    const name = (ord.contact?.name || "").toLowerCase();
+                    return code.includes(q) || name.includes(q);
+                  })
+                  .map((ord: any) => (
+                    <div key={ord._id} className="mobile-task-card" style={{ borderLeft: "4px solid #f59e0b" }}>
+                      <div className="mobile-task-card-header">
+                        <h3 className="mobile-task-card-title">
+                          {ord.code || "Zamówienie"}
+                        </h3>
+                        <span className="mobile-status-pill" style={{ background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", borderColor: "rgba(245, 158, 11, 0.3)" }}>
+                          {ord.status || "w_realizacji"}
+                        </span>
+                      </div>
+                      {ord.contact?.name && (
+                        <div className="mobile-task-card-desc">
+                          Klient: <strong>{ord.contact.name}</strong>
+                        </div>
+                      )}
+                      <div className="mobile-task-card-footer">
+                        <div className="mobile-task-meta">
+                          <I.cal s={11} />
+                          {new Date(ord._creationTime).toLocaleDateString("pl-PL")}
+                        </div>
+                        {ord.valueNetto != null && (
+                          <div style={{ fontSize: "12px", fontWeight: "600", color: "#4ade80" }}>
+                            {ord.valueNetto.toLocaleString("pl-PL")} PLN
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {confirmDialog && (
         <div className="mobile-sheet-backdrop" style={{ zIndex: 110 }}>
           <div className="mobile-confirm-dialog">

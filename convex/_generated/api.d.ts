@@ -32,6 +32,7 @@ import type * as orderRw from "../orderRw.js";
 import type * as orders from "../orders.js";
 import type * as partners from "../partners.js";
 import type * as permissions from "../permissions.js";
+import type * as products from "../products.js";
 import type * as projectTypeDefaultTasks from "../projectTypeDefaultTasks.js";
 import type * as projectTypeGallery from "../projectTypeGallery.js";
 import type * as projectTypeQuestions from "../projectTypeQuestions.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   orders: typeof orders;
   partners: typeof partners;
   permissions: typeof permissions;
+  products: typeof products;
   projectTypeDefaultTasks: typeof projectTypeDefaultTasks;
   projectTypeGallery: typeof projectTypeGallery;
   projectTypeQuestions: typeof projectTypeQuestions;
