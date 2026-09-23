@@ -14,7 +14,7 @@ export function ServiceWorkerRegistrar() {
     }
 
     navigator.serviceWorker
-      .register("/sw.js", { scope: "/app/" })
+      .register("/sw.js", { scope: "/" })
       .then((registration) => {
         console.log("[PWA] Service Worker zarejestrowany:", registration.scope);
 

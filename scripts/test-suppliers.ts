@@ -25,7 +25,7 @@ async function main() {
   function ok(msg: string) { console.log(`  ✅ ${msg}`); passed++; }
   function fail(msg: string) { console.log(`  ❌ ${msg}`); failed++; }
 
-  const testNip = "5213003529"; // Microsoft Polska — NIP o poprawnej sumie kontrolnej
+  const testNip = "5261040828"; // NIP z prawidłową sumą kontrolną (test)
   const testName = "TEST Dostawca Sp. z o.o.";
   let createdId: string | null = null;
 
