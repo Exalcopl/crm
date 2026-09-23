@@ -14,10 +14,12 @@ import {
   Upload,
   Trash2,
   ArrowLeft,
+  PenTool,
 } from "lucide-react";
 import { toast } from "sonner";
 import { I } from "../../../_lib/icons";
 import { RibbonBtn, RibbonGroup } from "../../../_components/ribbon";
+import { PaintEditor } from "../../_components/PaintEditor";
 
 const COMMON_UNITS = ["szt.", "mb.", "m²", "kg", "kpl.", "godz.", "usł."];
 
@@ -35,6 +37,8 @@ export default function EditProductPage() {
   const [unit, setUnit] = useState("szt.");
   const [customUnit, setCustomUnit] = useState("");
   const [description, setDescription] = useState("");
+
+  const [imageSourceMode, setImageSourceMode] = useState<"upload" | "draw">("upload");
 
   // Image Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -100,6 +104,13 @@ export default function EditProductPage() {
   const handleRemoveImage = () => {
     setSelectedFile(null);
     setImagePreview(null);
+    setExistingImageId(undefined);
+  };
+
+  const handleApplyDrawing = (file: File) => {
+    setSelectedFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setImageSourceMode("upload");
     setExistingImageId(undefined);
   };
 
@@ -347,56 +358,107 @@ export default function EditProductPage() {
             {/* Prawa kolumna: Zdjęcie */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ ...cardStyle, flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
-                  <ImageIcon size={13} style={{ color: "#60a5fa" }} /> Obraz / Miniatura
-                </div>
-
-                {imagePreview ? (
-                  <div style={{ position: "relative", width: "100%", flex: 1, minHeight: 250, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={imagePreview}
-                      alt="Podgląd zdjęcia"
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
+                    <ImageIcon size={13} style={{ color: "#60a5fa" }} /> Grafika Pozycji
+                  </div>
+                  
+                  <div style={{ display: "flex", background: "#0d1117", borderRadius: 6, border: "1px solid #30363d", padding: 2 }}>
                     <button
                       type="button"
-                      onClick={handleRemoveImage}
-                      style={{ position: "absolute", top: 6, right: 6, background: "rgba(248,81,73,0.9)", color: "#fff", border: "none", borderRadius: 4, padding: 4, cursor: "pointer" }}
-                      title="Usuń zdjęcie"
+                      onClick={() => setImageSourceMode("upload")}
+                      style={{
+                        background: imageSourceMode === "upload" ? "#21262d" : "transparent",
+                        color: imageSourceMode === "upload" ? "#c9d1d9" : "#8b949e",
+                        border: "none",
+                        borderRadius: 4,
+                        padding: "4px 12px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}
                     >
-                      <Trash2 size={13} />
+                      <Upload size={12} /> Wgraj plik
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageSourceMode("draw")}
+                      style={{
+                        background: imageSourceMode === "draw" ? "#21262d" : "transparent",
+                        color: imageSourceMode === "draw" ? "#c9d1d9" : "#8b949e",
+                        border: "none",
+                        borderRadius: 4,
+                        padding: "4px 12px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6
+                      }}
+                    >
+                      <PenTool size={12} /> Stwórz szkic
                     </button>
                   </div>
+                </div>
+
+                {imageSourceMode === "draw" ? (
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 400 }}>
+                    <PaintEditor onApply={handleApplyDrawing} />
+                  </div>
                 ) : (
-                  <label
-                    style={{
-                      border: "2px dashed #30363d",
-                      borderRadius: 6,
-                      flex: 1,
-                      minHeight: 250,
-                      padding: 20,
-                      textAlign: "center",
-                      cursor: "pointer",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                      background: "#0d1117",
-                      transition: "border 150ms",
-                    }}
-                  >
-                    <Upload size={32} style={{ color: "#8b949e" }} />
-                    <span style={{ fontSize: 12, color: "#c9d1d9", fontWeight: 600 }}>Przeciągnij lub kliknij, aby wgrać zdjęcie</span>
-                    <span style={{ fontSize: 10, color: "#8b949e" }}>JPG, PNG, WEBP (max 10MB)</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageSelect}
-                      style={{ display: "none" }}
-                    />
-                  </label>
+                  <>
+                    {imagePreview ? (
+                      <div style={{ position: "relative", width: "100%", flex: 1, minHeight: 250, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={imagePreview}
+                          alt="Podgląd zdjęcia"
+                          style={{ width: "100%", height: "100%", objectFit: "contain", background: "#0d1117" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          style={{ position: "absolute", top: 6, right: 6, background: "rgba(248,81,73,0.9)", color: "#fff", border: "none", borderRadius: 4, padding: 6, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          title="Usuń zdjęcie"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label
+                        style={{
+                          border: "2px dashed #30363d",
+                          borderRadius: 6,
+                          flex: 1,
+                          minHeight: 250,
+                          padding: 20,
+                          textAlign: "center",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 8,
+                          background: "#0d1117",
+                          transition: "border 150ms",
+                        }}
+                      >
+                        <Upload size={32} style={{ color: "#8b949e" }} />
+                        <span style={{ fontSize: 12, color: "#c9d1d9", fontWeight: 600 }}>Przeciągnij lub kliknij, aby wgrać zdjęcie</span>
+                        <span style={{ fontSize: 10, color: "#8b949e" }}>JPG, PNG, WEBP (max 10MB)</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageSelect}
+                          style={{ display: "none" }}
+                        />
+                      </label>
+                    )}
+                  </>
                 )}
               </div>
             </div>
