@@ -7,10 +7,11 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { TemplateEditorModal } from "./_components/TemplateEditorModal";
 import { SingleTemplateEditorModal } from "./_components/SingleTemplateEditorModal";
 import { type CustomList } from "../_components/CustomChecklistsHeader";
-import { CheckSquare, Plus, Edit3, Trash2, Star, Search, Sliders, AlertTriangle, FileText, ListTodo, Layers, LayoutGrid } from "lucide-react";
+import { CheckSquare, Plus, Edit3, Trash2, Star, Search, Sliders, AlertTriangle, FileText, ListTodo, Layers, LayoutGrid, Truck } from "lucide-react";
+import { SuppliersTab } from "./_components/SuppliersTab";
 import { toast } from "sonner";
 
-type MainTab = "szablony-checklist" | "domyslne-zadania" | "szybkie-notatki";
+type MainTab = "szablony-checklist" | "dostawcy";
 type TemplateScopeTab = "single" | "full_set";
 
 export default function KonfiguracjePage() {
@@ -195,15 +196,15 @@ export default function KonfiguracjePage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab("domyslne-zadania")}
+          onClick={() => setActiveTab("dostawcy")}
           style={{
-            background: activeTab === "domyslne-zadania" ? "rgba(59, 130, 246, 0.15)" : "transparent",
+            background: activeTab === "dostawcy" ? "rgba(59, 130, 246, 0.15)" : "transparent",
             border: "none",
-            borderBottom: activeTab === "domyslne-zadania" ? "2px solid #3b82f6" : "2px solid transparent",
+            borderBottom: activeTab === "dostawcy" ? "2px solid #3b82f6" : "2px solid transparent",
             borderRadius: "6px 6px 0 0",
-            color: activeTab === "domyslne-zadania" ? "#60a5fa" : "#8b949e",
+            color: activeTab === "dostawcy" ? "#60a5fa" : "#8b949e",
             fontSize: 12,
-            fontWeight: 600,
+            fontWeight: 700,
             padding: "8px 14px",
             cursor: "pointer",
             display: "inline-flex",
@@ -211,32 +212,8 @@ export default function KonfiguracjePage() {
             gap: 6,
           }}
         >
-          <ListTodo size={14} />
-          <span>Domyślne Zadania</span>
-          <span style={{ fontSize: 9, background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 4, color: "#8b949e" }}>wkrótce</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("szybkie-notatki")}
-          style={{
-            background: activeTab === "szybkie-notatki" ? "rgba(59, 130, 246, 0.15)" : "transparent",
-            border: "none",
-            borderBottom: activeTab === "szybkie-notatki" ? "2px solid #3b82f6" : "2px solid transparent",
-            borderRadius: "6px 6px 0 0",
-            color: activeTab === "szybkie-notatki" ? "#60a5fa" : "#8b949e",
-            fontSize: 12,
-            fontWeight: 600,
-            padding: "8px 14px",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <FileText size={14} />
-          <span>Szybkie Notatki</span>
-          <span style={{ fontSize: 9, background: "rgba(255,255,255,0.06)", padding: "1px 5px", borderRadius: 4, color: "#8b949e" }}>wkrótce</span>
+          <Truck size={14} />
+          <span>Dostawcy</span>
         </button>
       </div>
 
@@ -621,16 +598,8 @@ export default function KonfiguracjePage() {
         </div>
       )}
 
-      {/* Tab Placeholder for Future Operational Settings */}
-      {activeTab !== "szablony-checklist" && (
-        <div style={{ textAlign: "center", padding: "60px 20px", background: "#161b22", borderRadius: 8, border: "1px solid #30363d" }}>
-          <Sliders size={36} style={{ color: "#3b82f6", marginBottom: 10 }} />
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#f0f6fc" }}>Sekcja w przygotowaniu</div>
-          <p style={{ fontSize: 12, color: "#8b949e", maxWidth: 400, margin: "6px auto 0 auto" }}>
-            Ta zakładka pomieści w przyszłości dodatkowe konfiguracje pracownicze (np. szablonowe wzorce zadań, słowniki i notatki).
-          </p>
-        </div>
-      )}
+      {/* Tab: Dostawcy */}
+      {activeTab === "dostawcy" && <SuppliersTab />}
 
       {/* Full Set Template Editor Modal */}
       {isFullSetEditorOpen && (

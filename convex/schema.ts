@@ -723,6 +723,29 @@ export default defineSchema({
     .index("by_client", ["clientId"])
     .index("by_active", ["isActive"]),
 
+  suppliers: defineTable({
+    nip: v.string(),              // NIP (wymagany, unikalny)
+    nipNormalized: v.string(),    // Cyfry tylko, do wyszukiwania
+    name: v.string(),             // Nazwa firmy
+    street: v.optional(v.string()),
+    city: v.optional(v.string()),
+    postalCode: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    iban: v.optional(v.string()),        // Numer konta IBAN
+    paymentDays: v.optional(v.number()), // Termin płatności w dniach
+    category: v.optional(v.string()),    // Kategoria / branża
+    notes: v.optional(v.string()),
+    isActive: v.boolean(),
+    clientId: v.optional(v.id("clients")), // Powiązany klient CRM
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_nip", ["nipNormalized"])
+    .index("by_name", ["name"])
+    .index("by_active", ["isActive"])
+    .index("by_client", ["clientId"]),
+
   notifications: defineTable({
     type: v.string(), // "new_quote" | "new_order" | string
     title: v.string(),

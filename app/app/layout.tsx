@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "../admin/fluent.css";
 import "./app.css";
 import { InstallPWAModal } from "./InstallPWAModal";
+import { ServiceWorkerRegistrar } from "./ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   title: "Exalco Tasks",
@@ -33,6 +34,7 @@ export const viewport: Viewport = {
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="mobile-app-shell" data-theme="carbon" data-density="compact">
+      <ServiceWorkerRegistrar />
       {children}
       <InstallPWAModal />
     </div>
