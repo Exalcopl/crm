@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Exalco Tasks",
-    short_name: "Zadania",
-    description: "Exalco CRM Mobile Task Manager",
+    name: "Biuro",
+    short_name: "Biuro",
+    description: "Exalco CRM – Biuro",
     start_url: "/app",
     // scope: "/" pozwala na poprawne działanie manifestu serwowanego z roota
     // (manifest.webmanifest jest pod /, więc scope musi być "/" lub podkatalogiem)

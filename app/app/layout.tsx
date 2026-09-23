@@ -6,12 +6,12 @@ import { InstallPWAModal } from "./InstallPWAModal";
 import { ServiceWorkerRegistrar } from "./ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
-  title: "Exalco Tasks",
-  description: "Mobilna aplikacja do zarządzania zadaniami Exalco CRM",
+  title: "Biuro",
+  description: "Exalco CRM – Biuro",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Zadania",
+    title: "Biuro",
   },
   icons: {
     apple: "/apple-touch-icon.png",
