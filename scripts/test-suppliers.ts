@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+export {};
 /**
  * Test automatyczny — weryfikacja zapisu i odczytu dostawców (suppliers) w Convex local.
  * Uruchamiać: npx tsx scripts/test-suppliers.ts

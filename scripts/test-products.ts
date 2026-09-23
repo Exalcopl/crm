@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+export {};
 /**
  * Test automatyczny — weryfikacja zapisu i odczytu produktów/usług obróbki w Convex local.
  * Uruchamiać: npx tsx scripts/test-products.ts

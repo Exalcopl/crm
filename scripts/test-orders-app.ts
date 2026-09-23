@@ -12,8 +12,8 @@ async function runTest() {
     if (orders.length > 0) {
       console.log("Przykładowe zamówienie:", {
         id: orders[0]._id,
-        code: orders[0].code,
-        clientName: orders[0].contact?.name,
+        orderNumber: (orders[0] as any).orderNumber || (orders[0] as any).customLabel,
+        clientName: (orders[0] as any).clientName,
         status: orders[0].status,
       });
     }

@@ -10,7 +10,7 @@ import { toast } from "sonner";
 interface ParameterItem {
   key: string;
   value: string;
-  unit: string;
+  unit?: string;
 }
 
 interface ProductFormModalProps {
