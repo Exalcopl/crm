@@ -25,6 +25,7 @@ import {
   MapPin,
   Calendar,
   Sliders,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ProductFormModal } from "../_components/ProductFormModal";
@@ -41,7 +42,7 @@ export default function ProductDetailPage() {
 
   if (product === undefined) {
     return (
-      <div className="min-h-screen bg-gray-50/50 p-6 flex items-center justify-center text-gray-400">
+      <div style={{ minHeight: "100vh", background: "#0d1117", padding: 40, color: "#8b949e", textAlign: "center", fontSize: 13 }}>
         Ładowanie szczegółów pozycji...
       </div>
     );
@@ -49,13 +50,13 @@ export default function ProductDetailPage() {
 
   if (product === null) {
     return (
-      <div className="min-h-screen bg-gray-50/50 p-6 space-y-4 text-center">
-        <p className="text-gray-500 font-medium">Nie znaleziono produktu ani usługi o podanym ID.</p>
+      <div style={{ minHeight: "100vh", background: "#0d1117", padding: 40, color: "#8b949e", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        <div style={{ fontSize: 14, color: "#f0f6fc", fontWeight: 700 }}>Nie znaleziono pozycji w katalogu.</div>
         <Link
           href="/admin/produkty"
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+          style={{ background: "#3b82f6", color: "#fff", padding: "8px 16px", borderRadius: 6, textDecoration: "none", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}
         >
-          <ArrowLeft className="h-4 w-4" /> Powrót do Katalogu
+          <ArrowLeft size={14} /> Powrót do Katalogu
         </Link>
       </div>
     );
@@ -77,258 +78,251 @@ export default function ProductDetailPage() {
     switch (type) {
       case "outsourcing":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-1 text-xs font-bold text-purple-700 border border-purple-200">
-            <Wrench className="h-4 w-4" /> Obróbka Zewnętrzna (Outsourcing)
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(168, 85, 247, 0.12)", border: "1px solid rgba(168, 85, 247, 0.3)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 700, color: "#c084fc" }}>
+            <Wrench size={13} /> Obróbka Zewnętrzna (Outsourcing)
           </span>
         );
       case "service":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200">
-            <Layers className="h-4 w-4" /> Usługa
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(59, 130, 246, 0.12)", border: "1px solid rgba(59, 130, 246, 0.3)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 700, color: "#60a5fa" }}>
+            <Layers size={13} /> Usługa Zewnętrzna
           </span>
         );
       case "product":
         return (
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
-            <Package className="h-4 w-4" /> Produkt / Materiał
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: 4, padding: "3px 8px", fontSize: 11, fontWeight: 700, color: "#4ade80" }}>
+            <Package size={13} /> Produkt / Komponent
           </span>
         );
     }
   };
 
+  const cardStyle: React.CSSProperties = {
+    background: "#161b22",
+    border: "1px solid #30363d",
+    borderRadius: 8,
+    padding: 18,
+    color: "#f0f6fc",
+  };
+
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#8b949e",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    borderBottom: "1px solid #21262d",
+    paddingBottom: 8,
+    marginBottom: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50/50 p-6 space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-        <div className="space-y-2">
+    <div style={{ padding: 20, background: "#0d1117", minHeight: "100vh", color: "#f0f6fc", display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header Bar */}
+      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyBetween: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <Link
             href="/admin/produkty"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
+            style={{ fontSize: 11, color: "#8b949e", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
           >
-            <ArrowLeft className="h-3.5 w-3.5" /> Powrót do Katalogu Produktów i Usług
+            <ArrowLeft size={12} /> Powrót do Katalogu Produktów i Usług
           </Link>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-black text-gray-900">{product.name}</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f0f6fc", margin: 0 }}>{product.name}</h1>
             {getTypeBadge(product.type)}
             {product.isActive ? (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Aktywny
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#4ade80" }}>
+                <CheckCircle2 size={11} /> Aktywny
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200">
-                <XCircle className="h-3.5 w-3.5" /> Nieaktywny
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(139, 148, 158, 0.1)", border: "1px solid rgba(139, 148, 158, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#8b949e" }}>
+                <XCircle size={11} /> Nieaktywny
               </span>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
           <button
             onClick={() => setIsEditModalOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-all"
+            style={{ background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.4)", borderRadius: 6, color: "#60a5fa", fontSize: 12, fontWeight: 700, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
           >
-            <Edit3 className="h-4 w-4" /> Edytuj
+            <Edit3 size={13} /> Edytuj
           </button>
           <button
             onClick={handleDelete}
-            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-all"
+            style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", borderRadius: 6, color: "#f85149", fontSize: 12, fontWeight: 700, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
           >
-            <Trash2 className="h-4 w-4" /> Usuń
+            <Trash2 size={13} /> Usuń
           </button>
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Columns */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Main Info Card */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
-              <FileText className="h-5 w-5 text-blue-600" /> Podstawowe Informacje
-            </h2>
+      {/* Main Grid Layout */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
+        {/* Left Column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Base Info Card */}
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>
+              <FileText size={15} style={{ color: "#60a5fa" }} /> Podstawowe Informacje i Klasyfikacja
+            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                <span className="text-xs text-gray-500 font-medium block">Kod / SKU Wewnętrzny</span>
-                <span className="text-sm font-bold text-gray-900">{product.code ?? "—"}</span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
+              <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 10 }}>
+                <div style={{ fontSize: 10, color: "#8b949e" }}>Kod / SKU Wewnętrzny</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc", marginTop: 2 }}>{product.code ?? "—"}</div>
               </div>
 
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                <span className="text-xs text-gray-500 font-medium block">Jednostka Miary</span>
-                <span className="text-sm font-bold text-gray-900">{product.unit}</span>
+              <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 10 }}>
+                <div style={{ fontSize: 10, color: "#8b949e" }}>Jednostka Miary</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc", marginTop: 2 }}>{product.unit}</div>
               </div>
 
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                <span className="text-xs text-gray-500 font-medium block">Kategoria</span>
-                <span className="text-sm font-bold text-gray-900">{product.category ?? "Główna"}</span>
-              </div>
-
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                <span className="text-xs text-gray-500 font-medium block flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 text-gray-400" /> Data Dodania
-                </span>
-                <span className="text-xs font-semibold text-gray-700">
-                  {new Date(product.createdAt).toLocaleDateString("pl-PL")}
-                </span>
-              </div>
-
-              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
-                <span className="text-xs text-gray-500 font-medium block flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 text-gray-400" /> Ostatnia Aktualizacja
-                </span>
-                <span className="text-xs font-semibold text-gray-700">
-                  {new Date(product.updatedAt).toLocaleDateString("pl-PL")}
-                </span>
+              <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 10 }}>
+                <div style={{ fontSize: 10, color: "#8b949e" }}>Kategoria</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc", marginTop: 2 }}>{product.category ?? "Główna"}</div>
               </div>
             </div>
 
-            {/* Financial Card */}
-            <div className="bg-gradient-to-br from-emerald-50/50 to-blue-50/50 p-5 rounded-xl border border-emerald-100/80 space-y-3">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <DollarSign className="h-4 w-4 text-emerald-600" /> Warunki Cenowe Zakupu / Obróbki
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Price Box */}
+            <div style={{ background: "rgba(34, 197, 94, 0.05)", border: "1px solid rgba(34, 197, 94, 0.2)", borderRadius: 6, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#4ade80", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                <DollarSign size={14} /> Warunki Cenowe Obróbki
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                 <div>
-                  <span className="text-xs text-gray-500 font-medium block">Cena Zakupu Netto</span>
-                  <span className="text-xl font-black text-gray-900">
-                    {product.priceNetto !== undefined
-                      ? `${product.priceNetto.toFixed(2)} ${product.currency ?? "PLN"}`
-                      : "Nieokreślono"}
-                  </span>
+                  <div style={{ fontSize: 10, color: "#8b949e" }}>Cena Netto</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#f0f6fc" }}>
+                    {product.priceNetto !== undefined ? `${product.priceNetto.toFixed(2)} ${product.currency ?? "PLN"}` : "—"}
+                  </div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-gray-500 font-medium block">Stawka VAT</span>
-                  <span className="text-lg font-bold text-gray-800">
-                    {product.vatRate ?? 23}%
-                  </span>
+                  <div style={{ fontSize: 10, color: "#8b949e" }}>Stawka VAT</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: "#c9d1d9" }}>{product.vatRate ?? 23}%</div>
                 </div>
 
                 <div>
-                  <span className="text-xs text-gray-500 font-medium block">Cena Brutto</span>
-                  <span className="text-xl font-black text-emerald-700">
-                    {product.priceBrutto !== undefined
-                      ? `${product.priceBrutto.toFixed(2)} ${product.currency ?? "PLN"}`
-                      : "—"}
-                  </span>
+                  <div style={{ fontSize: 10, color: "#8b949e" }}>Wyliczona Cena Brutto</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80" }}>
+                    {product.priceBrutto !== undefined ? `${product.priceBrutto.toFixed(2)} ${product.currency ?? "PLN"}` : "—"}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Technical Parameters Card */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
-              <Sliders className="h-5 w-5 text-purple-600" /> Specyfikacja i Parametry Techniczne
-            </h2>
+          {/* Technical Specs */}
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>
+              <Sliders size={15} style={{ color: "#c084fc" }} /> Specyfikacja i Warianty Techniczne
+            </div>
 
             {!product.parameters || product.parameters.length === 0 ? (
-              <p className="text-xs text-gray-400 italic bg-gray-50 p-4 rounded-xl text-center">
-                Brak zdefiniowanych dodatkowych parametrów technicznych.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-100 text-gray-400 uppercase font-semibold">
-                      <th className="py-2.5 px-3">Parametr / Cecha</th>
-                      <th className="py-2.5 px-3">Wartość</th>
-                      <th className="py-2.5 px-3">Jednostka</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 font-medium text-gray-800">
-                    {product.parameters.map((param, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="py-2.5 px-3 font-semibold text-gray-900">{param.key}</td>
-                        <td className="py-2.5 px-3">{param.value}</td>
-                        <td className="py-2.5 px-3 text-gray-500">{param.unit ?? "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: 12, borderRadius: 6, textCenter: "center" }}>
+                Brak zdefiniowanych parametrów technicznych (np. Kolor RAL, Grubość, Typ powłoki).
               </div>
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: "#0d1117", borderBottom: "1px solid #21262d", color: "#8b949e", fontSize: 10, textTransform: "uppercase" }}>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Parametr</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Wartość</th>
+                    <th style={{ padding: "8px 10px", textAlign: "left" }}>Jednostka</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {product.parameters.map((param, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #21262d" }}>
+                      <td style={{ padding: "8px 10px", fontWeight: 700, color: "#f0f6fc" }}>{param.key}</td>
+                      <td style={{ padding: "8px 10px", color: "#c9d1d9" }}>{param.value}</td>
+                      <td style={{ padding: "8px 10px", color: "#8b949e" }}>{param.unit ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
 
-          {/* Descriptions & Notes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-              <h3 className="text-sm font-bold text-gray-900">Opis Techniczny / Zakres Obróbki</h3>
-              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">
+          {/* Description & Notes */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", marginBottom: 6 }}>Opis Techniczny / Zakres Obróbki</div>
+              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whitespace: "pre-wrap" }}>
                 {product.description || "Brak opisu."}
-              </p>
+              </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-              <h3 className="text-sm font-bold text-gray-900">Notatki Wewnętrzne</h3>
-              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">
-                {product.notes || "Brak wewnętrznych uwag."}
-              </p>
+            <div style={cardStyle}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", marginBottom: 6 }}>Notatki Wewnętrzne</div>
+              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whitespace: "pre-wrap" }}>
+                {product.notes || "Brak notatek."}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Supplier & Lead Time */}
-        <div className="space-y-6">
+        {/* Right Sidebar Column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Supplier Card */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
-              <Truck className="h-5 w-5 text-blue-600" /> Wykonawca / Dostawca
-            </h2>
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>
+              <Truck size={15} style={{ color: "#60a5fa" }} /> Wykonawca Obróbki
+            </div>
 
             {product.supplier ? (
-              <div className="space-y-4">
-                <div className="flex items-start justify-between">
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">{product.supplier.name}</h3>
-                    <p className="text-xs text-gray-500">NIP: {product.supplier.nip}</p>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc" }}>{product.supplier.name}</div>
+                    <div style={{ fontSize: 11, color: "#8b949e", fontFamily: "monospace", marginTop: 2 }}>NIP: {product.supplier.nip}</div>
                   </div>
                   <Link
                     href="/admin/konfiguracje"
-                    className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                    title="Przejdź do dostawcy"
+                    style={{ padding: 6, background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.3)", borderRadius: 6, color: "#60a5fa" }}
+                    title="Przejdź do dostawców"
                   >
-                    <Building2 className="h-4 w-4" />
+                    <Building2 size={15} />
                   </Link>
                 </div>
 
                 {product.supplierCode && (
-                  <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-xs">
-                    <span className="text-gray-500 font-medium block">Kod / SKU u Dostawcy</span>
-                    <span className="font-bold text-blue-900">{product.supplierCode}</span>
+                  <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 8, fontSize: 11 }}>
+                    <div style={{ fontSize: 10, color: "#8b949e" }}>Kod SKU u Wykonawcy</div>
+                    <div style={{ fontWeight: 700, color: "#60a5fa" }}>{product.supplierCode}</div>
                   </div>
                 )}
 
-                <div className="space-y-2 pt-2 border-t border-gray-100 text-xs text-gray-600">
+                <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "#c9d1d9" }}>
                   {product.supplier.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-3.5 w-3.5 text-gray-400" />
-                      <span>{product.supplier.phone}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Phone size={12} style={{ color: "#8b949e" }} /> {product.supplier.phone}
                     </div>
                   )}
                   {product.supplier.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-3.5 w-3.5 text-gray-400" />
-                      <span>{product.supplier.email}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Mail size={12} style={{ color: "#8b949e" }} /> {product.supplier.email}
                     </div>
                   )}
                   {product.supplier.city && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                      <span>{product.supplier.city}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <MapPin size={12} style={{ color: "#8b949e" }} /> {product.supplier.city}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              <div className="p-6 text-center bg-gray-50 rounded-xl space-y-2 border border-dashed border-gray-200">
-                <Building2 className="h-8 w-8 text-gray-300 mx-auto" />
-                <p className="text-xs text-gray-500 font-medium">Brak przypisanego dostawcy.</p>
+              <div style={{ padding: 20, textAlign: "center", background: "#0d1117", borderRadius: 6, border: "1px dashed #30363d", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <Building2 size={24} style={{ color: "#484f58" }} />
+                <div style={{ fontSize: 11, color: "#8b949e" }}>Brak przypisanego dostawcy.</div>
                 <button
                   onClick={() => setIsEditModalOpen(true)}
-                  className="text-xs font-bold text-blue-600 hover:underline"
+                  style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
                 >
                   + Przypisz dostawcę
                 </button>
@@ -337,31 +331,41 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Lead Time Card */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-            <h2 className="text-base font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-3">
-              <Clock className="h-5 w-5 text-amber-500" /> Czas Realizacji Obróbki
-            </h2>
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>
+              <Clock size={15} style={{ color: "#fbbf24" }} /> Czas Realizacji
+            </div>
 
             {product.leadTimeDays !== undefined ? (
-              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 flex items-center gap-4">
-                <div className="p-3 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20">
-                  <Clock className="h-6 w-6" />
+              <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 6, padding: 14, display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 6, background: "#fbbf24", color: "#000", display: "grid", placeItems: "center" }}>
+                  <Clock size={20} />
                 </div>
                 <div>
-                  <span className="text-2xl font-black text-amber-900">{product.leadTimeDays}</span>
-                  <span className="text-xs font-bold text-amber-700 block">
+                  <div style={{ fontSize: 20, fontWeight: 900, color: "#fbbf24" }}>{product.leadTimeDays}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#c9d1d9" }}>
                     {product.leadTimeDays === 1 ? "Dzień roboczy" : "Dni robocze"}
-                  </span>
+                  </div>
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 italic">Nie podano deklarowanego czasu realizacji.</p>
+              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic" }}>Nie określono czasu realizacji.</div>
             )}
+          </div>
+
+          {/* Dates Card */}
+          <div style={{ ...cardStyle, fontSize: 11, color: "#8b949e", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <Calendar size={12} /> Utworzono: <strong style={{ color: "#c9d1d9" }}>{new Date(product.createdAt).toLocaleDateString("pl-PL")}</strong>
+            </div>
+            <div style={{ display: "flex", items: "center", gap: 6 }}>
+              <Calendar size={12} /> Modyfikacja: <strong style={{ color: "#c9d1d9" }}>{new Date(product.updatedAt).toLocaleDateString("pl-PL")}</strong>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Edit */}
+      {/* Edit Modal */}
       <ProductFormModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}

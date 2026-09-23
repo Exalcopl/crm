@@ -221,59 +221,139 @@ export function ProductFormModal({
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    background: "#0d1117",
+    border: "1px solid #30363d",
+    color: "#f0f6fc",
+    borderRadius: 6,
+    padding: "6px 10px",
+    fontSize: 13,
+    width: "100%",
+    outline: "none",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "#8b949e",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-3xl rounded-xl bg-white shadow-2xl border border-gray-200 my-8">
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0, 0, 0, 0.75)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        style={{
+          background: "#161b22",
+          border: "1px solid #30363d",
+          borderRadius: 10,
+          width: "100%",
+          maxWidth: 720,
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 12px 40px rgba(0, 0, 0, 0.6)",
+          color: "#f0f6fc",
+          overflow: "hidden",
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-              <Layers className="h-5 w-5" />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 18px",
+            background: "#0d1117",
+            borderBottom: "1px solid #30363d",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 6,
+                background: "rgba(59, 130, 246, 0.15)",
+                border: "1px solid rgba(59, 130, 246, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#60a5fa",
+              }}
+            >
+              <Layers size={16} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                {productToEdit ? "Edycja Produktu / Usługi" : "Nowy Produkt / Usługa Obróbki"}
-              </h2>
-              <p className="text-xs text-gray-500">
-                Skonfiguruj właściwości, powiąż dostawcę i ustal parametry.
-              </p>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc" }}>
+                {productToEdit ? "Edycja Pozycji Obróbki / Produktu" : "Nowy Produkt / Usługa Obróbki"}
+              </div>
+              <div style={{ fontSize: 11, color: "#8b949e" }}>
+                Zarządzaj właściwościami, dostawcą i parametrami technicznymi
+              </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#8b949e",
+              cursor: "pointer",
+              padding: 4,
+            }}
           >
-            <X className="h-5 w-5" />
+            <X size={16} />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Typ i Aktywność */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Typ Pozycji *
-              </label>
+          <div
+            style={{
+              background: "#0d1117",
+              border: "1px solid #21262d",
+              borderRadius: 8,
+              padding: 12,
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 120px",
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <label style={labelStyle}>
+              Typ Pozycji *
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as "product" | "service" | "outsourcing")}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 bg-white focus:border-blue-500 focus:outline-none"
+                style={inputStyle}
               >
                 <option value="outsourcing">Obróbka Zewnętrzna (Outsourcing)</option>
                 <option value="service">Usługa Zewnętrzna / Dojazd</option>
                 <option value="product">Produkt / Komponent</option>
               </select>
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Kategoria
-              </label>
+            <label style={labelStyle}>
+              Kategoria
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 bg-white focus:border-blue-500 focus:outline-none"
+                style={inputStyle}
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -281,64 +361,53 @@ export function ProductFormModal({
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
 
-            <div className="flex items-center pt-5">
-              <label className="relative flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                <span className="ml-3 text-sm font-semibold text-gray-800">
-                  Pozycja Aktywna
-                </span>
-              </label>
-            </div>
+            <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                style={{ width: 15, height: 15, accentColor: "#3b82f6" }}
+              />
+              <span style={{ fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>Aktywny</span>
+            </label>
           </div>
 
-          {/* Dane podstawowe */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Nazwa Produktu / Usługi *
-              </label>
+          {/* Nazwa i SKU */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={labelStyle}>
+              Nazwa Produktu / Usługi *
               <input
                 type="text"
                 required
                 placeholder="np. Lakierowanie proszkowe RAL 9016 MAT"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                style={inputStyle}
               />
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Kod / SKU (wewnętrzny)
-              </label>
+            <label style={labelStyle}>
+              Kod / SKU (wewnętrzny)
               <input
                 type="text"
                 placeholder="np. OBR-LAK-9016"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                style={inputStyle}
               />
-            </div>
+            </label>
           </div>
 
           {/* Jednostka miary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Jednostka Miary *
-              </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={labelStyle}>
+              Jednostka Miary *
               <select
                 value={unit}
                 onChange={(e) => setUnit(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 bg-white focus:border-blue-500 focus:outline-none"
+                style={inputStyle}
               >
                 {COMMON_UNITS.map((u) => (
                   <option key={u} value={u}>
@@ -347,39 +416,35 @@ export function ProductFormModal({
                 ))}
                 <option value="custom">Własna jednostka...</option>
               </select>
-            </div>
+            </label>
 
             {unit === "custom" && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Wpisz Własną Jednostkę *
-                </label>
+              <label style={labelStyle}>
+                Wpisz Własną Jednostkę *
                 <input
                   type="text"
                   placeholder="np. komplet, m3, paleta"
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 />
-              </div>
+              </label>
             )}
           </div>
 
-          {/* Dostawca i powiązanie */}
-          <div className="border-t border-gray-100 pt-4">
-            <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <Tag className="h-4 w-4 text-blue-600" />
-              Przypisany Dostawca
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Dostawca / Wykonawca Obróbki
-                </label>
+          {/* Dostawca */}
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <Tag size={12} style={{ color: "#3b82f6" }} />
+              Przypisany Dostawca / Wykonawca
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={labelStyle}>
+                Dostawca
                 <select
                   value={supplierId}
                   onChange={(e) => setSupplierId(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 bg-white focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 >
                   <option value="">-- Brak / Wybierz dostawcę --</option>
                   {suppliers?.map((s) => (
@@ -388,34 +453,30 @@ export function ProductFormModal({
                     </option>
                   ))}
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Kod u Dostawcy / SKU Wykonawcy
-                </label>
+              <label style={labelStyle}>
+                Kod / SKU u Dostawcy
                 <input
                   type="text"
                   placeholder="np. SUP-9016-MAT"
                   value={supplierCode}
                   onChange={(e) => setSupplierCode(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 />
-              </div>
+              </label>
             </div>
           </div>
 
           {/* Ceny i Czas realizacji */}
-          <div className="border-t border-gray-100 pt-4">
-            <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              Cena i Czas Realizacji
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Cena Zakupu Netto
-                </label>
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <DollarSign size={12} style={{ color: "#4ade80" }} />
+              Cena Zakupu i Czas Realizacji
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
+              <label style={labelStyle}>
+                Cena Netto
                 <input
                   type="number"
                   step="0.01"
@@ -423,78 +484,84 @@ export function ProductFormModal({
                   placeholder="0.00"
                   value={priceNetto}
                   onChange={(e) => setPriceNetto(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Stawka VAT (%)
-                </label>
+              <label style={labelStyle}>
+                Stawka VAT (%)
                 <select
                   value={vatRate}
                   onChange={(e) => setVatRate(Number(e.target.value))}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 bg-white focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 >
                   <option value={23}>23%</option>
                   <option value={8}>8%</option>
                   <option value={5}>5%</option>
-                  <option value={0}>0% / zw.</option>
+                  <option value={0}>0%</option>
                 </select>
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Cena Brutto (wyliczona)
-                </label>
+              <label style={labelStyle}>
+                Cena Brutto
                 <input
                   type="text"
                   disabled
                   value={calculatedBrutto !== undefined ? `${calculatedBrutto.toFixed(2)} ${currency}` : "—"}
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
+                  style={{ ...inputStyle, background: "#161b22", color: "#8b949e" }}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-amber-500" /> Czas Realizacji (dni)
-                </label>
+              <label style={labelStyle}>
+                Czas (dni)
                 <input
                   type="number"
                   min="0"
                   placeholder="np. 5"
                   value={leadTimeDays}
                   onChange={(e) => setLeadTimeDays(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  style={inputStyle}
                 />
-              </div>
+              </label>
             </div>
           </div>
 
           {/* Parametry techniczne */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                <FileText className="h-4 w-4 text-purple-600" />
-                Parametry Techniczne i Warianty
-              </h3>
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
+                <FileText size={12} style={{ color: "#c084fc" }} />
+                Parametry Techniczne
+              </div>
               <button
                 type="button"
                 onClick={handleAddParameter}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-lg transition-colors"
+                style={{
+                  background: "rgba(59, 130, 246, 0.15)",
+                  border: "1px solid rgba(59, 130, 246, 0.3)",
+                  borderRadius: 4,
+                  color: "#60a5fa",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 8px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                }}
               >
-                <Plus className="h-3.5 w-3.5" /> Dodaj parametr
+                <Plus size={11} /> Dodaj parametr
               </button>
             </div>
 
             {parameters.length === 0 ? (
-              <p className="text-xs text-gray-400 italic bg-gray-50 p-3 rounded-lg text-center">
-                Brak zdefiniowanych parametrów technicznych (np. Grubość powłoki, Kolor RAL, Max wymiar).
-              </p>
+              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: "8px 10px", borderRadius: 6, textAlign: "center", border: "1px solid #21262d" }}>
+                Brak zdefiniowanych parametrów technicznych (np. Kolor RAL, Grubość).
+              </div>
             ) : (
-              <div className="space-y-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {parameters.map((param, index) => (
-                  <div key={index} className="flex items-center gap-2">
+                  <div key={index} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="text"
                       placeholder="Nazwa (np. Kolor RAL)"
@@ -502,7 +569,7 @@ export function ProductFormModal({
                       onChange={(e) =>
                         handleParameterChange(index, "key", e.target.value)
                       }
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-blue-500 focus:outline-none"
+                      style={{ ...inputStyle, flex: 1 }}
                     />
                     <input
                       type="text"
@@ -511,23 +578,30 @@ export function ProductFormModal({
                       onChange={(e) =>
                         handleParameterChange(index, "value", e.target.value)
                       }
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-blue-500 focus:outline-none"
+                      style={{ ...inputStyle, flex: 1 }}
                     />
                     <input
                       type="text"
-                      placeholder="Jednostka (np. μm, mm)"
-                      value={param.unit}
+                      placeholder="Jednostka (np. μm)"
+                      value={param.unit ?? ""}
                       onChange={(e) =>
                         handleParameterChange(index, "unit", e.target.value)
                       }
-                      className="w-28 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-900 focus:border-blue-500 focus:outline-none"
+                      style={{ ...inputStyle, width: 90 }}
                     />
                     <button
                       type="button"
                       onClick={() => handleRemoveParameter(index)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50"
+                      style={{
+                        background: "rgba(248, 81, 73, 0.1)",
+                        border: "1px solid rgba(248, 81, 73, 0.3)",
+                        color: "#f85149",
+                        borderRadius: 4,
+                        padding: 6,
+                        cursor: "pointer",
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 ))}
@@ -536,47 +610,72 @@ export function ProductFormModal({
           </div>
 
           {/* Opis i Notatki */}
-          <div className="border-t border-gray-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Opis Techniczny / Specyfikacja
-              </label>
+          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <label style={labelStyle}>
+              Opis Techniczny / Zakres Obróbki
               <textarea
-                rows={3}
-                placeholder="Opis usługi lub wymagania techniczne..."
+                rows={2}
+                placeholder="Opis usługi..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                style={{ ...inputStyle, resize: "vertical" }}
               />
-            </div>
+            </label>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                Notatki Wewnętrzne
-              </label>
+            <label style={labelStyle}>
+              Notatki Wewnętrzne
               <textarea
-                rows={3}
-                placeholder="Prywatne uwagi dla zespołu..."
+                rows={2}
+                placeholder="Prywatne uwagi..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                style={{ ...inputStyle, resize: "vertical" }}
               />
-            </div>
+            </label>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+          {/* Footer Actions */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              borderTop: "1px solid #21262d",
+              paddingTop: 14,
+              marginTop: 4,
+            }}
+          >
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={isSubmitting}
+              style={{
+                background: "transparent",
+                border: "1px solid #30363d",
+                borderRadius: 6,
+                color: "#c9d1d9",
+                fontSize: 12,
+                fontWeight: 600,
+                padding: "6px 14px",
+                cursor: "pointer",
+              }}
             >
               Anuluj
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+              style={{
+                background: "#238636",
+                border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 6,
+                color: "#ffffff",
+                fontSize: 12,
+                fontWeight: 700,
+                padding: "6px 16px",
+                cursor: "pointer",
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
             >
               {isSubmitting ? "Zapisywanie..." : productToEdit ? "Zapisz Zmiany" : "Utwórz Pozycję"}
             </button>
