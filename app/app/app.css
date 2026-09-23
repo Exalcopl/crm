@@ -187,6 +187,65 @@
   text-align: center;
 }
 
+/* ── Swipeable Task Card Container ───────────────────────────────── */
+.mobile-task-card-wrapper {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.mobile-task-swipe-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 20px;
+  border-radius: 12px;
+  color: #ffffff;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 100ms linear, background-color 150ms ease;
+}
+
+.mobile-task-swipe-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  will-change: transform, opacity;
+}
+
+.mobile-task-swipe-icon {
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.mobile-task-swipe-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+  padding: 4px 10px;
+  margin-bottom: 4px;
+  background: var(--bg-surface-subtle, rgba(255, 255, 255, 0.03));
+  border-radius: 8px;
+  border: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
 /* ── Task Card ───────────────────────────────────────────────────── */
 .mobile-task-card {
   background: var(--bg-surface, #141b2d);
@@ -197,6 +256,8 @@
   flex-direction: column;
   gap: 8px;
   transition: border-color 120ms ease;
+  position: relative;
+  z-index: 2;
 }
 
 .mobile-task-card:active {

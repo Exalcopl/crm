@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { I } from "../admin/_lib/icons";
 import { ownerInitials } from "../admin/_lib/quotes";
 import type { Id } from "@/convex/_generated/dataModel";
+import { TaskSwipeableCard } from "./TaskSwipeableCard";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type TaskStatus = "todo" | "in_progress" | "done";
@@ -443,21 +444,25 @@ export default function MobileAppPage() {
   }
 
   // ── Render Views ────────────────────────────────────────────────────────
-  const allTasks = (tasks ?? []) as any[];
-  const counts = {
-    all: allTasks.length,
-    todo: allTasks.filter((t: any) => t.status === "todo").length,
-    in_progress: allTasks.filter((t: any) => t.status === "in_progress").length,
-    done: allTasks.filter((t: any) => t.status === "done").length,
-  };
-  const filteredTasks =
-    activeTab === "all" ? allTasks : allTasks.filter((t: any) => t.status === activeTab);
+  // W widoku "Zadania" pokazujemy wyłącznie niewykonane zadania (status !== "done")
+  const rawTasks = (tasks ?? []) as any[];
+  const activeTasks = rawTasks.filter((t: any) => t.status !== "done");
 
-  const taskTabs: { key: "all" | TaskStatus; label: string }[] = [
+  const counts = {
+    all: activeTasks.length,
+    todo: activeTasks.filter((t: any) => t.status === "todo").length,
+    in_progress: activeTasks.filter((t: any) => t.status === "in_progress").length,
+  };
+
+  const filteredTasks =
+    activeTab === "done" || activeTab === "all"
+      ? activeTasks
+      : activeTasks.filter((t: any) => t.status === activeTab);
+
+  const taskTabs: { key: "all" | "todo" | "in_progress"; label: string }[] = [
     { key: "all", label: "Wszystkie" },
     { key: "todo", label: "Do zrobienia" },
     { key: "in_progress", label: "W trakcie" },
-    { key: "done", label: "Zrobione" },
   ];
 
   function cycleStatus(current: TaskStatus): TaskStatus {
@@ -469,6 +474,20 @@ export default function MobileAppPage() {
   const assigneeMap = new Map<string, any>(
     ((assignees ?? []) as any[]).map((u: any) => [u._id, u]),
   );
+
+  async function handleMarkDone(taskId: string) {
+    if (!session) return;
+    try {
+      await updateTaskStatus({
+        id: taskId as Id<"tasks">,
+        status: "done",
+        currentUserId: session.userId,
+      });
+      triggerToast("Zadanie zostało oznaczone jako wykonane!", "success");
+    } catch {
+      triggerToast("Nie udało się zaktualizować statusu.", "error");
+    }
+  }
 
   // Calendar Day rendering calculations
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
@@ -530,81 +549,34 @@ export default function MobileAppPage() {
 
           {/* Task List */}
           <main className="mobile-task-list">
+            {activeTasks.length > 0 && (
+              <div className="mobile-task-swipe-hint">
+                <span>👉</span>
+                <span>Przesuń kartę w prawo, aby oznaczyć jako wykonaną</span>
+              </div>
+            )}
+
             {filteredTasks.length === 0 ? (
               <div className="mobile-empty">
                 <div style={{ fontSize: "32px", marginBottom: "8px" }}>✓</div>
-                <div>Brak zadań w tej kategorii</div>
+                <div>Brak aktywnych zadań w tej kategorii</div>
               </div>
             ) : (
-              filteredTasks.map((task: any) => {
-                const isDone = task.status === "done";
-                const isInProgress = task.status === "in_progress";
-                return (
-                  <div key={task._id} className="mobile-task-card">
-                    <div className="mobile-task-card-header">
-                      <h3
-                        className="mobile-task-card-title"
-                        style={{
-                          textDecoration: isDone ? "line-through" : "none",
-                          opacity: isDone ? 0.5 : 1,
-                        }}
-                      >
-                        {task.title}
-                      </h3>
-                      <button
-                        type="button"
-                        className={`mobile-status-pill status-${task.status}`}
-                        onClick={() =>
-                          void updateTaskStatus({
-                            id: task._id,
-                            status: cycleStatus(task.status),
-                            currentUserId: session.userId,
-                          })
-                        }
-                      >
-                        {isDone ? "✓ DONE" : isInProgress ? "⚡ W TRAKCIE" : "○ TODO"}
-                      </button>
-                    </div>
-
-                    {task.description && (
-                      <div className="mobile-task-card-desc">{task.description}</div>
-                    )}
-
-                    {task.quote && (
-                      <div className="mobile-task-quote-badge">
-                        <I.doc s={11} />
-                        {task.quote.code} · {task.quote.contactName}
-                      </div>
-                    )}
-
-                    <div className="mobile-task-card-footer">
-                      <div className="mobile-task-meta">
-                        <I.cal s={11} />
-                        {task.dueDate
-                          ? new Date(task.dueDate).toLocaleDateString("pl-PL", {
-                              day: "2-digit",
-                              month: "short",
-                            })
-                          : "Brak terminu"}
-                      </div>
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        {(task.assigneeIds ?? []).map((aid: string) => {
-                          const u = assigneeMap.get(aid);
-                          return u ? (
-                            <div
-                              key={aid}
-                              className="kanban-card-owner-avatar"
-                              title={u.name || u.email}
-                            >
-                              {ownerInitials(u.name || u.email)}
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+              filteredTasks.map((task: any) => (
+                <TaskSwipeableCard
+                  key={task._id}
+                  task={task}
+                  assigneeMap={assigneeMap}
+                  onMarkDone={handleMarkDone}
+                  onStatusCycle={(id, status) => {
+                    void updateTaskStatus({
+                      id: id as Id<"tasks">,
+                      status: cycleStatus(status as TaskStatus),
+                      currentUserId: session.userId,
+                    });
+                  }}
+                />
+              ))
             )}
             {/* Bottom padding for nav bar */}
             <div style={{ height: "100px" }} />
