@@ -774,6 +774,8 @@ export default defineSchema({
       )
     ),                                        // Parametry techniczne / specyfikacja
     notes: v.optional(v.string()),            // Notatki wewnętrzne
+    imageId: v.optional(v.id("_storage")),     // Identyfikator obrazu w Convex storage
+    imageUrl: v.optional(v.string()),         // URL obrazu
     isActive: v.boolean(),                    // Czy aktywny
     createdAt: v.number(),
     updatedAt: v.number(),

@@ -2,6 +2,14 @@ import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await getAuthUserId(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const list = query({
   args: {
     search: v.optional(v.string()),
@@ -51,7 +59,7 @@ export const list = query({
       );
     }
 
-    // Attach supplier info
+    // Attach supplier info and image URL
     const supplierIds = Array.from(
       new Set(products.map((p) => p.supplierId).filter(Boolean))
     );
@@ -65,10 +73,22 @@ export const list = query({
       }
     }
 
-    return products.map((p) => ({
-      ...p,
-      supplier: p.supplierId ? suppliersMap.get(p.supplierId) ?? null : null,
-    }));
+    const resolvedProducts = await Promise.all(
+      products.map(async (p) => {
+        let imageUrl = p.imageUrl;
+        if (p.imageId) {
+          const storageUrl = await ctx.storage.getUrl(p.imageId);
+          if (storageUrl) imageUrl = storageUrl;
+        }
+        return {
+          ...p,
+          imageUrl,
+          supplier: p.supplierId ? suppliersMap.get(p.supplierId) ?? null : null,
+        };
+      })
+    );
+
+    return resolvedProducts;
   },
 });
 
@@ -94,8 +114,15 @@ export const get = query({
       }
     }
 
+    let imageUrl = product.imageUrl;
+    if (product.imageId) {
+      const storageUrl = await ctx.storage.getUrl(product.imageId);
+      if (storageUrl) imageUrl = storageUrl;
+    }
+
     return {
       ...product,
+      imageUrl,
       supplier,
     };
   },
@@ -105,10 +132,21 @@ export const listBySupplier = query({
   args: { supplierId: v.id("suppliers") },
   handler: async (ctx, { supplierId }) => {
     await getAuthUserId(ctx);
-    return await ctx.db
+    const products = await ctx.db
       .query("products")
       .withIndex("by_supplier", (q) => q.eq("supplierId", supplierId))
       .collect();
+
+    return await Promise.all(
+      products.map(async (p) => {
+        let imageUrl = p.imageUrl;
+        if (p.imageId) {
+          const storageUrl = await ctx.storage.getUrl(p.imageId);
+          if (storageUrl) imageUrl = storageUrl;
+        }
+        return { ...p, imageUrl };
+      })
+    );
   },
 });
 
@@ -141,6 +179,8 @@ export const create = mutation({
       )
     ),
     notes: v.optional(v.string()),
+    imageId: v.optional(v.id("_storage")),
+    imageUrl: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -163,6 +203,8 @@ export const create = mutation({
       category: args.category,
       parameters: args.parameters,
       notes: args.notes,
+      imageId: args.imageId,
+      imageUrl: args.imageUrl,
       isActive: args.isActive ?? true,
       createdAt: now,
       updatedAt: now,
@@ -202,6 +244,8 @@ export const update = mutation({
       )
     ),
     notes: v.optional(v.string()),
+    imageId: v.optional(v.id("_storage")),
+    imageUrl: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...fields }) => {
@@ -223,6 +267,16 @@ export const remove = mutation({
     await getAuthUserId(ctx);
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Produkt/usługa nie istnieje.");
+
+    // If product has an imageId in storage, delete it too
+    if (existing.imageId) {
+      try {
+        await ctx.storage.delete(existing.imageId);
+      } catch (e) {
+        console.error("Nie udało się usunąć pliku z storage:", e);
+      }
+    }
+
     await ctx.db.delete(id);
   },
 });

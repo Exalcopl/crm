@@ -74,9 +74,10 @@ export default function MobileAppPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authenticating, setAuthenticating] = useState(false);
 
-  // General navigation view: "tasks" | "calendar"
-  const [activeView, setActiveView] = useState<"tasks" | "calendar">("tasks");
+  // General navigation view: "tasks" | "orders" | "calendar"
+  const [activeView, setActiveView] = useState<"tasks" | "orders" | "calendar">("tasks");
   const [fabExpanded, setFabExpanded] = useState(false);
+  const [activeOrderTab, setActiveOrderTab] = useState<"all" | "in_progress" | "gotowe" | "wstrzymane">("all");
 
   // Custom premium modal/toast alerts and confirms
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -135,8 +136,7 @@ export default function MobileAppPage() {
   const [editingEventId, setEditingEventId] = useState<Id<"calendarEvents"> | null>(null);
   const [savingEvent, setSavingEvent] = useState(false);
 
-  // Orders modal state
-  const [ordersOpen, setOrdersOpen] = useState(false);
+  // Orders search state
   const [orderSearch, setOrderSearch] = useState("");
 
   // Pre-select current user on task modal open
@@ -497,6 +497,39 @@ export default function MobileAppPage() {
     }
   }
 
+  // Order calculations & filtering
+  const orderCounts = {
+    all: ordersList.length,
+    in_progress: ordersList.filter((o: any) =>
+      ["nowe", "akceptacja", "kompletacja", "produkcja", "montaz"].includes(o.status || "nowe")
+    ).length,
+    gotowe: ordersList.filter((o: any) => o.status === "gotowe").length,
+    wstrzymane: ordersList.filter((o: any) => o.status === "wstrzymane").length,
+  };
+
+  const filteredOrdersList = ordersList.filter((ord: any) => {
+    // Tab filter
+    if (activeOrderTab === "in_progress") {
+      if (!["nowe", "akceptacja", "kompletacja", "produkcja", "montaz"].includes(ord.status || "nowe")) {
+        return false;
+      }
+    } else if (activeOrderTab === "gotowe") {
+      if (ord.status !== "gotowe") return false;
+    } else if (activeOrderTab === "wstrzymane") {
+      if (ord.status !== "wstrzymane") return false;
+    }
+
+    // Search query filter (Order number, client name, supplier name, custom label)
+    if (orderSearch.trim()) {
+      const q = orderSearch.toLowerCase();
+      const num = (ord.orderNumber || ord.code || ord.customLabel || "").toLowerCase();
+      const client = (ord.clientName || ord.contact?.name || "").toLowerCase();
+      const supplier = (ord.supplierName || "").toLowerCase();
+      return num.includes(q) || client.includes(q) || supplier.includes(q);
+    }
+    return true;
+  });
+
   // Calendar Day rendering calculations
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
   const firstDayIndex = getFirstDayOfMonth(currentYear, currentMonth);
@@ -587,6 +620,209 @@ export default function MobileAppPage() {
               ))
             )}
             {/* Bottom padding for nav bar */}
+            <div style={{ height: "100px" }} />
+          </main>
+        </>
+      )}
+
+      {/* ── View 2: Orders Dashboard ── */}
+      {activeView === "orders" && (
+        <>
+          {/* Order Tabs */}
+          <nav className="mobile-tabs">
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "all" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("all")}
+            >
+              Wszystkie
+              <span className="mobile-tab-badge">{orderCounts.all}</span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "in_progress" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("in_progress")}
+            >
+              W realizacji
+              <span className="mobile-tab-badge">{orderCounts.in_progress}</span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "gotowe" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("gotowe")}
+            >
+              Gotowe
+              <span className="mobile-tab-badge">{orderCounts.gotowe}</span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "wstrzymane" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("wstrzymane")}
+            >
+              Wstrzymane
+              <span className="mobile-tab-badge">{orderCounts.wstrzymane}</span>
+            </button>
+          </nav>
+
+          <main className="mobile-task-list">
+            {/* Search Bar */}
+            <div style={{ padding: "4px 0 8px" }}>
+              <input
+                type="text"
+                className="mobile-input"
+                placeholder="Szukaj po numerze, kliencie lub dostawcy…"
+                value={orderSearch}
+                onChange={(e) => setOrderSearch(e.target.value)}
+              />
+            </div>
+
+            {filteredOrdersList.length === 0 ? (
+              <div className="mobile-empty">
+                <div style={{ fontSize: "32px", marginBottom: "8px" }}>📦</div>
+                <div>Brak zamówień w tej kategorii</div>
+              </div>
+            ) : (
+              filteredOrdersList.map((ord: any) => {
+                const orderNum = ord.orderNumber || ord.code || ord.customLabel || "Zamówienie";
+                const clientName = ord.clientName || ord.contact?.name || "Klient detaliczny";
+                const supplierName = ord.supplierName;
+                const status = ord.status || "akceptacja";
+
+                return (
+                  <div key={ord._id} className="mobile-order-card">
+                    {/* Header: Order Number & Status Pill */}
+                    <div className="mobile-order-card-header">
+                      <div className="mobile-order-number">
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                          <line x1="12" y1="22.08" x2="12" y2="12" />
+                        </svg>
+                        {orderNum}
+                      </div>
+
+                      <span className={`mobile-status-pill status-${status}`}>
+                        {status.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* Client Name */}
+                    <div className="mobile-order-client">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                      <span>{clientName}</span>
+                    </div>
+
+                    {/* Investment Address if available */}
+                    {ord.investment?.address && (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "var(--text-muted, #64748b)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+                          <circle cx="12" cy="10" r="3" />
+                        </svg>
+                        <span>{ord.investment.address}</span>
+                      </div>
+                    )}
+
+                    {/* Dostawca / Wykonawca Badge */}
+                    {supplierName ? (
+                      <div className="mobile-order-supplier-badge">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="1" y="3" width="15" height="13" rx="2" />
+                          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                          <circle cx="5.5" cy="18.5" r="2.5" />
+                          <circle cx="18.5" cy="18.5" r="2.5" />
+                        </svg>
+                        <span>
+                          Dostawca / Wykonawca: <strong>{supplierName}</strong>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mobile-order-supplier-badge mobile-order-supplier-badge--empty">
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="1" y="3" width="15" height="13" rx="2" />
+                          <polygon points="16 8 20 8 23 11 23 16 16 16 8" />
+                          <circle cx="5.5" cy="18.5" r="2.5" />
+                          <circle cx="18.5" cy="18.5" r="2.5" />
+                        </svg>
+                        <span>Brak przypisanego dostawcy</span>
+                      </div>
+                    )}
+
+                    {/* Footer: Date & Value */}
+                    <div className="mobile-order-footer">
+                      <div className="mobile-task-meta">
+                        <I.cal s={11} />
+                        {ord.deadline
+                          ? `Termin: ${ord.deadline}`
+                          : `Utworzono: ${new Date(ord._creationTime).toLocaleDateString("pl-PL")}`}
+                      </div>
+
+                      {ord.valueNetto != null && (
+                        <div className="mobile-order-value">
+                          {ord.valueNetto.toLocaleString("pl-PL")} PLN
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
             <div style={{ height: "100px" }} />
           </main>
         </>
@@ -720,6 +956,32 @@ export default function MobileAppPage() {
           <span className="mobile-nav-label">Zadania</span>
         </button>
 
+        {/* Zamówienia */}
+        <button
+          type="button"
+          className={`mobile-nav-btn ${activeView === "orders" ? "mobile-nav-btn--active" : ""}`}
+          onClick={() => {
+            setActiveView("orders");
+            setFabExpanded(false);
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+            <line x1="12" y1="22.08" x2="12" y2="12" />
+          </svg>
+          <span className="mobile-nav-label">Zamówienia</span>
+        </button>
+
         {/* Sygnet – center elevated trigger */}
         <div className={`mobile-nav-sygnet-wrap ${fabExpanded ? "mobile-nav-sygnet-wrap--expanded" : ""}`}>
           {/* Amber Zamówienia bubble (Top - Larger) */}
@@ -728,7 +990,7 @@ export default function MobileAppPage() {
             className="mobile-nav-bubble mobile-nav-bubble--orders"
             onClick={() => {
               setFabExpanded(false);
-              setOrdersOpen(true);
+              setActiveView("orders");
             }}
             aria-label="Zamówienia"
             title="Zamówienia"
@@ -1064,90 +1326,7 @@ export default function MobileAppPage() {
         </div>
       )}
 
-      {/* ── Bottom Sheet – Zamówienia ── */}
-      {ordersOpen && (
-        <div
-          className="mobile-sheet-backdrop"
-          onClick={(e) => e.target === e.currentTarget && setOrdersOpen(false)}
-        >
-          <div className="mobile-sheet" style={{ maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
-            <div className="mobile-sheet-header">
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <h2 className="mobile-sheet-title">Zamówienia</h2>
-                <span className="mobile-tab-badge" style={{ background: "#f59e0b", color: "#000", fontWeight: "700" }}>
-                  {ordersList.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="mobile-sheet-close"
-                onClick={() => setOrdersOpen(false)}
-                aria-label="Zamknij"
-              >
-                <I.x s={20} />
-              </button>
-            </div>
 
-            {/* Search */}
-            <div style={{ padding: "0 16px 12px" }}>
-              <input
-                type="text"
-                className="mobile-input"
-                placeholder="Szukaj zamówienia…"
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-              />
-            </div>
-
-            {/* List */}
-            <div style={{ overflowY: "auto", padding: "0 16px 24px", display: "flex", flexDirection: "column", gap: "10px", flex: 1 }}>
-              {ordersList.length === 0 ? (
-                <div className="mobile-empty">
-                  <div style={{ fontSize: "28px", marginBottom: "6px" }}>📦</div>
-                  <div>Brak zamówień w bazie danych</div>
-                </div>
-              ) : (
-                ordersList
-                  .filter((ord: any) => {
-                    if (!orderSearch.trim()) return true;
-                    const q = orderSearch.toLowerCase();
-                    const code = (ord.code || "").toLowerCase();
-                    const name = (ord.contact?.name || "").toLowerCase();
-                    return code.includes(q) || name.includes(q);
-                  })
-                  .map((ord: any) => (
-                    <div key={ord._id} className="mobile-task-card" style={{ borderLeft: "4px solid #f59e0b" }}>
-                      <div className="mobile-task-card-header">
-                        <h3 className="mobile-task-card-title">
-                          {ord.code || "Zamówienie"}
-                        </h3>
-                        <span className="mobile-status-pill" style={{ background: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", borderColor: "rgba(245, 158, 11, 0.3)" }}>
-                          {ord.status || "w_realizacji"}
-                        </span>
-                      </div>
-                      {ord.contact?.name && (
-                        <div className="mobile-task-card-desc">
-                          Klient: <strong>{ord.contact.name}</strong>
-                        </div>
-                      )}
-                      <div className="mobile-task-card-footer">
-                        <div className="mobile-task-meta">
-                          <I.cal s={11} />
-                          {new Date(ord._creationTime).toLocaleDateString("pl-PL")}
-                        </div>
-                        {ord.valueNetto != null && (
-                          <div style={{ fontSize: "12px", fontWeight: "600", color: "#4ade80" }}>
-                            {ord.valueNetto.toLocaleString("pl-PL")} PLN
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
       {confirmDialog && (
         <div className="mobile-sheet-backdrop" style={{ zIndex: 110 }}>
           <div className="mobile-confirm-dialog">

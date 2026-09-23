@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type IconProps = { s?: number; sw?: number; fill?: string; children?: ReactNode };
+type IconProps = { s?: number; sw?: number; fill?: string; direction?: string; children?: ReactNode };
 
 export function Icon({ s = 16, sw = 1.6, fill, children }: IconProps) {
   return (

@@ -88,7 +88,14 @@ async function runTests() {
     }
     console.log("✅ Odczyt po ID poprawny i kompletny.");
 
-    console.log("\n--- TEST 4: Pobieranie listy produktów dla danego dostawcy ---");
+    console.log("\n--- TEST 4: Generowanie URL wgrywania plików do Convex Storage ---");
+    const uploadUrl = await client.mutation("products:generateUploadUrl", {});
+    if (!uploadUrl || typeof uploadUrl !== "string") {
+      throw new Error("Generowanie upload URL nie zwróciło adresu!");
+    }
+    console.log(`✅ Adres wgrywania utworzony: ${uploadUrl.slice(0, 45)}...`);
+
+    console.log("\n--- TEST 5: Pobieranie listy produktów dla danego dostawcy ---");
     const supplierProducts = await client.query("products:listBySupplier", {
       supplierId: createdSupplierId as any,
     });
@@ -98,7 +105,7 @@ async function runTests() {
     }
     console.log("✅ Filtrowanie produktów wg dostawcy działa.");
 
-    console.log("\n--- TEST 5: Wyszukiwanie na liście ogólnej z filtrem typu ---");
+    console.log("\n--- TEST 6: Wyszukiwanie na liście ogólnej z filtrem typu ---");
     const outsourcingList = await client.query("products:list", {
       type: "outsourcing",
       search: "RAL 9016",
@@ -109,7 +116,7 @@ async function runTests() {
     }
     console.log("✅ Wyszukiwanie i filtrowanie listy produktów działa.");
 
-    console.log("\n--- TEST 6: Edycja pozycji (aktualizacja ceny i czasu) ---");
+    console.log("\n--- TEST 7: Edycja pozycji (aktualizacja ceny i czasu) ---");
     await client.mutation("products:update", {
       id: createdProductId as any,
       priceNetto: 19.9,
@@ -123,7 +130,7 @@ async function runTests() {
     }
     console.log("✅ Aktualizacja pozycji działa poprawnie.");
 
-    console.log("\n--- TEST 7: Czyszczenie danych testowych ---");
+    console.log("\n--- TEST 8: Czyszczenie danych testowych ---");
     await client.mutation("products:remove", { id: createdProductId as any });
     console.log("✅ Usunięto testowy produkt.");
 

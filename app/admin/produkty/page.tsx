@@ -20,21 +20,21 @@ import {
   Wrench,
   Package,
   Boxes,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ProductFormModal } from "./_components/ProductFormModal";
+import { useRouter } from "next/navigation";
+import { I } from "../_lib/icons";
+import { RibbonBtn, RibbonGroup } from "../_components/ribbon";
 
 type ProductType = "product" | "service" | "outsourcing";
 
 export default function ProductsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [onlyActive, setOnlyActive] = useState(false);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [productToEdit, setProductToEdit] = useState<any>(null);
 
   const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const products = useQuery(api.products.list, {
@@ -134,69 +134,19 @@ export default function ProductsPage() {
   };
 
   return (
-    <div style={{ padding: 20, background: "#0d1117", minHeight: "100vh", color: "#f0f6fc", display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Top Header Bar */}
-      <div
-        style={{
-          background: "#161b22",
-          border: "1px solid #30363d",
-          borderRadius: 8,
-          padding: "14px 18px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 8,
-              background: "rgba(59, 130, 246, 0.12)",
-              border: "1px solid rgba(59, 130, 246, 0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#60a5fa",
-            }}
-          >
-            <Boxes size={20} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: 16, fontWeight: 700, color: "#f0f6fc", margin: 0 }}>
-              Katalog Produktów i Usług Obróbki
-            </h1>
-            <p style={{ fontSize: 11, color: "#8b949e", margin: "2px 0 0 0" }}>
-              Zarządzaj usługami obróbki zewnętrznej, wariantami technologicznymi i dostawcami Exalco.
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => {
-            setProductToEdit(null);
-            setIsModalOpen(true);
-          }}
-          style={{
-            background: "#238636",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 6,
-            color: "#ffffff",
-            fontSize: 12,
-            fontWeight: 700,
-            padding: "8px 14px",
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <Plus size={14} /> Dodaj Pozycję Obróbki
-        </button>
+    <>
+      <div className="fluent-ribbon">
+        <RibbonGroup label="Główna">
+          <RibbonBtn
+            icon={<I.plus s={22} />}
+            label="Dodaj pozycję"
+            primary
+            onClick={() => router.push("/admin/produkty/nowy")}
+          />
+        </RibbonGroup>
       </div>
+      <main className="fluent-content">
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
 
       {/* Stat Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
@@ -300,6 +250,7 @@ export default function ProductsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
               <thead>
                 <tr style={{ background: "#0d1117", borderBottom: "1px solid #30363d", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                  <th style={{ padding: "10px 14px", width: 44 }}>Obraz</th>
                   <th style={{ padding: "10px 14px" }}>Nazwa & SKU</th>
                   <th style={{ padding: "10px 14px" }}>Typ & Kategoria</th>
                   <th style={{ padding: "10px 14px" }}>Dostawca / Wykonawca</th>
@@ -317,6 +268,23 @@ export default function ProductsPage() {
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#1c2128")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
+                    <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
+                      {item.imageUrl ? (
+                        <div style={{ width: 36, height: 36, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d", background: "#0d1117" }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ width: 36, height: 36, borderRadius: 6, background: "#0d1117", border: "1px solid #21262d", display: "grid", placeItems: "center", color: "#484f58" }}>
+                          <ImageIcon size={16} />
+                        </div>
+                      )}
+                    </td>
+
                     <td style={{ padding: "12px 14px" }}>
                       <Link
                         href={`/admin/produkty/${item._id}`}
@@ -408,16 +376,13 @@ export default function ProductsPage() {
                           <ExternalLink size={13} />
                         </Link>
 
-                        <button
-                          onClick={() => {
-                            setProductToEdit(item);
-                            setIsModalOpen(true);
-                          }}
-                          style={{ padding: 4, color: "#c9d1d9", background: "rgba(255, 255, 255, 0.05)", border: "1px solid #30363d", borderRadius: 4, cursor: "pointer" }}
+                        <Link
+                          href={`/admin/produkty/${item._id}/edytuj`}
+                          style={{ padding: 4, color: "#c9d1d9", background: "rgba(255, 255, 255, 0.05)", border: "1px solid #30363d", borderRadius: 4, textDecoration: "none" }}
                           title="Edytuj"
                         >
                           <Edit3 size={13} />
-                        </button>
+                        </Link>
 
                         <button
                           onClick={() => handleDelete(item._id, item.name)}
@@ -435,16 +400,8 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
-
-      {/* Modal form */}
-      <ProductFormModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setProductToEdit(null);
-        }}
-        productToEdit={productToEdit}
-      />
     </div>
+    </main>
+    </>
   );
 }

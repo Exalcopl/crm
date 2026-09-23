@@ -33,8 +33,28 @@ export const listForApp = query({
   args: { currentUserId: v.optional(v.string()) },
   handler: async (ctx) => {
     const docs = await ctx.db.query("orders").collect();
+    const suppliers = await ctx.db.query("suppliers").collect();
+    const partners = await ctx.db.query("partners").collect();
+
+    const suppliersMap = new Map(suppliers.map((s) => [s._id, s.name]));
+    const partnersMap = new Map(partners.map((p) => [p._id, p.name || "Wykonawca"]));
+
     return docs
       .filter((d) => d.archived !== true)
+      .map((d: any) => {
+        let supplierName = undefined;
+        if (d.supplierId && suppliersMap.has(d.supplierId)) {
+          supplierName = suppliersMap.get(d.supplierId);
+        } else if (d.partnerId && partnersMap.has(d.partnerId)) {
+          supplierName = partnersMap.get(d.partnerId);
+        } else if (d.supplierName) {
+          supplierName = d.supplierName;
+        }
+        return {
+          ...d,
+          supplierName,
+        };
+      })
       .sort((a, b) => b._creationTime - a._creationTime);
   },
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -25,17 +25,16 @@ import {
   MapPin,
   Calendar,
   Sliders,
-  ExternalLink,
+  Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { ProductFormModal } from "../_components/ProductFormModal";
+import { I } from "../../_lib/icons";
+import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
   const productId = params.id as Id<"products">;
-
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const product = useQuery(api.products.get, { id: productId });
   const removeProduct = useMutation(api.products.remove);
@@ -120,47 +119,49 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div style={{ padding: 20, background: "#0d1117", minHeight: "100vh", color: "#f0f6fc", display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header Bar */}
-      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <Link
-            href="/admin/produkty"
-            style={{ fontSize: 11, color: "#8b949e", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}
-          >
-            <ArrowLeft size={12} /> Powrót do Katalogu Produktów i Usług
-          </Link>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f0f6fc", margin: 0 }}>{product.name}</h1>
-            {getTypeBadge(product.type)}
-            {product.isActive ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#4ade80" }}>
-                <CheckCircle2 size={11} /> Aktywny
-              </span>
-            ) : (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(139, 148, 158, 0.1)", border: "1px solid rgba(139, 148, 158, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#8b949e" }}>
-                <XCircle size={11} /> Nieaktywny
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-          <button
-            onClick={() => setIsEditModalOpen(true)}
-            style={{ background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.4)", borderRadius: 6, color: "#60a5fa", fontSize: 12, fontWeight: 700, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <Edit3 size={13} /> Edytuj
-          </button>
-          <button
+    <>
+      <div className="fluent-ribbon">
+        <RibbonGroup label="Nawigacja">
+          <RibbonBtn
+            icon={<I.arrow s={22} direction="left" />}
+            label="Powrót"
+            onClick={() => router.push("/admin/produkty")}
+          />
+        </RibbonGroup>
+        <RibbonGroup label="Akcje">
+          <RibbonBtn
+            icon={<I.edit s={22} />}
+            label="Edytuj"
+            onClick={() => router.push(`/admin/produkty/${productId}/edytuj`)}
+          />
+          <RibbonBtn
+            icon={<I.trash s={22} />}
+            label="Usuń"
             onClick={handleDelete}
-            style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", borderRadius: 6, color: "#f85149", fontSize: 12, fontWeight: 700, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <Trash2 size={13} /> Usuń
-          </button>
-        </div>
+          />
+        </RibbonGroup>
       </div>
+
+      <main className="fluent-content">
+        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Header Bar */}
+          <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f0f6fc", margin: 0 }}>{product.name}</h1>
+                {getTypeBadge(product.type)}
+                {product.isActive ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#4ade80" }}>
+                    <CheckCircle2 size={11} /> Aktywny
+                  </span>
+                ) : (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(139, 148, 158, 0.1)", border: "1px solid rgba(139, 148, 158, 0.3)", borderRadius: 4, padding: "2px 8px", fontSize: 10, fontWeight: 700, color: "#8b949e" }}>
+                    <XCircle size={11} /> Nieaktywny
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
 
       {/* Main Grid Layout */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 16 }}>
@@ -269,6 +270,35 @@ export default function ProductDetailPage() {
 
         {/* Right Sidebar Column */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Image Display Card */}
+          <div style={cardStyle}>
+            <div style={sectionTitleStyle}>
+              <ImageIcon size={15} style={{ color: "#60a5fa" }} /> Zdjęcie / Podgląd Pozycji
+            </div>
+
+            {product.imageUrl ? (
+              <div style={{ width: "100%", height: 220, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d", background: "#0d1117" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                />
+              </div>
+            ) : (
+              <div style={{ padding: 30, textAlign: "center", background: "#0d1117", borderRadius: 6, border: "1px dashed #30363d", color: "#484f58" }}>
+                <ImageIcon size={32} style={{ margin: "0 auto 8px auto" }} />
+                <div style={{ fontSize: 11, color: "#8b949e" }}>Brak wgranego zdjęcia.</div>
+                <Link
+                  href={`/admin/produkty/${productId}/edytuj`}
+                  style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700, textDecoration: "none", marginTop: 4, display: "inline-block" }}
+                >
+                  + Dodaj zdjęcie w edycji
+                </Link>
+              </div>
+            )}
+          </div>
+
           {/* Supplier Card */}
           <div style={cardStyle}>
             <div style={sectionTitleStyle}>
@@ -320,12 +350,12 @@ export default function ProductDetailPage() {
               <div style={{ padding: 20, textAlign: "center", background: "#0d1117", borderRadius: 6, border: "1px dashed #30363d", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <Building2 size={24} style={{ color: "#484f58" }} />
                 <div style={{ fontSize: 11, color: "#8b949e" }}>Brak przypisanego dostawcy.</div>
-                <button
-                  onClick={() => setIsEditModalOpen(true)}
-                  style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
+                <Link
+                  href={`/admin/produkty/${productId}/edytuj`}
+                  style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700, textDecoration: "none" }}
                 >
                   + Przypisz dostawcę
-                </button>
+                </Link>
               </div>
             )}
           </div>
@@ -364,13 +394,8 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Edit Modal */}
-      <ProductFormModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        productToEdit={product}
-      />
-    </div>
+        </div>
+      </main>
+    </>
   );
 }
