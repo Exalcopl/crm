@@ -122,7 +122,7 @@ export default function ProductDetailPage() {
   return (
     <div style={{ padding: 20, background: "#0d1117", minHeight: "100vh", color: "#f0f6fc", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Header Bar */}
-      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyBetween: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <Link
             href="/admin/produkty"
@@ -224,7 +224,7 @@ export default function ProductDetailPage() {
             </div>
 
             {!product.parameters || product.parameters.length === 0 ? (
-              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: 12, borderRadius: 6, textCenter: "center" }}>
+              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: 12, borderRadius: 6, textAlign: "center" }}>
                 Brak zdefiniowanych parametrów technicznych (np. Kolor RAL, Grubość, Typ powłoki).
               </div>
             ) : (
@@ -253,14 +253,14 @@ export default function ProductDetailPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div style={cardStyle}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", marginBottom: 6 }}>Opis Techniczny / Zakres Obróbki</div>
-              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whitespace: "pre-wrap" }}>
+              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
                 {product.description || "Brak opisu."}
               </div>
             </div>
 
             <div style={cardStyle}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", marginBottom: 6 }}>Notatki Wewnętrzne</div>
-              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whitespace: "pre-wrap" }}>
+              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
                 {product.notes || "Brak notatek."}
               </div>
             </div>
@@ -358,7 +358,7 @@ export default function ProductDetailPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Calendar size={12} /> Utworzono: <strong style={{ color: "#c9d1d9" }}>{new Date(product.createdAt).toLocaleDateString("pl-PL")}</strong>
             </div>
-            <div style={{ display: "flex", items: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <Calendar size={12} /> Modyfikacja: <strong style={{ color: "#c9d1d9" }}>{new Date(product.updatedAt).toLocaleDateString("pl-PL")}</strong>
             </div>
           </div>

@@ -244,7 +244,7 @@ export default function ProductsPage() {
           />
         </div>
 
-        <div style={{ display: "flex", items: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
             <Filter size={12} /> Filtry:
           </span>
@@ -290,7 +290,7 @@ export default function ProductsPage() {
         {products === undefined ? (
           <div style={{ padding: 40, textAlign: "center", color: "#8b949e", fontSize: 12 }}>Ładowanie katalogu...</div>
         ) : products.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center", color: "#8b949e", display: "flex", flexDirection: "column", items: "center", gap: 8 }}>
+          <div style={{ padding: 40, textAlign: "center", color: "#8b949e", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
             <Boxes size={32} style={{ color: "#484f58", margin: "0 auto" }} />
             <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Brak pozycji w katalogu.</div>
             <div style={{ fontSize: 11, color: "#8b949e" }}>Nie znaleziono pozycji spełniających podane kryteria.</div>
