@@ -4,7 +4,21 @@ import React, { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { X, Plus, Trash2, Layers, Tag, DollarSign, Clock, FileText } from "lucide-react";
+import {
+  X,
+  Plus,
+  Trash2,
+  Tag,
+  DollarSign,
+  Clock,
+  FileText,
+  Wrench,
+  Layers,
+  Package,
+  Sliders,
+  Sparkles,
+  Info,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface ParameterItem {
@@ -39,7 +53,8 @@ interface ProductFormModalProps {
 }
 
 const COMMON_UNITS = ["szt.", "mb.", "m²", "kg", "kpl.", "godz.", "usł."];
-const CATEGORIES = [
+
+const DEFAULT_CATEGORIES = [
   "Obróbka CNC",
   "Lakierowanie proszkowe",
   "Cięcie profili",
@@ -50,6 +65,14 @@ const CATEGORIES = [
   "Akcesoria i Okucia",
   "Wypełnienie / Szkło",
   "Inne",
+];
+
+const QUICK_PARAM_SUGGESTIONS = [
+  { key: "Kolor RAL", unit: "" },
+  { key: "Grubość powłoki", unit: "μm" },
+  { key: "Wymiary (dł × szer)", unit: "mm" },
+  { key: "Gatunek stopu", unit: "" },
+  { key: "Waga jednostkowa", unit: "kg" },
 ];
 
 export function ProductFormModal({
@@ -68,6 +91,8 @@ export function ProductFormModal({
   const [unit, setUnit] = useState("szt.");
   const [customUnit, setCustomUnit] = useState("");
   const [category, setCategory] = useState("Obróbka CNC");
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
   const [supplierId, setSupplierId] = useState<string>("");
   const [supplierCode, setSupplierCode] = useState("");
   const [priceNetto, setPriceNetto] = useState<string>("");
@@ -93,7 +118,17 @@ export function ProductFormModal({
         setUnit("custom");
         setCustomUnit(productToEdit.unit);
       }
-      setCategory(productToEdit.category ?? "Obróbka CNC");
+
+      if (productToEdit.category && !DEFAULT_CATEGORIES.includes(productToEdit.category)) {
+        setIsCustomCategory(true);
+        setCustomCategory(productToEdit.category);
+        setCategory("custom");
+      } else {
+        setIsCustomCategory(false);
+        setCustomCategory("");
+        setCategory(productToEdit.category ?? "Obróbka CNC");
+      }
+
       setSupplierId(productToEdit.supplierId ?? "");
       setSupplierCode(productToEdit.supplierCode ?? "");
       setPriceNetto(productToEdit.priceNetto !== undefined ? String(productToEdit.priceNetto) : "");
@@ -111,6 +146,8 @@ export function ProductFormModal({
       setUnit("szt.");
       setCustomUnit("");
       setCategory("Obróbka CNC");
+      setIsCustomCategory(false);
+      setCustomCategory("");
       setSupplierId(defaultSupplierId ?? "");
       setSupplierCode("");
       setPriceNetto("");
@@ -127,14 +164,19 @@ export function ProductFormModal({
   if (!isOpen) return null;
 
   const finalUnit = unit === "custom" ? customUnit.trim() : unit;
+  const finalCategory = isCustomCategory ? customCategory.trim() : category;
+
   const numNetto = priceNetto !== "" ? parseFloat(priceNetto) : undefined;
   const calculatedBrutto =
     numNetto !== undefined
       ? Math.round(numNetto * (1 + vatRate / 100) * 100) / 100
       : undefined;
 
-  const handleAddParameter = () => {
-    setParameters([...parameters, { key: "", value: "", unit: "" }]);
+  const handleAddParameter = (suggestedKey?: string, suggestedUnit?: string) => {
+    setParameters([
+      ...parameters,
+      { key: suggestedKey ?? "", value: "", unit: suggestedUnit ?? "" },
+    ]);
   };
 
   const handleRemoveParameter = (index: number) => {
@@ -161,6 +203,10 @@ export function ProductFormModal({
       toast.error("Wybierz lub podaj jednostkę miary.");
       return;
     }
+    if (isCustomCategory && !customCategory.trim()) {
+      toast.error("Podaj nazwę własnej kategorii.");
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -175,7 +221,7 @@ export function ProductFormModal({
           code: code.trim() || undefined,
           type,
           unit: finalUnit,
-          category,
+          category: finalCategory || undefined,
           supplierId: supplierId ? (supplierId as Id<"suppliers">) : undefined,
           supplierCode: supplierCode.trim() || undefined,
           priceNetto: numNetto,
@@ -188,14 +234,14 @@ export function ProductFormModal({
           isActive,
           parameters: validParameters.length > 0 ? validParameters : undefined,
         });
-        toast.success("Produkt/Usługa została zaktualizowana!");
+        toast.success("Pozycja została zaktualizowana!");
       } else {
         await createProduct({
           name: name.trim(),
           code: code.trim() || undefined,
           type,
           unit: finalUnit,
-          category,
+          category: finalCategory || undefined,
           supplierId: supplierId ? (supplierId as Id<"suppliers">) : undefined,
           supplierCode: supplierCode.trim() || undefined,
           priceNetto: numNetto,
@@ -208,7 +254,7 @@ export function ProductFormModal({
           isActive,
           parameters: validParameters.length > 0 ? validParameters : undefined,
         });
-        toast.success("Produkt/Usługa została dodana!");
+        toast.success("Nowa pozycja została utworzona!");
       }
       onClose();
     } catch (err) {
@@ -226,7 +272,7 @@ export function ProductFormModal({
     border: "1px solid #30363d",
     color: "#f0f6fc",
     borderRadius: 6,
-    padding: "6px 10px",
+    padding: "7px 11px",
     fontSize: 13,
     width: "100%",
     outline: "none",
@@ -247,8 +293,8 @@ export function ProductFormModal({
         position: "fixed",
         inset: 0,
         zIndex: 1000,
-        background: "rgba(0, 0, 0, 0.75)",
-        backdropFilter: "blur(4px)",
+        background: "rgba(0, 0, 0, 0.8)",
+        backdropFilter: "blur(5px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -259,13 +305,13 @@ export function ProductFormModal({
         style={{
           background: "#161b22",
           border: "1px solid #30363d",
-          borderRadius: 10,
+          borderRadius: 12,
           width: "100%",
-          maxWidth: 720,
-          maxHeight: "90vh",
+          maxWidth: 780,
+          maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 12px 40px rgba(0, 0, 0, 0.6)",
+          boxShadow: "0 16px 48px rgba(0, 0, 0, 0.7)",
           color: "#f0f6fc",
           overflow: "hidden",
         }}
@@ -276,33 +322,32 @@ export function ProductFormModal({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "14px 18px",
+            padding: "16px 20px",
             background: "#0d1117",
             borderBottom: "1px solid #30363d",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 6,
+                width: 36,
+                height: 36,
+                borderRadius: 8,
                 background: "rgba(59, 130, 246, 0.15)",
                 border: "1px solid rgba(59, 130, 246, 0.3)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                display: "grid",
+                placeItems: "center",
                 color: "#60a5fa",
               }}
             >
-              <Layers size={16} />
+              <Package size={18} />
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#f0f6fc" }}>
-                {productToEdit ? "Edycja Pozycji Obróbki / Produktu" : "Nowy Produkt / Usługa Obróbki"}
+              <div style={{ fontSize: 15, fontWeight: 700, color: "#f0f6fc" }}>
+                {productToEdit ? "Edycja Pozycji Obróbki / Produktu" : "Nowa Pozycja Katalogowa (Obróbka / Produkt)"}
               </div>
-              <div style={{ fontSize: 11, color: "#8b949e" }}>
-                Zarządzaj właściwościami, dostawcą i parametrami technicznymi
+              <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
+                Skonfiguruj typ, wykonawcę, cennik oraz warianty techniczne
               </div>
             </div>
           </div>
@@ -313,117 +358,265 @@ export function ProductFormModal({
               border: "none",
               color: "#8b949e",
               cursor: "pointer",
-              padding: 4,
+              padding: 6,
+              borderRadius: 6,
             }}
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} style={{ padding: 18, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Typ i Aktywność */}
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            padding: 20,
+            overflowY: "auto",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: 20,
+          }}
+        >
+          {/* Section 1: Wybór Typu Pozycji */}
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#8b949e",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                marginBottom: 8,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Sparkles size={13} style={{ color: "#60a5fa" }} />
+              1. Wybór Typu Pozycji Katalogowej *
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 10,
+              }}
+            >
+              {/* Card 1: Outsourcing */}
+              <div
+                onClick={() => setType("outsourcing")}
+                style={{
+                  background: type === "outsourcing" ? "rgba(168, 85, 247, 0.12)" : "#0d1117",
+                  border: type === "outsourcing" ? "1px solid #c084fc" : "1px solid #21262d",
+                  borderRadius: 8,
+                  padding: 12,
+                  cursor: "pointer",
+                  transition: "all 120ms ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: type === "outsourcing" ? "#c084fc" : "#f0f6fc" }}>
+                    <Wrench size={15} /> Obróbka Zewnętrzna
+                  </div>
+                  <input
+                    type="radio"
+                    name="productType"
+                    checked={type === "outsourcing"}
+                    onChange={() => setType("outsourcing")}
+                    style={{ accentColor: "#c084fc" }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "#8b949e", lineHeight: 1.4 }}>
+                  Lakierowanie, cięcie CNC, spawanie, gięcie profili u podwykonawcy.
+                </div>
+              </div>
+
+              {/* Card 2: Service */}
+              <div
+                onClick={() => setType("service")}
+                style={{
+                  background: type === "service" ? "rgba(59, 130, 246, 0.12)" : "#0d1117",
+                  border: type === "service" ? "1px solid #60a5fa" : "1px solid #21262d",
+                  borderRadius: 8,
+                  padding: 12,
+                  cursor: "pointer",
+                  transition: "all 120ms ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: type === "service" ? "#60a5fa" : "#f0f6fc" }}>
+                    <Layers size={15} /> Usługa Zewnętrzna
+                  </div>
+                  <input
+                    type="radio"
+                    name="productType"
+                    checked={type === "service"}
+                    onChange={() => setType("service")}
+                    style={{ accentColor: "#60a5fa" }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "#8b949e", lineHeight: 1.4 }}>
+                  Usługi dojazdu, montażu, pomiarów, audytów i projektowania.
+                </div>
+              </div>
+
+              {/* Card 3: Product */}
+              <div
+                onClick={() => setType("product")}
+                style={{
+                  background: type === "product" ? "rgba(34, 197, 94, 0.12)" : "#0d1117",
+                  border: type === "product" ? "1px solid #4ade80" : "1px solid #21262d",
+                  borderRadius: 8,
+                  padding: 12,
+                  cursor: "pointer",
+                  transition: "all 120ms ease",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 13, color: type === "product" ? "#4ade80" : "#f0f6fc" }}>
+                    <Package size={15} /> Produkt / Komponent
+                  </div>
+                  <input
+                    type="radio"
+                    name="productType"
+                    checked={type === "product"}
+                    onChange={() => setType("product")}
+                    style={{ accentColor: "#4ade80" }}
+                  />
+                </div>
+                <div style={{ fontSize: 10, color: "#8b949e", lineHeight: 1.4 }}>
+                  Fizyczny materiał, profil aluminiowy, okucie, akcesorium.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Nazwa, SKU, Kategoria */}
           <div
             style={{
               background: "#0d1117",
               border: "1px solid #21262d",
               borderRadius: 8,
-              padding: 12,
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 120px",
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
               gap: 12,
-              alignItems: "center",
             }}
           >
-            <label style={labelStyle}>
-              Typ Pozycji *
-              <select
-                value={type}
-                onChange={(e) => setType(e.target.value as "product" | "service" | "outsourcing")}
-                style={inputStyle}
-              >
-                <option value="outsourcing">Obróbka Zewnętrzna (Outsourcing)</option>
-                <option value="service">Usługa Zewnętrzna / Dojazd</option>
-                <option value="product">Produkt / Komponent</option>
-              </select>
-            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <label style={labelStyle}>
+                Nazwa Pozycji *
+                <input
+                  type="text"
+                  required
+                  placeholder="np. Lakierowanie proszkowe RAL 9016 MAT"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={inputStyle}
+                />
+              </label>
 
-            <label style={labelStyle}>
-              Kategoria
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                style={inputStyle}
-              >
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <label style={labelStyle}>
+                Kod Wewnętrzny / SKU
+                <input
+                  type="text"
+                  placeholder="np. OBR-LAK-9016"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  style={inputStyle}
+                />
+              </label>
+            </div>
 
-            <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                style={{ width: 15, height: 15, accentColor: "#3b82f6" }}
-              />
-              <span style={{ fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>Aktywny</span>
-            </label>
-          </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px", gap: 12, alignItems: "flex-end" }}>
+              <label style={labelStyle}>
+                Kategoria Obróbki / Produktu
+                {!isCustomCategory ? (
+                  <select
+                    value={category}
+                    onChange={(e) => {
+                      if (e.target.value === "custom") {
+                        setIsCustomCategory(true);
+                      } else {
+                        setCategory(e.target.value);
+                      }
+                    }}
+                    style={inputStyle}
+                  >
+                    {DEFAULT_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="custom">+ Inna / Dodaj własną kategorię...</option>
+                  </select>
+                ) : (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      type="text"
+                      placeholder="Wpisz nazwę własnej kategorii..."
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomCategory(false);
+                        setCategory(DEFAULT_CATEGORIES[0]!);
+                      }}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px solid #30363d",
+                        borderRadius: 6,
+                        color: "#8b949e",
+                        fontSize: 11,
+                        padding: "0 8px",
+                        cursor: "pointer",
+                      }}
+                      title="Wróć do listy domyślnych"
+                    >
+                      Anuluj
+                    </button>
+                  </div>
+                )}
+              </label>
 
-          {/* Nazwa i SKU */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <label style={labelStyle}>
-              Nazwa Produktu / Usługi *
-              <input
-                type="text"
-                required
-                placeholder="np. Lakierowanie proszkowe RAL 9016 MAT"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={inputStyle}
-              />
-            </label>
+              <label style={labelStyle}>
+                Jednostka Miary *
+                <select
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  style={inputStyle}
+                >
+                  {COMMON_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                  <option value="custom">Własna jednostka...</option>
+                </select>
+              </label>
 
-            <label style={labelStyle}>
-              Kod / SKU (wewnętrzny)
-              <input
-                type="text"
-                placeholder="np. OBR-LAK-9016"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                style={inputStyle}
-              />
-            </label>
-          </div>
-
-          {/* Jednostka miary */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <label style={labelStyle}>
-              Jednostka Miary *
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                style={inputStyle}
-              >
-                {COMMON_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-                <option value="custom">Własna jednostka...</option>
-              </select>
-            </label>
+              <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, height: 34, cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: "#3b82f6" }}
+                />
+                <span style={{ fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>Pozycja Aktywna</span>
+              </label>
+            </div>
 
             {unit === "custom" && (
               <label style={labelStyle}>
                 Wpisz Własną Jednostkę *
                 <input
                   type="text"
-                  placeholder="np. komplet, m3, paleta"
+                  placeholder="np. m3, paleta, zestaw"
                   value={customUnit}
                   onChange={(e) => setCustomUnit(e.target.value)}
                   style={inputStyle}
@@ -432,15 +625,37 @@ export function ProductFormModal({
             )}
           </div>
 
-          {/* Dostawca */}
-          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <Tag size={12} style={{ color: "#3b82f6" }} />
-              Przypisany Dostawca / Wykonawca
+          {/* Section 3: Dostawca i Cennik */}
+          <div
+            style={{
+              background: "#0d1117",
+              border: "1px solid #21262d",
+              borderRadius: 8,
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#8b949e",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Tag size={13} style={{ color: "#3b82f6" }} />
+              2. Wykonawca Obróbki & Warunki Handlowe
             </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={labelStyle}>
-                Dostawca
+                Przypisany Dostawca / Podwykonawca
                 <select
                   value={supplierId}
                   onChange={(e) => setSupplierId(e.target.value)}
@@ -456,7 +671,7 @@ export function ProductFormModal({
               </label>
 
               <label style={labelStyle}>
-                Kod / SKU u Dostawcy
+                Kod / SKU u Wykonawcy
                 <input
                   type="text"
                   placeholder="np. SUP-9016-MAT"
@@ -466,17 +681,10 @@ export function ProductFormModal({
                 />
               </label>
             </div>
-          </div>
 
-          {/* Ceny i Czas realizacji */}
-          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-              <DollarSign size={12} style={{ color: "#4ade80" }} />
-              Cena Zakupu i Czas Realizacji
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10 }}>
               <label style={labelStyle}>
-                Cena Netto
+                Cena Zakupu Netto
                 <input
                   type="number"
                   step="0.01"
@@ -503,17 +711,17 @@ export function ProductFormModal({
               </label>
 
               <label style={labelStyle}>
-                Cena Brutto
+                Cena Brutto (wyliczana)
                 <input
                   type="text"
                   disabled
                   value={calculatedBrutto !== undefined ? `${calculatedBrutto.toFixed(2)} ${currency}` : "—"}
-                  style={{ ...inputStyle, background: "#161b22", color: "#8b949e" }}
+                  style={{ ...inputStyle, background: "#161b22", color: "#8b949e", fontWeight: 700 }}
                 />
               </label>
 
               <label style={labelStyle}>
-                Czas (dni)
+                Czas Realizacji (dni)
                 <input
                   type="number"
                   min="0"
@@ -526,16 +734,38 @@ export function ProductFormModal({
             </div>
           </div>
 
-          {/* Parametry techniczne */}
-          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
-                <FileText size={12} style={{ color: "#c084fc" }} />
-                Parametry Techniczne
+          {/* Section 4: Parametry techniczne */}
+          <div
+            style={{
+              background: "#0d1117",
+              border: "1px solid #21262d",
+              borderRadius: 8,
+              padding: 14,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#8b949e",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Sliders size={13} style={{ color: "#c084fc" }} />
+                3. Parametry Techniczne & Warianty
               </div>
+
               <button
                 type="button"
-                onClick={handleAddParameter}
+                onClick={() => handleAddParameter()}
                 style={{
                   background: "rgba(59, 130, 246, 0.15)",
                   border: "1px solid rgba(59, 130, 246, 0.3)",
@@ -543,20 +773,56 @@ export function ProductFormModal({
                   color: "#60a5fa",
                   fontSize: 11,
                   fontWeight: 600,
-                  padding: "3px 8px",
+                  padding: "4px 10px",
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 4,
                 }}
               >
-                <Plus size={11} /> Dodaj parametr
+                <Plus size={12} /> Dodaj własny parametr
               </button>
             </div>
 
+            {/* Szybkie sugestie */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, color: "#8b949e", display: "flex", alignItems: "center", gap: 3 }}>
+                <Info size={11} /> Szybkie sugestie:
+              </span>
+              {QUICK_PARAM_SUGGESTIONS.map((sug) => (
+                <button
+                  key={sug.key}
+                  type="button"
+                  onClick={() => handleAddParameter(sug.key, sug.unit)}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.04)",
+                    border: "1px border rgba(255, 255, 255, 0.1)",
+                    borderRadius: 4,
+                    color: "#c9d1d9",
+                    fontSize: 10,
+                    padding: "2px 6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  + {sug.key}
+                </button>
+              ))}
+            </div>
+
             {parameters.length === 0 ? (
-              <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: "8px 10px", borderRadius: 6, textAlign: "center", border: "1px solid #21262d" }}>
-                Brak zdefiniowanych parametrów technicznych (np. Kolor RAL, Grubość).
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#8b949e",
+                  fontStyle: "italic",
+                  background: "#161b22",
+                  padding: "10px 12px",
+                  borderRadius: 6,
+                  textAlign: "center",
+                  border: "1px dashed #30363d",
+                }}
+              >
+                Brak przypisanych parametrów technicznych. Kliknij przycisk powyżej lub wybierz sugestię.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -564,7 +830,7 @@ export function ProductFormModal({
                   <div key={index} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input
                       type="text"
-                      placeholder="Nazwa (np. Kolor RAL)"
+                      placeholder="Nazwa cechy (np. Kolor RAL)"
                       value={param.key}
                       onChange={(e) =>
                         handleParameterChange(index, "key", e.target.value)
@@ -587,7 +853,7 @@ export function ProductFormModal({
                       onChange={(e) =>
                         handleParameterChange(index, "unit", e.target.value)
                       }
-                      style={{ ...inputStyle, width: 90 }}
+                      style={{ ...inputStyle, width: 95 }}
                     />
                     <button
                       type="button"
@@ -609,13 +875,13 @@ export function ProductFormModal({
             )}
           </div>
 
-          {/* Opis i Notatki */}
-          <div style={{ borderTop: "1px solid #21262d", paddingTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {/* Section 5: Opisy i Notatki */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <label style={labelStyle}>
-              Opis Techniczny / Zakres Obróbki
+              Opis Techniczny / Zakres Usługi
               <textarea
                 rows={2}
-                placeholder="Opis usługi..."
+                placeholder="Dodatkowy opis techniczny pozycji..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 style={{ ...inputStyle, resize: "vertical" }}
@@ -626,7 +892,7 @@ export function ProductFormModal({
               Notatki Wewnętrzne
               <textarea
                 rows={2}
-                placeholder="Prywatne uwagi..."
+                placeholder="Prywatne uwagi zespołu..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 style={{ ...inputStyle, resize: "vertical" }}
@@ -639,10 +905,9 @@ export function ProductFormModal({
             style={{
               display: "flex",
               justifyContent: "flex-end",
-              gap: 8,
+              gap: 10,
               borderTop: "1px solid #21262d",
               paddingTop: 14,
-              marginTop: 4,
             }}
           >
             <button
@@ -656,7 +921,7 @@ export function ProductFormModal({
                 color: "#c9d1d9",
                 fontSize: 12,
                 fontWeight: 600,
-                padding: "6px 14px",
+                padding: "8px 16px",
                 cursor: "pointer",
               }}
             >
@@ -672,12 +937,12 @@ export function ProductFormModal({
                 color: "#ffffff",
                 fontSize: 12,
                 fontWeight: 700,
-                padding: "6px 16px",
+                padding: "8px 20px",
                 cursor: "pointer",
                 opacity: isSubmitting ? 0.6 : 1,
               }}
             >
-              {isSubmitting ? "Zapisywanie..." : productToEdit ? "Zapisz Zmiany" : "Utwórz Pozycję"}
+              {isSubmitting ? "Zapisywanie..." : productToEdit ? "Zapisz Zmiany" : "Utwórz Pozycję Katalogową"}
             </button>
           </div>
         </form>
