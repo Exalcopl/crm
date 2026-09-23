@@ -123,8 +123,8 @@ export default function ProductDetailPage() {
       <div className="fluent-ribbon">
         <RibbonGroup label="Nawigacja">
           <RibbonBtn
-            icon={<I.arrow s={22} direction="left" />}
-            label="Powrót"
+            icon={<ArrowLeft size={22} />}
+            label="Wróć"
             onClick={() => router.push("/admin/produkty")}
           />
         </RibbonGroup>

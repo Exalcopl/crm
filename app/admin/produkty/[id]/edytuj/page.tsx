@@ -1,58 +1,25 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
-  ArrowLeft,
-  Plus,
-  Trash2,
-  Tag,
-  DollarSign,
-  FileText,
   Wrench,
   Layers,
   Package,
-  Sliders,
   Sparkles,
-  Info,
   Image as ImageIcon,
   Upload,
+  Trash2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { I } from "../../../_lib/icons";
 import { RibbonBtn, RibbonGroup } from "../../../_components/ribbon";
-interface ParameterItem {
-  key: string;
-  value: string;
-  unit?: string;
-}
 
 const COMMON_UNITS = ["szt.", "mb.", "m²", "kg", "kpl.", "godz.", "usł."];
-
-const DEFAULT_CATEGORIES = [
-  "Obróbka CNC",
-  "Lakierowanie proszkowe",
-  "Cięcie profili",
-  "Spawanie",
-  "Grawerowanie / Cechowanie",
-  "Transport / Logistyka",
-  "Profil aluminiowy",
-  "Akcesoria i Okucia",
-  "Wypełnienie / Szkło",
-  "Inne",
-];
-
-const QUICK_PARAM_SUGGESTIONS = [
-  { key: "Kolor RAL", unit: "" },
-  { key: "Grubość powłoki", unit: "μm" },
-  { key: "Wymiary (dł × szer)", unit: "mm" },
-  { key: "Gatunek stopu", unit: "" },
-  { key: "Waga jednostkowa", unit: "kg" },
-];
 
 export default function EditProductPage() {
   const params = useParams();
@@ -60,28 +27,14 @@ export default function EditProductPage() {
   const productId = params.id as Id<"products">;
 
   const product = useQuery(api.products.get, { id: productId });
-  const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const updateProduct = useMutation(api.products.update);
   const generateUploadUrl = useMutation(api.products.generateUploadUrl);
 
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [type, setType] = useState<"product" | "service" | "outsourcing">("outsourcing");
   const [unit, setUnit] = useState("szt.");
   const [customUnit, setCustomUnit] = useState("");
-  const [category, setCategory] = useState("Obróbka CNC");
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const [customCategory, setCustomCategory] = useState("");
-  const [supplierId, setSupplierId] = useState<string>("");
-  const [supplierCode, setSupplierCode] = useState("");
-  const [priceNetto, setPriceNetto] = useState<string>("");
-  const [vatRate, setVatRate] = useState<number>(23);
-  const [currency, setCurrency] = useState("PLN");
-  const [leadTimeDays, setLeadTimeDays] = useState<string>("");
   const [description, setDescription] = useState("");
-  const [notes, setNotes] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [parameters, setParameters] = useState<ParameterItem[]>([]);
 
   // Image Upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -94,7 +47,6 @@ export default function EditProductPage() {
   useEffect(() => {
     if (product) {
       setName(product.name);
-      setCode(product.code ?? "");
       setType(product.type);
       if (COMMON_UNITS.includes(product.unit)) {
         setUnit(product.unit);
@@ -103,27 +55,7 @@ export default function EditProductPage() {
         setUnit("custom");
         setCustomUnit(product.unit);
       }
-
-      if (product.category && !DEFAULT_CATEGORIES.includes(product.category)) {
-        setIsCustomCategory(true);
-        setCustomCategory(product.category);
-        setCategory("custom");
-      } else {
-        setIsCustomCategory(false);
-        setCustomCategory("");
-        setCategory(product.category ?? "Obróbka CNC");
-      }
-
-      setSupplierId(product.supplierId ?? "");
-      setSupplierCode(product.supplierCode ?? "");
-      setPriceNetto(product.priceNetto !== undefined ? String(product.priceNetto) : "");
-      setVatRate(product.vatRate ?? 23);
-      setCurrency(product.currency ?? "PLN");
-      setLeadTimeDays(product.leadTimeDays !== undefined ? String(product.leadTimeDays) : "");
       setDescription(product.description ?? "");
-      setNotes(product.notes ?? "");
-      setIsActive(product.isActive);
-      setParameters(product.parameters ?? []);
       setExistingImageId(product.imageId);
       setImagePreview(product.imageUrl ?? null);
     }
@@ -146,13 +78,6 @@ export default function EditProductPage() {
   }
 
   const finalUnit = unit === "custom" ? customUnit.trim() : unit;
-  const finalCategory = isCustomCategory ? customCategory.trim() : category;
-
-  const numNetto = priceNetto !== "" ? parseFloat(priceNetto) : undefined;
-  const calculatedBrutto =
-    numNetto !== undefined
-      ? Math.round(numNetto * (1 + vatRate / 100) * 100) / 100
-      : undefined;
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -176,27 +101,6 @@ export default function EditProductPage() {
     setSelectedFile(null);
     setImagePreview(null);
     setExistingImageId(undefined);
-  };
-
-  const handleAddParameter = (suggestedKey?: string, suggestedUnit?: string) => {
-    setParameters([
-      ...parameters,
-      { key: suggestedKey ?? "", value: "", unit: suggestedUnit ?? "" },
-    ]);
-  };
-
-  const handleRemoveParameter = (index: number) => {
-    setParameters(parameters.filter((_, i) => i !== index));
-  };
-
-  const handleParameterChange = (
-    index: number,
-    field: keyof ParameterItem,
-    val: string
-  ) => {
-    const updated = [...parameters];
-    updated[index] = { ...updated[index], [field]: val };
-    setParameters(updated);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -234,28 +138,13 @@ export default function EditProductPage() {
         setIsUploadingImage(false);
       }
 
-      const validParameters = parameters.filter((p) => p.key.trim() !== "");
-      const numLeadTime = leadTimeDays !== "" ? parseInt(leadTimeDays, 10) : undefined;
-
       await updateProduct({
         id: productId,
         name: name.trim(),
-        code: code.trim() || undefined,
         type,
         unit: finalUnit,
-        category: finalCategory || undefined,
-        supplierId: supplierId ? (supplierId as Id<"suppliers">) : undefined,
-        supplierCode: supplierCode.trim() || undefined,
-        priceNetto: numNetto,
-        priceBrutto: calculatedBrutto,
-        vatRate,
-        currency,
-        leadTimeDays: numLeadTime,
         description: description.trim() || undefined,
-        notes: notes.trim() || undefined,
         imageId: finalStorageId,
-        isActive,
-        parameters: validParameters.length > 0 ? validParameters : undefined,
       });
 
       toast.success("Zmiany zostały zapisane!");
@@ -304,8 +193,8 @@ export default function EditProductPage() {
       <div className="fluent-ribbon">
         <RibbonGroup label="Nawigacja">
           <RibbonBtn
-            icon={<I.arrow s={22} direction="left" />}
-            label="Powrót"
+            icon={<ArrowLeft size={22} />}
+            label="Wróć"
             onClick={() => router.push(`/admin/produkty/${productId}`)}
           />
         </RibbonGroup>
@@ -324,463 +213,195 @@ export default function EditProductPage() {
       </div>
 
       <main className="fluent-content">
-        <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <h1 style={{ fontSize: 20, fontWeight: 800, color: "#f0f6fc", margin: 0 }}>
-                Edycja Pozycji: {product.name}
-              </h1>
-            </div>
-            <button
-              type="submit"
-              form="edit-product-form"
-              disabled={isSubmitting}
-              style={{ background: "#238636", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "#ffffff", fontSize: 12, fontWeight: 700, padding: "8px 20px", cursor: "pointer", opacity: isSubmitting ? 0.6 : 1 }}
-            >
-              {isSubmitting ? (isUploadingImage ? "Wgrywanie zdjęcia..." : "Zapisywanie...") : "Zapisz Zmiany"}
-            </button>
-          </div>
-
-          {/* Main Form */}
-      <form id="edit-product-form" onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Section 1: Wybór Typu Pozycji */}
-        <div style={cardStyle}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <Sparkles size={14} style={{ color: "#60a5fa" }} />
-            1. Wybór Typu Pozycji Katalogowej *
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            <div
-              onClick={() => setType("outsourcing")}
-              style={{
-                background: type === "outsourcing" ? "rgba(168, 85, 247, 0.12)" : "#0d1117",
-                border: type === "outsourcing" ? "1px solid #c084fc" : "1px solid #21262d",
-                borderRadius: 8,
-                padding: 14,
-                cursor: "pointer",
-                transition: "all 120ms ease",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "outsourcing" ? "#c084fc" : "#f0f6fc" }}>
-                  <Wrench size={16} /> Obróbka Zewnętrzna
+        <div style={{ padding: 20 }}>
+          <form id="edit-product-form" onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            {/* Lewa kolumna: Pola formularza */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Wybór typu */}
+              <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Sparkles size={14} style={{ color: "#60a5fa" }} />
+                  Wybór Typu Pozycji *
                 </div>
-                <input type="radio" name="productType" checked={type === "outsourcing"} onChange={() => setType("outsourcing")} style={{ accentColor: "#c084fc" }} />
-              </div>
-              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.4 }}>
-                Lakierowanie, cięcie CNC, spawanie, gięcie profili u podwykonawców.
-              </div>
-            </div>
-
-            <div
-              onClick={() => setType("service")}
-              style={{
-                background: type === "service" ? "rgba(59, 130, 246, 0.12)" : "#0d1117",
-                border: type === "service" ? "1px solid #60a5fa" : "1px solid #21262d",
-                borderRadius: 8,
-                padding: 14,
-                cursor: "pointer",
-                transition: "all 120ms ease",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "service" ? "#60a5fa" : "#f0f6fc" }}>
-                  <Layers size={16} /> Usługa Zewnętrzna
-                </div>
-                <input type="radio" name="productType" checked={type === "service"} onChange={() => setType("service")} style={{ accentColor: "#60a5fa" }} />
-              </div>
-              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.4 }}>
-                Usługi dojazdu, montażu, pomiarów na inwestycji, audytów i projektowania.
-              </div>
-            </div>
-
-            <div
-              onClick={() => setType("product")}
-              style={{
-                background: type === "product" ? "rgba(34, 197, 94, 0.12)" : "#0d1117",
-                border: type === "product" ? "1px solid #4ade80" : "1px solid #21262d",
-                borderRadius: 8,
-                padding: 14,
-                cursor: "pointer",
-                transition: "all 120ms ease",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "product" ? "#4ade80" : "#f0f6fc" }}>
-                  <Package size={16} /> Produkt / Komponent
-                </div>
-                <input type="radio" name="productType" checked={type === "product"} onChange={() => setType("product")} style={{ accentColor: "#4ade80" }} />
-              </div>
-              <div style={{ fontSize: 11, color: "#8b949e", lineHeight: 1.4 }}>
-                Fizyczny materiał, profil aluminiowy, okucie, łącznik, wypełnienie.
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 2: Grid Nazwa + Wgrywanie Obrazu */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 280px", gap: 16 }}>
-          {/* Main Attributes Card */}
-          <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={labelStyle}>
-                Nazwa Pozycji *
-                <input
-                  type="text"
-                  required
-                  placeholder="np. Lakierowanie proszkowe RAL 9016 MAT"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={inputStyle}
-                />
-              </label>
-
-              <label style={labelStyle}>
-                Kod Wewnętrzny / SKU
-                <input
-                  type="text"
-                  placeholder="np. OBR-LAK-9016"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 120px", gap: 12, alignItems: "flex-end" }}>
-              <label style={labelStyle}>
-                Kategoria Obróbki / Produktu
-                {!isCustomCategory ? (
-                  <select
-                    value={category}
-                    onChange={(e) => {
-                      if (e.target.value === "custom") {
-                        setIsCustomCategory(true);
-                      } else {
-                        setCategory(e.target.value);
-                      }
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                  <div
+                    onClick={() => setType("outsourcing")}
+                    style={{
+                      background: type === "outsourcing" ? "rgba(168, 85, 247, 0.12)" : "#0d1117",
+                      border: type === "outsourcing" ? "1px solid #c084fc" : "1px solid #21262d",
+                      borderRadius: 8,
+                      padding: "14px 10px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 120ms ease",
                     }}
-                    style={inputStyle}
                   >
-                    {DEFAULT_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                    <option value="custom">+ Dodaj własną kategorię...</option>
-                  </select>
-                ) : (
-                  <div style={{ display: "flex", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "outsourcing" ? "#c084fc" : "#f0f6fc" }}>
+                      <Wrench size={16} /> Obróbka
+                    </div>
+                    <input type="radio" name="productType" checked={type === "outsourcing"} readOnly style={{ accentColor: "#c084fc" }} />
+                  </div>
+
+                  <div
+                    onClick={() => setType("service")}
+                    style={{
+                      background: type === "service" ? "rgba(59, 130, 246, 0.12)" : "#0d1117",
+                      border: type === "service" ? "1px solid #60a5fa" : "1px solid #21262d",
+                      borderRadius: 8,
+                      padding: "14px 10px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 120ms ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "service" ? "#60a5fa" : "#f0f6fc" }}>
+                      <Layers size={16} /> Usługa
+                    </div>
+                    <input type="radio" name="productType" checked={type === "service"} readOnly style={{ accentColor: "#60a5fa" }} />
+                  </div>
+
+                  <div
+                    onClick={() => setType("product")}
+                    style={{
+                      background: type === "product" ? "rgba(34, 197, 94, 0.12)" : "#0d1117",
+                      border: type === "product" ? "1px solid #4ade80" : "1px solid #21262d",
+                      borderRadius: 8,
+                      padding: "14px 10px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 120ms ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 13, color: type === "product" ? "#4ade80" : "#f0f6fc" }}>
+                      <Package size={16} /> Produkt
+                    </div>
+                    <input type="radio" name="productType" checked={type === "product"} readOnly style={{ accentColor: "#4ade80" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Pola */}
+              <div style={cardStyle}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12, marginBottom: 12 }}>
+                  <label style={labelStyle}>
+                    Nazwa Pozycji *
                     <input
                       type="text"
-                      placeholder="Nazwa własnej kategorii..."
-                      value={customCategory}
-                      onChange={(e) => setCustomCategory(e.target.value)}
+                      required
+                      placeholder="np. Lakierowanie proszkowe RAL 9016 MAT"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
                       style={inputStyle}
+                    />
+                  </label>
+                  <label style={labelStyle}>
+                    Jednostka *
+                    <select
+                      value={unit}
+                      onChange={(e) => setUnit(e.target.value)}
+                      style={inputStyle}
+                    >
+                      {COMMON_UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                      <option value="custom">Własna...</option>
+                    </select>
+                  </label>
+                </div>
+                {unit === "custom" && (
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={labelStyle}>
+                      Wpisz Własną Jednostkę *
+                      <input
+                        type="text"
+                        placeholder="np. m3, paleta"
+                        value={customUnit}
+                        onChange={(e) => setCustomUnit(e.target.value)}
+                        style={inputStyle}
+                      />
+                    </label>
+                  </div>
+                )}
+                
+                <label style={labelStyle}>
+                  Opis Techniczny / Zakres
+                  <textarea
+                    rows={4}
+                    placeholder="Dodatkowy opis techniczny..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    style={{ ...inputStyle, resize: "vertical" }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Prawa kolumna: Zdjęcie */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ ...cardStyle, flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
+                  <ImageIcon size={13} style={{ color: "#60a5fa" }} /> Obraz / Miniatura
+                </div>
+
+                {imagePreview ? (
+                  <div style={{ position: "relative", width: "100%", flex: 1, minHeight: 250, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imagePreview}
+                      alt="Podgląd zdjęcia"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        setIsCustomCategory(false);
-                        setCategory(DEFAULT_CATEGORIES[0]!);
-                      }}
-                      style={{ background: "#21262d", border: "1px solid #30363d", borderRadius: 6, color: "#8b949e", fontSize: 11, padding: "0 8px", cursor: "pointer" }}
+                      onClick={handleRemoveImage}
+                      style={{ position: "absolute", top: 6, right: 6, background: "rgba(248,81,73,0.9)", color: "#fff", border: "none", borderRadius: 4, padding: 4, cursor: "pointer" }}
+                      title="Usuń zdjęcie"
                     >
-                      X
+                      <Trash2 size={13} />
                     </button>
                   </div>
-                )}
-              </label>
-
-              <label style={labelStyle}>
-                Jednostka Miary *
-                <select
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  style={inputStyle}
-                >
-                  {COMMON_UNITS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                  <option value="custom">Własna...</option>
-                </select>
-              </label>
-
-              <label style={{ ...labelStyle, flexDirection: "row", alignItems: "center", gap: 8, height: 38, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  style={{ width: 16, height: 16, accentColor: "#3b82f6" }}
-                />
-                <span style={{ fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>Aktywny</span>
-              </label>
-            </div>
-
-            {unit === "custom" && (
-              <label style={labelStyle}>
-                Wpisz Własną Jednostkę *
-                <input
-                  type="text"
-                  placeholder="np. m3, paleta"
-                  value={customUnit}
-                  onChange={(e) => setCustomUnit(e.target.value)}
-                  style={inputStyle}
-                />
-              </label>
-            )}
-          </div>
-
-          {/* Image Upload Box */}
-          <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
-              <ImageIcon size={13} style={{ color: "#60a5fa" }} /> Obraz / Miniatura Pozycji
-            </div>
-
-            {imagePreview ? (
-              <div style={{ position: "relative", width: "100%", height: 150, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imagePreview}
-                  alt="Podgląd zdjęcia"
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  style={{ position: "absolute", top: 6, right: 6, background: "rgba(248,81,73,0.9)", color: "#fff", border: "none", borderRadius: 4, padding: 4, cursor: "pointer" }}
-                  title="Usuń zdjęcie"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ) : (
-              <label
-                style={{
-                  border: "2px dashed #30363d",
-                  borderRadius: 6,
-                  padding: 20,
-                  textAlign: "center",
-                  cursor: "pointer",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 8,
-                  background: "#0d1117",
-                  transition: "border 150ms",
-                }}
-              >
-                <Upload size={24} style={{ color: "#8b949e" }} />
-                <span style={{ fontSize: 11, color: "#c9d1d9", fontWeight: 600 }}>Przeciągnij lub kliknij, aby podmienić zdjęcie</span>
-                <span style={{ fontSize: 9, color: "#8b949e" }}>JPG, PNG, WEBP (max 10MB)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  style={{ display: "none" }}
-                />
-              </label>
-            )}
-          </div>
-        </div>
-
-        {/* Section 3: Dostawca i Cennik */}
-        <div style={cardStyle}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
-            <Tag size={14} style={{ color: "#3b82f6" }} />
-            2. Wykonawca Obróbki & Warunki Handlowe
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <label style={labelStyle}>
-              Przypisany Dostawca / Podwykonawca
-              <select
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                style={inputStyle}
-              >
-                <option value="">-- Brak / Wybierz dostawcę --</option>
-                {suppliers?.map((s) => (
-                  <option key={s._id} value={s._id}>
-                    {s.name} (NIP: {s.nip})
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={labelStyle}>
-              Kod / SKU u Wykonawcy
-              <input
-                type="text"
-                placeholder="np. SUP-9016-MAT"
-                value={supplierCode}
-                onChange={(e) => setSupplierCode(e.target.value)}
-                style={inputStyle}
-              />
-            </label>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 12 }}>
-            <label style={labelStyle}>
-              Cena Zakupu Netto
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="0.00"
-                value={priceNetto}
-                onChange={(e) => setPriceNetto(e.target.value)}
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={labelStyle}>
-              Stawka VAT (%)
-              <select
-                value={vatRate}
-                onChange={(e) => setVatRate(Number(e.target.value))}
-                style={inputStyle}
-              >
-                <option value={23}>23%</option>
-                <option value={8}>8%</option>
-                <option value={5}>5%</option>
-                <option value={0}>0%</option>
-              </select>
-            </label>
-
-            <label style={labelStyle}>
-              Cena Brutto (wyliczana)
-              <input
-                type="text"
-                disabled
-                value={calculatedBrutto !== undefined ? `${calculatedBrutto.toFixed(2)} ${currency}` : "—"}
-                style={{ ...inputStyle, background: "#0d1117", color: "#4ade80", fontWeight: 700 }}
-              />
-            </label>
-
-            <label style={labelStyle}>
-              Czas Realizacji (dni)
-              <input
-                type="number"
-                min="0"
-                placeholder="np. 5"
-                value={leadTimeDays}
-                onChange={(e) => setLeadTimeDays(e.target.value)}
-                style={inputStyle}
-              />
-            </label>
-          </div>
-        </div>
-
-        {/* Section 4: Parametry Techniczne */}
-        <div style={cardStyle}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", display: "flex", alignItems: "center", gap: 6 }}>
-              <Sliders size={14} style={{ color: "#c084fc" }} />
-              3. Specyfikacja & Parametry Techniczne
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleAddParameter()}
-              style={{ background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.3)", borderRadius: 6, color: "#60a5fa", fontSize: 11, fontWeight: 600, padding: "5px 12px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
-            >
-              <Plus size={12} /> Dodaj parametr
-            </button>
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-            <span style={{ fontSize: 10, color: "#8b949e", display: "flex", alignItems: "center", gap: 4 }}>
-              <Info size={11} /> Szybkie sugestie:
-            </span>
-            {QUICK_PARAM_SUGGESTIONS.map((sug) => (
-              <button
-                key={sug.key}
-                type="button"
-                onClick={() => handleAddParameter(sug.key, sug.unit)}
-                style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.1)", borderRadius: 4, color: "#c9d1d9", fontSize: 10, padding: "3px 8px", cursor: "pointer" }}
-              >
-                + {sug.key}
-              </button>
-            ))}
-          </div>
-
-          {parameters.length === 0 ? (
-            <div style={{ fontSize: 11, color: "#8b949e", fontStyle: "italic", background: "#0d1117", padding: 14, borderRadius: 6, textAlign: "center", border: "1px dashed #30363d" }}>
-              Brak zdefiniowanych parametrów technicznych. Kliknij przycisk powyżej lub dodaj sugestię.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {parameters.map((param, index) => (
-                <div key={index} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <input
-                    type="text"
-                    placeholder="Nazwa cechy (np. Kolor RAL)"
-                    value={param.key}
-                    onChange={(e) => handleParameterChange(index, "key", e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Wartość (np. 9016)"
-                    value={param.value}
-                    onChange={(e) => handleParameterChange(index, "value", e.target.value)}
-                    style={{ ...inputStyle, flex: 1 }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Jednostka (np. μm)"
-                    value={param.unit ?? ""}
-                    onChange={(e) => handleParameterChange(index, "unit", e.target.value)}
-                    style={{ ...inputStyle, width: 100 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveParameter(index)}
-                    style={{ background: "rgba(248, 81, 73, 0.1)", border: "1px solid rgba(248, 81, 73, 0.3)", color: "#f85149", borderRadius: 6, padding: 7, cursor: "pointer" }}
+                ) : (
+                  <label
+                    style={{
+                      border: "2px dashed #30363d",
+                      borderRadius: 6,
+                      flex: 1,
+                      minHeight: 250,
+                      padding: 20,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      background: "#0d1117",
+                      transition: "border 150ms",
+                    }}
                   >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))}
+                    <Upload size={32} style={{ color: "#8b949e" }} />
+                    <span style={{ fontSize: 12, color: "#c9d1d9", fontWeight: 600 }}>Przeciągnij lub kliknij, aby wgrać zdjęcie</span>
+                    <span style={{ fontSize: 10, color: "#8b949e" }}>JPG, PNG, WEBP (max 10MB)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
-          )}
+          </form>
         </div>
-
-        {/* Section 5: Opisy i Notatki */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div style={cardStyle}>
-            <label style={labelStyle}>
-              Opis Techniczny / Zakres Obróbki
-              <textarea
-                rows={3}
-                placeholder="Dodatkowy opis techniczny..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                style={{ ...inputStyle, resize: "vertical" }}
-              />
-            </label>
-          </div>
-
-          <div style={cardStyle}>
-            <label style={labelStyle}>
-              Notatki Wewnętrzne
-              <textarea
-                rows={3}
-                placeholder="Prywatne uwagi zespołu..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                style={{ ...inputStyle, resize: "vertical" }}
-              />
-            </label>
-          </div>
-        </div>
-
-      </form>
-      </div>
       </main>
     </>
   );
