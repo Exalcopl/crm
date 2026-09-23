@@ -7,7 +7,13 @@
 ───────────────────────────────────────────────────────────────── */
 
 .mobile-app-shell {
+  /* Wypełnij cały ekran włącznie z obszarem za paskiem nawigacyjnym */
   min-height: 100dvh;
+  /* Rozciągnij tło za pasek nawigacyjny */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   background: var(--bg-base, #0b0f19);
   color: var(--text-primary, #e2e8f0);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
@@ -162,6 +168,8 @@
   flex: 1;
   overflow-y: auto;
   padding: 12px 12px 0;
+  /* Zapas na bottom nav (72px) + safe-area za paskiem nawigacyjnym */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -289,15 +297,17 @@
   left: 0;
   right: 0;
   z-index: 50;
-  height: 72px;
+  /* Wysokość bazowa + safe-area żeby sięgać za pasek nawigacyjny */
+  height: calc(72px + env(safe-area-inset-bottom, 0px));
   background: color-mix(in srgb, var(--bg-surface, #141b2d) 95%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.07));
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-around;
   padding: 0 8px env(safe-area-inset-bottom, 0px);
+  padding-top: 0;
   transition: opacity 200ms ease;
 }
 
