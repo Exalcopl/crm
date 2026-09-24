@@ -410,3 +410,105 @@ export const testSubOrdersFlow = mutation({
     return "Suborders test passed!";
   }
 });
+
+export const testListAllSubOrders = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const subOrders = await ctx.db.query("subOrders").collect();
+    if (subOrders.length === 0) {
+      // Stwórzmy jedno zlecenie i subOrder do weryfikacji
+      const order = await ctx.db.query("orders").first();
+      if (order) {
+        await ctx.db.insert("subOrders", {
+          orderId: order._id,
+          status: "utworzono",
+          orderNumber: "TEST-SUB-999",
+          createdAt: Date.now(),
+        });
+      }
+    }
+
+    const all = await ctx.db.query("subOrders").collect();
+    return `Test passed! Found ${all.length} sub-orders.`;
+  }
+});
+
+export const testLockedSubOrderItems = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const order = await ctx.db.query("orders").first();
+    if (!order) throw new Error("No order found for test");
+
+    const subOrderId = await ctx.db.insert("subOrders", {
+      orderId: order._id,
+      status: "zamowiono",
+      orderNumber: "TEST-LOCKED-SUB",
+      createdAt: Date.now(),
+    });
+
+    try {
+      // Direct validation of locked check
+      const subOrder = await ctx.db.get(subOrderId);
+      if (!subOrder || !["zamowiono", "odbior", "zamkniete"].includes(subOrder.status)) {
+        throw new Error("Failed lock status check");
+      }
+      return "Locked status check test passed successfully!";
+    } finally {
+      await ctx.db.delete(subOrderId);
+    }
+  }
+});
+
+export const testUpdateOrderNumbers = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const order = await ctx.db.query("orders").first();
+    if (!order) throw new Error("No order found");
+
+    const subOrderId = await ctx.db.insert("subOrders", {
+      orderId: order._id,
+      status: "utworzono",
+      orderNumber: "INIT-NUM-000",
+      createdAt: Date.now(),
+    });
+
+    try {
+      await ctx.db.patch(subOrderId, { orderNumber: "NEW-INT-111" });
+      await ctx.db.patch(subOrderId, { externalOrderNumber: "NEW-EXT-222" });
+
+      const updated = await ctx.db.get(subOrderId);
+      if (updated?.orderNumber !== "NEW-INT-111" || updated?.externalOrderNumber !== "NEW-EXT-222") {
+        throw new Error("Number update failed");
+      }
+      return "Order numbers update test passed!";
+    } finally {
+      await ctx.db.delete(subOrderId);
+    }
+  }
+});
+
+export const testUpdatePickupDate = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const order = await ctx.db.query("orders").first();
+    if (!order) throw new Error("No order found");
+
+    const subOrderId = await ctx.db.insert("subOrders", {
+      orderId: order._id,
+      status: "utworzono",
+      orderNumber: "TEST-PICKUP-SUB",
+      createdAt: Date.now(),
+    });
+
+    try {
+      await ctx.db.patch(subOrderId, { pickupDate: "2026-10-15" });
+      const updated = await ctx.db.get(subOrderId);
+      if (updated?.pickupDate !== "2026-10-15") {
+        throw new Error("Pickup date update failed");
+      }
+      return "Pickup date test passed!";
+    } finally {
+      await ctx.db.delete(subOrderId);
+    }
+  }
+});

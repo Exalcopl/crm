@@ -636,6 +636,7 @@ export default defineSchema({
     status: v.string(),
     orderNumber: v.string(),
     externalOrderNumber: v.optional(v.string()),
+    pickupDate: v.optional(v.string()), // YYYY-MM-DD
     createdAt: v.number(),
   })
     .index("by_order", ["orderId"])

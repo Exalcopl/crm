@@ -44,8 +44,10 @@ function StatusBadge({ status }: { status: SubOrderStatus }) {
 function ExpandableRow({ so, orderId }: { so: Doc<"subOrders"> & { items?: any[]; supplier?: any }, orderId: Id<"orders"> }) {
   const [expanded, setExpanded] = useState(false);
   const fullData = useQuery(api.subOrders.get, expanded ? { subOrderId: so._id } : "skip");
+  const supplierData = useQuery(api.suppliers.get, so.supplierId ? { id: so.supplierId } : "skip");
+
   const items = fullData?.items ?? [];
-  const supplier = fullData?.supplier;
+  const supplier = fullData?.supplier || supplierData;
   // Fallback dla starych statusów które mogą być jeszcze w bazie
   const status: SubOrderStatus = (STATUS_CONFIG[so.status as SubOrderStatus] ? so.status : "utworzono") as SubOrderStatus;
   const cfg = STATUS_CONFIG[status];
@@ -89,7 +91,7 @@ function ExpandableRow({ so, orderId }: { so: Doc<"subOrders"> & { items?: any[]
               padding: "3px 10px", fontSize: 13, fontWeight: 500,
             }}>
               <Building2 size={13} />
-              {so.supplierId ? "Podwykonawca" : "Wewnętrzne"}
+              {supplier?.name || "Ładowanie..."}
             </span>
           ) : (
             <span style={{
@@ -99,7 +101,7 @@ function ExpandableRow({ so, orderId }: { so: Doc<"subOrders"> & { items?: any[]
               padding: "3px 10px", fontSize: 13, fontWeight: 500,
             }}>
               <Home size={13} />
-              Wewnętrzne
+              Realizacja wewnętrzna
             </span>
           )}
         </td>

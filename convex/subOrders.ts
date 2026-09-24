@@ -48,13 +48,35 @@ export const get = query({
       .withIndex("by_subOrder", (q) => q.eq("subOrderId", args.subOrderId))
       .collect();
 
+    const populatedItems = await Promise.all(
+      items.map(async (item) => {
+        let product = null;
+        let imageUrl = null;
+        if (item.productId) {
+          product = await ctx.db.get(item.productId);
+          if (product) {
+            if (product.imageUrl) {
+              imageUrl = product.imageUrl;
+            } else if (product.imageId) {
+              imageUrl = await ctx.storage.getUrl(product.imageId);
+            }
+          }
+        }
+        return {
+          ...item,
+          product,
+          imageUrl,
+        };
+      })
+    );
+
     // Możemy tu też pobrać dane dostawcy
     let supplier = null;
     if (subOrder.supplierId) {
       supplier = await ctx.db.get(subOrder.supplierId);
     }
 
-    return { ...subOrder, items, supplier };
+    return { ...subOrder, items: populatedItems, supplier };
   },
 });
 
@@ -82,6 +104,14 @@ export const addItem = mutation({
     customValueNetto: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const subOrder = await ctx.db.get(args.subOrderId);
+    if (!subOrder) throw new Error("Nie znaleziono zamówienia");
+
+    const lockedStatuses = ["zamowiono", "odbior", "zamkniete"];
+    if (lockedStatuses.includes(subOrder.status)) {
+      throw new Error("Nie można dodawać pozycji do zamówienia o statusie 'Zamówiono' lub późniejszym.");
+    }
+
     let name = args.customName || "Nowa pozycja";
     let priceNetto = args.customValueNetto || 0;
 
@@ -118,6 +148,27 @@ export const updateExternalOrderNumber = mutation({
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.subOrderId, { externalOrderNumber: args.externalOrderNumber });
+  },
+});
+
+export const updateOrderNumber = mutation({
+  args: {
+    subOrderId: v.id("subOrders"),
+    orderNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!args.orderNumber.trim()) throw new Error("Numer zamówienia nie może być pusty");
+    await ctx.db.patch(args.subOrderId, { orderNumber: args.orderNumber.trim() });
+  },
+});
+
+export const updatePickupDate = mutation({
+  args: {
+    subOrderId: v.id("subOrders"),
+    pickupDate: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.subOrderId, { pickupDate: args.pickupDate });
   },
 });
 
@@ -163,6 +214,14 @@ export const removeItem = mutation({
     itemId: v.id("subOrderItems"),
   },
   handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.itemId);
+    if (!item) return;
+
+    const subOrder = await ctx.db.get(item.subOrderId);
+    if (subOrder && ["zamowiono", "odbior", "zamkniete"].includes(subOrder.status)) {
+      throw new Error("Nie można usuwać pozycji z zamówienia o statusie 'Zamówiono' lub późniejszym.");
+    }
+
     // Check if anything depends on this
     const dependents = await ctx.db
       .query("subOrderItems")
@@ -205,3 +264,70 @@ async function autoSchedule(ctx: any, parentId: Id<"subOrderItems">, newParentEn
     await autoSchedule(ctx, dep._id, newEndStr);
   }
 }
+
+export const listAllWithDetails = query({
+  args: {},
+  handler: async (ctx) => {
+    const subOrders = await ctx.db.query("subOrders").collect();
+    const result = await Promise.all(
+      subOrders.map(async (so) => {
+        const order = await ctx.db.get(so.orderId);
+        const client = order?.clientId ? await ctx.db.get(order.clientId) : null;
+        const supplier = so.supplierId ? await ctx.db.get(so.supplierId) : null;
+        const items = await ctx.db
+          .query("subOrderItems")
+          .withIndex("by_subOrder", (q) => q.eq("subOrderId", so._id))
+          .collect();
+
+        const populatedItems = await Promise.all(
+          items.map(async (item) => {
+            let product = null;
+            let imageUrl = null;
+            if (item.productId) {
+              product = await ctx.db.get(item.productId);
+              if (product) {
+                if (product.imageUrl) {
+                  imageUrl = product.imageUrl;
+                } else if (product.imageId) {
+                  imageUrl = await ctx.storage.getUrl(product.imageId);
+                }
+              }
+            }
+            return {
+              ...item,
+              product,
+              imageUrl,
+            };
+          })
+        );
+
+        const valueNetto = items.reduce((acc, item) => acc + (item.priceNetto || 0) * (item.quantity || 1), 0);
+
+        return {
+          ...so,
+          orderNumber: so.orderNumber,
+          externalOrderNumber: so.externalOrderNumber,
+          status: so.status,
+          order: order ? {
+            _id: order._id,
+            orderNumber: order.orderNumber,
+            clientName: order.clientName,
+            clientId: order.clientId,
+          } : null,
+          client: client ? {
+            _id: client._id,
+            name: client.name,
+          } : null,
+          supplier: supplier ? {
+            _id: supplier._id,
+            name: supplier.name,
+          } : null,
+          itemsCount: items.length,
+          items: populatedItems,
+          valueNetto,
+        };
+      })
+    );
+    return result;
+  },
+});

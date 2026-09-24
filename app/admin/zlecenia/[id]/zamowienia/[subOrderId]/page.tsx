@@ -8,7 +8,7 @@ import { I } from "@/app/admin/_lib/icons";
 import { RibbonBtn, RibbonGroup } from "@/app/admin/_components/ribbon";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Building2, Home, Package, PenTool, Search, Plus, X, Tag } from "lucide-react";
+import { Building2, Home, Package, PenTool, Search, Plus, X, Tag, Lock, Edit2, Check, Image as ImageIcon, Calendar } from "lucide-react";
 
 type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "odbior" | "zamkniete";
 
@@ -84,6 +84,8 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
   const addItem = useMutation(api.subOrders.addItem);
   const removeItem = useMutation(api.subOrders.removeItem);
   const updateExternalOrderNumber = useMutation(api.subOrders.updateExternalOrderNumber);
+  const updateOrderNumber = useMutation(api.subOrders.updateOrderNumber);
+  const updatePickupDate = useMutation(api.subOrders.updatePickupDate);
 
   const [addingType, setAddingType] = useState<"product" | "custom">("product");
   const [addingProduct, setAddingProduct] = useState<Id<"products"> | "">("");
@@ -95,6 +97,31 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
 
   const [showOrderNumModal, setShowOrderNumModal] = useState(false);
   const [externalNumberInput, setExternalNumberInput] = useState("");
+
+  const [numberMode, setNumberMode] = useState<"internal" | "external">("internal");
+  const [isEditingNumber, setIsEditingNumber] = useState(false);
+  const [editingNumberValue, setEditingNumberValue] = useState("");
+
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  const handleSaveInlineNumber = async () => {
+    try {
+      if (numberMode === "internal") {
+        if (!editingNumberValue.trim()) {
+          toast.error("Numer zamówienia wewnętrznego nie może być pusty");
+          return;
+        }
+        await updateOrderNumber({ subOrderId, orderNumber: editingNumberValue.trim() });
+        toast.success("Zaktualizowano numer wewnętrzny");
+      } else {
+        await updateExternalOrderNumber({ subOrderId, externalOrderNumber: editingNumberValue.trim() });
+        toast.success("Zaktualizowano numer u dostawcy");
+      }
+      setIsEditingNumber(false);
+    } catch (e: any) {
+      toast.error(e.message || "Błąd zapisu numeru");
+    }
+  };
 
   const selectedProduct = useMemo(() => {
     if (!addingProduct) return null;
@@ -116,6 +143,7 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
   }
 
   const { items, supplier, ...subOrder } = data;
+  const isOrderLocked = ["zamowiono", "odbior", "zamkniete"].includes(subOrder.status);
 
   const handleAdd = async () => {
     if (addingType === "product" && !addingProduct) {
@@ -269,14 +297,169 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                     <span className="quote-detail-meta-num" style={{ fontSize: 13 }}>{ownerName}</span>
                   </div>
                 </div>
+                <div className="quote-detail-meta-divider" />
+                <div className="quote-detail-meta-item">
+                  <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Termin odbioru</div>
+                  <div className="quote-detail-meta-value" style={{ padding: "2px 0" }}>
+                    <div
+                      onClick={(e) => {
+                        const inputEl = e.currentTarget.querySelector("input");
+                        if (inputEl && "showPicker" in inputEl) {
+                          try { (inputEl as any).showPicker(); } catch (_) {}
+                        }
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        background: "#0d1117",
+                        border: "1px solid #30363d",
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease"
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#58a6ff")}
+                      onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#30363d")}
+                      title="Kliknij, aby wybrać termin odbioru"
+                    >
+                      <Calendar size={16} color="#58a6ff" style={{ flexShrink: 0 }} />
+                      <input
+                        type="date"
+                        value={subOrder.pickupDate || ""}
+                        onChange={async (e) => {
+                          const val = e.target.value;
+                          try {
+                            await updatePickupDate({ subOrderId, pickupDate: val || undefined });
+                            toast.success(val ? `Ustawiono termin odbioru: ${val}` : "Usunięto termin odbioru");
+                          } catch (err: any) {
+                            toast.error("Błąd zapisu terminu odbioru");
+                          }
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: subOrder.pickupDate ? "#f0f6fc" : "#8b949e",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          outline: "none",
+                          colorScheme: "dark"
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             
-            {/* Metadane subOrder (zamówienia podwykonawczego) */}
+            {/* Metadane subOrder (zamówienia podwykonawczego) z inlinową edycją i przełącznikiem */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              <div style={{ fontSize: 12, color: "#8b949e" }}>Numer zamówienia wewnętrznego:</div>
-              <div style={{ fontSize: 16, color: "#c9d1d9", fontWeight: 700 }}>{subOrder.orderNumber}</div>
-              <div style={{ color: "#8b949e", fontSize: 13, display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+              {/* Switch Mode: Wewnętrzny vs Zewnętrzny */}
+              <div style={{ display: "inline-flex", gap: 2, background: "#0d1117", padding: 3, borderRadius: 6, border: "1px solid #30363d" }}>
+                <button
+                  type="button"
+                  onClick={() => { setNumberMode("internal"); setIsEditingNumber(false); }}
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 4,
+                    border: "none",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    background: numberMode === "internal" ? "#21262d" : "transparent",
+                    color: numberMode === "internal" ? "#58a6ff" : "#8b949e",
+                    transition: "all 0.12s ease"
+                  }}
+                >
+                  Nr wewnętrzny
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setNumberMode("external"); setIsEditingNumber(false); }}
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: 4,
+                    border: "none",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    background: numberMode === "external" ? "#21262d" : "transparent",
+                    color: numberMode === "external" ? "#58a6ff" : "#8b949e",
+                    transition: "all 0.12s ease"
+                  }}
+                >
+                  Nr u dostawcy
+                </button>
+              </div>
+
+              {/* Inlinowa Edycja Numeru */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {isEditingNumber ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#0d1117", border: "1px solid #388bfd", borderRadius: 6, padding: "2px 6px" }}>
+                    <input
+                      type="text"
+                      autoFocus
+                      value={editingNumberValue}
+                      onChange={(e) => setEditingNumberValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveInlineNumber();
+                        if (e.key === "Escape") setIsEditingNumber(false);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        outline: "none",
+                        color: "#c9d1d9",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        width: 140
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveInlineNumber}
+                      style={{ background: "#238636", color: "#fff", border: "none", borderRadius: 4, padding: "3px 6px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                      title="Zapisz"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingNumber(false)}
+                      style={{ background: "#21262d", color: "#8b949e", border: "none", borderRadius: 4, padding: "3px 6px", cursor: "pointer", display: "flex", alignItems: "center" }}
+                      title="Anuluj"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 16, color: "#c9d1d9", fontWeight: 700 }}>
+                      {numberMode === "internal"
+                        ? subOrder.orderNumber
+                        : (subOrder.externalOrderNumber || <span style={{ color: "#8b949e", fontStyle: "italic", fontSize: 14 }}>Brak numeru</span>)
+                      }
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingNumberValue(numberMode === "internal" ? subOrder.orderNumber : (subOrder.externalOrderNumber || ""));
+                        setIsEditingNumber(true);
+                      }}
+                      style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: "2px 4px", borderRadius: 4, display: "flex", alignItems: "center" }}
+                      title={`Edytuj ${numberMode === "internal" ? "numer wewnętrzny" : "numer u dostawcy"}`}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#58a6ff")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#8b949e")}
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Informacja o dostawcy */}
+              <div style={{ color: "#8b949e", fontSize: 13, display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
                 {subOrder.supplierId
                   ? <><Building2 size={13} /><span style={{ color: "#58a6ff" }}>{supplier?.name ?? "Podwykonawca"}</span></>
                   : <><Home size={13} /> Realizacja wewnętrzna</>
@@ -294,18 +477,38 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div style={{ padding: 24 }}>
-          {/* Formularz dodawania pozycjonalnego */}
-          <div style={{
-            background: "#161b22",
-            padding: 18,
-            borderRadius: 12,
-            border: "1px solid #30363d",
-            marginBottom: 24,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
-          }}>
+          {isOrderLocked ? (
+            <div style={{
+              background: "rgba(240,136,62,0.1)",
+              border: "1px solid #f0883e",
+              padding: "14px 18px",
+              borderRadius: 10,
+              color: "#f0883e",
+              fontSize: 13,
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 24
+            }}>
+              <Lock size={18} />
+              <span>
+                Zamówienie zostało złożone (status: <strong>{STATUS_CONFIG[subOrder.status as SubOrderStatus]?.label || subOrder.status}</strong>). Dodawanie i edycja pozycji zostały zablokowane.
+              </span>
+            </div>
+          ) : (
+            /* Formularz dodawania pozycjonalnego */
+            <div style={{
+              background: "#161b22",
+              padding: 18,
+              borderRadius: 12,
+              border: "1px solid #30363d",
+              marginBottom: 24,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+            }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "#c9d1d9" }}>Dodaj pozycję do zamówienia:</span>
@@ -563,6 +766,7 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
               </button>
             </div>
           </div>
+          )}
 
           {/* LISTA POZYCJI */}
           {items.length > 0 ? (
@@ -570,20 +774,68 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ background: "#161b22", borderBottom: "1px solid #30363d" }}>
-                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600 }}>Lp.</th>
-                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600 }}>Nazwa</th>
-                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600 }}>Cena netto</th>
-                    <th style={{ padding: "10px 16px", textAlign: "right" }}></th>
+                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "5%" }}>Lp.</th>
+                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "12%" }}>Miniaturka</th>
+                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "53%" }}>Nazwa</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "20%" }}>Cena netto</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", width: "10%" }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item, idx) => (
+                  {items.map((item: any, idx: number) => (
                     <tr key={item._id} style={{ borderBottom: "1px solid #21262d" }}>
-                      <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 13, width: "5%" }}>{idx + 1}</td>
-                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, fontWeight: 500, width: "65%" }}>{item.name}</td>
-                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, textAlign: "right", width: "20%" }}>{formatPLN(item.priceNetto || 0)} PLN</td>
-                      <td style={{ padding: "12px 16px", textAlign: "right", width: "10%" }}>
-                        <button onClick={() => handleRemove(item._id)} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "4px 8px", fontSize: 12, borderRadius: 4 }}>Usuń</button>
+                      <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 13 }}>{idx + 1}</td>
+                      <td style={{ padding: "8px 16px", textAlign: "center" }}>
+                        {item.imageUrl ? (
+                          <div
+                            onClick={() => setPreviewImage({ url: item.imageUrl, title: item.name })}
+                            style={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 6,
+                              overflow: "hidden",
+                              border: "1px solid #30363d",
+                              background: "#0d1117",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              transition: "transform 0.15s ease, border-color 0.15s ease"
+                            }}
+                            title="Kliknij, aby powiększyć zdjęcie"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = "scale(1.08)";
+                              e.currentTarget.style.borderColor = "#58a6ff";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = "scale(1)";
+                              e.currentTarget.style.borderColor = "#30363d";
+                            }}
+                          >
+                            <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          </div>
+                        ) : (
+                          <div style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 6,
+                            border: "1px solid #21262d",
+                            background: "#161b22",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#8b949e"
+                          }}>
+                            <ImageIcon size={18} />
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, fontWeight: 500 }}>{item.name}</td>
+                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, textAlign: "right" }}>{formatPLN(item.priceNetto || 0)} PLN</td>
+                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                        {!isOrderLocked && (
+                          <button onClick={() => handleRemove(item._id)} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "4px 8px", fontSize: 12, borderRadius: 4 }}>Usuń</button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -609,6 +861,45 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 24 }}>
                   <button onClick={() => setShowOrderNumModal(false)} style={{ background: "transparent", color: "#c9d1d9", border: "1px solid #30363d", padding: "8px 16px", borderRadius: 4, cursor: "pointer" }}>Anuluj</button>
                   <button onClick={handleSaveExternalNumber} style={{ background: "#58a6ff", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}>Zapisz i zmień status</button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Modal powiększonego zdjęcia (Lightbox) */}
+          {previewImage && (
+            <div
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20 }}
+              onClick={() => setPreviewImage(null)}
+            >
+              <div
+                style={{
+                  background: "#161b22",
+                  border: "1px solid #30363d",
+                  borderRadius: 12,
+                  padding: 20,
+                  maxWidth: 640,
+                  width: "100%",
+                  maxHeight: "90vh",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  boxShadow: "0 16px 40px rgba(0,0,0,0.7)",
+                  position: "relative"
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin: 0, color: "#f0f6fc", fontSize: 15, fontWeight: 600 }}>{previewImage.title}</h3>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage(null)}
+                    style={{ background: "#21262d", border: "none", color: "#8b949e", cursor: "pointer", padding: "6px", borderRadius: 6, display: "flex", alignItems: "center" }}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #30363d", background: "#0d1117", display: "flex", alignItems: "center", justifyContent: "center", maxHeight: 480 }}>
+                  <img src={previewImage.url} alt={previewImage.title} style={{ maxWidth: "100%", maxHeight: 480, objectFit: "contain" }} />
                 </div>
               </div>
             </div>
