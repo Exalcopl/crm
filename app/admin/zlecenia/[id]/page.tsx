@@ -6,13 +6,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
-import { CheckSquare, Square } from "lucide-react";
+import { CheckSquare, Square, Package } from "lucide-react";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { toast } from "sonner";
 import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
 import { OrderFileBrowser } from "./_components/order-file-browser";
 import { OrderRwView } from "./_components/order-rw-view";
+import { OrderSubOrdersView } from "./_components/order-sub-orders-view";
 import { OrderNotesFeed } from "./_components/order-notes-feed";
 import { OrderPreProdGantt } from "../../_components/order-pre-prod-gantt";
 import { InvestmentModal } from "../../wyceny/[id]/_components/investment-section";
@@ -1426,7 +1427,7 @@ export default function OrderDetailPage({
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"szczegoly" | "rw">("szczegoly");
+  const [activeView, setActiveView] = useState<"szczegoly" | "rw" | "zamowienia">("szczegoly");
   const [showPreProdGantt, setShowPreProdGantt] = useState(false);
 
   // Liczba zadań przedprodukcyjnych dla tego zlecenia
@@ -1578,6 +1579,12 @@ export default function OrderDetailPage({
             active={activeView === "rw"}
             onClick={() => setActiveView("rw")}
           />
+          <RibbonBtn
+            icon={<Package size={22} />}
+            label="Zamówienia"
+            active={activeView === "zamowienia"}
+            onClick={() => setActiveView("zamowienia")}
+          />
         </RibbonGroup>
         <RibbonGroup label="Operacje">
           <RibbonBtn
@@ -1607,6 +1614,11 @@ export default function OrderDetailPage({
       {activeView === "rw" && (
         <main className="fluent-content" style={{ padding: "16px 24px" }}>
           <OrderRwView orderId={orderId} />
+        </main>
+      )}
+      {activeView === "zamowienia" && (
+        <main className="fluent-content" style={{ padding: "16px 24px" }}>
+          <OrderSubOrdersView orderId={orderId} />
         </main>
       )}
       <main className="fluent-content" style={{ padding: "16px 24px", display: activeView === "szczegoly" ? "flex" : "none", flexDirection: "column", gap: 20 }}>

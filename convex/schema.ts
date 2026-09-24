@@ -630,6 +630,37 @@ export default defineSchema({
     value: v.any(),
   }).index("by_key", ["key"]),
 
+  subOrders: defineTable({
+    orderId: v.id("orders"),
+    supplierId: v.optional(v.id("suppliers")),
+    status: v.string(),
+    orderNumber: v.string(),
+    externalOrderNumber: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_supplier", ["supplierId"])
+    .index("by_status", ["status"]),
+
+  subOrderItems: defineTable({
+    subOrderId: v.id("subOrders"),
+    productId: v.optional(v.id("products")),
+    status: v.union(
+      v.literal("todo"),
+      v.literal("in_progress"),
+      v.literal("done")
+    ),
+    startDate: v.optional(v.string()), // YYYY-MM-DD
+    endDate: v.optional(v.string()),   // YYYY-MM-DD
+    dependsOn: v.optional(v.id("subOrderItems")),
+    order: v.number(),
+    name: v.string(),
+    priceNetto: v.optional(v.number()),
+    quantity: v.number(),
+  })
+    .index("by_subOrder", ["subOrderId"])
+    .index("by_dependsOn", ["dependsOn"]),
+
   // Baza materiałów / cennik
   materials: defineTable({
     name: v.string(),

@@ -372,3 +372,41 @@ export const testGanttChecklistIntegration = mutation({
     return { status: "SUCCESS", checks };
   },
 });
+
+export const testSubOrdersFlow = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const order = await ctx.db.query("orders").first();
+    if (!order) throw new Error("No order found");
+
+    const subOrderId = await ctx.db.insert("subOrders", {
+      orderId: order._id,
+      status: "utworzono",
+      orderNumber: "TEST-SUB-123",
+      createdAt: Date.now(),
+    });
+
+    await ctx.db.insert("subOrderItems", {
+      subOrderId,
+      status: "todo",
+      order: 0,
+      name: "Custom Item Test",
+      priceNetto: 99.99,
+      quantity: 1,
+    });
+
+    await ctx.db.patch(subOrderId, { externalOrderNumber: "EXT-123" });
+    
+    const verifySubOrder = await ctx.db.get(subOrderId);
+    if (verifySubOrder?.externalOrderNumber !== "EXT-123") {
+      throw new Error("External order number not updated");
+    }
+
+    const verifyItems = await ctx.db.query("subOrderItems").withIndex("by_subOrder", q => q.eq("subOrderId", subOrderId)).collect();
+    if (verifyItems.length !== 1 || verifyItems[0].name !== "Custom Item Test") {
+      throw new Error("Custom item not created correctly");
+    }
+
+    return "Suborders test passed!";
+  }
+});

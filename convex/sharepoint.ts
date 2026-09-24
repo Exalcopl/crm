@@ -1710,9 +1710,9 @@ export const createFolderForOrder = internalAction({
           `[sharepoint] Folder zlecenia: ${orderFolderName} → ${orderWebUrl} (próba ${attempt})`,
         );
         return;
-      } catch (err) {
+      } catch (err: any) {
         lastError = err instanceof Error ? err.message : String(err);
-        console.error(`[sharepoint] Próba ${attempt}/${MAX_ATTEMPTS} nieudana dla zlecenia:`, lastError);
+        console.error(`[sharepoint] Próba ${attempt}/${MAX_ATTEMPTS} nieudana dla zlecenia:`, err, err?.stack);
       }
     }
 
