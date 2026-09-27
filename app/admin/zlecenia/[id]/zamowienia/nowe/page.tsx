@@ -85,7 +85,7 @@ export default function NoweZamowieniePage({ params }: { params: Promise<{ id: I
   };
 
   return (
-    <div className="fluent-layout" style={{ minHeight: "100vh", background: "#0d1117", color: "#c9d1d9" }}>
+    <div className="fluent-layout" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto", background: "#0d1117", color: "#c9d1d9" }}>
       <div className="fluent-ribbon">
         <RibbonGroup label="Nawigacja">
           <RibbonBtn
@@ -104,7 +104,7 @@ export default function NoweZamowieniePage({ params }: { params: Promise<{ id: I
         </RibbonGroup>
       </div>
 
-      <div className="fluent-content p-6" style={{ maxWidth: 800, margin: "0 auto" }}>
+      <div className="fluent-content p-6" style={{ maxWidth: 800, width: "100%", margin: "0 auto", flex: "1 0 auto" }}>
         <div style={{ background: "#161b22", padding: 28, borderRadius: 12, border: "1px solid #30363d", boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
             <Package size={26} color="#58a6ff" />

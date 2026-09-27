@@ -7,12 +7,13 @@ import type { Id, Doc } from "@/convex/_generated/dataModel";
 import { Package, Plus, ChevronDown, ChevronRight, Building2, Home, FileText } from "lucide-react";
 import Link from "next/link";
 
-type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "odbior" | "zamkniete";
+type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "do_odbioru" | "odbior" | "zamkniete";
 
 const STATUS_CONFIG: Record<SubOrderStatus, { label: string; color: string; bg: string }> = {
   utworzono:     { label: "Utworzono",     color: "#8b949e", bg: "rgba(139,148,158,0.15)" },
   do_zamowienia: { label: "Do zamówienia", color: "#f0883e", bg: "rgba(240,136,62,0.15)" },
   zamowiono:     { label: "Zamówiono",     color: "#58a6ff", bg: "rgba(88,166,255,0.15)"  },
+  do_odbioru:    { label: "Do odbioru",    color: "#a371f7", bg: "rgba(163,113,247,0.15)" },
   odbior:        { label: "Odbiór",        color: "#d29922", bg: "rgba(210,153,34,0.15)"  },
   zamkniete:     { label: "Zamknięte",     color: "#3fb950", bg: "rgba(63,185,80,0.15)"   },
 };

@@ -10,17 +10,18 @@ import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Building2, Home, Package, PenTool, Search, Plus, X, Tag, Lock, Edit2, Check, Image as ImageIcon, Calendar } from "lucide-react";
 
-type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "odbior" | "zamkniete";
+type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "do_odbioru" | "odbior" | "zamkniete";
 
 const STATUS_CONFIG: Record<SubOrderStatus, { label: string; color: string; bg: string }> = {
   utworzono:     { label: "Utworzono",     color: "#8b949e", bg: "rgba(139,148,158,0.15)" },
   do_zamowienia: { label: "Do zamówienia", color: "#f0883e", bg: "rgba(240,136,62,0.15)"  },
   zamowiono:     { label: "Zamówiono",     color: "#58a6ff", bg: "rgba(88,166,255,0.15)"  },
+  do_odbioru:    { label: "Do odbioru",    color: "#a371f7", bg: "rgba(163,113,247,0.15)" },
   odbior:        { label: "Odbiór",        color: "#d29922", bg: "rgba(210,153,34,0.15)"  },
   zamkniete:     { label: "Zamknięte",     color: "#3fb950", bg: "rgba(63,185,80,0.15)"   },
 };
 
-const STATUS_ORDER: SubOrderStatus[] = ["utworzono", "do_zamowienia", "zamowiono", "odbior", "zamkniete"];
+const STATUS_ORDER: SubOrderStatus[] = ["utworzono", "do_zamowienia", "zamowiono", "do_odbioru", "odbior", "zamkniete"];
 
 function SubOrderStatusPipeline({ status, onChange }: { status: SubOrderStatus; onChange: (s: SubOrderStatus) => void }) {
   const currentIdx = STATUS_ORDER.indexOf(status);
@@ -143,7 +144,7 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
   }
 
   const { items, supplier, ...subOrder } = data;
-  const isOrderLocked = ["zamowiono", "odbior", "zamkniete"].includes(subOrder.status);
+  const isOrderLocked = ["zamowiono", "do_odbioru", "odbior", "zamkniete"].includes(subOrder.status);
 
   const handleAdd = async () => {
     if (addingType === "product" && !addingProduct) {
@@ -298,8 +299,8 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
                 <div className="quote-detail-meta-divider" />
-                <div className="quote-detail-meta-item">
-                  <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Termin odbioru</div>
+                <div className="quote-detail-meta-item" title="Planowany termin gotowości w statusie 'Do odbioru'">
+                  <div className="quote-detail-meta-label" style={{ fontSize: 10 }}>Termin (Do odbioru)</div>
                   <div className="quote-detail-meta-value" style={{ padding: "2px 0" }}>
                     <div
                       onClick={(e) => {

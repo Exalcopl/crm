@@ -122,6 +122,7 @@ export const updateStatus = mutation({
       v.literal("utworzono"),
       v.literal("do_zamowienia"),
       v.literal("zamowiono"),
+      v.literal("do_odbioru"),
       v.literal("odbior"),
       v.literal("zamkniete")
     ),
@@ -142,7 +143,7 @@ export const addItem = mutation({
     const subOrder = await ctx.db.get(args.subOrderId);
     if (!subOrder) throw new Error("Nie znaleziono zamówienia");
 
-    const lockedStatuses = ["zamowiono", "odbior", "zamkniete"];
+    const lockedStatuses = ["zamowiono", "do_odbioru", "odbior", "zamkniete"];
     if (lockedStatuses.includes(subOrder.status)) {
       throw new Error("Nie można dodawać pozycji do zamówienia o statusie 'Zamówiono' lub późniejszym.");
     }
@@ -253,7 +254,7 @@ export const removeItem = mutation({
     if (!item) return;
 
     const subOrder = await ctx.db.get(item.subOrderId);
-    if (subOrder && ["zamowiono", "odbior", "zamkniete"].includes(subOrder.status)) {
+    if (subOrder && ["zamowiono", "do_odbioru", "odbior", "zamkniete"].includes(subOrder.status)) {
       throw new Error("Nie można usuwać pozycji z zamówienia o statusie 'Zamówiono' lub późniejszym.");
     }
 
