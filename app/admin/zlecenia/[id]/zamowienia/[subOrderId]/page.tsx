@@ -302,11 +302,13 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
   const updatePickupDate = useMutation(api.subOrders.updatePickupDate);
   const updateItemReceipt = useMutation(api.subOrders.updateItemReceipt);
   const markAllItemsReceived = useMutation(api.subOrders.markAllItemsReceived);
+  const updateItemQuantity = useMutation(api.subOrders.updateItemQuantity);
 
   const [addingType, setAddingType] = useState<"product" | "custom">("product");
   const [addingProduct, setAddingProduct] = useState<Id<"products"> | "">("");
   const [addingCustomName, setAddingCustomName] = useState("");
   const [addingCustomValue, setAddingCustomValue] = useState("");
+  const [addingQuantity, setAddingQuantity] = useState<string>("1");
 
   const [productSearch, setProductSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -372,17 +374,20 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
     }
     
     try {
+      const qty = Math.max(1, parseInt(addingQuantity, 10) || 1);
       await addItem({
         subOrderId,
         productId: addingType === "product" ? (addingProduct as Id<"products">) : undefined,
         customName: addingType === "custom" ? addingCustomName : undefined,
         customValueNetto: addingType === "custom" ? (Number(addingCustomValue.replace(",", ".")) || 0) : undefined,
+        quantity: qty,
       });
-      toast.success("Dodano pozycję");
+      toast.success(`Dodano pozycję (${qty} szt.)`);
       setAddingProduct("");
       setProductSearch("");
       setAddingCustomName("");
       setAddingCustomValue("");
+      setAddingQuantity("1");
     } catch (e: any) {
       toast.error(e.message || "Błąd dodawania");
     }
@@ -956,6 +961,67 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                   </div>
                 </>
               )}
+              {/* Pole Ilości e-commerce style */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: "3px 6px" }}>
+                <span style={{ fontSize: 11, color: "#8b949e", marginRight: 4, fontWeight: 600 }}>Ilość:</span>
+                <button
+                  type="button"
+                  onClick={() => setAddingQuantity(prev => String(Math.max(1, (parseInt(prev, 10) || 1) - 1)))}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 5,
+                    border: "1px solid #30363d",
+                    background: "#21262d",
+                    color: "#c9d1d9",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    userSelect: "none"
+                  }}
+                >-</button>
+                <input
+                  type="number"
+                  min="1"
+                  value={addingQuantity}
+                  onChange={(e) => setAddingQuantity(e.target.value)}
+                  style={{
+                    width: 36,
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: "#f0f6fc",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    textAlign: "center"
+                  }}
+                  placeholder="1"
+                  title="Liczba sztuk zamawianej pozycji"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAddingQuantity(prev => String((parseInt(prev, 10) || 1) + 1))}
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 5,
+                    border: "1px solid #30363d",
+                    background: "#21262d",
+                    color: "#c9d1d9",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 14,
+                    userSelect: "none"
+                  }}
+                >+</button>
+                <span style={{ fontSize: 11, color: "#8b949e", marginLeft: 2, marginRight: 2, fontWeight: 600 }}>szt.</span>
+              </div>
 
               <button
                 type="button"
@@ -989,7 +1055,7 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
             <div style={{ background: "#0d1117", borderRadius: 8, border: "1px solid #30363d", overflow: "hidden" }}>
               <div style={{ padding: "12px 16px", background: "#161b22", borderBottom: "1px solid #30363d", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Pozycje w zamówieniu ({items.length})</span>
-                {(subOrder.status === "do_odbioru" || subOrder.status === "zamowiono" || subOrder.status === "odbior") && (
+                {subOrder.status === "do_odbioru" && (
                   <button
                     type="button"
                     onClick={async () => {
@@ -1022,19 +1088,23 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                 <thead>
                   <tr style={{ background: "#0d1117", borderBottom: "1px solid #30363d" }}>
                     <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "5%" }}>Lp.</th>
-                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "10%" }}>Miniaturka</th>
-                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "35%" }}>Nazwa</th>
-                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "25%" }}>Potwierdzenie Odbioru</th>
-                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "15%" }}>Cena netto</th>
-                    <th style={{ padding: "10px 16px", textAlign: "right", width: "10%" }}></th>
+                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "8%" }}>Miniaturka</th>
+                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600 }}>Nazwa pozycji</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "14%" }}>Cena netto</th>
+                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "16%" }}>Ilość</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "14%" }}>Wartość netto</th>
+                    {(subOrder.status === "do_odbioru" || subOrder.status === "odbior" || subOrder.status === "zamkniete") && (
+                      <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "20%" }}>Potwierdzenie Odbioru</th>
+                    )}
+                    <th style={{ padding: "10px 16px", textAlign: "right", width: "5%" }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item: any, idx: number) => {
                     const qty = item.quantity || 1;
-                    const recQty = item.receivedQuantity ?? 0;
-                    const isFull = recQty >= qty;
-                    const isPartial = recQty > 0 && recQty < qty;
+                    const unitPrice = item.priceNetto || 0;
+                    const lineTotalNetto = unitPrice * qty;
+                    const isReceiptActive = subOrder.status === "do_odbioru" || subOrder.status === "odbior" || subOrder.status === "zamkniete";
 
                     return (
                       <tr key={item._id} style={{ borderBottom: "1px solid #21262d" }}>
@@ -1086,22 +1156,112 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
                         </td>
                         <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, fontWeight: 500 }}>
                           {item.name}
-                          <div style={{ fontSize: 11, color: "#8b949e" }}>Zamówiona ilość: {qty} szt.</div>
+                        </td>
+                        <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 13, textAlign: "right" }}>
+                          {formatPLN(unitPrice)} PLN
                         </td>
 
-                        {/* STATUS I NATYWNA EDYCJA ODBIORU */}
+                        {/* KOLUMNA ILOŚĆ (E-COMMERCE QUANTITY STEPPER) */}
                         <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                          <div style={{ display: "flex", justifyContent: "center" }}>
-                            <ItemReceiptControl
-                              item={item}
-                              onUpdate={async (itemId, newQty) => {
-                                await updateItemReceipt({ itemId, receivedQuantity: newQty });
-                              }}
-                            />
-                          </div>
+                          {!isOrderLocked ? (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: "2px 4px" }}>
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (qty > 1) {
+                                    await updateItemQuantity({ itemId: item._id, quantity: qty - 1 });
+                                  }
+                                }}
+                                disabled={qty <= 1}
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: 5,
+                                  border: "1px solid #30363d",
+                                  background: qty > 1 ? "#21262d" : "#161b22",
+                                  color: qty > 1 ? "#f0f6fc" : "#484f58",
+                                  fontWeight: 700,
+                                  cursor: qty > 1 ? "pointer" : "default",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 13,
+                                  userSelect: "none"
+                                }}
+                              >-</button>
+                              <input
+                                type="number"
+                                min={1}
+                                value={qty}
+                                onChange={async (e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  if (!isNaN(val) && val > 0) {
+                                    await updateItemQuantity({ itemId: item._id, quantity: val });
+                                  }
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                  width: 38,
+                                  background: "transparent",
+                                  border: "none",
+                                  outline: "none",
+                                  color: "#58a6ff",
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                  textAlign: "center",
+                                }}
+                                title="Edytuj ilość sztuk"
+                              />
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await updateItemQuantity({ itemId: item._id, quantity: qty + 1 });
+                                }}
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: 5,
+                                  border: "1px solid #30363d",
+                                  background: "#21262d",
+                                  color: "#f0f6fc",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: 13,
+                                  userSelect: "none"
+                                }}
+                              >+</button>
+                            </div>
+                          ) : (
+                            <span style={{ display: "inline-block", background: "#161b22", border: "1px solid #30363d", padding: "4px 10px", borderRadius: 6, fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>
+                              {qty} szt.
+                            </span>
+                          )}
                         </td>
 
-                        <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, textAlign: "right" }}>{formatPLN(item.priceNetto || 0)} PLN</td>
+                        {/* WARTOŚĆ NETTO (CENA * ILOŚĆ) */}
+                        <td style={{ padding: "12px 16px", color: "#3fb950", fontSize: 13, fontWeight: 700, textAlign: "right" }}>
+                          {formatPLN(lineTotalNetto)} PLN
+                        </td>
+
+                        {/* STATUS I NATYWNA EDYCJA ODBIORU (TYLKO DLA STATUSÓW DO ODBIORU+) */}
+                        {isReceiptActive && (
+                          <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                            <div style={{ display: "flex", justifyContent: "center" }}>
+                              <ItemReceiptControl
+                                item={item}
+                                onUpdate={async (itemId, newQty) => {
+                                  await updateItemReceipt({ itemId, receivedQuantity: newQty });
+                                }}
+                              />
+                            </div>
+                          </td>
+                        )}
+
                         <td style={{ padding: "12px 16px", textAlign: "right" }}>
                           {!isOrderLocked && (
                             <button onClick={() => handleRemove(item._id)} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "4px 8px", fontSize: 12, borderRadius: 4 }}>Usuń</button>

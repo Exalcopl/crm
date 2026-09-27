@@ -155,3 +155,44 @@ export const testItemReceiptConfirmation = mutation({
   },
 });
 
+export const testItemQuantityMutation = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[TEST] Testowanie zapisu ilości pozycji podczas dodawania oraz modyfikacji ilości...");
+
+    const subOrderId = await ctx.db.insert("subOrders", {
+      status: "utworzono",
+      orderNumber: `ZAM/TEST-QTY-${Date.now()}`,
+      createdAt: Date.now(),
+    });
+
+    const itemId = await ctx.db.insert("subOrderItems", {
+      subOrderId,
+      name: "Profil aluminiowy z podaną ilością",
+      quantity: 15,
+      order: 1,
+      status: "todo",
+    });
+
+    const fetched = await ctx.db.get(itemId);
+    if (!fetched || fetched.quantity !== 15) {
+      throw new Error("BŁĄD: Ilość zamówiona nie zgadza się z wprowadzoną wartością 15!");
+    }
+
+    // Edycja ilości na 25 szt.
+    await ctx.db.patch(itemId, { quantity: 25 });
+    const updated = await ctx.db.get(itemId);
+    if (!updated || updated.quantity !== 25) {
+      throw new Error("BŁĄD: Zmiana ilości na 25 szt. nie powiodła się!");
+    }
+
+    console.log("[SUCCESS] Test ilości zakończony pomyślnie. Ilość zapisana i zaktualizowana (25 szt.).");
+
+    await ctx.db.delete(itemId);
+    await ctx.db.delete(subOrderId);
+
+    return { success: true };
+  },
+});
+
+

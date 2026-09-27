@@ -599,6 +599,7 @@ export default function ZamowieniaPage() {
                   <th style={{ padding: "12px 10px", width: 32 }} />
                   <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>NR ZAMÓWIENIA</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", color: "#f0f6fc", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>STATUS ZAMÓWIENIA</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", color: "#3fb950", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>POSTĘP ODBIORU</th>
                   <th style={{ padding: "12px 16px", textAlign: "center", color: "#a371f7", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>TERMIN ODBIORU</th>
                   <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>DOSTAWCA / PODWYKONAWCA</th>
                   <th style={{ padding: "12px 16px", textAlign: "right", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>WARTOŚĆ NETTO</th>
@@ -611,6 +612,14 @@ export default function ZamowieniaPage() {
                   const isExpanded = expandedSubOrders[so._id] ?? false;
                   const statusCfg = STATUS_CONFIG[so.status] || { label: so.status, color: "#8b949e", bg: "rgba(139,148,158,0.15)" };
                   const assignedOrders = so.orders && so.orders.length > 0 ? so.orders : (so.order ? [so.order] : []);
+
+                  // Obliczenia postępu odbioru zamówienia
+                  const totalOrdered = (so.items || []).reduce((acc: number, item: any) => acc + (item.quantity || 1), 0);
+                  const totalReceived = (so.items || []).reduce((acc: number, item: any) => acc + (item.receivedQuantity || 0), 0);
+                  const isCompletedStatus = so.status === "odbior" || so.status === "zamkniete";
+                  const progressPct = isCompletedStatus ? 100 : totalOrdered > 0 ? Math.min(100, Math.round((totalReceived / totalOrdered) * 100)) : 0;
+                  const barColor = progressPct === 100 ? "#238636" : progressPct > 0 ? "#d29922" : "#30363d";
+                  const textColor = progressPct === 100 ? "#3fb950" : progressPct > 0 ? "#e3b341" : "#8b949e";
 
                   return (
                     <React.Fragment key={so._id}>
@@ -661,6 +670,27 @@ export default function ZamowieniaPage() {
                           >
                             {statusCfg.label}
                           </span>
+                        </td>
+
+                        {/* POSTĘP ODBIORU (PROGRESSBAR W WIERSZU) */}
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", fontSize: 11, fontWeight: 700, color: textColor, marginBottom: 4 }}>
+                              <span>{totalReceived}/{totalOrdered} szt.</span>
+                              <span>{progressPct}%</span>
+                            </div>
+                            <div style={{ width: "100%", height: 7, background: "#0d1117", borderRadius: 4, overflow: "hidden", border: "1px solid #30363d" }}>
+                              <div
+                                style={{
+                                  height: "100%",
+                                  width: `${progressPct}%`,
+                                  background: barColor,
+                                  borderRadius: 4,
+                                  transition: "width 0.4s ease"
+                                }}
+                              />
+                            </div>
+                          </div>
                         </td>
 
                         {/* TERMIN ODBIORU (WYRÓŻNIONY) */}
@@ -810,13 +840,13 @@ export default function ZamowieniaPage() {
                       {/* ROZWIJANA LISTA POZYCJI W ZAMÓWIENIU (INLINE ACCORDION) */}
                       {isExpanded && (
                         <tr style={{ background: "#0d1117" }}>
-                          <td colSpan={8} style={{ padding: "12px 20px 16px 48px", borderBottom: "1px solid #30363d" }}>
+                          <td colSpan={9} style={{ padding: "12px 20px 16px 48px", borderBottom: "1px solid #30363d" }}>
                             <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: 14 }}>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                                 <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 8 }}>
                                   <Package size={15} color="#58a6ff" /> Pozycje zamówienia {so.orderNumber} ({so.items ? so.items.length : 0})
                                 </div>
-                                {(so.status === "do_odbioru" || so.status === "zamowiono" || so.status === "odbior") && (
+                                {so.status === "do_odbioru" && (
                                   <button
                                     type="button"
                                     onClick={async () => {
@@ -854,17 +884,16 @@ export default function ZamowieniaPage() {
                                     <tr style={{ background: "#0d1117", color: "#8b949e", fontSize: 11, borderBottom: "1px solid #21262d" }}>
                                       <th style={{ padding: "6px 10px", textAlign: "left" }}>Pozycja</th>
                                       <th style={{ padding: "6px 10px", textAlign: "center" }}>Ilość zamówiona</th>
-                                      <th style={{ padding: "6px 10px", textAlign: "center" }}>Potwierdzenie Odbioru</th>
+                                      {(so.status === "do_odbioru" || so.status === "odbior" || so.status === "zamkniete") && (
+                                        <th style={{ padding: "6px 10px", textAlign: "center" }}>Potwierdzenie Odbioru</th>
+                                      )}
                                       <th style={{ padding: "6px 10px", textAlign: "right" }}>Cena Netto</th>
                                       <th style={{ padding: "6px 10px", textAlign: "right" }}>Wartość Netto</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {so.items.map((it: any, idx: number) => {
-                                      const qty = it.quantity || 1;
-                                      const recQty = it.receivedQuantity ?? 0;
-                                      const isFull = recQty >= qty;
-                                      const isPartial = recQty > 0 && recQty < qty;
+                                      const isReceiptActive = so.status === "do_odbioru" || so.status === "odbior" || so.status === "zamkniete";
 
                                       return (
                                         <tr key={it._id || idx} style={{ borderBottom: "1px solid #21262d" }}>
@@ -892,17 +921,19 @@ export default function ZamowieniaPage() {
                                             {it.quantity} szt.
                                           </td>
 
-                                          {/* STATUS I NATYWNA EDYCJA ODBIORU POZYCJI */}
-                                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                                            <div style={{ display: "flex", justifyContent: "center" }}>
-                                              <ItemReceiptControl
-                                                item={it}
-                                                onUpdate={async (itemId, qty) => {
-                                                  await updateItemReceipt({ itemId, receivedQuantity: qty });
-                                                }}
-                                              />
-                                            </div>
-                                          </td>
+                                          {/* STATUS I NATYWNA EDYCJA ODBIORU POZYCJI (TYLKO DLA STATUSÓW DO ODBIORU+) */}
+                                          {isReceiptActive && (
+                                            <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                                              <div style={{ display: "flex", justifyContent: "center" }}>
+                                                <ItemReceiptControl
+                                                  item={it}
+                                                  onUpdate={async (itemId, qty) => {
+                                                    await updateItemReceipt({ itemId, receivedQuantity: qty });
+                                                  }}
+                                                />
+                                              </div>
+                                            </td>
+                                          )}
 
                                           <td style={{ padding: "8px 10px", textAlign: "right", color: "#8b949e" }}>
                                             {formatPLN(it.priceNetto || 0)} PLN
@@ -1120,27 +1151,29 @@ export default function ZamowieniaPage() {
                             </div>
                           </div>
 
-                          {/* Pasek statusu i natywny komponent odbioru w drawerze */}
-                          <div style={{ background: "#161b22", padding: "6px 10px", borderRadius: 6, border: "1px solid #21262d", display: "flex", justifyContent: "center" }}>
-                            <ItemReceiptControl
-                              item={item}
-                              onUpdate={async (itemId, newQty) => {
-                                await updateItemReceipt({ itemId, receivedQuantity: newQty });
-                                setPreviewSubOrder({
-                                  ...previewSubOrder,
-                                  items: previewSubOrder.items.map((i: any) =>
-                                    i._id === item._id
-                                      ? {
-                                          ...i,
-                                          receivedQuantity: newQty,
-                                          receivedStatus: newQty >= (i.quantity || 1) ? "received" : newQty > 0 ? "partial" : "pending",
-                                        }
-                                      : i
-                                  ),
-                                });
-                              }}
-                            />
-                          </div>
+                          {/* Pasek statusu i natywny komponent odbioru w drawerze (TYLKO DLA STATUSÓW DO ODBIORU+) */}
+                          {(previewSubOrder.status === "do_odbioru" || previewSubOrder.status === "odbior" || previewSubOrder.status === "zamkniete") && (
+                            <div style={{ background: "#161b22", padding: "6px 10px", borderRadius: 6, border: "1px solid #21262d", display: "flex", justifyContent: "center" }}>
+                              <ItemReceiptControl
+                                item={item}
+                                onUpdate={async (itemId, newQty) => {
+                                  await updateItemReceipt({ itemId, receivedQuantity: newQty });
+                                  setPreviewSubOrder({
+                                    ...previewSubOrder,
+                                    items: previewSubOrder.items.map((i: any) =>
+                                      i._id === item._id
+                                        ? {
+                                            ...i,
+                                            receivedQuantity: newQty,
+                                            receivedStatus: newQty >= (i.quantity || 1) ? "received" : newQty > 0 ? "partial" : "pending",
+                                          }
+                                        : i
+                                    ),
+                                  });
+                                }}
+                              />
+                            </div>
+                          )}
                         </div>
                       );
                     })}

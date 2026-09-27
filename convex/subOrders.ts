@@ -138,6 +138,7 @@ export const addItem = mutation({
     productId: v.optional(v.id("products")),
     customName: v.optional(v.string()),
     customValueNetto: v.optional(v.number()),
+    quantity: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const subOrder = await ctx.db.get(args.subOrderId);
@@ -164,6 +165,7 @@ export const addItem = mutation({
       .withIndex("by_subOrder", (q) => q.eq("subOrderId", args.subOrderId))
       .collect();
     const order = existingItems.length;
+    const qty = Math.max(1, args.quantity || 1);
 
     await ctx.db.insert("subOrderItems", {
       subOrderId: args.subOrderId,
@@ -172,10 +174,30 @@ export const addItem = mutation({
       order,
       name,
       priceNetto,
-      quantity: 1,
+      quantity: qty,
     });
   },
 });
+
+export const updateItemQuantity = mutation({
+  args: {
+    itemId: v.id("subOrderItems"),
+    quantity: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.itemId);
+    if (!item) throw new Error("Nie znaleziono pozycji");
+
+    const subOrder = await ctx.db.get(item.subOrderId);
+    if (subOrder && ["zamowiono", "do_odbioru", "odbior", "zamkniete"].includes(subOrder.status)) {
+      throw new Error("Nie można zmieniać ilości w zamówieniu o statusie 'Zamówiono' lub późniejszym.");
+    }
+
+    const qty = Math.max(1, args.quantity);
+    await ctx.db.patch(args.itemId, { quantity: qty });
+  },
+});
+
 
 export const updateExternalOrderNumber = mutation({
   args: {
