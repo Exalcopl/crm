@@ -661,6 +661,12 @@ export default defineSchema({
     name: v.string(),
     priceNetto: v.optional(v.number()),
     quantity: v.number(),
+    receivedQuantity: v.optional(v.number()),
+    receivedStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("partial"), v.literal("received"))
+    ),
+    receivedAt: v.optional(v.number()),
+    receivedNotes: v.optional(v.string()),
   })
     .index("by_subOrder", ["subOrderId"])
     .index("by_order", ["orderId"])

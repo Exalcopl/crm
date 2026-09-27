@@ -384,3 +384,77 @@ export const listAllWithDetails = query({
     return result;
   },
 });
+
+export const updateItemReceipt = mutation({
+  args: {
+    itemId: v.id("subOrderItems"),
+    receivedQuantity: v.number(),
+    receivedNotes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.itemId);
+    if (!item) throw new Error("Nie znaleziono pozycji");
+
+    const targetQty = item.quantity || 1;
+    let status: "pending" | "partial" | "received" = "pending";
+    if (args.receivedQuantity >= targetQty) {
+      status = "received";
+    } else if (args.receivedQuantity > 0) {
+      status = "partial";
+    } else {
+      status = "pending";
+    }
+
+    await ctx.db.patch(args.itemId, {
+      receivedQuantity: args.receivedQuantity,
+      receivedStatus: status,
+      receivedAt: args.receivedQuantity > 0 ? Date.now() : undefined,
+      receivedNotes: args.receivedNotes,
+    });
+
+    // Weryfikacja czy wszystkie pozycje w tym zamówieniu zostały w pełni odebrane
+    const allItems = await ctx.db
+      .query("subOrderItems")
+      .withIndex("by_subOrder", (q) => q.eq("subOrderId", item.subOrderId))
+      .collect();
+
+    const updatedItems = allItems.map((i) =>
+      i._id === args.itemId ? { ...i, receivedQuantity: args.receivedQuantity, receivedStatus: status } : i
+    );
+
+    const allReceived =
+      updatedItems.length > 0 &&
+      updatedItems.every((i) => (i.receivedQuantity ?? 0) >= (i.quantity || 1));
+
+    const subOrder = await ctx.db.get(item.subOrderId);
+    if (subOrder && subOrder.status === "do_odbioru" && allReceived) {
+      await ctx.db.patch(item.subOrderId, { status: "odbior" });
+    }
+  },
+});
+
+export const markAllItemsReceived = mutation({
+  args: {
+    subOrderId: v.id("subOrders"),
+  },
+  handler: async (ctx, args) => {
+    const items = await ctx.db
+      .query("subOrderItems")
+      .withIndex("by_subOrder", (q) => q.eq("subOrderId", args.subOrderId))
+      .collect();
+
+    for (const item of items) {
+      await ctx.db.patch(item._id, {
+        receivedQuantity: item.quantity || 1,
+        receivedStatus: "received",
+        receivedAt: Date.now(),
+      });
+    }
+
+    const subOrder = await ctx.db.get(args.subOrderId);
+    if (subOrder && (subOrder.status === "do_odbioru" || subOrder.status === "zamowiono")) {
+      await ctx.db.patch(args.subOrderId, { status: "odbior" });
+    }
+  },
+});
+

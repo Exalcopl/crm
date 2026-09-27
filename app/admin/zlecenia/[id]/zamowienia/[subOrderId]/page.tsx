@@ -8,7 +8,7 @@ import { I } from "@/app/admin/_lib/icons";
 import { RibbonBtn, RibbonGroup } from "@/app/admin/_components/ribbon";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Building2, Home, Package, PenTool, Search, Plus, X, Tag, Lock, Edit2, Check, Image as ImageIcon, Calendar } from "lucide-react";
+import { Building2, Home, Package, PenTool, Search, Plus, X, Tag, Lock, Edit2, Check, Image as ImageIcon, Calendar, CheckCircle2, Clock } from "lucide-react";
 
 type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "do_odbioru" | "odbior" | "zamkniete";
 
@@ -71,6 +71,219 @@ function formatPLN(value: number): string {
   return value.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function ItemReceiptControl({
+  item,
+  onUpdate,
+}: {
+  item: any;
+  onUpdate: (itemId: Id<"subOrderItems">, qty: number) => Promise<void>;
+}) {
+  const targetQty = item.quantity || 1;
+  const initialRecQty = item.receivedQuantity ?? 0;
+  const [val, setVal] = useState<number>(initialRecQty);
+
+  useMemo(() => {
+    setVal(item.receivedQuantity ?? 0);
+  }, [item.receivedQuantity]);
+
+  const handleSave = async (newQty: number) => {
+    const clamped = Math.max(0, newQty);
+    setVal(clamped);
+    if (clamped !== (item.receivedQuantity ?? 0)) {
+      try {
+        await onUpdate(item._id, clamped);
+        toast.success(
+          clamped > 0 ? `Zapisano odbiór: ${clamped}/${targetQty} szt.` : "Cofnięto odbiór pozycji"
+        );
+      } catch (e: any) {
+        toast.error("Błąd zapisu ilości");
+      }
+    }
+  };
+
+  const isFull = val >= targetQty;
+  const isPartial = val > 0 && val < targetQty;
+
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "nowrap" }}>
+      {/* Badge statusu */}
+      {isFull ? (
+        <span
+          style={{
+            background: "rgba(46, 160, 67, 0.15)",
+            border: "1px solid rgba(46, 160, 67, 0.4)",
+            color: "#3fb950",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <CheckCircle2 size={12} /> Odebrano ({val}/{targetQty})
+        </span>
+      ) : isPartial ? (
+        <span
+          style={{
+            background: "rgba(210, 153, 34, 0.15)",
+            border: "1px solid rgba(210, 153, 34, 0.4)",
+            color: "#d29922",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Clock size={12} /> Częściowo ({val}/{targetQty})
+        </span>
+      ) : (
+        <span
+          style={{
+            background: "rgba(139, 148, 158, 0.1)",
+            border: "1px solid #30363d",
+            color: "#8b949e",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Oczekuje (0/{targetQty})
+        </span>
+      )}
+
+      {/* Natywny Input Ilości i Przyciski Krokowe (- / +) */}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          background: "#0d1117",
+          border: "1px solid #30363d",
+          borderRadius: 6,
+          padding: "2px 4px",
+          gap: 2,
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (val > 0) handleSave(val - 1);
+          }}
+          disabled={val <= 0}
+          style={{
+            background: "transparent",
+            color: val > 0 ? "#c9d1d9" : "#484f58",
+            border: "none",
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            cursor: val > 0 ? "pointer" : "not-allowed",
+            fontSize: 13,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Odejmij 1 szt."
+        >
+          -
+        </button>
+
+        <input
+          type="number"
+          min={0}
+          max={targetQty * 2}
+          value={val}
+          onChange={(e) => setVal(parseInt(e.target.value, 10) || 0)}
+          onBlur={() => handleSave(val)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSave(val);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 44,
+            textAlign: "center",
+            background: "#161b22",
+            border: "1px solid #30363d",
+            color: "#f0f6fc",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "2px 0",
+            outline: "none",
+          }}
+          title="Wpisz bezpośrednio odebraną ilość"
+        />
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSave(val + 1);
+          }}
+          style={{
+            background: "transparent",
+            color: "#c9d1d9",
+            border: "none",
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Dodaj 1 szt."
+        >
+          +
+        </button>
+      </div>
+
+      {/* Przycisk Całość / Cofnij */}
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          const target = isFull ? 0 : targetQty;
+          setVal(target);
+          await onUpdate(item._id, target);
+        }}
+        style={{
+          background: isFull ? "#21262d" : "#238636",
+          color: "#fff",
+          border: "none",
+          padding: "4px 8px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          whiteSpace: "nowrap",
+        }}
+        title={isFull ? "Cofnij odbiór" : "Odbierz 100% całości"}
+      >
+        <Check size={12} /> {isFull ? "Cofnij" : "Całość"}
+      </button>
+    </div>
+  );
+}
+
 export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: Id<"orders">; subOrderId: Id<"subOrders"> }> }) {
   const router = useRouter();
   const { id: orderId, subOrderId } = use(params);
@@ -87,6 +300,8 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
   const updateExternalOrderNumber = useMutation(api.subOrders.updateExternalOrderNumber);
   const updateOrderNumber = useMutation(api.subOrders.updateOrderNumber);
   const updatePickupDate = useMutation(api.subOrders.updatePickupDate);
+  const updateItemReceipt = useMutation(api.subOrders.updateItemReceipt);
+  const markAllItemsReceived = useMutation(api.subOrders.markAllItemsReceived);
 
   const [addingType, setAddingType] = useState<"product" | "custom">("product");
   const [addingProduct, setAddingProduct] = useState<Id<"products"> | "">("");
@@ -772,74 +987,129 @@ export default function ZamowienieGanttPage({ params }: { params: Promise<{ id: 
           {/* LISTA POZYCJI */}
           {items.length > 0 ? (
             <div style={{ background: "#0d1117", borderRadius: 8, border: "1px solid #30363d", overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", background: "#161b22", borderBottom: "1px solid #30363d", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>Pozycje w zamówieniu ({items.length})</span>
+                {(subOrder.status === "do_odbioru" || subOrder.status === "zamowiono" || subOrder.status === "odbior") && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await markAllItemsReceived({ subOrderId: subOrder._id });
+                        toast.success("Odebrano wszystkie pozycje w zamówieniu!");
+                      } catch (e: any) {
+                        toast.error(e.message || "Błąd rejestracji odbioru");
+                      }
+                    }}
+                    style={{
+                      background: "rgba(46, 160, 67, 0.15)",
+                      border: "1px solid rgba(46, 160, 67, 0.4)",
+                      color: "#3fb950",
+                      padding: "4px 12px",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6
+                    }}
+                  >
+                    <CheckCircle2 size={14} /> Potwierdź odbiór wszystkich pozycji
+                  </button>
+                )}
+              </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ background: "#161b22", borderBottom: "1px solid #30363d" }}>
+                  <tr style={{ background: "#0d1117", borderBottom: "1px solid #30363d" }}>
                     <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "5%" }}>Lp.</th>
-                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "12%" }}>Miniaturka</th>
-                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "53%" }}>Nazwa</th>
-                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "20%" }}>Cena netto</th>
+                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "10%" }}>Miniaturka</th>
+                    <th style={{ padding: "10px 16px", textAlign: "left", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "35%" }}>Nazwa</th>
+                    <th style={{ padding: "10px 16px", textAlign: "center", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "25%" }}>Potwierdzenie Odbioru</th>
+                    <th style={{ padding: "10px 16px", textAlign: "right", color: "#8b949e", fontSize: 12, fontWeight: 600, width: "15%" }}>Cena netto</th>
                     <th style={{ padding: "10px 16px", textAlign: "right", width: "10%" }}></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item: any, idx: number) => (
-                    <tr key={item._id} style={{ borderBottom: "1px solid #21262d" }}>
-                      <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 13 }}>{idx + 1}</td>
-                      <td style={{ padding: "8px 16px", textAlign: "center" }}>
-                        {item.imageUrl ? (
-                          <div
-                            onClick={() => setPreviewImage({ url: item.imageUrl, title: item.name })}
-                            style={{
+                  {items.map((item: any, idx: number) => {
+                    const qty = item.quantity || 1;
+                    const recQty = item.receivedQuantity ?? 0;
+                    const isFull = recQty >= qty;
+                    const isPartial = recQty > 0 && recQty < qty;
+
+                    return (
+                      <tr key={item._id} style={{ borderBottom: "1px solid #21262d" }}>
+                        <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 13 }}>{idx + 1}</td>
+                        <td style={{ padding: "8px 16px", textAlign: "center" }}>
+                          {item.imageUrl ? (
+                            <div
+                              onClick={() => setPreviewImage({ url: item.imageUrl, title: item.name })}
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 6,
+                                overflow: "hidden",
+                                border: "1px solid #30363d",
+                                background: "#0d1117",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                transition: "transform 0.15s ease, border-color 0.15s ease"
+                              }}
+                              title="Kliknij, aby powiększyć zdjęcie"
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "scale(1.08)";
+                                e.currentTarget.style.borderColor = "#58a6ff";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.borderColor = "#30363d";
+                              }}
+                            >
+                              <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            </div>
+                          ) : (
+                            <div style={{
                               width: 44,
                               height: 44,
                               borderRadius: 6,
-                              overflow: "hidden",
-                              border: "1px solid #30363d",
-                              background: "#0d1117",
-                              cursor: "pointer",
+                              border: "1px solid #21262d",
+                              background: "#161b22",
                               display: "inline-flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              transition: "transform 0.15s ease, border-color 0.15s ease"
-                            }}
-                            title="Kliknij, aby powiększyć zdjęcie"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = "scale(1.08)";
-                              e.currentTarget.style.borderColor = "#58a6ff";
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = "scale(1)";
-                              e.currentTarget.style.borderColor = "#30363d";
-                            }}
-                          >
-                            <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              color: "#8b949e"
+                            }}>
+                              <ImageIcon size={18} />
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, fontWeight: 500 }}>
+                          {item.name}
+                          <div style={{ fontSize: 11, color: "#8b949e" }}>Zamówiona ilość: {qty} szt.</div>
+                        </td>
+
+                        {/* STATUS I NATYWNA EDYCJA ODBIORU */}
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <div style={{ display: "flex", justifyContent: "center" }}>
+                            <ItemReceiptControl
+                              item={item}
+                              onUpdate={async (itemId, newQty) => {
+                                await updateItemReceipt({ itemId, receivedQuantity: newQty });
+                              }}
+                            />
                           </div>
-                        ) : (
-                          <div style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: 6,
-                            border: "1px solid #21262d",
-                            background: "#161b22",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#8b949e"
-                          }}>
-                            <ImageIcon size={18} />
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, fontWeight: 500 }}>{item.name}</td>
-                      <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, textAlign: "right" }}>{formatPLN(item.priceNetto || 0)} PLN</td>
-                      <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                        {!isOrderLocked && (
-                          <button onClick={() => handleRemove(item._id)} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "4px 8px", fontSize: 12, borderRadius: 4 }}>Usuń</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+
+                        <td style={{ padding: "12px 16px", color: "#c9d1d9", fontSize: 13, textAlign: "right" }}>{formatPLN(item.priceNetto || 0)} PLN</td>
+                        <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                          {!isOrderLocked && (
+                            <button onClick={() => handleRemove(item._id)} style={{ background: "none", border: "none", color: "#f85149", cursor: "pointer", padding: "4px 8px", fontSize: 12, borderRadius: 4 }}>Usuń</button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

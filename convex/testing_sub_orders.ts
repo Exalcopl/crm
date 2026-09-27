@@ -78,3 +78,80 @@ export const testMultiOrderSubOrder = mutation({
     };
   },
 });
+
+export const testItemReceiptConfirmation = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("[TEST] Testowanie potwierdzenia odbioru pozycji zamówienia podwykonawczego...");
+
+    // 1. Utworzenie zamówienia testowego ze statusem "do_odbioru"
+    const subOrderId = await ctx.db.insert("subOrders", {
+      status: "do_odbioru",
+      orderNumber: `ZAM/TEST-RECEIPT-${Date.now()}`,
+      createdAt: Date.now(),
+    });
+
+    // 2. Utworzenie 2 pozycji zamówienia
+    const itemId1 = await ctx.db.insert("subOrderItems", {
+      subOrderId,
+      name: "Profil aluminiowy 6m (Malowany)",
+      quantity: 10,
+      order: 1,
+      status: "todo",
+    });
+
+    const itemId2 = await ctx.db.insert("subOrderItems", {
+      subOrderId,
+      name: "Uszczelka obwodowa 50m",
+      quantity: 5,
+      order: 2,
+      status: "todo",
+    });
+
+    // 3. Test odbioru częściowego na itemId1 (odbieramy 6 z 10 sztuk)
+    const targetQty1 = 10;
+    const recQty1 = 6;
+    const status1 = recQty1 >= targetQty1 ? "received" : recQty1 > 0 ? "partial" : "pending";
+
+    await ctx.db.patch(itemId1, {
+      receivedQuantity: recQty1,
+      receivedStatus: status1,
+      receivedAt: Date.now(),
+    });
+
+    const fetchedItem1 = await ctx.db.get(itemId1);
+    if (!fetchedItem1 || fetchedItem1.receivedStatus !== "partial" || fetchedItem1.receivedQuantity !== 6) {
+      throw new Error("BŁĄD: Odbiór częściowy nie został poprawnie zapisany w bazie!");
+    }
+
+    // 4. Test odbioru pełnego na obu pozycjach
+    await ctx.db.patch(itemId1, { receivedQuantity: 10, receivedStatus: "received", receivedAt: Date.now() });
+    await ctx.db.patch(itemId2, { receivedQuantity: 5, receivedStatus: "received", receivedAt: Date.now() });
+
+    // Auto-update statusu zamówienia gdy 100% pozycji odebrano
+    const allItems = await ctx.db
+      .query("subOrderItems")
+      .withIndex("by_subOrder", (q) => q.eq("subOrderId", subOrderId))
+      .collect();
+
+    const allDone = allItems.every((i) => (i.receivedQuantity ?? 0) >= (i.quantity || 1));
+    if (allDone) {
+      await ctx.db.patch(subOrderId, { status: "odbior" });
+    }
+
+    const updatedSubOrder = await ctx.db.get(subOrderId);
+    if (!updatedSubOrder || updatedSubOrder.status !== "odbior") {
+      throw new Error("BŁĄD: Status zamówienia nie zmienił się na 'odbior' po odebraniu wszystkich pozycji!");
+    }
+
+    console.log(`[SUCCESS] Test odbioru pozycji zakończony sukcesem. SubOrder status: ${updatedSubOrder.status}`);
+
+    // Sprzątanie po teście
+    await ctx.db.delete(itemId1);
+    await ctx.db.delete(itemId2);
+    await ctx.db.delete(subOrderId);
+
+    return { success: true };
+  },
+});
+

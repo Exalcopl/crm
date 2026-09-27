@@ -20,6 +20,9 @@ import {
   X,
   Filter,
   Calendar,
+  CheckCircle2,
+  Clock,
+  Check,
 } from "lucide-react";
 
 type SubOrderStatus = "utworzono" | "do_zamowienia" | "zamowiono" | "do_odbioru" | "odbior" | "zamkniete";
@@ -39,6 +42,219 @@ function formatPLN(value: number): string {
   return value.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function ItemReceiptControl({
+  item,
+  onUpdate,
+}: {
+  item: any;
+  onUpdate: (itemId: Id<"subOrderItems">, qty: number) => Promise<void>;
+}) {
+  const targetQty = item.quantity || 1;
+  const initialRecQty = item.receivedQuantity ?? 0;
+  const [val, setVal] = React.useState<number>(initialRecQty);
+
+  React.useEffect(() => {
+    setVal(item.receivedQuantity ?? 0);
+  }, [item.receivedQuantity]);
+
+  const handleSave = async (newQty: number) => {
+    const clamped = Math.max(0, newQty);
+    setVal(clamped);
+    if (clamped !== (item.receivedQuantity ?? 0)) {
+      try {
+        await onUpdate(item._id, clamped);
+        toast.success(
+          clamped > 0 ? `Zapisano odbiór: ${clamped}/${targetQty} szt.` : "Cofnięto odbiór pozycji"
+        );
+      } catch (e: any) {
+        toast.error("Błąd zapisu ilości");
+      }
+    }
+  };
+
+  const isFull = val >= targetQty;
+  const isPartial = val > 0 && val < targetQty;
+
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "nowrap" }}>
+      {/* Badge statusu */}
+      {isFull ? (
+        <span
+          style={{
+            background: "rgba(46, 160, 67, 0.15)",
+            border: "1px solid rgba(46, 160, 67, 0.4)",
+            color: "#3fb950",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <CheckCircle2 size={12} /> Odebrano ({val}/{targetQty})
+        </span>
+      ) : isPartial ? (
+        <span
+          style={{
+            background: "rgba(210, 153, 34, 0.15)",
+            border: "1px solid rgba(210, 153, 34, 0.4)",
+            color: "#d29922",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Clock size={12} /> Częściowo ({val}/{targetQty})
+        </span>
+      ) : (
+        <span
+          style={{
+            background: "rgba(139, 148, 158, 0.1)",
+            border: "1px solid #30363d",
+            color: "#8b949e",
+            padding: "2px 8px",
+            borderRadius: 12,
+            fontSize: 11,
+            fontWeight: 500,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Oczekuje (0/{targetQty})
+        </span>
+      )}
+
+      {/* Natywny Input Ilości i Przyciski Krokowe (- / +) */}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          background: "#0d1117",
+          border: "1px solid #30363d",
+          borderRadius: 6,
+          padding: "2px 4px",
+          gap: 2,
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (val > 0) handleSave(val - 1);
+          }}
+          disabled={val <= 0}
+          style={{
+            background: "transparent",
+            color: val > 0 ? "#c9d1d9" : "#484f58",
+            border: "none",
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            cursor: val > 0 ? "pointer" : "not-allowed",
+            fontSize: 13,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Odejmij 1 szt."
+        >
+          -
+        </button>
+
+        <input
+          type="number"
+          min={0}
+          max={targetQty * 2}
+          value={val}
+          onChange={(e) => setVal(parseInt(e.target.value, 10) || 0)}
+          onBlur={() => handleSave(val)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSave(val);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 44,
+            textAlign: "center",
+            background: "#161b22",
+            border: "1px solid #30363d",
+            color: "#f0f6fc",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 700,
+            padding: "2px 0",
+            outline: "none",
+          }}
+          title="Wpisz bezpośrednio odebraną ilość"
+        />
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSave(val + 1);
+          }}
+          style={{
+            background: "transparent",
+            color: "#c9d1d9",
+            border: "none",
+            width: 20,
+            height: 20,
+            borderRadius: 4,
+            cursor: "pointer",
+            fontSize: 13,
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="Dodaj 1 szt."
+        >
+          +
+        </button>
+      </div>
+
+      {/* Przycisk Całość / Cofnij */}
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.stopPropagation();
+          const target = isFull ? 0 : targetQty;
+          setVal(target);
+          await onUpdate(item._id, target);
+        }}
+        style={{
+          background: isFull ? "#21262d" : "#238636",
+          color: "#fff",
+          border: "none",
+          padding: "4px 8px",
+          borderRadius: 6,
+          fontSize: 11,
+          fontWeight: 600,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          whiteSpace: "nowrap",
+        }}
+        title={isFull ? "Cofnij odbiór" : "Odbierz 100% całości"}
+      >
+        <Check size={12} /> {isFull ? "Cofnij" : "Całość"}
+      </button>
+    </div>
+  );
+}
+
 export default function ZamowieniaPage() {
   const router = useRouter();
 
@@ -51,10 +267,12 @@ export default function ZamowieniaPage() {
   const createSubOrder = useMutation(api.subOrders.create);
   const updateStatus = useMutation(api.subOrders.updateStatus);
   const updatePickupDate = useMutation(api.subOrders.updatePickupDate);
+  const updateItemReceipt = useMutation(api.subOrders.updateItemReceipt);
+  const markAllItemsReceived = useMutation(api.subOrders.markAllItemsReceived);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("utworzono");
   const [selectedClientId, setSelectedClientId] = useState<string>("all");
   const [selectedOrderId, setSelectedOrderId] = useState<string>("all");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
@@ -63,6 +281,7 @@ export default function ZamowieniaPage() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   // Drawer & Modal state
+  const [selectedModalImage, setSelectedModalImage] = useState<{ url: string; name: string } | null>(null);
   const [previewSubOrder, setPreviewSubOrder] = useState<any | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -379,11 +598,11 @@ export default function ZamowieniaPage() {
                 <tr style={{ background: "#0d1117", borderBottom: "1px solid #30363d" }}>
                   <th style={{ padding: "12px 10px", width: 32 }} />
                   <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>NR ZAMÓWIENIA</th>
-                  <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>PODPIĘTE ZLECENIA GŁÓWNE</th>
-                  <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>PODWYKONAWCA / DOSTAWCA</th>
-                  <th style={{ padding: "12px 16px", textAlign: "center", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>POZYCJI</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", color: "#f0f6fc", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>STATUS ZAMÓWIENIA</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", color: "#a371f7", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>TERMIN ODBIORU</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>DOSTAWCA / PODWYKONAWCA</th>
                   <th style={{ padding: "12px 16px", textAlign: "right", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>WARTOŚĆ NETTO</th>
-                  <th style={{ padding: "12px 16px", textAlign: "center", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>STATUS</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left", color: "#6e7681", fontSize: 10, fontWeight: 500, textTransform: "uppercase" }}>Zlecenia główne</th>
                   <th style={{ padding: "12px 16px", textAlign: "right", color: "#8b949e", fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>AKCJE</th>
                 </tr>
               </thead>
@@ -414,50 +633,60 @@ export default function ZamowieniaPage() {
                             <Package size={15} color="#58a6ff" />
                             {so.orderNumber}
                           </div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, alignItems: "center" }}>
-                            {so.externalOrderNumber && (
+                          {so.externalOrderNumber && (
+                            <div style={{ marginTop: 2 }}>
                               <span style={{ background: "#21262d", border: "1px solid #30363d", padding: "1px 6px", borderRadius: 4, color: "#c9d1d9", fontSize: 11 }}>
                                 Nr u dostawcy: #{so.externalOrderNumber}
                               </span>
-                            )}
-                            {so.pickupDate && (
-                              <span style={{ background: "rgba(163,113,247,0.15)", border: "1px solid rgba(163,113,247,0.4)", padding: "1px 6px", borderRadius: 4, color: "#a371f7", fontSize: 11, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                <Calendar size={11} /> Do odbioru: {so.pickupDate}
-                              </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </td>
 
-                        {/* PODPIĘTE ZLECENIA GŁÓWNE */}
-                        <td style={{ padding: "12px 16px" }}>
-                          {assignedOrders.length > 0 ? (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {assignedOrders.map((ord: any) => (
-                                <Link
-                                  key={ord._id}
-                                  href={`/admin/zlecenia/${ord._id}`}
-                                  style={{
-                                    background: "rgba(88,166,255,0.12)",
-                                    border: "1px solid rgba(88,166,255,0.3)",
-                                    color: "#60a5fa",
-                                    padding: "3px 8px",
-                                    borderRadius: 6,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    textDecoration: "none",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
-                                  title={`Zlecenie ${ord.orderNumber} (${ord.clientName})`}
-                                >
-                                  <span>{ord.orderNumber}</span>
-                                  <span style={{ color: "#8b949e", fontWeight: 400 }}>• {ord.clientName}</span>
-                                </Link>
-                              ))}
-                            </div>
+                        {/* STATUS ZAMÓWIENIA (WYRÓŻNIONY) */}
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "6px 14px",
+                              borderRadius: 20,
+                              fontSize: 12,
+                              fontWeight: 800,
+                              color: statusCfg.color,
+                              background: statusCfg.bg,
+                              border: `1px solid ${statusCfg.color}50`,
+                              boxShadow: `0 2px 8px ${statusCfg.color}20`,
+                              whiteSpace: "nowrap",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {statusCfg.label}
+                          </span>
+                        </td>
+
+                        {/* TERMIN ODBIORU (WYRÓŻNIONY) */}
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          {so.pickupDate ? (
+                            <span
+                              style={{
+                                background: "rgba(163, 113, 247, 0.18)",
+                                border: "1px solid rgba(163, 113, 247, 0.5)",
+                                color: "#d8b4fe",
+                                padding: "5px 12px",
+                                borderRadius: 6,
+                                fontWeight: 700,
+                                fontSize: 12,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                boxShadow: "0 2px 8px rgba(163,113,247,0.2)",
+                              }}
+                              title="Planowany termin odbioru od podwykonawcy"
+                            >
+                              <Calendar size={13} color="#c084fc" />
+                              {so.pickupDate}
+                            </span>
                           ) : (
-                            <span style={{ fontSize: 11, color: "#6e7681", fontStyle: "italic" }}>Brak zlecenia</span>
+                            <span style={{ fontSize: 11, color: "#6e7681", fontStyle: "italic" }}>—</span>
                           )}
                         </td>
 
@@ -476,38 +705,56 @@ export default function ZamowieniaPage() {
                           )}
                         </td>
 
-                        {/* LICZBA POZYCJI */}
-                        <td style={{ padding: "12px 16px", textAlign: "center", color: "#c9d1d9", fontSize: 13, fontWeight: 600 }}>
-                          {so.itemsCount} {so.itemsCount === 1 ? "pozycja" : "pozycji"}
-                        </td>
-
                         {/* WARTOŚĆ NETTO */}
                         <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 700, color: "#3fb950", fontSize: 14 }}>
                           {formatPLN(so.valueNetto)} PLN
+                          <div style={{ fontSize: 10, color: "#8b949e", fontWeight: 400 }}>{so.itemsCount} {so.itemsCount === 1 ? "pozycja" : "pozycji"}</div>
                         </td>
 
-                        {/* STATUS */}
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 12px",
-                              borderRadius: 12,
-                              fontSize: 11,
-                              fontWeight: 700,
-                              color: statusCfg.color,
-                              background: statusCfg.bg,
-                              border: `1px solid ${statusCfg.color}40`,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {statusCfg.label}
-                          </span>
+                        {/* PODPIĘTE ZLECENIA GŁÓWNE (STONOWANE) */}
+                        <td style={{ padding: "12px 16px" }}>
+                          {assignedOrders.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {assignedOrders.map((ord: any) => (
+                                <Link
+                                  key={ord._id}
+                                  href={`/admin/zlecenia/${ord._id}`}
+                                  style={{
+                                    background: "#0d1117",
+                                    border: "1px solid #30363d",
+                                    color: "#8b949e",
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontWeight: 400,
+                                    textDecoration: "none",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    transition: "all 0.1s ease",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = "#58a6ff";
+                                    e.currentTarget.style.color = "#58a6ff";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = "#30363d";
+                                    e.currentTarget.style.color = "#8b949e";
+                                  }}
+                                  title={`Zlecenie ${ord.orderNumber} (${ord.clientName})`}
+                                >
+                                  <span>{ord.orderNumber}</span>
+                                </Link>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 11, color: "#484f58" }}>—</span>
+                          )}
                         </td>
 
                         {/* AKCJE */}
                         <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
                             <button
                               type="button"
                               onClick={() => setPreviewSubOrder(so)}
@@ -515,18 +762,18 @@ export default function ZamowieniaPage() {
                                 background: "#21262d",
                                 color: "#c9d1d9",
                                 border: "1px solid #30363d",
-                                padding: "6px 12px",
+                                padding: "5px 10px",
                                 borderRadius: 6,
-                                fontSize: 12,
+                                fontSize: 11,
                                 cursor: "pointer",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 6,
+                                gap: 4,
                                 fontWeight: 600,
                               }}
                               title="Szybki podgląd w panelu bocznym"
                             >
-                              <Eye size={14} /> Podgląd
+                              <Eye size={13} /> Podgląd
                             </button>
 
                             <button
@@ -543,18 +790,18 @@ export default function ZamowieniaPage() {
                                 background: "#1f6feb",
                                 color: "#fff",
                                 border: "none",
-                                padding: "6px 12px",
+                                padding: "5px 10px",
                                 borderRadius: 6,
-                                fontSize: 12,
+                                fontSize: 11,
                                 cursor: "pointer",
                                 fontWeight: 600,
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 6,
+                                gap: 4,
                                 boxShadow: "0 2px 6px rgba(31,111,235,0.3)",
                               }}
                             >
-                              Szczegóły <ArrowRight size={13} />
+                              Szczegóły <ArrowRight size={12} />
                             </button>
                           </div>
                         </td>
@@ -565,8 +812,40 @@ export default function ZamowieniaPage() {
                         <tr style={{ background: "#0d1117" }}>
                           <td colSpan={8} style={{ padding: "12px 20px 16px 48px", borderBottom: "1px solid #30363d" }}>
                             <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: 14 }}>
-                              <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                                <Package size={15} color="#58a6ff" /> Pozycje zamówienia {so.orderNumber} ({so.items ? so.items.length : 0})
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", display: "flex", alignItems: "center", gap: 8 }}>
+                                  <Package size={15} color="#58a6ff" /> Pozycje zamówienia {so.orderNumber} ({so.items ? so.items.length : 0})
+                                </div>
+                                {(so.status === "do_odbioru" || so.status === "zamowiono" || so.status === "odbior") && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await markAllItemsReceived({ subOrderId: so._id });
+                                        toast.success("Odebrano wszystkie pozycje w zamówieniu!");
+                                      } catch (e: any) {
+                                        toast.error(e.message || "Błąd podczas odnotowywania odbioru");
+                                      }
+                                    }}
+                                    style={{
+                                      background: "rgba(46, 160, 67, 0.15)",
+                                      border: "1px solid rgba(46, 160, 67, 0.4)",
+                                      color: "#3fb950",
+                                      padding: "4px 10px",
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      transition: "all 0.15s ease",
+                                    }}
+                                    title="Potwierdź odbiór wszystkich pozycji naraz"
+                                  >
+                                    <CheckCircle2 size={13} /> Potwierdź odbiór wszystkich pozycji
+                                  </button>
+                                )}
                               </div>
 
                               {so.items && so.items.length > 0 ? (
@@ -574,34 +853,66 @@ export default function ZamowieniaPage() {
                                   <thead>
                                     <tr style={{ background: "#0d1117", color: "#8b949e", fontSize: 11, borderBottom: "1px solid #21262d" }}>
                                       <th style={{ padding: "6px 10px", textAlign: "left" }}>Pozycja</th>
-                                      <th style={{ padding: "6px 10px", textAlign: "center" }}>Ilość</th>
+                                      <th style={{ padding: "6px 10px", textAlign: "center" }}>Ilość zamówiona</th>
+                                      <th style={{ padding: "6px 10px", textAlign: "center" }}>Potwierdzenie Odbioru</th>
                                       <th style={{ padding: "6px 10px", textAlign: "right" }}>Cena Netto</th>
                                       <th style={{ padding: "6px 10px", textAlign: "right" }}>Wartość Netto</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {so.items.map((it: any, idx: number) => (
-                                      <tr key={it._id || idx} style={{ borderBottom: "1px solid #21262d" }}>
-                                        <td style={{ padding: "8px 10px", color: "#f0f6fc", fontWeight: 600 }}>
-                                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                            {it.imageUrl && (
-                                              /* eslint-disable-next-line @next/next/no-img-element */
-                                              <img src={it.imageUrl} alt={it.name} style={{ width: 28, height: 28, borderRadius: 4, objectFit: "cover", border: "1px solid #30363d" }} />
-                                            )}
-                                            <span>{it.name}</span>
-                                          </div>
-                                        </td>
-                                        <td style={{ padding: "8px 10px", textAlign: "center", color: "#c9d1d9" }}>
-                                          {it.quantity} szt.
-                                        </td>
-                                        <td style={{ padding: "8px 10px", textAlign: "right", color: "#8b949e" }}>
-                                          {formatPLN(it.priceNetto || 0)} PLN
-                                        </td>
-                                        <td style={{ padding: "8px 10px", textAlign: "right", color: "#3fb950", fontWeight: 700 }}>
-                                          {formatPLN((it.priceNetto || 0) * (it.quantity || 1))} PLN
-                                        </td>
-                                      </tr>
-                                    ))}
+                                    {so.items.map((it: any, idx: number) => {
+                                      const qty = it.quantity || 1;
+                                      const recQty = it.receivedQuantity ?? 0;
+                                      const isFull = recQty >= qty;
+                                      const isPartial = recQty > 0 && recQty < qty;
+
+                                      return (
+                                        <tr key={it._id || idx} style={{ borderBottom: "1px solid #21262d" }}>
+                                          <td style={{ padding: "8px 10px", color: "#f0f6fc", fontWeight: 600 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                              {it.imageUrl && (
+                                                <div
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedModalImage({ url: it.imageUrl, name: it.name });
+                                                  }}
+                                                  title="Kliknij, aby powiększyć zdjęcie"
+                                                  style={{ cursor: "pointer", flexShrink: 0, display: "inline-flex", transition: "transform 0.15s ease" }}
+                                                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.12)")}
+                                                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                                                >
+                                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                  <img src={it.imageUrl} alt={it.name} style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", border: "1px solid #30363d" }} />
+                                                </div>
+                                              )}
+                                              <span>{it.name}</span>
+                                            </div>
+                                          </td>
+                                          <td style={{ padding: "8px 10px", textAlign: "center", color: "#c9d1d9" }}>
+                                            {it.quantity} szt.
+                                          </td>
+
+                                          {/* STATUS I NATYWNA EDYCJA ODBIORU POZYCJI */}
+                                          <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                                            <div style={{ display: "flex", justifyContent: "center" }}>
+                                              <ItemReceiptControl
+                                                item={it}
+                                                onUpdate={async (itemId, qty) => {
+                                                  await updateItemReceipt({ itemId, receivedQuantity: qty });
+                                                }}
+                                              />
+                                            </div>
+                                          </td>
+
+                                          <td style={{ padding: "8px 10px", textAlign: "right", color: "#8b949e" }}>
+                                            {formatPLN(it.priceNetto || 0)} PLN
+                                          </td>
+                                          <td style={{ padding: "8px 10px", textAlign: "right", color: "#3fb950", fontWeight: 700 }}>
+                                            {formatPLN((it.priceNetto || 0) * (it.quantity || 1))} PLN
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               ) : (
@@ -769,27 +1080,70 @@ export default function ZamowieniaPage() {
 
                 {previewSubOrder.items.length > 0 ? (
                   <div style={{ background: "#0d1117", borderRadius: 8, border: "1px solid #30363d", overflow: "hidden" }}>
-                    {previewSubOrder.items.map((item: any, idx: number) => (
-                      <div
-                        key={item._id}
-                        style={{
-                          padding: "10px 12px",
-                          borderBottom: idx < previewSubOrder.items.length - 1 ? "1px solid #21262d" : "none",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          fontSize: 12
-                        }}
-                      >
-                        <div style={{ color: "#c9d1d9", fontWeight: 500 }}>
-                          <span style={{ color: "#8b949e", marginRight: 6 }}>{idx + 1}.</span>
-                          {item.name}
+                    {previewSubOrder.items.map((item: any, idx: number) => {
+                      const qty = item.quantity || 1;
+                      const recQty = item.receivedQuantity ?? 0;
+                      const isFull = recQty >= qty;
+                      const isPartial = recQty > 0 && recQty < qty;
+
+                      return (
+                        <div
+                          key={item._id}
+                          style={{
+                            padding: "10px 12px",
+                            borderBottom: idx < previewSubOrder.items.length - 1 ? "1px solid #21262d" : "none",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            fontSize: 12
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ color: "#c9d1d9", fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: "#8b949e", flexShrink: 0 }}>{idx + 1}.</span>
+                              {item.imageUrl && (
+                                <div
+                                  onClick={() => setSelectedModalImage({ url: item.imageUrl, name: item.name })}
+                                  title="Kliknij, aby powiększyć zdjęcie"
+                                  style={{ cursor: "pointer", flexShrink: 0, display: "inline-flex", transition: "transform 0.15s ease" }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.12)")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={item.imageUrl} alt={item.name} style={{ width: 32, height: 32, borderRadius: 4, objectFit: "cover", border: "1px solid #30363d" }} />
+                                </div>
+                              )}
+                              <span>{item.name}</span>
+                            </div>
+                            <div style={{ color: "#f0f6fc", fontWeight: 600, flexShrink: 0, marginLeft: 12 }}>
+                              {qty} szt. | {formatPLN(item.priceNetto || 0)} PLN
+                            </div>
+                          </div>
+
+                          {/* Pasek statusu i natywny komponent odbioru w drawerze */}
+                          <div style={{ background: "#161b22", padding: "6px 10px", borderRadius: 6, border: "1px solid #21262d", display: "flex", justifyContent: "center" }}>
+                            <ItemReceiptControl
+                              item={item}
+                              onUpdate={async (itemId, newQty) => {
+                                await updateItemReceipt({ itemId, receivedQuantity: newQty });
+                                setPreviewSubOrder({
+                                  ...previewSubOrder,
+                                  items: previewSubOrder.items.map((i: any) =>
+                                    i._id === item._id
+                                      ? {
+                                          ...i,
+                                          receivedQuantity: newQty,
+                                          receivedStatus: newQty >= (i.quantity || 1) ? "received" : newQty > 0 ? "partial" : "pending",
+                                        }
+                                      : i
+                                  ),
+                                });
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div style={{ color: "#f0f6fc", fontWeight: 600, flexShrink: 0, marginLeft: 12 }}>
-                          {formatPLN(item.priceNetto || 0)} PLN
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div style={{ padding: 20, textAlign: "center", color: "#8b949e", fontSize: 12, border: "1px dashed #30363d", borderRadius: 8 }}>
@@ -1184,6 +1538,78 @@ export default function ZamowieniaPage() {
                   Utwórz zamówienie ({selectedOrderIds.length})
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PODGLĄDU ZDJĘCIA POZYCJI */}
+      {selectedModalImage && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0, 0, 0, 0.85)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            animation: "fadeIn 0.15s ease",
+          }}
+          onClick={() => setSelectedModalImage(null)}
+        >
+          <div
+            style={{
+              position: "relative",
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              background: "#161b22",
+              border: "1px solid #30363d",
+              borderRadius: 12,
+              padding: 20,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.7)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 14,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 16, borderBottom: "1px solid #21262d", paddingBottom: 12 }}>
+              <span style={{ fontWeight: 700, color: "#f0f6fc", fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <Package size={18} color="#58a6ff" /> {selectedModalImage.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedModalImage(null)}
+                style={{
+                  background: "#21262d",
+                  border: "1px solid #30363d",
+                  color: "#c9d1d9",
+                  borderRadius: 6,
+                  padding: "6px 12px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#f0f6fc")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#c9d1d9")}
+              >
+                <X size={16} /> Zamknij
+              </button>
+            </div>
+            <div style={{ background: "#0d1117", borderRadius: 8, padding: 8, border: "1px solid #21262d", display: "grid", placeItems: "center" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={selectedModalImage.url}
+                alt={selectedModalImage.name}
+                style={{ maxWidth: "82vw", maxHeight: "75vh", objectFit: "contain", borderRadius: 6 }}
+              />
             </div>
           </div>
         </div>
