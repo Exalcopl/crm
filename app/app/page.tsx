@@ -724,7 +724,7 @@ export default function MobileAppPage() {
               </div>
             ) : (
               filteredSubOrders.map((so: any) => {
-                const isExpanded = expandedSubOrders[so._id] ?? (activeOrderTab === "do_odbioru");
+                const isExpanded = expandedSubOrders[so._id] ?? false;
                 const totalOrdered = (so.items || []).reduce((acc: number, item: any) => acc + (item.quantity || 1), 0);
                 const totalReceived = (so.items || []).reduce((acc: number, item: any) => acc + (item.receivedQuantity || 0), 0);
                 const isCompleted = so.status === "odbior" || so.status === "zamkniete";
@@ -748,7 +748,10 @@ export default function MobileAppPage() {
                     }}
                   >
                     {/* Header Row: Order number & Status pill */}
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                    <div
+                      onClick={() => setExpandedSubOrders((prev) => ({ ...prev, [so._id]: !isExpanded }))}
+                      style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, cursor: "pointer" }}
+                    >
                       <div>
                         <div style={{ fontSize: 16, fontWeight: 800, color: "#58a6ff", display: "flex", alignItems: "center", gap: 8 }}>
                           <Package size={18} color="#58a6ff" />
