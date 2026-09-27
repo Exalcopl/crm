@@ -7,6 +7,24 @@ import { I } from "../admin/_lib/icons";
 import { ownerInitials } from "../admin/_lib/quotes";
 import type { Id } from "@/convex/_generated/dataModel";
 import { TaskSwipeableCard } from "./TaskSwipeableCard";
+import {
+  Package,
+  Building2,
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  X,
+  ImageIcon,
+  Search,
+  Plus,
+  Minus,
+  Check,
+  Truck,
+  AlertCircle,
+  Clock,
+  Layers
+} from "lucide-react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 type TaskStatus = "todo" | "in_progress" | "done";
@@ -77,7 +95,9 @@ export default function MobileAppPage() {
   // General navigation view: "tasks" | "orders" | "calendar"
   const [activeView, setActiveView] = useState<"tasks" | "orders" | "calendar">("tasks");
   const [fabExpanded, setFabExpanded] = useState(false);
-  const [activeOrderTab, setActiveOrderTab] = useState<"all" | "in_progress" | "gotowe" | "wstrzymane">("all");
+  const [activeOrderTab, setActiveOrderTab] = useState<"do_odbioru" | "odbior" | "all">("do_odbioru");
+  const [expandedSubOrders, setExpandedSubOrders] = useState<Record<string, boolean>>({});
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   // Custom premium modal/toast alerts and confirms
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -197,6 +217,15 @@ export default function MobileAppPage() {
         }
       : "skip",
   ) ?? [];
+
+  // Sub-orders for mobile app receipt
+  const subOrdersRaw = useQuery(
+    api.subOrders.listAllWithDetails,
+    session ? {} : "skip"
+  ) ?? [];
+
+  const updateItemReceipt = useMutation(api.subOrders.updateItemReceipt);
+  const markAllItemsReceived = useMutation(api.subOrders.markAllItemsReceived);
 
   // Active events list
   const activeEvents = calendarType === "private" ? privateEvents : companyEvents;
@@ -497,35 +526,30 @@ export default function MobileAppPage() {
     }
   }
 
-  // Order calculations & filtering
-  const orderCounts = {
-    all: ordersList.length,
-    in_progress: ordersList.filter((o: any) =>
-      ["nowe", "akceptacja", "kompletacja", "produkcja", "montaz"].includes(o.status || "nowe")
-    ).length,
-    gotowe: ordersList.filter((o: any) => o.status === "gotowe").length,
-    wstrzymane: ordersList.filter((o: any) => o.status === "wstrzymane").length,
+  // Sub-orders mobile receipt filtering
+  const subOrdersList = subOrdersRaw as any[];
+
+  const subOrderCounts = {
+    do_odbioru: subOrdersList.filter((so) => so.status === "do_odbioru").length,
+    odbior: subOrdersList.filter((so) => so.status === "odbior" || so.status === "zamkniete").length,
+    all: subOrdersList.length,
   };
 
-  const filteredOrdersList = ordersList.filter((ord: any) => {
-    // Tab filter
-    if (activeOrderTab === "in_progress") {
-      if (!["nowe", "akceptacja", "kompletacja", "produkcja", "montaz"].includes(ord.status || "nowe")) {
-        return false;
-      }
-    } else if (activeOrderTab === "gotowe") {
-      if (ord.status !== "gotowe") return false;
-    } else if (activeOrderTab === "wstrzymane") {
-      if (ord.status !== "wstrzymane") return false;
+  const filteredSubOrders = subOrdersList.filter((so) => {
+    if (activeOrderTab === "do_odbioru") {
+      if (so.status !== "do_odbioru") return false;
+    } else if (activeOrderTab === "odbior") {
+      if (so.status !== "odbior" && so.status !== "zamkniete") return false;
     }
 
-    // Search query filter (Order number, client name, supplier name, custom label)
     if (orderSearch.trim()) {
       const q = orderSearch.toLowerCase();
-      const num = (ord.orderNumber || ord.code || ord.customLabel || "").toLowerCase();
-      const client = (ord.clientName || ord.contact?.name || "").toLowerCase();
-      const supplier = (ord.supplierName || "").toLowerCase();
-      return num.includes(q) || client.includes(q) || supplier.includes(q);
+      const num = (so.orderNumber || "").toLowerCase();
+      const ext = (so.externalOrderNumber || "").toLowerCase();
+      const supplier = (so.supplier?.name || "").toLowerCase();
+      const client = (so.client?.name || so.order?.clientName || "").toLowerCase();
+      const itemsMatch = (so.items || []).some((i: any) => (i.name || "").toLowerCase().includes(q));
+      return num.includes(q) || ext.includes(q) || supplier.includes(q) || client.includes(q) || itemsMatch;
     }
     return true;
   });
@@ -625,204 +649,434 @@ export default function MobileAppPage() {
         </>
       )}
 
-      {/* ── View 2: Orders Dashboard ── */}
+      {/* ── View 2: Mobile Sub-Orders Receipt Dashboard ── */}
       {activeView === "orders" && (
         <>
-          {/* Order Tabs */}
+          {/* Tabs: "Do odbioru", "Odebrane", "Wszystkie" */}
           <nav className="mobile-tabs">
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "do_odbioru" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("do_odbioru")}
+              style={{
+                background: activeOrderTab === "do_odbioru" ? "rgba(210, 153, 34, 0.2)" : undefined,
+                color: activeOrderTab === "do_odbioru" ? "#f2cc60" : undefined,
+                borderColor: activeOrderTab === "do_odbioru" ? "#d29922" : undefined,
+              }}
+            >
+              Do odbioru
+              <span className="mobile-tab-badge" style={{ background: activeOrderTab === "do_odbioru" ? "#d29922" : undefined, color: "#fff" }}>
+                {subOrderCounts.do_odbioru}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`mobile-tab-btn ${activeOrderTab === "odbior" ? "active" : ""}`}
+              onClick={() => setActiveOrderTab("odbior")}
+            >
+              Odebrane
+              <span className="mobile-tab-badge">{subOrderCounts.odbior}</span>
+            </button>
             <button
               type="button"
               className={`mobile-tab-btn ${activeOrderTab === "all" ? "active" : ""}`}
               onClick={() => setActiveOrderTab("all")}
             >
               Wszystkie
-              <span className="mobile-tab-badge">{orderCounts.all}</span>
-            </button>
-            <button
-              type="button"
-              className={`mobile-tab-btn ${activeOrderTab === "in_progress" ? "active" : ""}`}
-              onClick={() => setActiveOrderTab("in_progress")}
-            >
-              W realizacji
-              <span className="mobile-tab-badge">{orderCounts.in_progress}</span>
-            </button>
-            <button
-              type="button"
-              className={`mobile-tab-btn ${activeOrderTab === "gotowe" ? "active" : ""}`}
-              onClick={() => setActiveOrderTab("gotowe")}
-            >
-              Gotowe
-              <span className="mobile-tab-badge">{orderCounts.gotowe}</span>
-            </button>
-            <button
-              type="button"
-              className={`mobile-tab-btn ${activeOrderTab === "wstrzymane" ? "active" : ""}`}
-              onClick={() => setActiveOrderTab("wstrzymane")}
-            >
-              Wstrzymane
-              <span className="mobile-tab-badge">{orderCounts.wstrzymane}</span>
+              <span className="mobile-tab-badge">{subOrderCounts.all}</span>
             </button>
           </nav>
 
           <main className="mobile-task-list">
             {/* Search Bar */}
-            <div style={{ padding: "4px 0 8px" }}>
-              <input
-                type="text"
-                className="mobile-input"
-                placeholder="Szukaj po numerze, kliencie lub dostawcy…"
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-              />
+            <div style={{ padding: "4px 0 10px" }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <Search size={16} color="#8b949e" style={{ position: "absolute", left: 12, pointerEvents: "none" }} />
+                <input
+                  type="text"
+                  className="mobile-input"
+                  placeholder="Szukaj po nr zamówienia, dostawcy lub pozycji..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  style={{ paddingLeft: 36, paddingRight: orderSearch ? 32 : 12 }}
+                />
+                {orderSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setOrderSearch("")}
+                    style={{ position: "absolute", right: 10, background: "none", border: "none", color: "#8b949e", cursor: "pointer" }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {filteredOrdersList.length === 0 ? (
+            {filteredSubOrders.length === 0 ? (
               <div className="mobile-empty">
-                <div style={{ fontSize: "32px", marginBottom: "8px" }}>📦</div>
-                <div>Brak zamówień w tej kategorii</div>
+                <div style={{ fontSize: "36px", marginBottom: "8px" }}>📦</div>
+                <div style={{ fontWeight: 600, color: "#f0f6fc", fontSize: 15 }}>
+                  {activeOrderTab === "do_odbioru" ? "Brak zamówień oczekujących na odbiór" : "Brak zamówień"}
+                </div>
+                <div style={{ fontSize: 13, color: "#8b949e", marginTop: 4 }}>
+                  {activeOrderTab === "do_odbioru" ? "Wszystkie pozycje od dostawców zostały odebrane." : "Zmień kryteria wyszukiwania lub filtr."}
+                </div>
               </div>
             ) : (
-              filteredOrdersList.map((ord: any) => {
-                const orderNum = ord.orderNumber || ord.code || ord.customLabel || "Zamówienie";
-                const clientName = ord.clientName || ord.contact?.name || "Klient detaliczny";
-                const supplierName = ord.supplierName;
-                const status = ord.status || "akceptacja";
+              filteredSubOrders.map((so: any) => {
+                const isExpanded = expandedSubOrders[so._id] ?? (activeOrderTab === "do_odbioru");
+                const totalOrdered = (so.items || []).reduce((acc: number, item: any) => acc + (item.quantity || 1), 0);
+                const totalReceived = (so.items || []).reduce((acc: number, item: any) => acc + (item.receivedQuantity || 0), 0);
+                const isCompleted = so.status === "odbior" || so.status === "zamkniete";
+                const progressPct = isCompleted ? 100 : totalOrdered > 0 ? Math.min(100, Math.round((totalReceived / totalOrdered) * 100)) : 0;
+                
+                const assignedOrders = so.orders && so.orders.length > 0 ? so.orders : (so.order ? [so.order] : []);
 
                 return (
-                  <div key={ord._id} className="mobile-order-card">
-                    {/* Header: Order Number & Status Pill */}
-                    <div className="mobile-order-card-header">
-                      <div className="mobile-order-number">
-                        <svg
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#f59e0b"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                          <line x1="12" y1="22.08" x2="12" y2="12" />
-                        </svg>
-                        {orderNum}
+                  <div
+                    key={so._id}
+                    style={{
+                      background: "var(--bg-card, #141b2d)",
+                      border: so.status === "do_odbioru" ? "1px solid rgba(210, 153, 34, 0.4)" : "1px solid var(--border, #232d42)",
+                      borderRadius: 14,
+                      padding: 16,
+                      marginBottom: 14,
+                      boxShadow: so.status === "do_odbioru" ? "0 4px 16px rgba(210, 153, 34, 0.12)" : "0 2px 10px rgba(0,0,0,0.3)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12
+                    }}
+                  >
+                    {/* Header Row: Order number & Status pill */}
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: "#58a6ff", display: "flex", alignItems: "center", gap: 8 }}>
+                          <Package size={18} color="#58a6ff" />
+                          <span>{so.orderNumber}</span>
+                        </div>
+                        {so.externalOrderNumber && (
+                          <div style={{ marginTop: 3 }}>
+                            <span style={{ background: "#0d1117", border: "1px solid #30363d", padding: "2px 7px", borderRadius: 4, color: "#3fb950", fontSize: 11, fontWeight: 600 }}>
+                              Nr u dostawcy: #{so.externalOrderNumber}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
-                      <span className={`mobile-status-pill status-${status}`}>
-                        {status.toUpperCase()}
+                      <span
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 20,
+                          fontSize: 11,
+                          fontWeight: 800,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.03em",
+                          whiteSpace: "nowrap",
+                          background: so.status === "do_odbioru" ? "rgba(210, 153, 34, 0.18)" : isCompleted ? "rgba(46, 160, 67, 0.18)" : "rgba(139, 148, 158, 0.18)",
+                          color: so.status === "do_odbioru" ? "#f2cc60" : isCompleted ? "#3fb950" : "#8b949e",
+                          border: `1px solid ${so.status === "do_odbioru" ? "#d29922" : isCompleted ? "#238636" : "#30363d"}`
+                        }}
+                      >
+                        {so.status === "do_odbioru" ? "Do odbioru" : isCompleted ? "Odebrano" : so.status}
                       </span>
                     </div>
 
-                    {/* Client Name */}
-                    <div className="mobile-order-client">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                      <span>{clientName}</span>
-                    </div>
-
-                    {/* Investment Address if available */}
-                    {ord.investment?.address && (
-                      <div
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-muted, #64748b)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        <svg
-                          width="11"
-                          height="11"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
-                          <circle cx="12" cy="10" r="3" />
-                        </svg>
-                        <span>{ord.investment.address}</span>
+                    {/* Metadata: Supplier & Pickup Date */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: "#8b949e", background: "#0b0f19", padding: "8px 12px", borderRadius: 8, border: "1px solid #1e293b" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Building2 size={14} color="#60a5fa" />
+                        <strong style={{ color: "#f0f6fc" }}>{so.supplier?.name || "Realizacja wewnętrzna"}</strong>
                       </div>
-                    )}
-
-                    {/* Dostawca / Wykonawca Badge */}
-                    {supplierName ? (
-                      <div className="mobile-order-supplier-badge">
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect x="1" y="3" width="15" height="13" rx="2" />
-                          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-                          <circle cx="5.5" cy="18.5" r="2.5" />
-                          <circle cx="18.5" cy="18.5" r="2.5" />
-                        </svg>
-                        <span>
-                          Dostawca / Wykonawca: <strong>{supplierName}</strong>
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="mobile-order-supplier-badge mobile-order-supplier-badge--empty">
-                        <svg
-                          width="13"
-                          height="13"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <rect x="1" y="3" width="15" height="13" rx="2" />
-                          <polygon points="16 8 20 8 23 11 23 16 16 16 8" />
-                          <circle cx="5.5" cy="18.5" r="2.5" />
-                          <circle cx="18.5" cy="18.5" r="2.5" />
-                        </svg>
-                        <span>Brak przypisanego dostawcy</span>
-                      </div>
-                    )}
-
-                    {/* Footer: Date & Value */}
-                    <div className="mobile-order-footer">
-                      <div className="mobile-task-meta">
-                        <I.cal s={11} />
-                        {ord.deadline
-                          ? `Termin: ${ord.deadline}`
-                          : `Utworzono: ${new Date(ord._creationTime).toLocaleDateString("pl-PL")}`}
-                      </div>
-
-                      {ord.valueNetto != null && (
-                        <div className="mobile-order-value">
-                          {ord.valueNetto.toLocaleString("pl-PL")} PLN
+                      {so.pickupDate && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#d8b4fe" }}>
+                          <Calendar size={14} color="#c084fc" />
+                          <span>Termin: <strong>{so.pickupDate}</strong></span>
+                        </div>
+                      )}
+                      {assignedOrders.length > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", marginTop: 2 }}>
+                          <Layers size={13} color="#8b949e" />
+                          <span>Zlecenia: {assignedOrders.map((o: any) => o.orderNumber).join(", ")}</span>
                         </div>
                       )}
                     </div>
+
+                    {/* Progressbar Odbioru */}
+                    <div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                        <span style={{ color: "#8b949e" }}>Postęp odbioru towaru:</span>
+                        <span style={{ color: progressPct === 100 ? "#3fb950" : progressPct > 0 ? "#e3b341" : "#8b949e" }}>
+                          {totalReceived} z {totalOrdered} szt. ({progressPct}%)
+                        </span>
+                      </div>
+                      <div style={{ height: 8, background: "#0b0f19", borderRadius: 4, overflow: "hidden", border: "1px solid #1e293b" }}>
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${progressPct}%`,
+                            background: progressPct === 100 ? "#238636" : progressPct > 0 ? "#d29922" : "#30363d",
+                            borderRadius: 4,
+                            transition: "width 0.4s ease"
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Expand Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSubOrders((prev) => ({ ...prev, [so._id]: !isExpanded }))}
+                      style={{
+                        background: "#0b0f19",
+                        border: "1px solid #1e293b",
+                        color: "#c9d1d9",
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: 4
+                      }}
+                    >
+                      <span>Pozycje w zamówieniu ({so.items ? so.items.length : 0})</span>
+                      {isExpanded ? <ChevronUp size={16} color="#58a6ff" /> : <ChevronDown size={16} color="#8b949e" />}
+                    </button>
+
+                    {/* Expanded Items Section */}
+                    {isExpanded && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+                        {so.items && so.items.length > 0 ? (
+                          so.items.map((item: any, idx: number) => {
+                            const targetQty = item.quantity || 1;
+                            const recQty = item.receivedQuantity || 0;
+                            const isFullyReceived = recQty >= targetQty;
+                            const isPartiallyReceived = recQty > 0 && recQty < targetQty;
+
+                            return (
+                              <div
+                                key={item._id}
+                                style={{
+                                  background: "#0b0f19",
+                                  border: isFullyReceived ? "1px solid rgba(35,134,54,0.4)" : isPartiallyReceived ? "1px solid rgba(210,153,34,0.4)" : "1px solid #1e293b",
+                                  borderRadius: 10,
+                                  padding: 12,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: 10
+                                }}
+                              >
+                                {/* Top Item Row */}
+                                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                  {item.imageUrl ? (
+                                    <div
+                                      onClick={() => setPreviewImage({ url: item.imageUrl, title: item.name })}
+                                      style={{
+                                        width: 48,
+                                        height: 48,
+                                        borderRadius: 8,
+                                        overflow: "hidden",
+                                        border: "1px solid #30363d",
+                                        background: "#161b22",
+                                        cursor: "pointer",
+                                        flexShrink: 0
+                                      }}
+                                    >
+                                      <img src={item.imageUrl} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    </div>
+                                  ) : (
+                                    <div style={{ width: 48, height: 48, borderRadius: 8, border: "1px solid #1e293b", background: "#161b22", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b949e", flexShrink: 0 }}>
+                                      <ImageIcon size={20} />
+                                    </div>
+                                  )}
+
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc", lineHeight: "1.3" }}>
+                                      {idx + 1}. {item.name}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
+                                      Zamówiono: <strong style={{ color: "#c9d1d9" }}>{targetQty} szt.</strong>
+                                    </div>
+                                  </div>
+
+                                  {/* Status Chip */}
+                                  <span
+                                    style={{
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      whiteSpace: "nowrap",
+                                      background: isFullyReceived ? "rgba(46,160,67,0.2)" : isPartiallyReceived ? "rgba(210,153,34,0.2)" : "rgba(139,148,158,0.15)",
+                                      color: isFullyReceived ? "#3fb950" : isPartiallyReceived ? "#f2cc60" : "#8b949e",
+                                      border: `1px solid ${isFullyReceived ? "#238636" : isPartiallyReceived ? "#d29922" : "#30363d"}`
+                                    }}
+                                  >
+                                    {isFullyReceived ? "✓ Odebrano" : isPartiallyReceived ? "Częściowo" : "Oczekuje"}
+                                  </span>
+                                </div>
+
+                                {/* Touch Stepper Control */}
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#161b22", padding: "8px 12px", borderRadius: 8, border: "1px solid #1e293b" }}>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#8b949e" }}>Odebrano:</span>
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {/* Decrement (-) */}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const newQty = Math.max(0, recQty - 1);
+                                        await updateItemReceipt({ itemId: item._id, receivedQuantity: newQty });
+                                      }}
+                                      disabled={recQty <= 0}
+                                      style={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 8,
+                                        border: "1px solid #30363d",
+                                        background: recQty > 0 ? "#21262d" : "#0d1117",
+                                        color: recQty > 0 ? "#f0f6fc" : "#484f58",
+                                        fontWeight: 800,
+                                        fontSize: 18,
+                                        cursor: recQty > 0 ? "pointer" : "default",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        touchAction: "manipulation"
+                                      }}
+                                    >
+                                      -
+                                    </button>
+
+                                    {/* Quantity Number */}
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={targetQty}
+                                      value={recQty}
+                                      onChange={async (e) => {
+                                        const val = parseInt(e.target.value, 10);
+                                        if (!isNaN(val) && val >= 0) {
+                                          await updateItemReceipt({ itemId: item._id, receivedQuantity: val });
+                                        }
+                                      }}
+                                      style={{
+                                        width: 48,
+                                        height: 40,
+                                        background: "#0d1117",
+                                        border: "1px solid #388bfd",
+                                        borderRadius: 8,
+                                        color: "#58a6ff",
+                                        fontWeight: 800,
+                                        fontSize: 15,
+                                        textAlign: "center",
+                                        outline: "none"
+                                      }}
+                                    />
+
+                                    {/* Increment (+) */}
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const newQty = recQty + 1;
+                                        await updateItemReceipt({ itemId: item._id, receivedQuantity: newQty });
+                                      }}
+                                      style={{
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: 8,
+                                        border: "1px solid #30363d",
+                                        background: "#21262d",
+                                        color: "#f0f6fc",
+                                        fontWeight: 800,
+                                        fontSize: 18,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        touchAction: "manipulation"
+                                      }}
+                                    >
+                                      +
+                                    </button>
+
+                                    {/* Fast full receipt button */}
+                                    {!isFullyReceived && (
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          await updateItemReceipt({ itemId: item._id, receivedQuantity: targetQty });
+                                          triggerToast(`Odebrano w całości: ${item.name}`, "success");
+                                        }}
+                                        style={{
+                                          height: 40,
+                                          padding: "0 10px",
+                                          borderRadius: 8,
+                                          border: "1px solid rgba(35,134,54,0.4)",
+                                          background: "rgba(35,134,54,0.2)",
+                                          color: "#3fb950",
+                                          fontWeight: 700,
+                                          fontSize: 11,
+                                          cursor: "pointer",
+                                          whiteSpace: "nowrap"
+                                        }}
+                                      >
+                                        Pełny ({targetQty})
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div style={{ color: "#8b949e", fontSize: 12, textAlign: "center", padding: 12 }}>
+                            Brak przypisanych pozycji w tym zamówieniu.
+                          </div>
+                        )}
+
+                        {/* Batch Action: Mark All Received */}
+                        {so.status === "do_odbioru" && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await markAllItemsReceived({ subOrderId: so._id });
+                                triggerToast(`Odebrano wszystkie pozycje dla ${so.orderNumber}!`, "success");
+                              } catch (e: any) {
+                                triggerToast(e.message || "Błąd podczas rejestracji odbioru", "error");
+                              }
+                            }}
+                            style={{
+                              background: "#238636",
+                              color: "#ffffff",
+                              border: "none",
+                              padding: "12px 16px",
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              fontSize: 13,
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 8,
+                              marginTop: 6,
+                              boxShadow: "0 4px 14px rgba(35,134,54,0.4)"
+                            }}
+                          >
+                            <CheckCircle2 size={16} /> Potwierdź odbiór WSZYSTKICH pozycji ({totalOrdered} szt.)
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })
             )}
+
+            {/* Bottom spacing for bottom navbar */}
             <div style={{ height: "100px" }} />
           </main>
         </>
@@ -1334,6 +1588,45 @@ export default function MobileAppPage() {
         <div className={`mobile-toast mobile-toast--${toastMsg.type}`}>
           {toastMsg.type === "success" ? <I.check s={16} /> : <I.alert s={16} />}
           <span>{toastMsg.message}</span>
+        </div>
+      )}
+
+      {/* ── Modal powiększonego zdjęcia na telefonie (Lightbox) ── */}
+      {previewImage && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200, padding: 16 }}
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              borderRadius: 12,
+              padding: 16,
+              maxWidth: "92vw",
+              width: "100%",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              position: "relative"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, color: "#f0f6fc", fontSize: 14, fontWeight: 700 }}>{previewImage.title}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                style={{ background: "#21262d", border: "none", color: "#8b949e", cursor: "pointer", padding: "6px", borderRadius: 6 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #30363d", background: "#0d1117", display: "flex", alignItems: "center", justifyContent: "center", maxHeight: 420 }}>
+              <img src={previewImage.url} alt={previewImage.title} style={{ maxWidth: "100%", maxHeight: 420, objectFit: "contain" }} />
+            </div>
+          </div>
         </div>
       )}
     </>
