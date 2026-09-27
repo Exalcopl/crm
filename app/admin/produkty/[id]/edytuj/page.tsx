@@ -15,6 +15,11 @@ import {
   Trash2,
   ArrowLeft,
   PenTool,
+  Truck,
+  DollarSign,
+  Clock,
+  Sliders,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { I } from "../../../_lib/icons";
@@ -29,14 +34,25 @@ export default function EditProductPage() {
   const productId = params.id as Id<"products">;
 
   const product = useQuery(api.products.get, { id: productId });
+  const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const updateProduct = useMutation(api.products.update);
   const generateUploadUrl = useMutation(api.products.generateUploadUrl);
 
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [category, setCategory] = useState("");
   const [type, setType] = useState<"product" | "service" | "outsourcing">("outsourcing");
   const [unit, setUnit] = useState("szt.");
   const [customUnit, setCustomUnit] = useState("");
   const [description, setDescription] = useState("");
+
+  const [supplierId, setSupplierId] = useState("");
+  const [priceNetto, setPriceNetto] = useState("");
+  const [vatRate, setVatRate] = useState("23");
+  const [priceBrutto, setPriceBrutto] = useState("");
+  const [leadTimeDays, setLeadTimeDays] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
   const [imageSourceMode, setImageSourceMode] = useState<"upload" | "draw">("upload");
 
@@ -51,6 +67,8 @@ export default function EditProductPage() {
   useEffect(() => {
     if (product) {
       setName(product.name);
+      setCode(product.code ?? "");
+      setCategory(product.category ?? "");
       setType(product.type);
       if (COMMON_UNITS.includes(product.unit)) {
         setUnit(product.unit);
@@ -60,10 +78,39 @@ export default function EditProductPage() {
         setCustomUnit(product.unit);
       }
       setDescription(product.description ?? "");
+      setSupplierId(product.supplierId ?? "");
+      setPriceNetto(product.priceNetto !== undefined ? product.priceNetto.toString() : "");
+      setVatRate(product.vatRate !== undefined ? product.vatRate.toString() : "23");
+      setPriceBrutto(product.priceBrutto !== undefined ? product.priceBrutto.toString() : "");
+      setLeadTimeDays(product.leadTimeDays !== undefined ? product.leadTimeDays.toString() : "");
+      setNotes(product.notes ?? "");
+      setIsActive(product.isActive ?? true);
+
       setExistingImageId(product.imageId);
       setImagePreview(product.imageUrl ?? null);
     }
   }, [product]);
+
+  // Recalculate Brutto when Netto or VAT changes
+  const handleNettoChange = (val: string) => {
+    setPriceNetto(val);
+    const numNetto = parseFloat(val);
+    const numVat = parseFloat(vatRate) || 23;
+    if (!isNaN(numNetto)) {
+      setPriceBrutto((numNetto * (1 + numVat / 100)).toFixed(2));
+    } else {
+      setPriceBrutto("");
+    }
+  };
+
+  const handleVatChange = (val: string) => {
+    setVatRate(val);
+    const numNetto = parseFloat(priceNetto);
+    const numVat = parseFloat(val) || 0;
+    if (!isNaN(numNetto)) {
+      setPriceBrutto((numNetto * (1 + numVat / 100)).toFixed(2));
+    }
+  };
 
   if (product === undefined) {
     return (
@@ -152,9 +199,18 @@ export default function EditProductPage() {
       await updateProduct({
         id: productId,
         name: name.trim(),
+        code: code.trim() || undefined,
+        category: category.trim() || undefined,
         type,
         unit: finalUnit,
         description: description.trim() || undefined,
+        supplierId: supplierId ? (supplierId as Id<"suppliers">) : undefined,
+        priceNetto: priceNetto ? parseFloat(priceNetto) : undefined,
+        vatRate: vatRate ? parseFloat(vatRate) : 23,
+        priceBrutto: priceBrutto ? parseFloat(priceBrutto) : undefined,
+        leadTimeDays: leadTimeDays ? parseInt(leadTimeDays, 10) : undefined,
+        notes: notes.trim() || undefined,
+        isActive,
         imageId: finalStorageId,
       });
 
@@ -297,8 +353,13 @@ export default function EditProductPage() {
                 </div>
               </div>
 
-              {/* Pola */}
+              {/* Podstawowe dane */}
               <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <FileText size={14} style={{ color: "#60a5fa" }} />
+                  Podstawowe Informacje
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12, marginBottom: 12 }}>
                   <label style={labelStyle}>
                     Nazwa Pozycji *
@@ -341,17 +402,146 @@ export default function EditProductPage() {
                     </label>
                   </div>
                 )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                  <label style={labelStyle}>
+                    Kod / SKU Wewnętrzny
+                    <input
+                      type="text"
+                      placeholder="np. OUT-LAK-001"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Kategoria
+                    <input
+                      type="text"
+                      placeholder="np. Lakierowanie Proszkowe"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
                 
                 <label style={labelStyle}>
                   Opis Techniczny / Zakres
                   <textarea
-                    rows={4}
+                    rows={3}
                     placeholder="Dodatkowy opis techniczny..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     style={{ ...inputStyle, resize: "vertical" }}
                   />
                 </label>
+              </div>
+
+              {/* Sekcja Dostawcy / Wykonawcy */}
+              <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Truck size={14} style={{ color: "#60a5fa" }} />
+                  Dostawca / Wykonawca Obróbki
+                </div>
+
+                <label style={labelStyle}>
+                  Wykonawca / Dostawca
+                  <select
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">— Brak dostawcy —</option>
+                    {suppliers?.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name} (NIP: {s.nip})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Sekcja Cen i Czasu Realizacji */}
+              <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <DollarSign size={14} style={{ color: "#4ade80" }} />
+                  Cena i Czas Realizacji
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 1fr 120px", gap: 10, marginBottom: 12 }}>
+                  <label style={labelStyle}>
+                    Cena Netto (PLN)
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={priceNetto}
+                      onChange={(e) => handleNettoChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    VAT (%)
+                    <input
+                      type="number"
+                      step="1"
+                      placeholder="23"
+                      value={vatRate}
+                      onChange={(e) => handleVatChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Cena Brutto (PLN)
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={priceBrutto}
+                      onChange={(e) => setPriceBrutto(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Czas realiz. (dni)
+                    <input
+                      type="number"
+                      step="1"
+                      placeholder="np. 3"
+                      value={leadTimeDays}
+                      onChange={(e) => setLeadTimeDays(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
+
+                <label style={labelStyle}>
+                  Notatki Wewnętrzne
+                  <textarea
+                    rows={2}
+                    placeholder="Uwagi techniczne, poufne ustalenia z dostawcą..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    style={{ ...inputStyle, resize: "vertical" }}
+                  />
+                </label>
+
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      style={{ accentColor: "#3b82f6", width: 16, height: 16 }}
+                    />
+                    Pozycja aktywna w katalogu
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -468,3 +658,4 @@ export default function EditProductPage() {
     </>
   );
 }
+

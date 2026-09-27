@@ -317,11 +317,6 @@ export default function ProductsPage() {
                             <Truck size={11} />
                             {item.supplier.name}
                           </Link>
-                          {item.supplierCode && (
-                            <div style={{ fontSize: 10, color: "#8b949e" }}>
-                              Kod dostawcy: {item.supplierCode}
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <span style={{ fontSize: 11, color: "#6e7681", fontStyle: "italic" }}>Brak dostawcy</span>

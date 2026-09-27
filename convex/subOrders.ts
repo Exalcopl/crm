@@ -4,20 +4,37 @@ import { Doc, Id } from "./_generated/dataModel";
 
 export const create = mutation({
   args: {
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    orderIds: v.optional(v.array(v.id("orders"))),
     supplierId: v.optional(v.id("suppliers")),
+    externalOrderNumber: v.optional(v.string()),
+    pickupDate: v.optional(v.string()),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthorized");
+
+    let allOrderIds: Id<"orders">[] = [];
+    if (args.orderIds && args.orderIds.length > 0) {
+      allOrderIds = args.orderIds;
+    } else if (args.orderId) {
+      allOrderIds = [args.orderId];
+    }
+
+    const primaryOrderId = args.orderId || (allOrderIds.length > 0 ? allOrderIds[0] : undefined);
 
     // Generowanie numeru zamówienia
     const year = new Date().getFullYear();
     const orderNumber = `ZAM/${year}/${Math.floor(Math.random() * 10000)}`;
 
     const subOrderId = await ctx.db.insert("subOrders", {
-      orderId: args.orderId,
+      orderId: primaryOrderId,
+      orderIds: allOrderIds.length > 0 ? allOrderIds : undefined,
       supplierId: args.supplierId,
+      externalOrderNumber: args.externalOrderNumber,
+      pickupDate: args.pickupDate,
+      notes: args.notes,
       status: "utworzono",
       orderNumber,
       createdAt: Date.now(),
@@ -43,6 +60,19 @@ export const get = query({
     const subOrder = await ctx.db.get(args.subOrderId);
     if (!subOrder) throw new Error("Not found");
     
+    let orderIdsList: Id<"orders">[] = [];
+    if (subOrder.orderIds && subOrder.orderIds.length > 0) {
+      orderIdsList = subOrder.orderIds;
+    } else if (subOrder.orderId) {
+      orderIdsList = [subOrder.orderId];
+    }
+
+    const ordersDocs = (
+      await Promise.all(orderIdsList.map((id) => ctx.db.get(id)))
+    ).filter(Boolean) as Doc<"orders">[];
+
+    const primaryOrder = ordersDocs[0] || (subOrder.orderId ? await ctx.db.get(subOrder.orderId) : null);
+
     const items = await ctx.db
       .query("subOrderItems")
       .withIndex("by_subOrder", (q) => q.eq("subOrderId", args.subOrderId))
@@ -70,13 +100,18 @@ export const get = query({
       })
     );
 
-    // Możemy tu też pobrać dane dostawcy
     let supplier = null;
     if (subOrder.supplierId) {
       supplier = await ctx.db.get(subOrder.supplierId);
     }
 
-    return { ...subOrder, items: populatedItems, supplier };
+    return {
+      ...subOrder,
+      items: populatedItems,
+      supplier,
+      order: primaryOrder,
+      orders: ordersDocs,
+    };
   },
 });
 
@@ -271,8 +306,19 @@ export const listAllWithDetails = query({
     const subOrders = await ctx.db.query("subOrders").collect();
     const result = await Promise.all(
       subOrders.map(async (so) => {
-        const order = await ctx.db.get(so.orderId);
-        const client = order?.clientId ? await ctx.db.get(order.clientId) : null;
+        let orderIdsList: Id<"orders">[] = [];
+        if (so.orderIds && so.orderIds.length > 0) {
+          orderIdsList = so.orderIds;
+        } else if (so.orderId) {
+          orderIdsList = [so.orderId];
+        }
+
+        const ordersDocs = (
+          await Promise.all(orderIdsList.map((id) => ctx.db.get(id)))
+        ).filter(Boolean) as Doc<"orders">[];
+
+        const primaryOrder = ordersDocs[0] || (so.orderId ? await ctx.db.get(so.orderId) : null);
+        const client = primaryOrder?.clientId ? await ctx.db.get(primaryOrder.clientId) : null;
         const supplier = so.supplierId ? await ctx.db.get(so.supplierId) : null;
         const items = await ctx.db
           .query("subOrderItems")
@@ -308,12 +354,18 @@ export const listAllWithDetails = query({
           orderNumber: so.orderNumber,
           externalOrderNumber: so.externalOrderNumber,
           status: so.status,
-          order: order ? {
-            _id: order._id,
-            orderNumber: order.orderNumber,
-            clientName: order.clientName,
-            clientId: order.clientId,
+          order: primaryOrder ? {
+            _id: primaryOrder._id,
+            orderNumber: primaryOrder.orderNumber,
+            clientName: primaryOrder.clientName,
+            clientId: primaryOrder.clientId,
           } : null,
+          orders: ordersDocs.map((o) => ({
+            _id: o._id,
+            orderNumber: o.orderNumber,
+            clientName: o.clientName,
+            clientId: o.clientId,
+          })),
           client: client ? {
             _id: client._id,
             name: client.name,

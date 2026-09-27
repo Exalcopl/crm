@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -26,6 +26,8 @@ import {
   Calendar,
   Sliders,
   Image as ImageIcon,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { I } from "../../_lib/icons";
@@ -37,7 +39,37 @@ export default function ProductDetailPage() {
   const productId = params.id as Id<"products">;
 
   const product = useQuery(api.products.get, { id: productId });
+  const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const removeProduct = useMutation(api.products.remove);
+  const updateProduct = useMutation(api.products.update);
+
+  // Supplier modal state
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [supplierIdState, setSupplierIdState] = useState<string>("");
+  const [isSavingSupplier, setIsSavingSupplier] = useState(false);
+
+  const openSupplierModal = () => {
+    setSupplierIdState(product?.supplierId ?? "");
+    setShowSupplierModal(true);
+  };
+
+  const handleSaveSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSupplier(true);
+    try {
+      await updateProduct({
+        id: productId,
+        supplierId: supplierIdState ? (supplierIdState as Id<"suppliers">) : undefined,
+      });
+      toast.success("Zaktualizowano wykonawcę/dostawcę obróbki.");
+      setShowSupplierModal(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Błąd podczas przypisywania dostawcy.");
+    } finally {
+      setIsSavingSupplier(false);
+    }
+  };
 
   if (product === undefined) {
     return (
@@ -301,8 +333,29 @@ export default function ProductDetailPage() {
 
           {/* Supplier Card */}
           <div style={cardStyle}>
-            <div style={sectionTitleStyle}>
-              <Truck size={15} style={{ color: "#60a5fa" }} /> Wykonawca Obróbki
+            <div style={{ ...sectionTitleStyle, justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Truck size={15} style={{ color: "#60a5fa" }} /> Wykonawca Obróbki
+              </span>
+              <button
+                type="button"
+                onClick={openSupplierModal}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#60a5fa",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 6px",
+                  borderRadius: 4,
+                }}
+              >
+                <Edit3 size={12} /> {product.supplier ? "Zmień" : "Przypisz"}
+              </button>
             </div>
 
             {product.supplier ? (
@@ -320,13 +373,6 @@ export default function ProductDetailPage() {
                     <Building2 size={15} />
                   </Link>
                 </div>
-
-                {product.supplierCode && (
-                  <div style={{ background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 8, fontSize: 11 }}>
-                    <div style={{ fontSize: 10, color: "#8b949e" }}>Kod SKU u Wykonawcy</div>
-                    <div style={{ fontWeight: 700, color: "#60a5fa" }}>{product.supplierCode}</div>
-                  </div>
-                )}
 
                 <div style={{ borderTop: "1px solid #21262d", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: "#c9d1d9" }}>
                   {product.supplier.phone && (
@@ -350,12 +396,22 @@ export default function ProductDetailPage() {
               <div style={{ padding: 20, textAlign: "center", background: "#0d1117", borderRadius: 6, border: "1px dashed #30363d", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                 <Building2 size={24} style={{ color: "#484f58" }} />
                 <div style={{ fontSize: 11, color: "#8b949e" }}>Brak przypisanego dostawcy.</div>
-                <Link
-                  href={`/admin/produkty/${productId}/edytuj`}
-                  style={{ fontSize: 11, color: "#60a5fa", fontWeight: 700, textDecoration: "none" }}
+                <button
+                  type="button"
+                  onClick={openSupplierModal}
+                  style={{
+                    fontSize: 11,
+                    color: "#60a5fa",
+                    fontWeight: 700,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px 8px",
+                    borderRadius: 4,
+                  }}
                 >
                   + Przypisz dostawcę
-                </Link>
+                </button>
               </div>
             )}
           </div>
@@ -396,6 +452,118 @@ export default function ProductDetailPage() {
       </div>
         </div>
       </main>
+
+      {/* Modal: Przypisz Dostawcę */}
+      {showSupplierModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
+            padding: 20,
+          }}
+          onClick={() => setShowSupplierModal(false)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: "1px solid #30363d",
+              borderRadius: 8,
+              width: "100%",
+              maxWidth: 460,
+              padding: 20,
+              color: "#f0f6fc",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, borderBottom: "1px solid #21262d", paddingBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700 }}>
+                <Truck size={16} style={{ color: "#60a5fa" }} /> Przypisz Dostawcę / Wykonawcę
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSupplierModal(false)}
+                style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSupplier} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#8b949e", display: "block", marginBottom: 6 }}>
+                  Wybierz Wykonawcę / Dostawcę
+                </label>
+                <select
+                  value={supplierIdState}
+                  onChange={(e) => setSupplierIdState(e.target.value)}
+                  style={{
+                    width: "100%",
+                    background: "#0d1117",
+                    border: "1px solid #30363d",
+                    borderRadius: 6,
+                    padding: "8px 12px",
+                    color: "#f0f6fc",
+                    fontSize: 13,
+                    outline: "none",
+                  }}
+                >
+                  <option value="">— Brak dostawcy —</option>
+                  {suppliers?.map((s) => (
+                    <option key={s._id} value={s._id}>
+                      {s.name} (NIP: {s.nip})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 10, borderTop: "1px solid #21262d", paddingTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierModal(false)}
+                  style={{
+                    background: "#21262d",
+                    border: "1px solid #30363d",
+                    color: "#c9d1d9",
+                    padding: "8px 14px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSupplier}
+                  style={{
+                    background: "#3b82f6",
+                    border: "none",
+                    color: "#ffffff",
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <Check size={14} /> Zapisz Dostawcę
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
+

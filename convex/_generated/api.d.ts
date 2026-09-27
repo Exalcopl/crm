@@ -63,6 +63,7 @@ import type * as testing_orders from "../testing_orders.js";
 import type * as testing_partners from "../testing_partners.js";
 import type * as testing_quote_search from "../testing_quote_search.js";
 import type * as testing_search from "../testing_search.js";
+import type * as testing_sub_orders from "../testing_sub_orders.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -128,6 +129,7 @@ declare const fullApi: ApiFromModules<{
   testing_partners: typeof testing_partners;
   testing_quote_search: typeof testing_quote_search;
   testing_search: typeof testing_search;
+  testing_sub_orders: typeof testing_sub_orders;
   users: typeof users;
   webhooks: typeof webhooks;
 }>;

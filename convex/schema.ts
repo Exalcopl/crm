@@ -631,12 +631,14 @@ export default defineSchema({
   }).index("by_key", ["key"]),
 
   subOrders: defineTable({
-    orderId: v.id("orders"),
+    orderId: v.optional(v.id("orders")),
+    orderIds: v.optional(v.array(v.id("orders"))),
     supplierId: v.optional(v.id("suppliers")),
     status: v.string(),
     orderNumber: v.string(),
     externalOrderNumber: v.optional(v.string()),
     pickupDate: v.optional(v.string()), // YYYY-MM-DD
+    notes: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_order", ["orderId"])
@@ -645,6 +647,7 @@ export default defineSchema({
 
   subOrderItems: defineTable({
     subOrderId: v.id("subOrders"),
+    orderId: v.optional(v.id("orders")),
     productId: v.optional(v.id("products")),
     status: v.union(
       v.literal("todo"),
@@ -660,6 +663,7 @@ export default defineSchema({
     quantity: v.number(),
   })
     .index("by_subOrder", ["subOrderId"])
+    .index("by_order", ["orderId"])
     .index("by_dependsOn", ["dependsOn"]),
 
   // Baza materiałów / cennik

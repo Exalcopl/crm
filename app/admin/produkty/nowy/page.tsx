@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
@@ -15,6 +15,10 @@ import {
   Trash2,
   ArrowLeft,
   PenTool,
+  Truck,
+  DollarSign,
+  Clock,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { I } from "../../_lib/icons";
@@ -25,14 +29,25 @@ const COMMON_UNITS = ["szt.", "mb.", "m²", "kg", "kpl.", "godz.", "usł."];
 
 export default function NewProductPage() {
   const router = useRouter();
+  const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const createProduct = useMutation(api.products.create);
   const generateUploadUrl = useMutation(api.products.generateUploadUrl);
 
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [category, setCategory] = useState("");
   const [type, setType] = useState<"product" | "service" | "outsourcing">("outsourcing");
   const [unit, setUnit] = useState("szt.");
   const [customUnit, setCustomUnit] = useState("");
   const [description, setDescription] = useState("");
+
+  const [supplierId, setSupplierId] = useState("");
+  const [priceNetto, setPriceNetto] = useState("");
+  const [vatRate, setVatRate] = useState("23");
+  const [priceBrutto, setPriceBrutto] = useState("");
+  const [leadTimeDays, setLeadTimeDays] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isActive, setIsActive] = useState(true);
 
   const [imageSourceMode, setImageSourceMode] = useState<"upload" | "draw">("upload");
 
@@ -44,6 +59,27 @@ export default function NewProductPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const finalUnit = unit === "custom" ? customUnit.trim() : unit;
+
+  // Recalculate Brutto when Netto or VAT changes
+  const handleNettoChange = (val: string) => {
+    setPriceNetto(val);
+    const numNetto = parseFloat(val);
+    const numVat = parseFloat(vatRate) || 23;
+    if (!isNaN(numNetto)) {
+      setPriceBrutto((numNetto * (1 + numVat / 100)).toFixed(2));
+    } else {
+      setPriceBrutto("");
+    }
+  };
+
+  const handleVatChange = (val: string) => {
+    setVatRate(val);
+    const numNetto = parseFloat(priceNetto);
+    const numVat = parseFloat(val) || 0;
+    if (!isNaN(numNetto)) {
+      setPriceBrutto((numNetto * (1 + numVat / 100)).toFixed(2));
+    }
+  };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,12 +146,19 @@ export default function NewProductPage() {
 
       const newId = await createProduct({
         name: name.trim(),
+        code: code.trim() || undefined,
+        category: category.trim() || undefined,
         type,
         unit: finalUnit,
         description: description.trim() || undefined,
+        supplierId: supplierId ? (supplierId as Id<"suppliers">) : undefined,
+        priceNetto: priceNetto ? parseFloat(priceNetto) : undefined,
+        vatRate: vatRate ? parseFloat(vatRate) : 23,
+        priceBrutto: priceBrutto ? parseFloat(priceBrutto) : undefined,
+        leadTimeDays: leadTimeDays ? parseInt(leadTimeDays, 10) : undefined,
+        notes: notes.trim() || undefined,
         imageId: uploadedStorageId,
-        isActive: true,
-        vatRate: 23,
+        isActive,
         currency: "PLN",
       });
 
@@ -258,8 +301,13 @@ export default function NewProductPage() {
                 </div>
               </div>
 
-              {/* Pola */}
+              {/* Podstawowe dane */}
               <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <FileText size={14} style={{ color: "#60a5fa" }} />
+                  Podstawowe Informacje
+                </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: 12, marginBottom: 12 }}>
                   <label style={labelStyle}>
                     Nazwa Pozycji *
@@ -302,17 +350,146 @@ export default function NewProductPage() {
                     </label>
                   </div>
                 )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                  <label style={labelStyle}>
+                    Kod / SKU Wewnętrzny
+                    <input
+                      type="text"
+                      placeholder="np. OUT-LAK-001"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Kategoria
+                    <input
+                      type="text"
+                      placeholder="np. Lakierowanie Proszkowe"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
                 
                 <label style={labelStyle}>
                   Opis Techniczny / Zakres
                   <textarea
-                    rows={4}
+                    rows={3}
                     placeholder="Dodatkowy opis techniczny..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     style={{ ...inputStyle, resize: "vertical" }}
                   />
                 </label>
+              </div>
+
+              {/* Sekcja Dostawcy / Wykonawcy */}
+              <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Truck size={14} style={{ color: "#60a5fa" }} />
+                  Dostawca / Wykonawca Obróbki
+                </div>
+
+                <label style={labelStyle}>
+                  Wykonawca / Dostawca
+                  <select
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                    style={inputStyle}
+                  >
+                    <option value="">— Brak dostawcy —</option>
+                    {suppliers?.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name} (NIP: {s.nip})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Sekcja Cen i Czasu Realizacji */}
+              <div style={cardStyle}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  <DollarSign size={14} style={{ color: "#4ade80" }} />
+                  Cena i Czas Realizacji
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 1fr 120px", gap: 10, marginBottom: 12 }}>
+                  <label style={labelStyle}>
+                    Cena Netto (PLN)
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={priceNetto}
+                      onChange={(e) => handleNettoChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    VAT (%)
+                    <input
+                      type="number"
+                      step="1"
+                      placeholder="23"
+                      value={vatRate}
+                      onChange={(e) => handleVatChange(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Cena Brutto (PLN)
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={priceBrutto}
+                      onChange={(e) => setPriceBrutto(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+
+                  <label style={labelStyle}>
+                    Czas realiz. (dni)
+                    <input
+                      type="number"
+                      step="1"
+                      placeholder="np. 3"
+                      value={leadTimeDays}
+                      onChange={(e) => setLeadTimeDays(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
+
+                <label style={labelStyle}>
+                  Notatki Wewnętrzne
+                  <textarea
+                    rows={2}
+                    placeholder="Uwagi techniczne, poufne ustalenia z dostawcą..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    style={{ ...inputStyle, resize: "vertical" }}
+                  />
+                </label>
+
+                <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 12, color: "#f0f6fc", fontWeight: 600 }}>
+                    <input
+                      type="checkbox"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                      style={{ accentColor: "#3b82f6", width: 16, height: 16 }}
+                    />
+                    Pozycja aktywna w katalogu
+                  </label>
+                </div>
               </div>
             </div>
 

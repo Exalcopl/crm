@@ -63,10 +63,76 @@ export default function ZamowieniaPage() {
   // Drawer & Modal state
   const [previewSubOrder, setPreviewSubOrder] = useState<any | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newOrderId, setNewOrderId] = useState<string>("");
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [orderSearchTerm, setOrderSearchTerm] = useState("");
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState("");
   const [newSupplierId, setNewSupplierId] = useState<string>("");
+  const [newExtOrderNum, setNewExtOrderNum] = useState<string>("");
+  const [newPickupDate, setNewPickupDate] = useState<string>("");
+  const [newNotes, setNewNotes] = useState<string>("");
 
-  // Filtering logic
+  // Przefiltrowana lista zleceń w modalu tworzenia
+  const filteredModalOrders = useMemo(() => {
+    if (!orderSearchTerm.trim()) return allOrders;
+    const q = orderSearchTerm.toLowerCase();
+    return allOrders.filter(
+      (o) =>
+        o.orderNumber.toLowerCase().includes(q) ||
+        o.clientName.toLowerCase().includes(q) ||
+        (o.clientEmail && o.clientEmail.toLowerCase().includes(q))
+    );
+  }, [allOrders, orderSearchTerm]);
+
+  // Przefiltrowana lista dostawców w modalu
+  const filteredModalSuppliers = useMemo(() => {
+    if (!supplierSearchTerm.trim()) return allSuppliers;
+    const q = supplierSearchTerm.toLowerCase();
+    return allSuppliers.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.nip && s.nip.toLowerCase().includes(q)) ||
+        (s.email && s.email.toLowerCase().includes(q)) ||
+        (s.category && s.category.toLowerCase().includes(q)) ||
+        (s.city && s.city.toLowerCase().includes(q))
+    );
+  }, [allSuppliers, supplierSearchTerm]);
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrderIds((prev) =>
+      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const handleCreateSubOrder = async () => {
+    if (selectedOrderIds.length === 0) {
+      toast.error("Wybierz przynajmniej jedno zlecenie główne");
+      return;
+    }
+
+    try {
+      const createdId = await createSubOrder({
+        orderId: selectedOrderIds[0] as Id<"orders">,
+        orderIds: selectedOrderIds as Id<"orders">[],
+        supplierId: newSupplierId ? (newSupplierId as Id<"suppliers">) : undefined,
+        externalOrderNumber: newExtOrderNum.trim() || undefined,
+        pickupDate: newPickupDate || undefined,
+        notes: newNotes.trim() || undefined,
+      });
+
+      toast.success(`Utworzono nowe zamówienie podwykonawcze dla ${selectedOrderIds.length} zleceń!`);
+      setShowCreateModal(false);
+      // Reset
+      setSelectedOrderIds([]);
+      setNewSupplierId("");
+      setNewExtOrderNum("");
+      setNewPickupDate("");
+      setNewNotes("");
+      router.push(`/admin/zlecenia/${selectedOrderIds[0]}/zamowienia/${createdId}`);
+    } catch (e: any) {
+      toast.error(e.message || "Nie udało się utworzyć zamówienia");
+    }
+  };
+
   const filteredSubOrders = useMemo(() => {
     return subOrders.filter((so) => {
       // Search
@@ -134,26 +200,6 @@ export default function ZamowieniaPage() {
 
   const toggleGroup = (orderKey: string) => {
     setCollapsedGroups((prev) => ({ ...prev, [orderKey]: !prev[orderKey] }));
-  };
-
-  const handleCreateSubOrder = async () => {
-    if (!newOrderId) {
-      toast.error("Wybierz zlecenie główne");
-      return;
-    }
-
-    try {
-      const createdId = await createSubOrder({
-        orderId: newOrderId as Id<"orders">,
-        supplierId: newSupplierId ? (newSupplierId as Id<"suppliers">) : undefined,
-      });
-
-      toast.success("Utworzono nowe zamówienie podwykonawcze");
-      setShowCreateModal(false);
-      router.push(`/admin/zlecenia/${newOrderId}/zamowienia/${createdId}`);
-    } catch (e: any) {
-      toast.error(e.message || "Nie udało się utworzyć zamówienia");
-    }
   };
 
   return (
@@ -733,68 +779,359 @@ export default function ZamowieniaPage() {
         </div>
       )}
 
-      {/* MODAL - NOWE ZAMÓWIENIE PODWYKONAWCZE */}
+      {/* MODAL - NOWE ZAMÓWIENIE PODWYKONAWCZE (WIELOKROTNE ZLECENIA + SEARCH) */}
       {showCreateModal && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#161b22", width: 440, borderRadius: 12, border: "1px solid #30363d", padding: 24, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, color: "#f0f6fc", fontSize: 16 }}>Nowe zamówienie podwykonawcze</h3>
-              <button type="button" onClick={() => setShowCreateModal(false)} style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer" }}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Wybór Zlecenia */}
+        <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div
+            style={{
+              background: "#161b22",
+              width: 650,
+              maxWidth: "100%",
+              maxHeight: "90vh",
+              borderRadius: 12,
+              border: "1px solid #30363d",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 16px 40px rgba(0,0,0,0.6)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Nagłówek Modala */}
+            <div style={{ padding: "18px 24px", borderBottom: "1px solid #30363d", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#1c2129" }}>
               <div>
-                <label style={{ fontSize: 12, color: "#8b949e", display: "block", marginBottom: 6 }}>Wybierz zlecenie główne *</label>
-                <select
-                  value={newOrderId}
-                  onChange={(e) => setNewOrderId(e.target.value)}
-                  style={{ width: "100%", background: "#0d1117", color: "#c9d1d9", border: "1px solid #30363d", padding: "9px 12px", borderRadius: 8, fontSize: 13 }}
-                >
-                  <option value="">-- Wybierz zlecenie --</option>
-                  {allOrders.map((o) => (
-                    <option key={o._id} value={o._id}>
-                      {o.orderNumber} ({o.clientName})
-                    </option>
-                  ))}
-                </select>
+                <h3 style={{ margin: 0, color: "#f0f6fc", fontSize: 17, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Package size={20} color="#58a6ff" /> Nowe zamówienie podwykonawcze
+                </h3>
+                <p style={{ margin: 0, fontSize: 12, color: "#8b949e", marginTop: 2 }}>
+                  Możesz połączyć jedno zamówienie podwykonawcze z <b>wieloma zleceniami</b> naraz.
+                </p>
               </div>
-
-              {/* Wybór Dostawcy */}
-              <div>
-                <label style={{ fontSize: 12, color: "#8b949e", display: "block", marginBottom: 6 }}>Wybierz dostawcę / podwykonawcę (opcjonalnie)</label>
-                <select
-                  value={newSupplierId}
-                  onChange={(e) => setNewSupplierId(e.target.value)}
-                  style={{ width: "100%", background: "#0d1117", color: "#c9d1d9", border: "1px solid #30363d", padding: "9px 12px", borderRadius: 8, fontSize: 13 }}
-                >
-                  <option value="">Realizacja wewnętrzna (brak dostawcy)</option>
-                  {allSuppliers.map((sup) => (
-                    <option key={sup._id} value={sup._id}>
-                      {sup.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 24 }}>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                style={{ background: "transparent", color: "#c9d1d9", border: "1px solid #30363d", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
+                style={{ background: "none", border: "none", color: "#8b949e", cursor: "pointer", padding: 4 }}
               >
-                Anuluj
+                <X size={20} />
               </button>
-              <button
-                type="button"
-                onClick={handleCreateSubOrder}
-                style={{ background: "#238636", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontWeight: 600, fontSize: 13 }}
-              >
-                Utwórz zamówienie
-              </button>
+            </div>
+
+            {/* Treść Modala z sekcjami */}
+            <div style={{ padding: 24, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
+              
+              {/* SEKACJA 1: WYBÓR ZLECEŃ (MULTI-SELECT Z WYSZUKIWARKĄ) */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <label style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 700 }}>
+                    1. Wybierz Zlecenia Główne ({selectedOrderIds.length} wybranych) *
+                  </label>
+                  {selectedOrderIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderIds([])}
+                      style={{ background: "none", border: "none", color: "#f85149", fontSize: 11, cursor: "pointer", fontWeight: 600 }}
+                    >
+                      Wyczyść wybór
+                    </button>
+                  )}
+                </div>
+
+                {/* Tagi wybranych zleceń */}
+                {selectedOrderIds.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10, background: "#0d1117", padding: 10, borderRadius: 8, border: "1px solid #30363d" }}>
+                    {selectedOrderIds.map((id) => {
+                      const ord = allOrders.find((o) => o._id === id);
+                      return (
+                        <span
+                          key={id}
+                          style={{
+                            background: "rgba(88,166,255,0.15)",
+                            border: "1px solid rgba(88,166,255,0.4)",
+                            color: "#58a6ff",
+                            padding: "3px 8px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          {ord ? `${ord.orderNumber} (${ord.clientName})` : id}
+                          <X
+                            size={13}
+                            style={{ cursor: "pointer" }}
+                            onClick={() => toggleOrderSelection(id)}
+                          />
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Wyszukiwarka Zleceń */}
+                <div style={{ display: "flex", alignItems: "center", background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: "0 10px", marginBottom: 8 }}>
+                  <Search size={15} color="#8b949e" style={{ marginRight: 6 }} />
+                  <input
+                    type="text"
+                    placeholder="Szukaj zlecenia po numerze, kliencie..."
+                    value={orderSearchTerm}
+                    onChange={(e) => setOrderSearchTerm(e.target.value)}
+                    style={{ background: "transparent", border: "none", color: "#f0f6fc", fontSize: 12, padding: "8px 0", width: "100%", outline: "none" }}
+                  />
+                  {orderSearchTerm && (
+                    <X size={14} color="#8b949e" style={{ cursor: "pointer" }} onClick={() => setOrderSearchTerm("")} />
+                  )}
+                </div>
+
+                {/* Lista Zleceń do wyboru */}
+                <div style={{ maxHeight: 160, overflowY: "auto", background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                  {filteredModalOrders.length > 0 ? (
+                    filteredModalOrders.map((ord) => {
+                      const isChecked = selectedOrderIds.includes(ord._id);
+                      return (
+                        <label
+                          key={ord._id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            background: isChecked ? "rgba(88,166,255,0.1)" : "transparent",
+                            border: isChecked ? "1px solid rgba(88,166,255,0.3)" : "1px solid transparent",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            color: "#c9d1d9",
+                            transition: "all 0.12s ease",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleOrderSelection(ord._id)}
+                              style={{ accentColor: "#1f6feb", width: 15, height: 15, cursor: "pointer" }}
+                            />
+                            <div>
+                              <span style={{ fontWeight: 700, color: "#f0f6fc", marginRight: 8 }}>{ord.orderNumber}</span>
+                              <span style={{ color: "#8b949e" }}>• {ord.clientName}</span>
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 11, color: "#3fb950", fontWeight: 600 }}>{formatPLN(ord.valueNetto)} PLN</span>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <div style={{ padding: 12, textAlign: "center", color: "#8b949e", fontSize: 12 }}>
+                      Brak zleceń pasujących do frazy &quot;{orderSearchTerm}&quot;
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* SEKCJA 2: WYBÓR DOSTAWCY / PODWYKONAWCY (NATYWNE PODPOWIEDZI DATALIST + INTERAKTYWNA WYSZUKIWARKA) */}
+              <div>
+                <label style={{ fontSize: 13, color: "#f0f6fc", fontWeight: 700, display: "block", marginBottom: 8 }}>
+                  2. Wybierz Dostawcę / Podwykonawcę
+                </label>
+
+                {/* Jeśli wybrano dostawcę */}
+                {newSupplierId ? (
+                  <div style={{ background: "rgba(59, 130, 246, 0.12)", border: "1px solid rgba(59, 130, 246, 0.4)", padding: "10px 14px", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <Building2 size={18} color="#60a5fa" />
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>
+                          {allSuppliers.find((s) => s._id === newSupplierId)?.name || "Wybrany podwykonawca"}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#93c5fd" }}>
+                          {allSuppliers.find((s) => s._id === newSupplierId)?.nip ? `NIP: ${allSuppliers.find((s) => s._id === newSupplierId)?.nip}` : ''}
+                          {allSuppliers.find((s) => s._id === newSupplierId)?.category ? ` • Kat: ${allSuppliers.find((s) => s._id === newSupplierId)?.category}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setNewSupplierId(""); setSupplierSearchTerm(""); }}
+                      style={{ background: "#21262d", border: "1px solid #30363d", color: "#f85149", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                    >
+                      <X size={13} /> Zmień / Wyczyść
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Input z natywną listą podpowiedzi (HTML5 Datalist) */}
+                    <div style={{ position: "relative", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: "0 12px" }}>
+                        <Search size={16} color="#60a5fa" style={{ marginRight: 8, flexShrink: 0 }} />
+                        <input
+                          type="text"
+                          list="modal-suppliers-datalist"
+                          placeholder="Wpisz lub wybierz podwykonawcę (np. Lakiernia, NIP, nazwa)..."
+                          value={supplierSearchTerm}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSupplierSearchTerm(val);
+                            // Sprawdź czy podano exact match z datalist lub nazwą
+                            const matched = allSuppliers.find(
+                              (s) => s.name.toLowerCase() === val.toLowerCase() || (s.nip && s.nip === val)
+                            );
+                            if (matched) {
+                              setNewSupplierId(matched._id);
+                            }
+                          }}
+                          style={{ background: "transparent", border: "none", color: "#f0f6fc", fontSize: 13, padding: "10px 0", width: "100%", outline: "none" }}
+                        />
+                        {supplierSearchTerm && (
+                          <X size={14} color="#8b949e" style={{ cursor: "pointer" }} onClick={() => setSupplierSearchTerm("")} />
+                        )}
+                      </div>
+
+                      {/* NATYWNY HTML5 DATALIST PREZENTUJĄCY PODPOWIEDZI BROWSERA */}
+                      <datalist id="modal-suppliers-datalist">
+                        <option value="Realizacja wewnętrzna (Brak podwykonawcy)" />
+                        {allSuppliers.map((s) => (
+                          <option key={s._id} value={s.name}>
+                            {s.nip ? `NIP: ${s.nip}` : ''} {s.category ? `[${s.category}]` : ''} {s.email ? `(${s.email})` : ''}
+                          </option>
+                        ))}
+                      </datalist>
+                    </div>
+
+                    {/* INTERAKTYWNA LISTA KART DOSTAWCÓW DO KLIKNIĘCIA */}
+                    <div style={{ maxHeight: 150, overflowY: "auto", background: "#0d1117", border: "1px solid #30363d", borderRadius: 8, padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div
+                        onClick={() => { setNewSupplierId(""); setSupplierSearchTerm(""); }}
+                        style={{
+                          padding: "8px 10px",
+                          borderRadius: 6,
+                          background: newSupplierId === "" ? "rgba(96,165,250,0.1)" : "transparent",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          fontSize: 12,
+                          color: "#8b949e",
+                          fontWeight: 600,
+                        }}
+                      >
+                        🏠 Realizacja wewnętrzna (Brak podwykonawcy)
+                      </div>
+
+                      {filteredModalSuppliers.map((sup) => (
+                        <div
+                          key={sup._id}
+                          onClick={() => {
+                            setNewSupplierId(sup._id);
+                            setSupplierSearchTerm(sup.name);
+                          }}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 6,
+                            background: newSupplierId === sup._id ? "rgba(96,165,250,0.15)" : "#161b22",
+                            border: "1px solid #30363d",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            fontSize: 12,
+                            transition: "all 0.12s ease",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Building2 size={15} color="#60a5fa" />
+                            <div>
+                              <span style={{ fontWeight: 700, color: "#f0f6fc", marginRight: 8 }}>{sup.name}</span>
+                              {sup.nip && <span style={{ fontSize: 11, color: "#8b949e" }}>NIP: {sup.nip}</span>}
+                            </div>
+                          </div>
+                          {sup.category && (
+                            <span style={{ fontSize: 10, background: "#21262d", padding: "2px 6px", borderRadius: 4, color: "#93c5fd" }}>
+                              {sup.category}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+
+                      {filteredModalSuppliers.length === 0 && supplierSearchTerm && (
+                        <div style={{ padding: 10, textAlign: "center", color: "#8b949e", fontSize: 12 }}>
+                          Nie znaleziono podwykonawcy dla &quot;{supplierSearchTerm}&quot;
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SEKCJA 3: DANE ZAMÓWIENIA (NR U DOSTAWCY, ODBIÓR, UWAGI) */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 12, color: "#8b949e", display: "block", marginBottom: 6 }}>Nr u dostawcy (opcjonalnie)</label>
+                  <input
+                    type="text"
+                    placeholder="np. DOST/2026/102"
+                    value={newExtOrderNum}
+                    onChange={(e) => setNewExtOrderNum(e.target.value)}
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "#f0f6fc", padding: "8px 12px", borderRadius: 6, fontSize: 12, outline: "none" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: "#8b949e", display: "block", marginBottom: 6 }}>Planowany termin odbioru</label>
+                  <input
+                    type="date"
+                    value={newPickupDate}
+                    onChange={(e) => setNewPickupDate(e.target.value)}
+                    style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "#f0f6fc", padding: "8px 12px", borderRadius: 6, fontSize: 12, outline: "none", colorScheme: "dark" }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, color: "#8b949e", display: "block", marginBottom: 6 }}>Uwagi i wytyczne dla podwykonawcy</label>
+                <textarea
+                  rows={2}
+                  placeholder="Uwagi do zlecenia, specyfikacja malowania / obróbki..."
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  style={{ width: "100%", background: "#0d1117", border: "1px solid #30363d", color: "#f0f6fc", padding: "8px 12px", borderRadius: 6, fontSize: 12, outline: "none", resize: "vertical" }}
+                />
+              </div>
+
+            </div>
+
+            {/* Stopka Modala */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #30363d", background: "#1c2129", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: "#8b949e" }}>
+                Zaznaczono zleceń: <b style={{ color: "#58a6ff" }}>{selectedOrderIds.length}</b>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  style={{ background: "transparent", color: "#c9d1d9", border: "1px solid #30363d", padding: "8px 16px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateSubOrder}
+                  disabled={selectedOrderIds.length === 0}
+                  style={{
+                    background: selectedOrderIds.length > 0 ? "#238636" : "#21262d",
+                    color: selectedOrderIds.length > 0 ? "#fff" : "#8b949e",
+                    border: "none",
+                    padding: "8px 20px",
+                    borderRadius: 6,
+                    cursor: selectedOrderIds.length > 0 ? "pointer" : "not-allowed",
+                    fontWeight: 700,
+                    fontSize: 13,
+                    boxShadow: selectedOrderIds.length > 0 ? "0 2px 8px rgba(35,134,54,0.3)" : "none",
+                  }}
+                >
+                  Utwórz zamówienie ({selectedOrderIds.length})
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -802,3 +1139,4 @@ export default function ZamowieniaPage() {
     </div>
   );
 }
+
