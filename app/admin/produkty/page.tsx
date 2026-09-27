@@ -21,6 +21,8 @@ import {
   Package,
   Boxes,
   Image as ImageIcon,
+  X,
+  ZoomIn,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
@@ -35,6 +37,7 @@ export default function ProductsPage() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [onlyActive, setOnlyActive] = useState(false);
+  const [selectedModalImage, setSelectedModalImage] = useState<{ url: string; name: string } | null>(null);
 
   const suppliers = useQuery(api.suppliers.list, { onlyActive: true });
   const products = useQuery(api.products.list, {
@@ -270,7 +273,29 @@ export default function ProductsPage() {
                   >
                     <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
                       {item.imageUrl ? (
-                        <div style={{ width: 36, height: 36, borderRadius: 6, overflow: "hidden", border: "1px solid #30363d", background: "#0d1117" }}>
+                        <div
+                          onClick={() => setSelectedModalImage({ url: item.imageUrl!, name: item.name })}
+                          title="Kliknij, aby powiększyć zdjęcie"
+                          style={{
+                            width: 38,
+                            height: 38,
+                            borderRadius: 6,
+                            overflow: "hidden",
+                            border: "1px solid #30363d",
+                            background: "#0d1117",
+                            cursor: "pointer",
+                            position: "relative",
+                            transition: "transform 0.15s ease, border-color 0.15s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = "scale(1.08)";
+                            e.currentTarget.style.borderColor = "#58a6ff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = "scale(1)";
+                            e.currentTarget.style.borderColor = "#30363d";
+                          }}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={item.imageUrl}
@@ -279,7 +304,7 @@ export default function ProductsPage() {
                           />
                         </div>
                       ) : (
-                        <div style={{ width: 36, height: 36, borderRadius: 6, background: "#0d1117", border: "1px solid #21262d", display: "grid", placeItems: "center", color: "#484f58" }}>
+                        <div style={{ width: 38, height: 38, borderRadius: 6, background: "#0d1117", border: "1px solid #21262d", display: "grid", placeItems: "center", color: "#484f58" }}>
                           <ImageIcon size={16} />
                         </div>
                       )}
@@ -397,6 +422,78 @@ export default function ProductsPage() {
       </div>
     </div>
     </main>
+
+    {/* MODAL PODGLĄDU ZDJĘCIA DLA POZYCJI KATALOGOWYCH */}
+    {selectedModalImage && (
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          background: "rgba(0, 0, 0, 0.85)",
+          backdropFilter: "blur(6px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+          animation: "fadeIn 0.15s ease",
+        }}
+        onClick={() => setSelectedModalImage(null)}
+      >
+        <div
+          style={{
+            position: "relative",
+            maxWidth: "90vw",
+            maxHeight: "90vh",
+            background: "#161b22",
+            border: "1px solid #30363d",
+            borderRadius: 12,
+            padding: 20,
+            boxShadow: "0 20px 50px rgba(0,0,0,0.7)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 14,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 16, borderBottom: "1px solid #21262d", paddingBottom: 12 }}>
+            <span style={{ fontWeight: 700, color: "#f0f6fc", fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+              <ImageIcon size={18} color="#58a6ff" /> {selectedModalImage.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedModalImage(null)}
+              style={{
+                background: "#21262d",
+                border: "1px solid #30363d",
+                color: "#c9d1d9",
+                borderRadius: 6,
+                padding: "6px 12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#f0f6fc")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#c9d1d9")}
+            >
+              <X size={16} /> Zamknij
+            </button>
+          </div>
+          <div style={{ background: "#0d1117", borderRadius: 8, padding: 8, border: "1px solid #21262d", display: "grid", placeItems: "center" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedModalImage.url}
+              alt={selectedModalImage.name}
+              style={{ maxWidth: "82vw", maxHeight: "75vh", objectFit: "contain", borderRadius: 6 }}
+            />
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
