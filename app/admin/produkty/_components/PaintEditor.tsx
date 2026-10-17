@@ -21,6 +21,7 @@ import {
   Focus,
   ZoomIn,
   ZoomOut,
+  Hand,
 } from "lucide-react";
 
 export interface ProfileNode {
@@ -44,7 +45,7 @@ interface PaintEditorProps {
   onApply: (file: File) => void;
 }
 
-type Mode = "profile_add" | "profile_select" | "profile_color" | "freehand";
+type Mode = "profile_add" | "profile_select" | "pan" | "profile_color" | "freehand";
 
 // Obliczenie odległości punktu (px, py) do odcinka (x1, y1) - (x2, y2)
 function distToSegment(
@@ -105,6 +106,11 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [isShiftPressed, setIsShiftPressed] = useState(false);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
+  const [isDraggingProfile, setIsDraggingProfile] = useState(false);
+  const [dragProfileStart, setDragProfileStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragNodesSnapshot, setDragNodesSnapshot] = useState<ProfileNode[]>([]);
+  const [hasProfileDragged, setHasProfileDragged] = useState(false);
+  const [pendingSegmentClickIndex, setPendingSegmentClickIndex] = useState<number | null>(null);
 
   // Historia do Undo / Redo
   const [history, setHistory] = useState<{
@@ -780,8 +786,8 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    // Przesuwanie widoku (Pan) za pomocą środkowego przycisku myszy lub spacji
-    if (e.button === 1 || (isSpacePressed && e.button === 0)) {
+    // Przesuwanie widoku (Pan) za pomocą narzędzia Łapka, środkowego przycisku myszy lub spacji
+    if (mode === "pan" || e.button === 1 || (isSpacePressed && e.button === 0)) {
       setIsPanning(true);
       setPanStartPos({ x: e.clientX, y: e.clientY });
       setPanStartOffset(panOffset);
@@ -907,16 +913,25 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       const segMidScreenY = segMidY * zoom + panOffset.y;
       const hitSegMid = Math.hypot(segMidScreenX - screenX, segMidScreenY - screenY) <= 24;
 
-      // Odcinek profilu w trybie wyboru
+      // Odcinek profilu w trybie wyboru (pozwala na przesuwanie konstrukcji lub edycję)
       const hitSegLine = mode === "profile_select" && distToSegment(x, y, p1.x, p1.y, p2.x, p2.y) <= 12 / zoom;
 
-      if (hitDimBadge || hitDimLine || hitSegMid || hitSegLine) {
+      if (hitDimBadge || hitDimLine || hitSegMid) {
         const custom = segmentCustoms[i] || {};
         const currentMm = custom.lengthMm !== undefined ? custom.lengthMm : Math.round(pxLen * scaleFactor);
 
         setEditingSegmentIndex(i);
         setEditingLabelValue(custom.label || DEFAULT_LABELS[i] || `L${i + 1}`);
         setEditingLengthMmValue(currentMm.toString());
+        return;
+      }
+
+      if (hitSegLine) {
+        setIsDraggingProfile(true);
+        setDragProfileStart({ x, y });
+        setDragNodesSnapshot([...nodes]);
+        setHasProfileDragged(false);
+        setPendingSegmentClickIndex(i);
         return;
       }
     }
@@ -962,8 +977,25 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       return;
     }
 
-    if (isSpacePressed) {
+    if (mode === "pan" || isSpacePressed) {
       canvas.style.cursor = isPanning ? "grabbing" : "grab";
+      return;
+    }
+
+    // Przeciąganie całej konstrukcji profilu
+    if (isDraggingProfile && dragProfileStart) {
+      const dx = worldX - dragProfileStart.x;
+      const dy = worldY - dragProfileStart.y;
+      if (Math.hypot(dx, dy) > 3) {
+        setHasProfileDragged(true);
+        setNodes(
+          dragNodesSnapshot.map((n) => ({
+            ...n,
+            x: Math.round(n.x + dx),
+            y: Math.round(n.y + dy),
+          }))
+        );
+      }
       return;
     }
 
@@ -1010,12 +1042,28 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
         }
       }
     }
+
+    // Sprawdź czy kursor unosi się nad profilem w trybie wyboru (wskaźnik możliwości przesunięcia konstrukcji)
+    let isHoveringProfile = false;
+    if (mode === "profile_select") {
+      for (let i = 0; i < nodes.length - 1; i++) {
+        if (distToSegment(worldX, worldY, nodes[i].x, nodes[i].y, nodes[i + 1].x, nodes[i + 1].y) <= 12 / zoom) {
+          isHoveringProfile = true;
+          break;
+        }
+      }
+    }
+
     canvas.style.cursor = isHoveringInteractive
       ? "pointer"
       : mode === "profile_add"
       ? "crosshair"
       : mode === "profile_select"
-      ? "grab"
+      ? isDraggingProfile || isDraggingNode
+        ? "grabbing"
+        : isHoveringProfile
+        ? "move"
+        : "default"
       : mode === "profile_color"
       ? "cell"
       : "crosshair";
@@ -1059,6 +1107,28 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     if (isDraggingNode) {
       setIsDraggingNode(false);
       pushHistory(nodes);
+    }
+    if (isDraggingProfile) {
+      setIsDraggingProfile(false);
+      if (hasProfileDragged) {
+        pushHistory(nodes);
+      } else if (pendingSegmentClickIndex !== null) {
+        const i = pendingSegmentClickIndex;
+        const p1 = nodes[i];
+        const p2 = nodes[i + 1];
+        if (p1 && p2) {
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const pxLen = Math.hypot(dx, dy);
+          const custom = segmentCustoms[i] || {};
+          const currentMm = custom.lengthMm !== undefined ? custom.lengthMm : Math.round(pxLen * scaleFactor);
+          setEditingSegmentIndex(i);
+          setEditingLabelValue(custom.label || DEFAULT_LABELS[i] || `L${i + 1}`);
+          setEditingLengthMmValue(currentMm.toString());
+        }
+      }
+      setPendingSegmentClickIndex(null);
+      setHasProfileDragged(false);
     }
   };
 
@@ -1332,11 +1402,20 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
 
         <button
           type="button"
+          onClick={() => setMode("pan")}
+          style={btnStyle(mode === "pan")}
+          title="Łapka: Przesuwaj widok płótna / konstrukcję (możesz też przytrzymać Spację)"
+        >
+          <Hand size={14} /> ✋ Łapka
+        </button>
+
+        <button
+          type="button"
           onClick={() => setMode("profile_select")}
           style={btnStyle(mode === "profile_select")}
-          title="Przesuwaj wierzchołki i edytuj kształt profilu"
+          title="Przesuwaj punkty lub całą konstrukcję profilu"
         >
-          <Move size={14} /> ✋ Przesuń Punkt
+          <Move size={14} /> ↔️ Przesuń / Zaznacz
         </button>
 
         <button
@@ -1745,10 +1824,16 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
           ref={canvasRef}
           style={{
             cursor:
-              mode === "profile_add"
+              mode === "pan"
+                ? isPanning
+                  ? "grabbing"
+                  : "grab"
+                : mode === "profile_add"
                 ? "crosshair"
                 : mode === "profile_select"
-                ? "grab"
+                ? isDraggingProfile || isDraggingNode
+                  ? "grabbing"
+                  : "default"
                 : mode === "profile_color"
                 ? "cell"
                 : "crosshair",
@@ -1759,6 +1844,32 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onDoubleClick={handleDoubleClick}
+          onTouchStart={(e) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              const fakeMouseEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                button: 0,
+                preventDefault: () => e.preventDefault(),
+              } as unknown as React.MouseEvent<HTMLCanvasElement>;
+              handleMouseDown(fakeMouseEvent);
+            }
+          }}
+          onTouchMove={(e) => {
+            if (e.touches.length === 1) {
+              const touch = e.touches[0];
+              const fakeMouseEvent = {
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                preventDefault: () => e.preventDefault(),
+              } as unknown as React.MouseEvent<HTMLCanvasElement>;
+              handleMouseMove(fakeMouseEvent);
+            }
+          }}
+          onTouchEnd={() => {
+            handleMouseUp();
+          }}
         />
 
         {/* Podpowiedź dla użytkownika, gdy scrolluje bez klawisza Ctrl */}

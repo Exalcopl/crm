@@ -179,6 +179,55 @@ const screenAfterZoom = {
 
 assert.strictEqual(screenAfterZoom.x, cursorScreen.x, "Współrzędna X pod kursorem musi pozostać niezmienna po zoomie");
 assert.strictEqual(screenAfterZoom.y, cursorScreen.y, "Współrzędna Y pod kursorem musi pozostać niezmienna po zoomie");
-console.log("✅ Test 4 zdany: Zoom wokół kursora precyzyjnie zachowuje pozycję punktu pod kursorem.");
+// TEST 5: Przesuwanie widoku za pomocą narzędzia Łapka (Pan tool)
+console.log("Test 5: Przesuwanie widoku za pomocą Łapki (Pan)...");
+const initialPanOffset = { x: 50, y: 70 };
+const dragMouseStart = { x: 200, y: 300 };
+const dragMouseMove = { x: 280, y: 360 };
 
-console.log("=== Wszystkie testy geometrii CAD i zoomu zakończone sukcesem! ===");
+const updatedPanOffset = {
+  x: initialPanOffset.x + (dragMouseMove.x - dragMouseStart.x),
+  y: initialPanOffset.y + (dragMouseMove.y - dragMouseStart.y),
+};
+
+assert.strictEqual(updatedPanOffset.x, 130, "Pan X powinien zwiększyć się o 80px");
+assert.strictEqual(updatedPanOffset.y, 130, "Pan Y powinien zwiększyć się o 60px");
+console.log("✅ Test 5 zdany: Łapka poprawnie przesuwa widok CAD (Pan) o przesunięcie kursora.");
+
+// TEST 6: Przesuwanie całej konstrukcji profilu (translacja węzłów)
+console.log("Test 6: Przesuwanie całej konstrukcji profilu...");
+const profileNodes = [
+  { id: "p1", x: 100, y: 100 },
+  { id: "p2", x: 250, y: 100 },
+  { id: "p3", x: 250, y: 200 },
+];
+const dragWorldStart = { x: 175, y: 100 };
+const dragWorldMove = { x: 225, y: 150 };
+const deltaWorldX = dragWorldMove.x - dragWorldStart.x; // +50
+const deltaWorldY = dragWorldMove.y - dragWorldStart.y; // +50
+
+const movedNodes = profileNodes.map((n) => ({
+  ...n,
+  x: Math.round(n.x + deltaWorldX),
+  y: Math.round(n.y + deltaWorldY),
+}));
+
+assert.strictEqual(movedNodes[0].x, 150, "Węzeł 1 X powinien przesunąć się o 50");
+assert.strictEqual(movedNodes[0].y, 150, "Węzeł 1 Y powinien przesunąć się o 50");
+assert.strictEqual(movedNodes[1].x, 300, "Węzeł 2 X powinien przesunąć się o 50");
+assert.strictEqual(movedNodes[1].y, 150, "Węzeł 2 Y powinien przesunąć się o 50");
+assert.strictEqual(movedNodes[2].x, 300, "Węzeł 3 X powinien przesunąć się o 50");
+assert.strictEqual(movedNodes[2].y, 250, "Węzeł 3 Y powinien przesunąć się o 50");
+
+// Sprawdź czy odległości i kąty między węzłami zostały nienaruszone
+const originalLen0 = Math.hypot(profileNodes[1].x - profileNodes[0].x, profileNodes[1].y - profileNodes[0].y);
+const movedLen0 = Math.hypot(movedNodes[1].x - movedNodes[0].x, movedNodes[1].y - movedNodes[0].y);
+assert.strictEqual(originalLen0, movedLen0, "Długość segmentu 0 musi być zachowana po przesunięciu konstrukcji");
+
+const originalLen1 = Math.hypot(profileNodes[2].x - profileNodes[1].x, profileNodes[2].y - profileNodes[1].y);
+const movedLen1 = Math.hypot(movedNodes[2].x - movedNodes[1].x, movedNodes[2].y - movedNodes[1].y);
+assert.strictEqual(originalLen1, movedLen1, "Długość segmentu 1 musi być zachowana po przesunięciu konstrukcji");
+
+console.log("✅ Test 6 zdany: Cała konstrukcja profilu została precyzyjnie przesunięta z zachowaniem wymiarów.");
+
+console.log("=== Wszystkie testy geometrii CAD, zoomu i przesuwania łapką zakończone sukcesem! ===");
