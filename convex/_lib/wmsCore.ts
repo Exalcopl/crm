@@ -398,25 +398,40 @@ export async function approveDocument(
           .first();
       }
 
+      if (!obj && category) {
+        obj = await ctx.db
+          .query("wms_objects")
+          .withIndex("by_category", (q) => q.eq("categoryId", category._id))
+          .first();
+      }
+
+      // Dziedziczenie wymiarów nominalnych z indeksu materiałowego, jeśli nie podano ich w pozycji PZ
+      const lengthMm = line.lengthMm ?? material.lengthMm;
+      const widthMm = line.widthMm ?? material.widthMm;
+      const heightMm = line.heightMm ?? material.heightMm;
+      const thicknessMm = line.thicknessMm ?? material.thicknessMm;
+      const weightKg = line.weightKg ?? material.weightKg;
+      const customAttributes = line.customAttributes ?? material.customAttributes;
+
       const fc = obj?.fieldsConfig ?? category?.fieldsConfig;
       const customDefs = obj?.customFields ?? category?.customFields;
 
       if (fc) {
         // Dynamiczna walidacja pól na podstawie konfiguracji obiektu/kategorii
         const errs: string[] = [];
-        if (fc.lengthMm?.enabled && fc.lengthMm?.required && !(line.lengthMm && line.lengthMm > 0)) {
+        if (fc.lengthMm?.enabled && fc.lengthMm?.required && !(lengthMm && lengthMm > 0)) {
           errs.push(`brak wymaganej długości (${fc.lengthMm.label || "Długość"})`);
         }
-        if (fc.widthMm?.enabled && fc.widthMm?.required && !(line.widthMm && line.widthMm > 0)) {
+        if (fc.widthMm?.enabled && fc.widthMm?.required && !(widthMm && widthMm > 0)) {
           errs.push(`brak wymaganej szerokości (${fc.widthMm.label || "Szerokość"})`);
         }
-        if (fc.heightMm?.enabled && fc.heightMm?.required && !(line.heightMm && line.heightMm > 0)) {
+        if (fc.heightMm?.enabled && fc.heightMm?.required && !(heightMm && heightMm > 0)) {
           errs.push(`brak wymaganej wysokości (${fc.heightMm.label || "Wysokość"})`);
         }
-        if (fc.thicknessMm?.enabled && fc.thicknessMm?.required && !(line.thicknessMm && line.thicknessMm > 0)) {
+        if (fc.thicknessMm?.enabled && fc.thicknessMm?.required && !(thicknessMm && thicknessMm > 0)) {
           errs.push(`brak wymaganej grubości (${fc.thicknessMm.label || "Grubość"})`);
         }
-        if (fc.weightKg?.enabled && fc.weightKg?.required && !(line.weightKg && line.weightKg > 0)) {
+        if (fc.weightKg?.enabled && fc.weightKg?.required && !(weightKg && weightKg > 0)) {
           errs.push(`brak wymaganej masy (${fc.weightKg.label || "Masa kg"})`);
         }
         if (fc.color?.enabled && fc.color?.required && !line.colorCode?.trim()) {
@@ -437,7 +452,7 @@ export async function approveDocument(
         if (customDefs && customDefs.length > 0) {
           for (const cf of customDefs) {
             if (cf.required) {
-              const val = (line.customAttributes as Record<string, unknown> | undefined)?.[cf.key];
+              const val = (customAttributes as Record<string, unknown> | undefined)?.[cf.key];
               if (val === undefined || val === null || String(val).trim() === "") {
                 errs.push(`brak wymaganego pola: ${cf.label}`);
               }
@@ -446,15 +461,34 @@ export async function approveDocument(
         }
         if (errs.length) throw new Error(`${tag}: ${errs.join(", ")}.`);
       } else {
-        const rule = await resolveTrackingRule(ctx, line.materialId, toLoc.zone);
-        if (rule.trackingMode === "NONE")
-          throw new Error(`${tag}: indeks nie podlega ewidencji w WMS.`);
-        const errs = validateAttributes(rule, line);
-        if (errs.length) throw new Error(`${tag}: ${errs.join(", ")}.`);
+        // Walidacja reguł ewidencji tylko wtedy, gdy dla danego materiału zdefiniowano profil WMS lub aktywną regułę
+        const [profile, activeRules] = await Promise.all([
+          ctx.db
+            .query("wms_material_profiles")
+            .withIndex("by_material", (q) => q.eq("materialId", line.materialId!))
+            .unique(),
+          ctx.db
+            .query("wms_tracking_rules")
+            .withIndex("by_active", (q) => q.eq("isActive", true))
+            .collect(),
+        ]);
+        const hasMatchingRule = activeRules.some(
+          (r) =>
+            (r.materialId === undefined || r.materialId === line.materialId) &&
+            (r.category === undefined || r.category === material.category) &&
+            (r.zone === undefined || r.zone === toLoc.zone),
+        );
+        if (profile || hasMatchingRule) {
+          const rule = await resolveTrackingRule(ctx, line.materialId, toLoc.zone);
+          if (rule.trackingMode === "NONE")
+            throw new Error(`${tag}: indeks nie podlega ewidencji w WMS.`);
+          const errs = validateAttributes(rule, { ...line, lengthMm });
+          if (errs.length) throw new Error(`${tag}: ${errs.join(", ")}.`);
+        }
       }
 
       warnings.push(
-        ...(await locationWarnings(ctx, toLoc, line.materialId, line.lengthMm, line.quantityPieces, line.weightKg)),
+        ...(await locationWarnings(ctx, toLoc, line.materialId, lengthMm, line.quantityPieces, weightKg)),
       );
 
       const status: LotStatus = statusForZone(toLoc.zone);
@@ -463,18 +497,18 @@ export async function approveDocument(
         categoryId: category?._id,
         objectId: obj?._id,
         kind: line.kind,
-        lengthMm: line.lengthMm,
-        widthMm: line.widthMm,
-        heightMm: line.heightMm,
-        thicknessMm: line.thicknessMm,
-        weightKg: line.weightKg,
+        lengthMm,
+        widthMm,
+        heightMm,
+        thicknessMm,
+        weightKg,
         colorCode: line.colorCode,
         surfaceType: line.surfaceType,
         heatNumber: line.heatNumber,
         certificateStorageId: line.certificateStorageId,
         certificateName: line.certificateName,
         ssccCode: line.ssccCode,
-        customAttributes: line.customAttributes,
+        customAttributes,
         quantityPieces: line.quantityPieces,
         locationId: toLoc._id,
         status,
@@ -491,7 +525,7 @@ export async function approveDocument(
         type: "PZ",
         quantityDelta: line.quantityPieces,
         quantityPieces: line.quantityPieces,
-        lengthMm: line.lengthMm,
+        lengthMm,
         toLocationId: toLoc._id,
         operatorId: userId,
         idempotencyKey: `${doc._id}:${line._id}:pz`,

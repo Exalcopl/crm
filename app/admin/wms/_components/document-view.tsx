@@ -347,8 +347,8 @@ export function DocumentDetailView({
                         </div>
                       )}
 
-                      {/* Rodzaj jednostki (dla profili) */}
-                      {(!cat || cat.code === "PROFILE") && (
+                      {/* Rodzaj jednostki (tylko dla kategorii PROFILE) */}
+                      {cat?.code === "PROFILE" && (
                         <Field label="Typ jednostki">
                           <select style={inputStyle} value={lineKind} onChange={(e) => setLineKind(e.target.value as "BAR_BUNDLE" | "BAR" | "REMNANT")}>
                             <option value="BAR_BUNDLE">Wiązka / kosz</option>
@@ -363,8 +363,8 @@ export function DocumentDetailView({
                       </Field>
 
                       {/* Długość */}
-                      {(!fc || fc.lengthMm?.enabled) && (
-                        <Field label={`${fc?.lengthMm?.label || "Długość (mm)"} ${fc?.lengthMm?.required ? "*" : ""}`}>
+                      {fc?.lengthMm?.enabled && (
+                        <Field label={`${fc.lengthMm.label || "Długość (mm)"} ${fc.lengthMm.required ? "*" : ""}`}>
                           <input style={inputStyle} type="number" min="1" value={lineLength} onChange={(e) => setLineLength(e.target.value)} />
                         </Field>
                       )}

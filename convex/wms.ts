@@ -775,8 +775,17 @@ export const listProfiles = query({
     }
     return mats
       .map((m) => {
-        const cat = m.wmsCategoryId ? cats.get(m.wmsCategoryId) : (m.category ? catsByCode.get(m.category.toUpperCase()) : null);
-        const obj = m.wmsObjectId ? objs.get(m.wmsObjectId) : null;
+        let obj = m.wmsObjectId ? objs.get(m.wmsObjectId) : null;
+        const cat = m.wmsCategoryId
+          ? cats.get(m.wmsCategoryId)
+          : obj
+          ? cats.get(obj.categoryId)
+          : m.category
+          ? catsByCode.get(m.category.toUpperCase())
+          : null;
+        if (!obj && cat) {
+          obj = Array.from(objs.values()).find((o) => o.categoryId === cat._id) ?? null;
+        }
         return {
           material: m,
           category: cat ?? null,

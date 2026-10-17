@@ -331,7 +331,8 @@ export const runWmsTest = mutation({
         "indeks materiałowy przechowuje nominalne wymiary fizyczne zdefiniowane w obiekcie",
       );
 
-      // Błąd walidacji: brak szerokości (wymagana dla obiektu Pakiet szybowy)
+      // Błąd walidacji: gdy indeks nie ma wymiaru i pozycja PZ też go nie podaje, a obiekt wymaga szerokości
+      await ctx.db.patch(glassMaterialId, { widthMm: undefined });
       const { id: badGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
       docIds.push(badGlassPzId);
       await ctx.db.insert("wms_document_lines", {
@@ -339,7 +340,7 @@ export const runWmsTest = mutation({
         materialId: glassMaterialId,
         objectId: glassObjectId,
         quantityPieces: 2,
-        heightMm: 800, // brak widthMm!
+        heightMm: 800, // brak widthMm i na indeksie, i na pozycji!
         toLocationId: locMG,
       });
       await expectThrow(
@@ -348,20 +349,16 @@ export const runWmsTest = mutation({
         "PZ szyby: walidacja odrzuca brak szerokości wymaganej przez obiekt magazynowy",
       );
 
-      // Poprawne przyjęcie PZ z szerokością i wysokością
+      // Przywracamy widthMm = 1200 na indeksie — teraz PZ bez wpisywania wymiarów w linii dziedziczy je z indeksu!
+      await ctx.db.patch(glassMaterialId, { widthMm: 1200 });
       const { id: goodGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
       docIds.push(goodGlassPzId);
       await ctx.db.insert("wms_document_lines", {
         documentId: goodGlassPzId,
         materialId: glassMaterialId,
-        objectId: glassObjectId,
         quantityPieces: 4,
-        widthMm: 1200,
-        heightMm: 900,
-        thicknessMm: 24,
         heatNumber: "GLASS-BATCH-1",
         toLocationId: locMG,
-        customAttributes: { glazingType: "4/16/4 U=1.0" },
       });
       await approveDocument(ctx, userId, goodGlassPzId);
       const glassLots = await ctx.db

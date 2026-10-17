@@ -69,7 +69,7 @@ export default function StanyPage() {
         <select style={{ ...inputStyle, width: "auto" }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">Wszystkie kategorie</option>
           {(categories ?? []).map((c) => (
-            <option key={c._id} value={c._id}>{c.name} ({c.objectName})</option>
+            <option key={c._id} value={c._id}>{c.name}</option>
           ))}
         </select>
         <select style={{ ...inputStyle, width: "auto" }} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
