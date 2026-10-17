@@ -1,0 +1,490 @@
+import { mutation } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import {
+  approveDocument,
+  closeInventorySession,
+  createDocument,
+  openInventorySession,
+  recordCount,
+  resolveTrackingRule,
+} from "./_lib/wmsCore";
+
+/**
+ * Test automatyczny modułu WMS (zapis/odczyt + reguły biznesowe).
+ * Uruchomienie:  npx convex run testing_wms:runWmsTest
+ *            lub npx tsx scripts/test-wms.ts
+ *
+ * Przy niezaliczonej asercji mutacja rzuca błąd (rollback całej transakcji).
+ * Po sukcesie test sam sprząta dane i przywraca liczniki numeracji.
+ */
+export const runWmsTest = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const results: string[] = [];
+    const ok = (msg: string) => results.push(`✅ ${msg}`);
+    const assert = (cond: unknown, msg: string) => {
+      if (!cond) throw new Error(`❌ ASERCJA NIEUDANA: ${msg}`);
+      ok(msg);
+    };
+    async function expectThrow(fn: () => Promise<unknown>, contains: string, msg: string) {
+      let err: Error | null = null;
+      try {
+        await fn();
+      } catch (e) {
+        err = e as Error;
+      }
+      if (!err) throw new Error(`❌ Oczekiwano błędu: ${msg}`);
+      if (!err.message.includes(contains))
+        throw new Error(`❌ Zły komunikat dla „${msg}”: ${err.message}`);
+      ok(`${msg} → „${err.message.slice(0, 70)}”`);
+    }
+
+    const now = Date.now();
+    const tag = `TEST-WMS-${now}`;
+    const year = new Date(now).getFullYear();
+
+    // Stan liczników sprzed testu (do przywrócenia)
+    const counterKeys = ["PZ", "RW", "KOREKTA"].map((t) => `${t}/${year}`);
+    const counterBefore = new Map<string, number | null>();
+    for (const key of counterKeys) {
+      const c = await ctx.db
+        .query("wms_counters")
+        .withIndex("by_key", (q) => q.eq("key", key))
+        .unique();
+      counterBefore.set(key, c ? c.value : null);
+    }
+
+    // ── Dane bazowe ──────────────────────────────────────────────────────
+    const userId = await ctx.db.insert("users", { name: tag });
+    const materialId = await ctx.db.insert("materials", {
+      name: `${tag} Profil Al`,
+      unit: "mb.",
+      priceUnit: 10,
+      category: "PROFILE",
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const profileId = await ctx.db.insert("wms_material_profiles", {
+      materialId,
+      isTracked: true,
+      kgPerMb: 2,
+      trackingMode: "STRICT",
+      requiresCertificate: true,
+      requiresColor: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const mkLoc = (
+      code: string,
+      zone: "MAGAZYN_GLOWNY" | "BUFOR_PRODUKCYJNY" | "KWARANTANNA",
+      extra: { maxWeightKg?: number; maxLengthMm?: number } = {},
+    ) =>
+      ctx.db.insert("wms_locations", {
+        code: `${tag}-${code}`,
+        name: code,
+        zone,
+        type: "CANTILEVER",
+        isActive: true,
+        createdAt: now,
+        ...extra,
+      });
+    const locMG = await mkLoc("MG", "MAGAZYN_GLOWNY");
+    const locMG2 = await mkLoc("MG2", "MAGAZYN_GLOWNY");
+    const locBuf = await mkLoc("BUF", "BUFOR_PRODUKCYJNY");
+    const locSmall = await mkLoc("SMALL", "MAGAZYN_GLOWNY", { maxWeightKg: 50, maxLengthMm: 3000 });
+
+    const docIds: Id<"wms_documents">[] = [];
+    const sessionIds: Id<"wms_inventory_sessions">[] = [];
+    const ruleIds: Id<"wms_tracking_rules">[] = [];
+    const newDoc = async (type: "PZ" | "RW") => {
+      const { id } = await createDocument(ctx, userId, { type });
+      docIds.push(id);
+      return id;
+    };
+    const addLine = (documentId: Id<"wms_documents">, f: Record<string, unknown>) =>
+      ctx.db.insert("wms_document_lines", { documentId, quantityPieces: 1, ...f } as never);
+
+    try {
+      // ── 1. Reguły ewidencji: specyficzność wygrywa ───────────────────────
+      ruleIds.push(
+        await ctx.db.insert("wms_tracking_rules", {
+          name: `${tag} kategoria`,
+          category: "PROFILE",
+          trackingMode: "STRICT",
+          requiredAttributes: ["length", "color"],
+          enforceCycleCount: false,
+          priority: 1,
+          isActive: true,
+          createdAt: now,
+        }),
+      );
+      ruleIds.push(
+        await ctx.db.insert("wms_tracking_rules", {
+          name: `${tag} materiał`,
+          materialId,
+          trackingMode: "STRICT",
+          requiredAttributes: ["length", "lot"],
+          enforceCycleCount: true,
+          priority: 1,
+          isActive: true,
+          createdAt: now,
+        }),
+      );
+      const rule = await resolveTrackingRule(ctx, materialId, "MAGAZYN_GLOWNY");
+      assert(rule.ruleName === `${tag} materiał`, "reguła per materiał wygrywa z regułą per kategoria");
+      assert(
+        rule.requiredAttributes.includes("lot") &&
+          rule.requiredAttributes.includes("certificate") &&
+          !rule.requiredAttributes.includes("color"),
+        "wymagane atrybuty = reguła + atest z profilu indeksu",
+      );
+      assert(rule.enforceCycleCount === true, "flaga inwentaryzacji ciągłej z reguły");
+
+      // ── 2. PZ: walidacja atrybutów ───────────────────────────────────────
+      const pz1 = await newDoc("PZ");
+      await addLine(pz1, { materialId, quantityPieces: 10, lengthMm: 6500, heatNumber: "W-1", toLocationId: locMG });
+      await expectThrow(() => approveDocument(ctx, userId, pz1), "brak atestu", "PZ bez atestu (wymagany) jest blokowane");
+
+      // Zdejmujemy wymóg atestu → zatwierdzenie powinno przejść
+      await ctx.db.patch(profileId, { requiresCertificate: false });
+      await expectThrow(
+        async () => {
+          const bad = await newDoc("PZ");
+          await addLine(bad, { materialId, quantityPieces: 5, lengthMm: 6500, toLocationId: locMG });
+          await approveDocument(ctx, userId, bad);
+        },
+        "brak numeru partii",
+        "PZ bez numeru partii/wytopu jest blokowane",
+      );
+
+      // ── 3. PZ zatwierdzone: partia, ruch, ostrzeżenia, kwarantanna, odrzucenie ──
+      // (pz1 ma już poprawną linię W-1 — teraz bez wymogu atestu)
+      await addLine(pz1, {
+        materialId,
+        quantityPieces: 3,
+        lengthMm: 6000,
+        heatNumber: "W-2",
+        toLocationId: locMG,
+        damage: { description: "Zarysowanie powłoki", positionMm: 3200, disposition: "ACCEPT" },
+      });
+      await addLine(pz1, {
+        materialId,
+        quantityPieces: 2,
+        lengthMm: 6000,
+        heatNumber: "W-3",
+        toLocationId: locMG,
+        damage: { description: "Wgniecenie", disposition: "REJECT" },
+      });
+      await addLine(pz1, { materialId, quantityPieces: 4, lengthMm: 6500, heatNumber: "W-4", toLocationId: locSmall });
+      const res = await approveDocument(ctx, userId, pz1);
+      assert(res.warnings.length >= 1, `ostrzeżenia nośność/długość (${res.warnings.length}): ${res.warnings[0]}`);
+
+      const lines1 = await ctx.db
+        .query("wms_document_lines")
+        .withIndex("by_document", (q) => q.eq("documentId", pz1))
+        .collect();
+      const lotOf = async (heat: string) => {
+        const l = lines1.find((x) => x.heatNumber === heat);
+        return l?.lotId ? await ctx.db.get(l.lotId) : null;
+      };
+      const lotA = (await lotOf("W-1"))!;
+      const lotHold = (await lotOf("W-2"))!;
+      const lotRejected = await lotOf("W-3");
+      assert(lotA && lotA.quantityPieces === 10 && lotA.status === "AVAILABLE", "PZ tworzy partię AVAILABLE z odczytem ilości");
+      assert(lotA.lengthMm === 6500 && lotA.heatNumber === "W-1", "PZ zapisuje długość i partię/wytop");
+      assert(lotHold.status === "AVAILABLE", "uszkodzenie z dopuszczeniem (ACCEPT) → partia AVAILABLE");
+      assert(lotRejected === null, "linia odrzucona (REJECT) nie wchodzi na stan");
+      const doc1 = await ctx.db.get(pz1);
+      assert(doc1?.status === "ZATWIERDZONY" && /^PZ\/\d{4}\/\d{4}$/.test(doc1.number), `numeracja dokumentu: ${doc1?.number}`);
+      await expectThrow(() => approveDocument(ctx, userId, pz1), "już zatwierdzony", "ponowne zatwierdzenie jest blokowane");
+
+      // ── 4. RW ────────────────────────────────────────────────────────────
+      const rwZone = await newDoc("RW");
+      await addLine(rwZone, { lotId: lotA._id, quantityPieces: 1, toLocationId: locMG2 });
+      await expectThrow(() => approveDocument(ctx, userId, rwZone), "bufora produkcyjnego", "RW tylko do strefy bufora produkcyjnego");
+
+      const rwTooMany = await newDoc("RW");
+      await addLine(rwTooMany, { lotId: lotA._id, quantityPieces: 99, toLocationId: locBuf });
+      await expectThrow(() => approveDocument(ctx, userId, rwTooMany), "większa niż stan", "RW ponad stan partii jest blokowane");
+
+      const rw = await newDoc("RW");
+      await addLine(rw, { lotId: lotA._id, quantityPieces: 4, toLocationId: locBuf });
+      await approveDocument(ctx, userId, rw);
+      const lotAafter = (await ctx.db.get(lotA._id))!;
+      assert(lotAafter.quantityPieces === 6 && lotAafter.status === "AVAILABLE", "RW częściowe zmniejsza partię źródłową (10 → 6)");
+      const bufLots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_location", (q) => q.eq("locationId", locBuf))
+        .collect();
+      assert(
+        bufLots.length === 1 && bufLots[0].quantityPieces === 4 && bufLots[0].status === "IN_PROGRESS" && bufLots[0].parentLotId === lotA._id,
+        "RW wydziela nową partię IN_PROGRESS w buforze (z odniesieniem do źródła)",
+      );
+
+      // ── 5. Inwentaryzacja → KOREKTA ──────────────────────────────────────
+      const sessionId = await openInventorySession(ctx, userId, { name: `${tag} inw`, locationId: locMG });
+      sessionIds.push(sessionId);
+      const counts = await ctx.db
+        .query("wms_inventory_counts")
+        .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+        .collect();
+      assert(counts.length >= 1 && counts.every((c) => c.expectedPieces > 0), `sesja zrzuca stany (${counts.length} poz.)`);
+      const cA = counts.find((c) => c.lotId === lotA._id)!;
+      await expectThrow(() => recordCount(ctx, userId, cA._id, -1), "≥ 0", "ujemna policzona ilość odrzucona");
+      await recordCount(ctx, userId, cA._id, 5); // system: 6 → policzono 5
+      const closed = await closeInventorySession(ctx, userId, sessionId);
+      assert(closed.differences === 1 && closed.correctionDocumentId, "zamknięcie sesji generuje KOREKTĘ dla różnic");
+      docIds.push(closed.correctionDocumentId!);
+      assert((await ctx.db.get(lotA._id))!.quantityPieces === 5, "KOREKTA ustawia stan zgodny z liczeniem (6 → 5)");
+      await expectThrow(() => closeInventorySession(ctx, userId, sessionId), "zamknięta", "zamknięta sesja nie może być zamknięta ponownie");
+
+      // ── 8. Niezmiennik: stan partii = suma ruchów ────────────────────────
+      const allLots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", materialId))
+        .collect();
+      for (const lot of allLots) {
+        const mvs = await ctx.db
+          .query("wms_movements")
+          .withIndex("by_lot", (q) => q.eq("lotId", lot._id))
+          .collect();
+        const sum = mvs.reduce((s, m) => s + m.quantityDelta, 0);
+        assert(sum === lot.quantityPieces, `stan = suma ruchów (partia ${lot.heatNumber ?? "?"}: ${lot.quantityPieces} = ${sum})`);
+      }
+
+      // ── 9. Lokalizacje: tworzenie z samej nazwy ─────────────────────────
+      const locOnlyNameId = await ctx.db.insert("wms_locations", {
+        code: `${tag}-REGAŁ NOWY`.toUpperCase(),
+        name: "Regał Nowy",
+        zone: "MAGAZYN_GLOWNY",
+        type: "CANTILEVER",
+        isActive: true,
+        createdAt: now,
+      });
+      const locOnlyName = await ctx.db.get(locOnlyNameId);
+      assert(locOnlyName?.name === "Regał Nowy", "tworzenie lokalizacji z samej nazwy");
+      await ctx.db.delete(locOnlyNameId);
+      assert((await ctx.db.get(locOnlyNameId)) === null, "usunięcie pustej lokalizacji");
+
+      // ── 10. Konfigurowalne kategorie i obiekty magazynowe (relacja rodzic-dziecko) ─
+      // 10a. Tworzenie nadrzędnej kategorii
+      const glassCatId = await ctx.db.insert("wms_categories", {
+        name: "Szyby zespolone",
+        code: `${tag}-GLASS`,
+        description: "Pakiety 2- i 3-szybowe oraz formatki szklane",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // 10b. Tworzenie podrzędnego obiektu magazynowego przypisanego do kategorii
+      const glassObjectId = await ctx.db.insert("wms_objects", {
+        categoryId: glassCatId,
+        name: "Pakiet szybowy",
+        code: "GLASS_PACK",
+        defaultUnit: "m²",
+        description: "Szyby zespolone docinane na wymiar",
+        fieldsConfig: {
+          lengthMm: { enabled: false, required: false },
+          widthMm: { enabled: true, required: true, label: "Szerokość (mm)" },
+          heightMm: { enabled: true, required: true, label: "Wysokość (mm)" },
+          thicknessMm: { enabled: true, required: false, label: "Grubość (mm)" },
+          weightKg: { enabled: true, required: false, label: "Masa pakietu (kg)" },
+        },
+        customFields: [
+          { key: "glazingType", label: "Budowa pakietu", type: "text", required: false },
+        ],
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const glassSku = `${tag}-SKU-4164`;
+      const glassMaterialId = await ctx.db.insert("materials", {
+        name: `${tag} Szyba 4/16/4`,
+        sku: glassSku,
+        unit: "m²",
+        priceUnit: 150,
+        category: "SZYBY",
+        wmsCategoryId: glassCatId,
+        wmsObjectId: glassObjectId,
+        widthMm: 1200,
+        heightMm: 900,
+        thicknessMm: 24,
+        weightKg: 32.4,
+        customAttributes: { glazingType: "4/16/4 U=1.0" },
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Weryfikacja wyszukiwania indeksu materiałowego po kodzie SKU (dla kodów QR)
+      const bySkuFound = await ctx.db
+        .query("materials")
+        .withIndex("by_sku", (q) => q.eq("sku", glassSku))
+        .first();
+      assert(bySkuFound?._id === glassMaterialId, "wyszukiwanie indeksu materiałowego po kodzie SKU (kod QR)");
+      assert(
+        bySkuFound?.widthMm === 1200 && bySkuFound?.heightMm === 900 && bySkuFound?.thicknessMm === 24,
+        "indeks materiałowy przechowuje nominalne wymiary fizyczne zdefiniowane w obiekcie",
+      );
+
+      // Błąd walidacji: brak szerokości (wymagana dla obiektu Pakiet szybowy)
+      const { id: badGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(badGlassPzId);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: badGlassPzId,
+        materialId: glassMaterialId,
+        objectId: glassObjectId,
+        quantityPieces: 2,
+        heightMm: 800, // brak widthMm!
+        toLocationId: locMG,
+      });
+      await expectThrow(
+        () => approveDocument(ctx, userId, badGlassPzId),
+        "brak wymaganej szerokości",
+        "PZ szyby: walidacja odrzuca brak szerokości wymaganej przez obiekt magazynowy",
+      );
+
+      // Poprawne przyjęcie PZ z szerokością i wysokością
+      const { id: goodGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(goodGlassPzId);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: goodGlassPzId,
+        materialId: glassMaterialId,
+        objectId: glassObjectId,
+        quantityPieces: 4,
+        widthMm: 1200,
+        heightMm: 900,
+        thicknessMm: 24,
+        heatNumber: "GLASS-BATCH-1",
+        toLocationId: locMG,
+        customAttributes: { glazingType: "4/16/4 U=1.0" },
+      });
+      await approveDocument(ctx, userId, goodGlassPzId);
+      const glassLots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", glassMaterialId))
+        .collect();
+      assert(glassLots.length === 1, "PZ szyby: utworzono partię pakietów szybowych");
+      const glassLot = glassLots[0];
+      assert(glassLot.widthMm === 1200, "partia szyby: zapisano widthMm = 1200");
+      assert(glassLot.heightMm === 900, "partia szyby: zapisano heightMm = 900");
+      assert(glassLot.thicknessMm === 24, "partia szyby: zapisano thicknessMm = 24");
+      assert(glassLot.quantityPieces === 4, "partia szyby: stan = 4 szt.");
+      assert(glassLot.categoryId === glassCatId, "partia szyby: powiązana z kategorią nadrzędną GLASS");
+      assert(glassLot.objectId === glassObjectId, "partia szyby: powiązana z podrzędnym obiektem Pakiet szybowy");
+
+      // Wydanie RW pakietów szybowych do bufora
+      const { id: glassRwId } = await createDocument(ctx, userId, { type: "RW" });
+      docIds.push(glassRwId);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: glassRwId,
+        lotId: glassLot._id,
+        quantityPieces: 1,
+        toLocationId: locBuf,
+      });
+      await approveDocument(ctx, userId, glassRwId);
+      const updatedGlassLot = await ctx.db.get(glassLot._id);
+      assert(updatedGlassLot?.quantityPieces === 3, "RW szyby: na MG pozostały 3 sztuki");
+      const bufGlassLot = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_location", (q) => q.eq("locationId", locBuf))
+        .filter((q) => q.eq(q.field("materialId"), glassMaterialId))
+        .first();
+      assert(bufGlassLot?.quantityPieces === 1, "RW szyby: w buforze wydano 1 sztukę");
+      assert(bufGlassLot?.widthMm === 1200, "RW szyby: zachowano wymiary pakietu w buforze");
+      assert(bufGlassLot?.objectId === glassObjectId, "RW szyby: partia buforowa ma przypisany obiekt");
+
+      // Sprzątanie testowej kategorii, obiektu i materiału
+      const testGlassLots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", glassMaterialId))
+        .collect();
+      for (const l of testGlassLots) {
+        const mvs = await ctx.db
+          .query("wms_movements")
+          .withIndex("by_lot", (q) => q.eq("lotId", l._id))
+          .collect();
+        for (const m of mvs) await ctx.db.delete(m._id);
+        await ctx.db.delete(l._id);
+      }
+      await ctx.db.delete(glassMaterialId);
+      await ctx.db.delete(glassObjectId);
+      await ctx.db.delete(glassCatId);
+    } finally {
+      // Sprzątanie (w razie błędu mutacja i tak się cofa, ale zachowujemy porządek)
+      await cleanup(ctx, {
+        materialId,
+        profileId,
+        userId,
+        locs: [locMG, locMG2, locBuf, locSmall],
+        docIds,
+        sessionIds,
+        ruleIds,
+        counterBefore,
+      });
+    }
+    ok("sprzątanie danych testowych i przywrócenie liczników numeracji");
+    return results;
+  },
+});
+
+async function cleanup(
+  ctx: MutationCtx,
+  d: {
+    materialId: Id<"materials">;
+    profileId: Id<"wms_material_profiles">;
+    userId: Id<"users">;
+    locs: Id<"wms_locations">[];
+    docIds: Id<"wms_documents">[];
+    sessionIds: Id<"wms_inventory_sessions">[];
+    ruleIds: Id<"wms_tracking_rules">[];
+    counterBefore: Map<string, number | null>;
+  },
+) {
+  const lots = await ctx.db
+    .query("wms_lots")
+    .withIndex("by_material", (q) => q.eq("materialId", d.materialId))
+    .collect();
+  for (const lot of lots) {
+    const mvs = await ctx.db
+      .query("wms_movements")
+      .withIndex("by_lot", (q) => q.eq("lotId", lot._id))
+      .collect();
+    for (const m of mvs) await ctx.db.delete(m._id);
+    await ctx.db.delete(lot._id);
+  }
+  for (const id of d.sessionIds) {
+    const cs = await ctx.db
+      .query("wms_inventory_counts")
+      .withIndex("by_session", (q) => q.eq("sessionId", id))
+      .collect();
+    for (const c of cs) await ctx.db.delete(c._id);
+    await ctx.db.delete(id);
+  }
+  for (const id of d.docIds) {
+    const ls = await ctx.db
+      .query("wms_document_lines")
+      .withIndex("by_document", (q) => q.eq("documentId", id))
+      .collect();
+    for (const l of ls) await ctx.db.delete(l._id);
+    await ctx.db.delete(id);
+  }
+  for (const id of d.ruleIds) await ctx.db.delete(id);
+  for (const id of d.locs) await ctx.db.delete(id);
+  await ctx.db.delete(d.profileId);
+  await ctx.db.delete(d.materialId);
+  await ctx.db.delete(d.userId);
+  for (const [key, before] of d.counterBefore) {
+    const c = await ctx.db
+      .query("wms_counters")
+      .withIndex("by_key", (q) => q.eq("key", key))
+      .unique();
+    if (!c) continue;
+    if (before === null) await ctx.db.delete(c._id);
+    else await ctx.db.patch(c._id, { value: before });
+  }
+}

@@ -672,21 +672,31 @@ export default defineSchema({
     .index("by_order", ["orderId"])
     .index("by_dependsOn", ["dependsOn"]),
 
-  // Baza materiałów / cennik
+  // Baza materiałów / indeksów magazynowych
   materials: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
     unit: v.string(),             // mb., szt., kpl., m², kg
     priceUnit: v.number(),        // cena jednostkowa netto
     category: v.string(),         // PROFILE | PROFILE_DODATKOWE | AKCESORIA | OKUCIA | WYPELNIENIA | INNE
-    sku: v.optional(v.string()),  // symbol / indeks materiału
+    sku: v.optional(v.string()),  // symbol / kod indeksu materiału (QR)
     supplier: v.optional(v.string()),
+    wmsCategoryId: v.optional(v.id("wms_categories")),
+    wmsObjectId: v.optional(v.id("wms_objects")),
+    // Domyślne wymiary fizyczne i atrybuty dla danego indeksu (wynikające z obiektu):
+    lengthMm: v.optional(v.number()),
+    widthMm: v.optional(v.number()),
+    heightMm: v.optional(v.number()),
+    thicknessMm: v.optional(v.number()),
+    weightKg: v.optional(v.number()),
+    customAttributes: v.optional(v.any()),
     isActive: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_category", ["category"])
     .index("by_name", ["name"])
+    .index("by_sku", ["sku"])
     .searchIndex("search_name", { searchField: "name", filterFields: ["category"] }),
 
   // RW (Rozchód Wewnętrzny) dla zlecenia
@@ -852,6 +862,302 @@ export default defineSchema({
     soundEnabled: v.boolean(),
     updatedAt: v.number(),
     updatedBy: v.optional(v.id("users")),
+  }).index("by_key", ["key"]),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // WMS (moduł magazynowy) — kategorie obiektów, stany i dokumenty
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Nadrzędne kategorie magazynowe (np. Profile, Szyby, Okucia, Uszczelki)
+  wms_categories: defineTable({
+    name: v.string(), // np. "Profile aluminiowe", "Szyby zespolone", "Okucia i zamki", "Uszczelki"
+    code: v.string(), // unikalny kod, np. "PROFILE", "GLASS", "HARDWARE", "SEALS"
+    description: v.optional(v.string()),
+    // Opcjonalne pola zachowane dla kompatybilności wstecznej
+    objectName: v.optional(v.string()),
+    defaultUnit: v.optional(v.string()),
+    fieldsConfig: v.optional(v.any()),
+    customFields: v.optional(v.any()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_active", ["isActive"]),
+
+  // Podrzędne obiekty magazynowe przypisane do kategorii (np. Kategoria "Szyby" -> Obiekt "Pakiet szybowy")
+  wms_objects: defineTable({
+    categoryId: v.id("wms_categories"), // Przypisanie do kategorii nadrzędnej
+    name: v.string(), // np. "Pakiet szybowy", "Sztanga", "Wiązka", "Rolka", "Komplet okuć", "Formatka"
+    code: v.optional(v.string()),
+    defaultUnit: v.optional(v.string()), // opcjonalna jednostka obiektu (domyślnie szt. lub z indeksu)
+    description: v.optional(v.string()),
+    fieldsConfig: v.object({
+      lengthMm: v.object({ enabled: v.boolean(), required: v.boolean(), label: v.optional(v.string()) }),
+      widthMm: v.object({ enabled: v.boolean(), required: v.boolean(), label: v.optional(v.string()) }),
+      heightMm: v.object({ enabled: v.boolean(), required: v.boolean(), label: v.optional(v.string()) }),
+      thicknessMm: v.object({ enabled: v.boolean(), required: v.boolean(), label: v.optional(v.string()) }),
+      weightKg: v.object({ enabled: v.boolean(), required: v.boolean(), label: v.optional(v.string()) }),
+    }),
+    customFields: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          label: v.string(),
+          type: v.union(v.literal("text"), v.literal("number"), v.literal("select")),
+          options: v.optional(v.array(v.string())),
+          required: v.boolean(),
+        })
+      )
+    ),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_category", ["categoryId"])
+    .index("by_active", ["isActive"]),
+
+  // Cechy magazynowe indeksu z tabeli `materials`
+  wms_material_profiles: defineTable({
+    materialId: v.id("materials"),
+    isTracked: v.boolean(),
+    systemSeries: v.optional(v.string()),
+    kgPerMb: v.optional(v.number()),
+    standardLengthMm: v.optional(v.number()),
+    trackingMode: v.union(
+      v.literal("STRICT"),
+      v.literal("QUANTITY"),
+      v.literal("NONE"),
+    ),
+    requiresCertificate: v.boolean(),
+    requiresColor: v.boolean(),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_material", ["materialId"]),
+
+  // Konfigurowalna ziarnistość ewidencji (reguła bardziej szczegółowa wygrywa)
+  wms_tracking_rules: defineTable({
+    name: v.string(),
+    category: v.optional(v.string()),
+    materialId: v.optional(v.id("materials")),
+    zone: v.optional(v.string()),
+    trackingMode: v.union(
+      v.literal("STRICT"),
+      v.literal("QUANTITY"),
+      v.literal("NONE"),
+    ),
+    // length | color | lot | certificate
+    requiredAttributes: v.array(v.string()),
+    enforceCycleCount: v.boolean(),
+    priority: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_active", ["isActive"]),
+
+  wms_locations: defineTable({
+    code: v.string(),
+    name: v.string(),
+    zone: v.union(
+      v.literal("MAGAZYN_GLOWNY"),
+      v.literal("BUFOR_PRODUKCYJNY"),
+      v.literal("KWARANTANNA"),
+      v.literal("STREFA_SPADOW"),
+    ),
+    type: v.union(
+      v.literal("CANTILEVER"),
+      v.literal("SHELF"),
+      v.literal("FLOOR"),
+    ),
+    maxWeightKg: v.optional(v.number()),
+    maxLengthMm: v.optional(v.number()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_zone", ["zone"]),
+
+  wms_lots: defineTable({
+    materialId: v.id("materials"),
+    categoryId: v.optional(v.id("wms_categories")),
+    objectId: v.optional(v.id("wms_objects")),
+    kind: v.optional(
+      v.union(
+        v.literal("BAR_BUNDLE"),
+        v.literal("BAR"),
+        v.literal("REMNANT"),
+      ),
+    ),
+    lengthMm: v.optional(v.number()),
+    widthMm: v.optional(v.number()),
+    heightMm: v.optional(v.number()),
+    thicknessMm: v.optional(v.number()),
+    weightKg: v.optional(v.number()),
+    colorCode: v.optional(v.string()),
+    surfaceType: v.optional(
+      v.union(
+        v.literal("MILL"),
+        v.literal("RAL"),
+        v.literal("ANODA"),
+        v.literal("BICOLOR"),
+      ),
+    ),
+    heatNumber: v.optional(v.string()),
+    certificateStorageId: v.optional(v.id("_storage")),
+    certificateName: v.optional(v.string()),
+    ssccCode: v.optional(v.string()),
+    customAttributes: v.optional(v.any()),
+    quantityPieces: v.number(),
+    locationId: v.id("wms_locations"),
+    status: v.union(
+      v.literal("AVAILABLE"),
+      v.literal("QUALITY_HOLD"),
+      v.literal("IN_PROGRESS"), // w buforze produkcyjnym ("w toku")
+      v.literal("DEPLETED"),
+    ),
+    holdReason: v.optional(v.string()),
+    parentLotId: v.optional(v.id("wms_lots")),
+    receivedByDocumentId: v.optional(v.id("wms_documents")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_material", ["materialId"])
+    .index("by_category", ["categoryId"])
+    .index("by_object", ["objectId"])
+    .index("by_location", ["locationId"])
+    .index("by_status", ["status"])
+    .index("by_sscc", ["ssccCode"]),
+
+  wms_documents: defineTable({
+    type: v.union(
+      v.literal("PZ"),
+      v.literal("RW"),
+      v.literal("MM"),
+      v.literal("KOREKTA"),
+    ),
+    number: v.string(),
+    status: v.union(
+      v.literal("DRAFT"),
+      v.literal("ZATWIERDZONY"),
+      v.literal("ANULOWANY"),
+    ),
+    supplier: v.optional(v.string()),
+    externalDocNumber: v.optional(v.string()),
+    expectedBundles: v.optional(v.number()), // PZ etap 1 — kontrola ilościowa
+    targetNote: v.optional(v.string()), // RW: cel / odbiorca (wolny tekst)
+    notes: v.optional(v.string()),
+    createdBy: v.id("users"),
+    approvedBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    approvedAt: v.optional(v.number()),
+  })
+    .index("by_type", ["type"])
+    .index("by_number", ["number"])
+    .index("by_status", ["status"]),
+
+  wms_document_lines: defineTable({
+    documentId: v.id("wms_documents"),
+    lotId: v.optional(v.id("wms_lots")),
+    materialId: v.optional(v.id("materials")),
+    objectId: v.optional(v.id("wms_objects")),
+    kind: v.optional(
+      v.union(
+        v.literal("BAR_BUNDLE"),
+        v.literal("BAR"),
+        v.literal("REMNANT"),
+      ),
+    ),
+    // PZ/RW/MM: ilość ruchu; KOREKTA: różnica ze znakiem (+/−)
+    quantityPieces: v.number(),
+    lengthMm: v.optional(v.number()),
+    widthMm: v.optional(v.number()),
+    heightMm: v.optional(v.number()),
+    thicknessMm: v.optional(v.number()),
+    weightKg: v.optional(v.number()),
+    colorCode: v.optional(v.string()),
+    surfaceType: v.optional(
+      v.union(
+        v.literal("MILL"),
+        v.literal("RAL"),
+        v.literal("ANODA"),
+        v.literal("BICOLOR"),
+      ),
+    ),
+    heatNumber: v.optional(v.string()),
+    ssccCode: v.optional(v.string()),
+    certificateStorageId: v.optional(v.id("_storage")),
+    certificateName: v.optional(v.string()),
+    customAttributes: v.optional(v.any()),
+    fromLocationId: v.optional(v.id("wms_locations")),
+    toLocationId: v.optional(v.id("wms_locations")),
+    damage: v.optional(
+      v.object({
+        description: v.string(),
+        positionMm: v.optional(v.number()),
+        disposition: v.union(
+          v.literal("ACCEPT"),
+          v.literal("QUALITY_HOLD"),
+          v.literal("REJECT"),
+        ),
+      }),
+    ),
+    note: v.optional(v.string()),
+  }).index("by_document", ["documentId"]),
+
+  // Dziennik ruchów (append-only). quantityDelta = zmiana ilości w danej partii.
+  wms_movements: defineTable({
+    documentId: v.optional(v.id("wms_documents")),
+    lineId: v.optional(v.id("wms_document_lines")),
+    lotId: v.id("wms_lots"),
+    objectId: v.optional(v.id("wms_objects")),
+    type: v.union(
+      v.literal("PZ"),
+      v.literal("RW"),
+      v.literal("MM"),
+      v.literal("KOREKTA"),
+      v.literal("HOLD"),
+      v.literal("RELEASE"),
+    ),
+    quantityDelta: v.number(),
+    quantityPieces: v.number(),
+    lengthMm: v.optional(v.number()),
+    fromLocationId: v.optional(v.id("wms_locations")),
+    toLocationId: v.optional(v.id("wms_locations")),
+    note: v.optional(v.string()),
+    operatorId: v.id("users"),
+    idempotencyKey: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_lot", ["lotId"])
+    .index("by_document", ["documentId"])
+    .index("by_idempotency", ["idempotencyKey"])
+    .index("by_createdAt", ["createdAt"]),
+
+  wms_inventory_sessions: defineTable({
+    name: v.string(),
+    locationId: v.optional(v.id("wms_locations")), // brak = cały magazyn
+    status: v.union(v.literal("OPEN"), v.literal("CLOSED")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    closedAt: v.optional(v.number()),
+    correctionDocumentId: v.optional(v.id("wms_documents")),
+  }).index("by_status", ["status"]),
+
+  wms_inventory_counts: defineTable({
+    sessionId: v.id("wms_inventory_sessions"),
+    lotId: v.id("wms_lots"),
+    expectedPieces: v.number(),
+    countedPieces: v.optional(v.number()),
+    countedBy: v.optional(v.id("users")),
+    countedAt: v.optional(v.number()),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_session_lot", ["sessionId", "lotId"]),
+
+  // Liczniki numeracji dokumentów (np. "PZ/2026")
+  wms_counters: defineTable({
+    key: v.string(),
+    value: v.number(),
   }).index("by_key", ["key"]),
 });
 

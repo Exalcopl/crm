@@ -9,6 +9,7 @@
  */
 
 import type * as _lib_phone from "../_lib/phone.js";
+import type * as _lib_wmsCore from "../_lib/wmsCore.js";
 import type * as account from "../account.js";
 import type * as auth from "../auth.js";
 import type * as authPin from "../authPin.js";
@@ -64,8 +65,10 @@ import type * as testing_partners from "../testing_partners.js";
 import type * as testing_quote_search from "../testing_quote_search.js";
 import type * as testing_search from "../testing_search.js";
 import type * as testing_sub_orders from "../testing_sub_orders.js";
+import type * as testing_wms from "../testing_wms.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
+import type * as wms from "../wms.js";
 
 import type {
   ApiFromModules,
@@ -75,6 +78,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "_lib/phone": typeof _lib_phone;
+  "_lib/wmsCore": typeof _lib_wmsCore;
   account: typeof account;
   auth: typeof auth;
   authPin: typeof authPin;
@@ -130,8 +134,10 @@ declare const fullApi: ApiFromModules<{
   testing_quote_search: typeof testing_quote_search;
   testing_search: typeof testing_search;
   testing_sub_orders: typeof testing_sub_orders;
+  testing_wms: typeof testing_wms;
   users: typeof users;
   webhooks: typeof webhooks;
+  wms: typeof wms;
 }>;
 
 /**

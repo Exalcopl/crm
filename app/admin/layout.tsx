@@ -9,6 +9,7 @@ import { AdministracjaRibbon } from "./_components/administracja-ribbon";
 import { CalendarPanel } from "./_components/calendar-panel";
 import { SearchCommandPalette } from "./_components/search-command-palette";
 import { NotificationCenter } from "./_components/NotificationCenter";
+import { ModuleSwitcher } from "./_components/module-switcher";
 import { I } from "./_lib/icons";
 
 import {
@@ -73,14 +74,6 @@ const TABS: TabDef[] = [
     action: "read",
   },
   {
-    id: "materialy",
-    label: "Materiały",
-    href: "/admin/materialy",
-    match: (p) => p.startsWith("/admin/materialy"),
-    resource: "wyceny",
-    action: "read",
-  },
-  {
     id: "produkty",
     label: "Produkty",
     href: "/admin/produkty",
@@ -108,6 +101,26 @@ const TABS: TabDef[] = [
     visible: (has) => has("users", "read") || has("roles", "read"),
   },
 ];
+
+const isWmsPath = (p: string) => p === "/admin/wms" || p.startsWith("/admin/wms/");
+
+const WMS_TABS: TabDef[] = [
+  { id: "wms-przeglad", label: "Przegląd", href: "/admin/wms", match: (p) => p === "/admin/wms" },
+  { id: "wms-stany", label: "Stany", href: "/admin/wms/stany", match: (p) => p.startsWith("/admin/wms/stany") },
+  { id: "wms-indeksy", label: "Indeksy", href: "/admin/wms/indeksy", match: (p) => p.startsWith("/admin/wms/indeksy") },
+  { id: "wms-pz", label: "PZ", href: "/admin/wms/pz", match: (p) => p.startsWith("/admin/wms/pz") },
+  { id: "wms-rw", label: "RW", href: "/admin/wms/rw", match: (p) => p.startsWith("/admin/wms/rw") },
+  {
+    id: "wms-ustawienia",
+    label: "Ustawienia",
+    href: "/admin/wms/ustawienia",
+    match: (p) =>
+      p.startsWith("/admin/wms/ustawienia") ||
+      p.startsWith("/admin/wms/kategorie") ||
+      p.startsWith("/admin/wms/lokalizacje"),
+  },
+];
+
 
 function ownerInitials(name: string | null, email: string | null) {
   if (name && name.trim().length > 0) {
@@ -147,13 +160,21 @@ function AdminShell({ children }: { children: ReactNode }) {
     router.refresh();
   }
 
+  const inWms = isWmsPath(pathname);
+
   return (
     <div className="fluent-shell" data-theme="carbon" data-density="compact">
       <div className="fluent-titlebar">
-        <Link href="/admin/panel" className="brand" title="Przejdź do Panelu">
+        <Link
+          href={inWms ? "/admin/wms" : "/admin/panel"}
+          className="brand"
+          title={inWms ? "Przejdź do Przeglądu WMS" : "Przejdź do Panelu"}
+        >
           <div className="brand-mark">E</div>
-          <span>Exalco CRM</span>
+          <span>Exalco {inWms ? "WMS" : "CRM"}</span>
         </Link>
+
+        <ModuleSwitcher />
 
 
         <div
@@ -206,7 +227,7 @@ function AdminShell({ children }: { children: ReactNode }) {
       </div>
 
       <div className="fluent-tabs" role="tablist">
-        {TABS.map((t) => {
+        {(inWms ? WMS_TABS : TABS).map((t) => {
           const visible = t.visible
             ? t.visible(has)
             : !t.resource || !t.action || has(t.resource, t.action);
@@ -226,7 +247,7 @@ function AdminShell({ children }: { children: ReactNode }) {
         })}
       </div>
 
-      {isAdminSection(pathname) && <AdministracjaRibbon />}
+      {!inWms && isAdminSection(pathname) && <AdministracjaRibbon />}
 
       {children}
     </div>

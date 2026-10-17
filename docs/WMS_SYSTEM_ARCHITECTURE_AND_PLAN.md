@@ -1,7 +1,7 @@
-# Exalco WMS – Dokumentacja i Plan Implementacji (MVP: profile aluminiowe)
-**Wersja:** 2.0 – zastępuje v1.0/v1.1 (zawężony zakres po decyzjach właściciela)  
+# Exalco WMS – Dokumentacja i Plan Implementacji
+**Wersja:** 3.0 – rozszerzenie o konfigurowalne kategorie produktów, obiekty magazynowe i dynamiczne pola  
 **Data:** Październik 2026  
-**Status:** tylko dokumentacja i plan – brak implementacji
+**Status:** Zaimplementowano w MVP
 
 ---
 
@@ -9,14 +9,12 @@
 
 | # | Decyzja | Konsekwencja |
 |---|---|---|
-| 1 | Brak zewnętrznego ERP. WMS to dodatkowy moduł Exalco CRM. | **Exalco CRM jest źródłem prawdy** dla dokumentów magazynowych (PZ/RW/MM…). Wspólna baza Convex, wspólne logowanie i RBAC. Brak integracji wychodzącej do ERP. |
+| 1 | Brak zewnętrznego ERP. WMS to dodatkowy moduł Exalco CRM. | **Exalco CRM jest źródłem prawdy** dla dokumentów magazynowych (PZ/RW). Wspólna baza Convex, wspólne logowanie. Brak integracji wychodzącej do ERP. |
 | 2 | Listy cięć (LogiKal) – **poza zakresem**. | Brak parsera, brak rezerwacji pod listy cięć, brak priorytetyzacji spadów przy optymalizacji. |
-| 3 | Terminale i drukarki – **następna iteracja**. | Brak etykietowania, Brother RJ‑4250WB, skanerów, trybu offline w MVP. Model danych przewiduje kody (SSCC/lot) na przyszłość. |
-| 4 | Operujemy wyłącznie na **profilach aluminiowych**, bez cięć. Produkcja (cięcie, spady, WIP, stojaki) – osobny, późniejszy moduł. | Brak półproduktów, spadów powstających z cięcia, stojaków, pakietów szybowych, okuć, Kanban. |
-| 5 | WMS korzysta z **istniejącej tabeli `materials`**. | Brak własnego słownika indeksów. Cechy magazynowe trzymane w tabeli dodatkowej wskazującej `materialId` (patrz §4), aby nie zmieniać semantyki cennika. |
-
-> [!NOTE]
-> Odpowiedź „TAK” na pytanie „materials czy własny słownik” zinterpretowałem jako „używamy `materials`”. Jeśli chodziło o co innego – do korekty.
+| 3 | Terminale i drukarki – **następna iteracja**. | Model danych przewiduje kody (SSCC/lot) na przyszłość. |
+| 4 | **Magazyn wielobranżowy** (nie tylko profile). Konfigurowalne kategorie produktów (`Kategoria -> Nazwa obiektu magazynowego`). | Możliwość ewidencji profili (sztangi), szyb zespolonych (pakiety szybowe), okuć (komplety), uszczelek (rolki), blach (arkusze), akcesoriów (paczki). Dynamiczne pola wg konfiguracji kategorii. |
+| 5 | Uproszczenie procesów w MVP. | Usunięto osobną Kwarantannę i MM (przesunięcia międzymagazynowe). Pozostają PZ (przyjęcie) oraz RW (wydanie do bufora produkcyjnego). Lokalizacje uproszczone do samej nazwy. |
+| 6 | WMS korzysta z **istniejącej tabeli `materials`**. | Brak dublowania indeksów. Cechy magazynowe i przypisana kategoria WMS trzymane w bazie (`wmsCategoryId`). |
 
 ---
 
@@ -24,15 +22,14 @@
 
 **W zakresie**
 1. Przełącznik **CRM | WMS** obok logotypu „Exalco CRM” w titlebarze; WMS jako osobny segment `/admin/wms/*` z własnymi zakładkami.
-2. Kartoteka profili (na bazie `materials`, kategoria `PROFILE`) z atrybutami magazynowymi.
-3. Lokalizacje magazynowe (regały wspornikowe, bufor, kwarantanna).
-4. Ewidencja partii/dłużyc: długość, kolor (RAL/anoda/surowy), partia/wytop, atest 3.1 (plik), SSCC opcjonalnie.
-5. Dokumenty magazynowe: **PZ** (przyjęcie, dwuetapowa kontrola jakości), **RW** (wydanie na produkcję – całych sztang/wiązek, bez cięcia), **MM** (przesunięcie między lokalizacjami), **korekta/inwentaryzacja**.
-6. Kwarantanna jakościowa (blokada wydania), rejestracja uszkodzeń powłoki przy PZ.
-7. Konfigurowalne reguły ewidencji (administrator decyduje o ziarnistości śledzenia).
-8. Jednostki wielokrotne: sztuki ↔ mb ↔ kg.
-9. Uprawnienia WMS w istniejącym RBAC.
-10. Dziennik ruchów (audyt) i widoki stanów.
+2. **Kategorie i obiekty magazynowe** (`/admin/wms/kategorie`):
+   - Konfiguracja kategorii towarów (Profile aluminiowe, Szyby zespolone, Okucia i zamki, Uszczelki, Blachy i panele, Drobne akcesoria).
+   - Definicja nazwy jednostki magazynowej (Sztanga/Wiązka, Pakiet szybowy, Komplet okuć, Rolka, Arkusz, Opakowanie).
+   - Dynamiczne przełączniki pól dla danej kategorii: długość, szerokość, wysokość, grubość, masa, kolor, powłoka, partia/wytop, atest, SSCC oraz pola niestandardowe (np. Producent, Strona L/P, Budowa pakietu).
+3. Dokumenty magazynowe: **PZ** (przyjęcie z dynamicznym formularzem pól wg kategorii) oraz **RW** (wydanie do bufora produkcyjnego).
+4. Lokalizacje magazynowe (wpisywanie samej nazwy lokalizacji/regału).
+5. Ewidencja partii/stanów wielowymiarowych (długość, szerokość, wysokość, grubość, masa, cechy i atrybuty niestandardowe).
+6. Pełna identyfikowalność: stan = suma ruchów, automatyczne testy weryfikacyjne w Convex.
 
 **Poza zakresem (kolejne iteracje)**
 - Listy cięć / LogiKal / ReynaPro, rezerwacja pod cięcie.
@@ -58,8 +55,8 @@ WMS: [Przegląd] [Stany] [Profile] [Lokalizacje] [PZ] [RW] [MM] [Inwentaryzacja]
 ```
 
 - Zakładki WMS zastępują `TABS` CRM, gdy aktywny jest WMS; ten sam `PermissionsProvider`, sesja i wyszukiwarka.
-- Przełącznik widoczny tylko dla użytkowników z uprawnieniem `wms:read`.
-- Ostatni moduł zapamiętywany w `localStorage` (ewentualnie w profilu użytkownika – decyzja przy implementacji; zmiana profilu = zmiana schematu = test).
+- Przełącznik widoczny dla każdego zalogowanego użytkownika.
+- Ostatni moduł zapamiętywany tylko w `localStorage` (bez zmian w tabeli `users`).
 - Trasy: `/admin/wms`, `/stany`, `/profile`, `/lokalizacje`, `/pz`, `/pz/[id]`, `/rw`, `/mm`, `/inwentaryzacja`, `/kwarantanna`, `/ustawienia`.
 
 > [!WARNING]
@@ -67,15 +64,13 @@ WMS: [Przegląd] [Stany] [Profile] [Lokalizacje] [PZ] [RW] [MM] [Inwentaryzacja]
 
 ---
 
-## 3. Uprawnienia (RBAC)
+## 3. Dostęp i uprawnienia
 
 Obecnie: `RESOURCES = ["wyceny","klienci","users","roles"]` w `convex/permissions.ts`, akcje `read/create/update/delete`, zakresy `own/team/all`, seed w `convex/seed.ts`.
 
-Plan:
-- Dodać zasoby: `wms` (podgląd stanów), `wms_documents` (PZ/RW/MM), `wms_settings` (reguły ewidencji, lokalizacje, słowniki), `wms_inventory` (inwentaryzacja/korekty), `wms_quality` (zwalnianie kwarantanny).
-- Zaktualizować seed i UI ról (`app/admin/roles`).
-- Przykładowe role: *Magazynier* (wms read; documents create), *Kierownik magazynu* (+ inventory, quality), *Administrator WMS* (+ settings).
-- Backend: każda mutacja WMS sprawdza uprawnienie po stronie Convex (nie tylko ukrycie w UI).
+Decyzja MVP: **brak podziału na użytkowników magazynowych i brak nowych uprawnień WMS.** Każdy zalogowany użytkownik systemu ma pełny dostęp do WMS. Nie zmieniamy `RESOURCES` ani seeda. Backend (mutacje i zapytania Convex) wymaga jednak zalogowanej sesji, a każdy ruch zapisuje `operatorId`, więc audyt „kto zrobił” pozostaje.
+
+Później (po testach MVP): ewentualne zasoby `wms*` i role w istniejącym RBAC (`convex/permissions.ts`, `convex/seed.ts`, `app/admin/roles`).
 
 ---
 
@@ -114,7 +109,7 @@ Zasada: **stan = suma ruchów**. Ruchy są niezmienne (append‑only); partie tr
 - Wyliczane: `totalMb = quantityPieces × lengthMm / 1000`, `weightKg = totalMb × kgPerMb`.
 
 ### 4.5. `wms_documents` i `wms_document_lines`
-- Dokument: `type: "PZ" | "RW" | "MM" | "KOREKTA"`, `number` (np. `PZ/2026/0001`, numeracja per typ i rok), `status: "DRAFT" | "ZATWIERDZONY" | "ANULOWANY"`, `supplier?`, `externalDocNumber?` (WZ/list dostawcy), `orderId?: Id<"orders">` (RW pod zlecenie – tylko powiązanie informacyjne), `notes`, `createdBy`, `approvedBy?`, timestampy.
+- Dokument: `type: "PZ" | "RW" | "MM" | "KOREKTA"`, `number` (np. `PZ/2026/0001`, numeracja per typ i rok), `status: "DRAFT" | "ZATWIERDZONY" | "ANULOWANY"`, `supplier?`, `externalDocNumber?` (nr listu/dokumentu dostawcy), `notes`, `createdBy`, `approvedBy?`, timestampy.
 - Linia: `lotId?`, `materialId`, `quantityPieces`, `lengthMm`, `fromLocationId?`, `toLocationId?`, `damage?: { description, positionMm?, disposition: "ACCEPT" | "QUALITY_HOLD" | "REJECT" }`.
 - Zatwierdzenie dokumentu = **jedna transakcja Convex**: walidacja reguł → zapis ruchów → aktualizacja partii.
 
@@ -127,7 +122,7 @@ Zasada: **stan = suma ruchów**. Ruchy są niezmienne (append‑only); partie tr
 
 ### 4.8. Związek z istniejącymi tabelami
 - `materials` – bez zmian; kategoria `PROFILE` (inne kategorie – akcesoria/okucia – w MVP nieśledzone).
-- `orders` – opcjonalne powiązanie RW (informacyjne). **Nie zmieniamy `orders.status`** w MVP; ewentualne mapowanie (kompletacja/produkcja) dopiero z modułem Produkcji.
+- `orders` – **brak powiązania w MVP** (ani relacji, ani zmian statusów). Powiązanie z zleceniami dopiero z modułem Produkcji.
 - `users`, `permissions` – wspólne.
 
 ---
@@ -144,14 +139,14 @@ Zasada: **stan = suma ruchów**. Ruchy są niezmienne (append‑only); partie tr
 - Wybór lokalizacji ręcznie; podpowiedź ostrzegająca przy przekroczeniu `maxWeightKg`/`maxLengthMm`.
 
 ### 5.3. RW – wydanie na produkcję (bez cięć)
-- Wydanie całej partii/liczby sztang z lokalizacji głównej do `BUFOR_PRODUKCYJNY`; status zapasu przechodzi na „w toku”. Blokada, gdy lot ma status `QUALITY_HOLD`. Opcjonalne powiązanie z `orders`.
+- Wydanie całej partii/liczby sztang z lokalizacji głównej do `BUFOR_PRODUKCYJNY`; status zapasu przechodzi na „w toku”. Blokada, gdy lot ma status `QUALITY_HOLD`. Bez powiązania ze zleceniem; opcjonalnie wolnotekstowe pole „cel/odbiorca”.
 - Dalsze rozliczanie (zużycie, spad, powrót) – moduł Produkcji.
 
 ### 5.4. MM – przesunięcie
 - Zmiana lokalizacji lotu (całości lub części sztuk – dzieli lot na dwa rekordy).
 
 ### 5.5. Kwarantanna jakościowa
-- Lot w `QUALITY_HOLD` (np. po lakierni lub z uszkodzeniem) nie może być wydany; zwolnienie wymaga uprawnienia `wms_quality` i wpisu w dzienniku (kto, kiedy, uwagi).
+- Lot w `QUALITY_HOLD` (np. po lakierni lub z uszkodzeniem) nie może być wydany; zwolnienie dostępne dla każdego użytkownika WMS, z obowiązkowym wpisem w dzienniku (kto, kiedy, uwagi).
 
 ### 5.6. Inwentaryzacja i korekty
 - Sesja zliczania per lokalizacja; różnice zatwierdza uprawniona osoba; efekt: dokument `KOREKTA` + ruchy.
@@ -176,7 +171,7 @@ Zasada: **stan = suma ruchów**. Ruchy są niezmienne (append‑only); partie tr
 
 **Faza 1 – Fundament**
 - Schemat: `wms_material_profiles`, `wms_tracking_rules`, `wms_locations`.
-- RBAC: nowe zasoby, seed, role.
+- Bez zmian w RBAC: dostęp do WMS dla każdego zalogowanego użytkownika (wymagana tylko sesja).
 - `ModuleSwitcher` w `app/admin/layout.tsx`; `app/admin/wms/layout.tsx` z zakładkami; puste strony.
 - Strony: Profile (nakładka na `materials`), Lokalizacje, Ustawienia → Reguły ewidencji.
 - **Test:** zapis/odczyt profili, reguł (rozstrzyganie priorytetów) i lokalizacji.
@@ -209,7 +204,4 @@ Zasada: **stan = suma ruchów**. Ruchy są niezmienne (append‑only); partie tr
 
 ## 9. Ryzyka i otwarte kwestie
 1. **Dane w `materials`:** czy profile są tam poprawnie skategoryzowane (`PROFILE`) i z jednostką mb? Do weryfikacji w Fazie 0; w razie braków – import/uzupełnienie.
-2. **Rola `orders` przy RW:** w MVP tylko referencja informacyjna – potwierdzić, czy wystarczy.
-3. **WZ dla profili** sprzedawanych bezpośrednio klientom – w MVP pominięty; do decyzji, czy potrzebny.
-4. **Przełączanie modułu per rola:** czy magazynierzy mają trafiać domyślnie do WMS (preferencja zapisywana w profilu = zmiana schematu `users`)?
-5. **Interpretacja odpowiedzi „TAK”** dot. `materials` (patrz §0).
+2. **Uprawnienia po MVP:** w MVP każdy zalogowany użytkownik ma pełny dostęp do WMS. Zasoby i role WMS (np. magazynier, kierownik) do rozważenia po testach MVP.
