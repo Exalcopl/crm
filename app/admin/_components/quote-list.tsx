@@ -33,11 +33,14 @@ type SortState = { column: SortColumn; dir: "asc" | "desc" };
 export function QuoteListView({
   quotes,
   emptyLabel = "Brak wycen pasujących do filtra.",
+  groupByStatus = false,
 }: {
   quotes: Quote[];
   emptyLabel?: string;
+  groupByStatus?: boolean;
 }) {
   const [sort, setSort] = useState<SortState>({ column: "deadline", dir: "asc" });
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const ownerMap = useOwnerNamesMap();
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
 
@@ -84,6 +87,27 @@ export function QuoteListView({
     );
   };
 
+  const toggleGroup = (statusKey: string, currentQuotesCount: number) => {
+    setCollapsedGroups((prev) => {
+      const isCurrentlyCollapsed = prev[statusKey] ?? (currentQuotesCount === 0);
+      return {
+        ...prev,
+        [statusKey]: !isCurrentlyCollapsed,
+      };
+    });
+  };
+
+  const allStatuses = useMemo(() => {
+    const base =
+      sort.column === "status" && sort.dir === "desc"
+        ? [...QUOTE_STATUSES].reverse()
+        : [...QUOTE_STATUSES];
+    const customStatuses = Array.from(new Set(quotes.map((q) => q.status))).filter(
+      (s) => !(QUOTE_STATUSES as readonly string[]).includes(s),
+    );
+    return [...base, ...customStatuses];
+  }, [quotes, sort]);
+
   return (
     <div className="quote-list" role="table" aria-label="Lista wycen">
       <div className="quote-list-header" role="row">
@@ -110,6 +134,60 @@ export function QuoteListView({
       <div className="quote-list-body">
         {sortedQuotes.length === 0 ? (
           <div className="quote-list-empty">{emptyLabel}</div>
+        ) : groupByStatus ? (
+          allStatuses.map((status) => {
+            const groupQuotes = sortedQuotes.filter((q) => q.status === status);
+            const statusColor = (QUOTE_STATUS_COLORS as Record<string, string>)[status] ?? "#8b949e";
+            const isCollapsed = collapsedGroups[status] ?? (groupQuotes.length === 0);
+            const totalValue = groupQuotes.reduce((sum, q) => sum + (q.value ?? 0), 0);
+            const hasAnyValue = groupQuotes.some((q) => q.value !== null && q.value !== undefined);
+
+            return (
+              <div key={status} className="quote-list-group">
+                <button
+                  type="button"
+                  className="quote-list-group-header"
+                  onClick={() => toggleGroup(status, groupQuotes.length)}
+                  aria-expanded={!isCollapsed}
+                >
+                  <div className="quote-list-group-header-left">
+                    <span className="quote-list-group-chevron">
+                      {isCollapsed ? <I.chevronRight s={13} /> : <I.chevronDown s={13} />}
+                    </span>
+                    <span
+                      className="quote-list-status-dot"
+                      style={{ color: statusColor, background: statusColor }}
+                    />
+                    <span className="quote-list-group-title" style={{ color: statusColor }}>
+                      {status}
+                    </span>
+                    <span className="quote-list-group-count">{groupQuotes.length}</span>
+                  </div>
+                  {hasAnyValue && (
+                    <div className="quote-list-group-header-right">
+                      <span className="quote-list-group-total-label">Suma:</span>
+                      <span className="quote-list-group-total-val">
+                        {totalValue.toLocaleString("pl-PL", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        PLN
+                      </span>
+                    </div>
+                  )}
+                </button>
+                {!isCollapsed && (
+                  groupQuotes.length === 0 ? (
+                    <div className="quote-list-group-empty">Brak wycen w tym statusie</div>
+                  ) : (
+                    groupQuotes.map((q) => (
+                      <QuoteListRow key={q.id} quote={q} projectTypes={projectTypes} />
+                    ))
+                  )
+                )}
+              </div>
+            );
+          })
         ) : (
           sortedQuotes.map((q) => <QuoteListRow key={q.id} quote={q} projectTypes={projectTypes} />)
         )}

@@ -355,4 +355,14 @@ export const I = {
       <path d="M12 16v-4M12 8h.01" />
     </Icon>
   ),
+  chevronDown: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="m6 9 6 6 6-6" />
+    </Icon>
+  ),
+  chevronRight: (p: IconProps = {}) => (
+    <Icon {...p}>
+      <path d="m9 18 6-6-6-6" />
+    </Icon>
+  ),
 };

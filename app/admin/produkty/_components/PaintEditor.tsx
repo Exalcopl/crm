@@ -16,6 +16,11 @@ import {
   Type,
   Ruler,
   CornerDownRight,
+  Maximize2,
+  Minimize2,
+  Focus,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 
 export interface ProfileNode {
@@ -40,6 +45,22 @@ interface PaintEditorProps {
 }
 
 type Mode = "profile_add" | "profile_select" | "profile_color" | "freehand";
+
+// Obliczenie odległości punktu (px, py) do odcinka (x1, y1) - (x2, y2)
+function distToSegment(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number
+): number {
+  const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * (x2 - x1)), py - (y1 + t * (y2 - y1)));
+}
 
 // Wyznaczanie dociągnięcia do ortogonalnych kątów (0°, 45°, 90°, 135°, 180°...)
 function snapToOrtho(start: { x: number; y: number }, current: { x: number; y: number }) {
@@ -102,6 +123,66 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
   const [editingAngleIndex, setEditingAngleIndex] = useState<number | null>(null);
   const [editingAngleValue, setEditingAngleValue] = useState("");
 
+  // Tryb pełnoekranowy (Fullscreen)
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [, setResizeTick] = useState(0);
+
+  // Powiększenie i przesuwanie widoku CAD (Zoom & Pan)
+  const [zoom, setZoom] = useState(1.0);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStartPos, setPanStartPos] = useState({ x: 0, y: 0 });
+  const [panStartOffset, setPanStartOffset] = useState({ x: 0, y: 0 });
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+
+  // Podpowiedź "Przytrzymaj Ctrl, aby powiększyć"
+  const [showCtrlZoomHint, setShowCtrlZoomHint] = useState(false);
+  const ctrlHintTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Kółko myszy ze scrollem dla zoomowania - WYŁĄCZNIE z przytrzymanym klawiszem Ctrl (lub Cmd na Macu)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheelNative = (e: WheelEvent) => {
+      // Wymóg przytrzymania klawisza Ctrl (lub Cmd na Macu)
+      if (!e.ctrlKey && !e.metaKey) {
+        setShowCtrlZoomHint(true);
+        if (ctrlHintTimeoutRef.current) clearTimeout(ctrlHintTimeoutRef.current);
+        ctrlHintTimeoutRef.current = setTimeout(() => {
+          setShowCtrlZoomHint(false);
+        }, 1500);
+        return;
+      }
+
+      e.preventDefault();
+      setShowCtrlZoomHint(false);
+
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+
+      const wx = (sx - panOffset.x) / zoom;
+      const wy = (sy - panOffset.y) / zoom;
+
+      // Zoom in / out wokół pozycji kursora
+      const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const newZoom = Math.min(5.0, Math.max(0.2, Math.round(zoom * zoomFactor * 100) / 100));
+
+      const newPanX = Math.round(sx - wx * newZoom);
+      const newPanY = Math.round(sy - wy * newZoom);
+
+      setZoom(newZoom);
+      setPanOffset({ x: newPanX, y: newPanY });
+    };
+
+    canvas.addEventListener("wheel", handleWheelNative, { passive: false });
+    return () => {
+      canvas.removeEventListener("wheel", handleWheelNative);
+      if (ctrlHintTimeoutRef.current) clearTimeout(ctrlHintTimeoutRef.current);
+    };
+  }, [zoom, panOffset]);
+
   const pushHistory = useCallback(
     (newNodes: ProfileNode[], newSegs = segmentCustoms, newAngles = angleCustoms) => {
       const state = {
@@ -137,14 +218,69 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     }
   };
 
-  // Obsługa klawiszy (Shift, Escape, Ctrl+Z)
+  // Wyśrodkowanie rysunku na płótnie i optymalne dopasowanie widoku
+  const centerDrawing = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.width <= 0 || canvas.height <= 0) return;
+
+    if (nodes.length === 0) {
+      setZoom(1.0);
+      setPanOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const n of nodes) {
+      if (n.x < minX) minX = n.x;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.y > maxY) maxY = n.y;
+    }
+
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+    let fitZoom = 1.0;
+    if (width > 0 && height > 0) {
+      const padding = 140;
+      const zoomX = (canvas.width - padding) / width;
+      const zoomY = (canvas.height - padding) / height;
+      fitZoom = Math.min(2.0, Math.max(0.4, Math.min(zoomX, zoomY)));
+      fitZoom = Math.round(fitZoom * 10) / 10;
+    }
+
+    setZoom(fitZoom);
+    setPanOffset({
+      x: Math.round(canvas.width / 2 - cx * fitZoom),
+      y: Math.round(canvas.height / 2 - cy * fitZoom),
+    });
+  }, [nodes]);
+
+  // Obsługa klawiszy (Shift, Space, Escape, Ctrl+Z)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Shift") setIsShiftPressed(true);
+      if (e.code === "Space" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement)?.tagName)) {
+        e.preventDefault();
+        setIsSpacePressed(true);
+      }
       if (e.key === "Escape") {
-        setActiveNodeId(null);
-        if (mode === "profile_add" && nodes.length > 0) {
-          setMode("profile_select");
+        if (editingSegmentIndex !== null) {
+          setEditingSegmentIndex(null);
+        } else if (editingAngleIndex !== null) {
+          setEditingAngleIndex(null);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        } else {
+          setActiveNodeId(null);
+          if (mode === "profile_add" && nodes.length > 0) {
+            setMode("profile_select");
+          }
         }
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -154,6 +290,10 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.key === "Shift") setIsShiftPressed(false);
+      if (e.code === "Space") {
+        setIsSpacePressed(false);
+        setIsPanning(false);
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -162,7 +302,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [nodes, mode, historyIndex, history]);
+  }, [nodes, mode, historyIndex, history, editingSegmentIndex, editingAngleIndex, isFullscreen]);
 
   // Inicjalizacja pomocniczego canvas dla wolnego rysowania oraz ResizeObserver
   useEffect(() => {
@@ -172,11 +312,14 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
 
     if (!freehandCanvasRef.current) {
       freehandCanvasRef.current = document.createElement("canvas");
+      freehandCanvasRef.current.width = canvas.width || 300;
+      freehandCanvasRef.current.height = canvas.height || 150;
     }
 
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
+        if (width <= 0 || height <= 0) continue;
         if (canvas.width !== width || canvas.height !== height) {
           const fhCanvas = freehandCanvasRef.current;
           let existingData: ImageData | null = null;
@@ -195,6 +338,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
               fhCtx?.putImageData(existingData, 0, 0);
             }
           }
+          setResizeTick((t) => t + 1);
         }
       }
     });
@@ -206,7 +350,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
   // RENDEROWANIE GŁÓWNEGO EDYTORA NA CANVAS
   const renderCanvas = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || canvas.width <= 0 || canvas.height <= 0) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -214,30 +358,50 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Rysowanie siatki milimetrowej w tle
+    ctx.save();
+    // Aplikuj transformację widoku CAD (Zoom & Pan)
+    ctx.translate(panOffset.x, panOffset.y);
+    ctx.scale(zoom, zoom);
+
+    // Rysowanie dynamicznej siatki milimetrowej w przestrzeni CAD
+    const minWorldX = -panOffset.x / zoom;
+    const maxWorldX = (canvas.width - panOffset.x) / zoom;
+    const minWorldY = -panOffset.y / zoom;
+    const maxWorldY = (canvas.height - panOffset.y) / zoom;
+
     ctx.strokeStyle = "#f1f5f9";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 / zoom;
     const gridSize = 20;
-    for (let x = 0; x < canvas.width; x += gridSize) {
+    const startGridX = Math.floor(minWorldX / gridSize) * gridSize;
+    const endGridX = Math.ceil(maxWorldX / gridSize) * gridSize;
+    const startGridY = Math.floor(minWorldY / gridSize) * gridSize;
+    const endGridY = Math.ceil(maxWorldY / gridSize) * gridSize;
+
+    for (let x = startGridX; x <= endGridX; x += gridSize) {
       ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, canvas.height);
+      ctx.moveTo(x, startGridY);
+      ctx.lineTo(x, endGridY);
       ctx.stroke();
     }
-    for (let y = 0; y < canvas.height; y += gridSize) {
+    for (let y = startGridY; y <= endGridY; y += gridSize) {
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(canvas.width, y);
+      ctx.moveTo(startGridX, y);
+      ctx.lineTo(endGridX, y);
       ctx.stroke();
     }
 
     // 1. Rysowanie wyrenderowanego layeru freehand
-    if (freehandCanvasRef.current) {
+    if (
+      freehandCanvasRef.current &&
+      freehandCanvasRef.current.width > 0 &&
+      freehandCanvasRef.current.height > 0
+    ) {
       ctx.drawImage(freehandCanvasRef.current, 0, 0);
     }
 
     // Jeśli brak wierzchołków, wyrenderuj napis zachęcający
     if (nodes.length === 0) {
+      ctx.restore();
       ctx.fillStyle = "#94a3b8";
       ctx.font = "600 14px sans-serif";
       ctx.textAlign = "center";
@@ -512,6 +676,9 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       ctx.fillText(`${idx + 1}`, node.x, node.y - 10);
     });
 
+    // Przywrócenie stanu kontekstu po transformacji CAD (zoom & pan) przed rysowaniem nakładki legendy
+    ctx.restore();
+
     // 7. TABELA LEGENDY SPECIFIKACJI ORAZ SUMY ROZWINIĘCIA BLACHY (W MM)
     if (showLegend && nodes.length > 1) {
       const padding = 12;
@@ -596,6 +763,8 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     activeNodeId,
     showLegend,
     profileColor,
+    zoom,
+    panOffset,
   ]);
 
   // Ponowne przeliczenie i wyrenderowanie przy każdej zmianie stanu
@@ -608,8 +777,20 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+
+    // Przesuwanie widoku (Pan) za pomocą środkowego przycisku myszy lub spacji
+    if (e.button === 1 || (isSpacePressed && e.button === 0)) {
+      setIsPanning(true);
+      setPanStartPos({ x: e.clientX, y: e.clientY });
+      setPanStartOffset(panOffset);
+      return;
+    }
+
+    // Przeliczenie na współrzędne CAD w świecie
+    const x = (screenX - panOffset.x) / zoom;
+    const y = (screenY - panOffset.y) / zoom;
 
     if (mode === "freehand") {
       const fhCtx = freehandCanvasRef.current?.getContext("2d");
@@ -621,8 +802,12 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       return;
     }
 
-    // 1. Sprawdź czy kliknięto w istniejący wierzchołek
-    const clickedNodeIndex = nodes.findIndex((n) => Math.hypot(n.x - x, n.y - y) <= 12);
+    // 1. Sprawdź czy kliknięto w istniejący wierzchołek (tolerancja w pikselach ekranu)
+    const clickedNodeIndex = nodes.findIndex((n) => {
+      const sx = n.x * zoom + panOffset.x;
+      const sy = n.y * zoom + panOffset.y;
+      return Math.hypot(sx - screenX, sy - screenY) <= 14;
+    });
 
     if (mode === "profile_color") {
       // Kliknięcie w pobliżu segmentu dodaje / przełącza KOLOR ▼
@@ -631,7 +816,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
         const p2 = nodes[i + 1];
         const midX = (p1.x + p2.x) / 2;
         const midY = (p1.y + p2.y) / 2;
-        if (Math.hypot(midX - x, midY - y) < 40) {
+        if (Math.hypot(midX - x, midY - y) < 40 / zoom) {
           const updated = { ...segmentCustoms };
           const cur = updated[i] || {};
           updated[i] = {
@@ -654,7 +839,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       return;
     }
 
-    // 2. Sprawdź czy kliknięto w badżet kąta gięcia, aby go edytować
+    // 2. Sprawdź czy kliknięto w badżet kąta gięcia lub łuk kąta, aby go edytować
     for (let i = 1; i < nodes.length - 1; i++) {
       const pPrev = nodes[i - 1];
       const pCurr = nodes[i];
@@ -664,17 +849,22 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       let diff = a2 - a1;
       while (diff < -Math.PI) diff += Math.PI * 2;
       while (diff > Math.PI) diff -= Math.PI * 2;
-      let startAngle = a1;
-      let endAngle = a2;
-      if (diff < 0) {
-        startAngle = a2;
-        endAngle = a1;
-      }
+      const startAngle = diff < 0 ? a2 : a1;
+      const endAngle = diff < 0 ? a1 : a2;
       const midAngle = startAngle + (endAngle - startAngle) / 2;
       const lx = pCurr.x + Math.cos(midAngle) * 39;
       const ly = pCurr.y + Math.sin(midAngle) * 39;
 
-      if (Math.hypot(lx - x, ly - y) <= 20) {
+      const badgeScreenX = lx * zoom + panOffset.x;
+      const badgeScreenY = ly * zoom + panOffset.y;
+      const distBadge = Math.hypot(badgeScreenX - screenX, badgeScreenY - screenY);
+
+      const vertexScreenX = pCurr.x * zoom + panOffset.x;
+      const vertexScreenY = pCurr.y * zoom + panOffset.y;
+      const distVertex = Math.hypot(vertexScreenX - screenX, vertexScreenY - screenY);
+      const isNearArc = distVertex >= 12 * zoom && distVertex <= 36 * zoom;
+
+      if (distBadge <= 26 || isNearArc) {
         const angleDeg = Math.round((Math.abs(diff) * 180) / Math.PI);
         setEditingAngleIndex(i);
         setEditingAngleValue(angleCustoms[i]?.overrideText || `${angleDeg}°`);
@@ -682,15 +872,46 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       }
     }
 
-    // 3. Sprawdź czy kliknięto na etykietę wymiaru (np. A, B, C), aby ją edytować
+    // 3. Sprawdź czy kliknięto na etykietę wymiaru, linię wymiarową lub odcinek
     for (let i = 0; i < nodes.length - 1; i++) {
       const p1 = nodes[i];
       const p2 = nodes[i + 1];
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
-      if (Math.hypot(midX - x, midY - y) <= 32) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const pxLen = Math.hypot(dx, dy);
+      if (pxLen < 1) continue;
+
+      const ux = dx / pxLen;
+      const uy = dy / pxLen;
+      const nx = -uy;
+      const ny = ux;
+
+      const offset = 34; // Odstęp linii wymiarowej
+      const dimP1 = { x: p1.x + nx * offset, y: p1.y + ny * offset };
+      const dimP2 = { x: p2.x + nx * offset, y: p2.y + ny * offset };
+      const dimMidX = (dimP1.x + dimP2.x) / 2;
+      const dimMidY = (dimP1.y + dimP2.y) / 2;
+      const segMidX = (p1.x + p2.x) / 2;
+      const segMidY = (p1.y + p2.y) / 2;
+
+      // Badżet wymiaru A [ 70 mm ] w przestrzeni ekranu
+      const dimScreenX = dimMidX * zoom + panOffset.x;
+      const dimScreenY = dimMidY * zoom + panOffset.y;
+      const hitDimBadge = Math.hypot(dimScreenX - screenX, dimScreenY - screenY) <= 30;
+
+      // Linia pomocnicza / wymiarowa
+      const hitDimLine = distToSegment(x, y, dimP1.x, dimP1.y, dimP2.x, dimP2.y) <= 14 / zoom;
+
+      // Środek odcinka w przestrzeni ekranu
+      const segMidScreenX = segMidX * zoom + panOffset.x;
+      const segMidScreenY = segMidY * zoom + panOffset.y;
+      const hitSegMid = Math.hypot(segMidScreenX - screenX, segMidScreenY - screenY) <= 24;
+
+      // Odcinek profilu w trybie wyboru
+      const hitSegLine = mode === "profile_select" && distToSegment(x, y, p1.x, p1.y, p2.x, p2.y) <= 12 / zoom;
+
+      if (hitDimBadge || hitDimLine || hitSegMid || hitSegLine) {
         const custom = segmentCustoms[i] || {};
-        const pxLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         const currentMm = custom.lengthMm !== undefined ? custom.lengthMm : Math.round(pxLen * scaleFactor);
 
         setEditingSegmentIndex(i);
@@ -725,10 +946,79 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    const worldX = (screenX - panOffset.x) / zoom;
+    const worldY = (screenY - panOffset.y) / zoom;
 
-    setMousePos({ x, y });
+    setMousePos({ x: worldX, y: worldY });
+
+    // Przesuwanie widoku (Pan)
+    if (isPanning) {
+      setPanOffset({
+        x: panStartOffset.x + (e.clientX - panStartPos.x),
+        y: panStartOffset.y + (e.clientY - panStartPos.y),
+      });
+      return;
+    }
+
+    if (isSpacePressed) {
+      canvas.style.cursor = isPanning ? "grabbing" : "grab";
+      return;
+    }
+
+    // Sprawdź czy kursor unosi się nad interaktywnym wymiarem lub kątem dla wizualnego wskaźnika
+    let isHoveringInteractive = false;
+    for (let i = 1; i < nodes.length - 1; i++) {
+      const pPrev = nodes[i - 1];
+      const pCurr = nodes[i];
+      const pNext = nodes[i + 1];
+      const a1 = Math.atan2(pPrev.y - pCurr.y, pPrev.x - pCurr.x);
+      const a2 = Math.atan2(pNext.y - pCurr.y, pNext.x - pCurr.x);
+      let diff = a2 - a1;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      const startAngle = diff < 0 ? a2 : a1;
+      const endAngle = diff < 0 ? a1 : a2;
+      const midAngle = startAngle + (endAngle - startAngle) / 2;
+      const lx = pCurr.x + Math.cos(midAngle) * 39;
+      const ly = pCurr.y + Math.sin(midAngle) * 39;
+      const badgeScreenX = lx * zoom + panOffset.x;
+      const badgeScreenY = ly * zoom + panOffset.y;
+      if (Math.hypot(badgeScreenX - screenX, badgeScreenY - screenY) <= 24) {
+        isHoveringInteractive = true;
+        break;
+      }
+    }
+    if (!isHoveringInteractive) {
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const p1 = nodes[i];
+        const p2 = nodes[i + 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const pxLen = Math.hypot(dx, dy);
+        if (pxLen < 1) continue;
+        const nx = -dy / pxLen;
+        const ny = dx / pxLen;
+        const dimMidX = (p1.x + p2.x) / 2 + nx * 34;
+        const dimMidY = (p1.y + p2.y) / 2 + ny * 34;
+        const dimScreenX = dimMidX * zoom + panOffset.x;
+        const dimScreenY = dimMidY * zoom + panOffset.y;
+        if (Math.hypot(dimScreenX - screenX, dimScreenY - screenY) <= 28) {
+          isHoveringInteractive = true;
+          break;
+        }
+      }
+    }
+    canvas.style.cursor = isHoveringInteractive
+      ? "pointer"
+      : mode === "profile_add"
+      ? "crosshair"
+      : mode === "profile_select"
+      ? "grab"
+      : mode === "profile_color"
+      ? "cell"
+      : "crosshair";
 
     if (mode === "freehand" && isDraggingNode) {
       const fhCtx = freehandCanvasRef.current?.getContext("2d");
@@ -736,7 +1026,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
         fhCtx.strokeStyle = freehandColor;
         fhCtx.lineWidth = lineWidth;
         fhCtx.lineCap = "round";
-        fhCtx.lineTo(x, y);
+        fhCtx.lineTo(worldX, worldY);
         fhCtx.stroke();
         renderCanvas();
       }
@@ -748,7 +1038,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
       setNodes((prevNodes) =>
         prevNodes.map((n) => {
           if (n.id !== activeNodeId) return n;
-          let target = { x, y };
+          let target = { x: worldX, y: worldY };
           if (isShiftPressed) {
             const idx = prevNodes.findIndex((pn) => pn.id === activeNodeId);
             if (idx > 0) {
@@ -763,6 +1053,9 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
 
   // MYSZKA: ZWOLNIENIE (MOUSEUP)
   const handleMouseUp = () => {
+    if (isPanning) {
+      setIsPanning(false);
+    }
     if (isDraggingNode) {
       setIsDraggingNode(false);
       pushHistory(nodes);
@@ -812,6 +1105,9 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
         const file = new File([blob], `szkic-profilu-${Date.now()}.webp`, {
           type: "image/webp",
         });
+        if (isFullscreen) {
+          setIsFullscreen(false);
+        }
         onApply(file);
       },
       "image/webp",
@@ -832,36 +1128,136 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
     link.click();
   };
 
-  // ZAPIS EDYCJI ETYKIETY I WYMIARU MM Z MODALA
+  // ZAPIS EDYCJI ETYKIETY I WYMIARU MM Z MODALA (Z AKTUALIZACJĄ GEOMETRII SZKICU)
   const saveSegmentEdit = () => {
     if (editingSegmentIndex !== null) {
-      const parsedMm = parseFloat(editingLengthMmValue.replace(",", "."));
-      const updated = {
+      const idx = editingSegmentIndex;
+      const numMatch = editingLengthMmValue.replace(",", ".").match(/[\d.]+/);
+      const parsedMm = numMatch ? parseFloat(numMatch[0]) : NaN;
+
+      const updatedCustoms = {
         ...segmentCustoms,
-        [editingSegmentIndex]: {
-          ...segmentCustoms[editingSegmentIndex],
-          label: editingLabelValue.trim(),
-          lengthMm: !isNaN(parsedMm) && parsedMm >= 0 ? parsedMm : undefined,
+        [idx]: {
+          ...segmentCustoms[idx],
+          label: editingLabelValue.trim() || DEFAULT_LABELS[idx] || `L${idx + 1}`,
+          lengthMm: !isNaN(parsedMm) && parsedMm > 0 ? parsedMm : undefined,
         },
       };
-      setSegmentCustoms(updated);
-      pushHistory(nodes, updated);
+
+      let newNodes = [...nodes];
+      if (!isNaN(parsedMm) && parsedMm > 0 && idx < nodes.length - 1) {
+        const p1 = nodes[idx];
+        const p2 = nodes[idx + 1];
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const currentPx = Math.hypot(dx, dy);
+
+        if (currentPx > 0.001) {
+          const targetPx = parsedMm / (scaleFactor || 1);
+          const ux = dx / currentPx;
+          const uy = dy / currentPx;
+
+          const newP2X = p1.x + ux * targetPx;
+          const newP2Y = p1.y + uy * targetPx;
+
+          const deltaX = newP2X - p2.x;
+          const deltaY = newP2Y - p2.y;
+
+          // Przesuń wierzchołek i+1 oraz wszystkie kolejne wierzchołki, aby zachować ciągłość
+          newNodes = newNodes.map((node, nodeIdx) => {
+            if (nodeIdx <= idx) return node;
+            return {
+              ...node,
+              x: Math.round((node.x + deltaX) * 10) / 10,
+              y: Math.round((node.y + deltaY) * 10) / 10,
+            };
+          });
+        }
+      }
+
+      setNodes(newNodes);
+      setSegmentCustoms(updatedCustoms);
+      pushHistory(newNodes, updatedCustoms, angleCustoms);
       setEditingSegmentIndex(null);
     }
   };
 
-  // ZAPIS EDYCJI KĄTA GIĘCIA
+  // ZAPIS EDYCJI KĄTA GIĘCIA (Z FIZYCZNYM OBRÓTEM GEOMETRII PROFILU)
   const saveAngleEdit = () => {
     if (editingAngleIndex !== null) {
-      const updated = {
+      const idx = editingAngleIndex;
+      const numMatch = editingAngleValue.replace(",", ".").match(/[\d.]+/);
+      const parsedAngle = numMatch ? parseFloat(numMatch[0]) : NaN;
+
+      const targetText = editingAngleValue.trim().endsWith("°")
+        ? editingAngleValue.trim()
+        : !isNaN(parsedAngle)
+        ? `${Math.round(parsedAngle)}°`
+        : editingAngleValue.trim();
+
+      const updatedAngles = {
         ...angleCustoms,
-        [editingAngleIndex]: {
-          ...angleCustoms[editingAngleIndex],
-          overrideText: editingAngleValue.trim(),
+        [idx]: {
+          ...angleCustoms[idx],
+          overrideText: targetText,
         },
       };
-      setAngleCustoms(updated);
-      pushHistory(nodes, segmentCustoms, updated);
+
+      let newNodes = [...nodes];
+      if (
+        !isNaN(parsedAngle) &&
+        parsedAngle > 0 &&
+        parsedAngle < 360 &&
+        idx > 0 &&
+        idx < nodes.length - 1
+      ) {
+        const pPrev = nodes[idx - 1];
+        const pCurr = nodes[idx];
+        const pNext = nodes[idx + 1];
+
+        const v1 = { x: pPrev.x - pCurr.x, y: pPrev.y - pCurr.y };
+        const v2 = { x: pNext.x - pCurr.x, y: pNext.y - pCurr.y };
+
+        const len1 = Math.hypot(v1.x, v1.y);
+        const len2 = Math.hypot(v2.x, v2.y);
+
+        if (len1 > 0.001 && len2 > 0.001) {
+          const a1 = Math.atan2(v1.y, v1.x);
+          const a2 = Math.atan2(v2.y, v2.x);
+
+          let currentDiff = a2 - a1;
+          while (currentDiff < -Math.PI) currentDiff += Math.PI * 2;
+          while (currentDiff > Math.PI) currentDiff -= Math.PI * 2;
+
+          const currentSign = currentDiff >= 0 ? 1 : -1;
+          const targetRad = (parsedAngle * Math.PI) / 180;
+          const targetDiff = currentSign * targetRad;
+
+          const targetA2 = a1 + targetDiff;
+          let deltaTheta = targetA2 - a2;
+          while (deltaTheta < -Math.PI) deltaTheta += Math.PI * 2;
+          while (deltaTheta > Math.PI) deltaTheta -= Math.PI * 2;
+
+          const cosTheta = Math.cos(deltaTheta);
+          const sinTheta = Math.sin(deltaTheta);
+
+          // Obróć wszystkie kolejne wierzchołki wokół pCurr
+          newNodes = newNodes.map((node, nodeIdx) => {
+            if (nodeIdx <= idx) return node;
+            const rx = node.x - pCurr.x;
+            const ry = node.y - pCurr.y;
+            return {
+              ...node,
+              x: Math.round((pCurr.x + rx * cosTheta - ry * sinTheta) * 10) / 10,
+              y: Math.round((pCurr.y + rx * sinTheta + ry * cosTheta) * 10) / 10,
+            };
+          });
+        }
+      }
+
+      setNodes(newNodes);
+      setAngleCustoms(updatedAngles);
+      pushHistory(newNodes, segmentCustoms, updatedAngles);
       setEditingAngleIndex(null);
     }
   };
@@ -888,7 +1284,30 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, height: "100%" }}>
+    <div
+      style={
+        isFullscreen
+          ? {
+              position: "fixed",
+              inset: 0,
+              zIndex: 99990,
+              background: "#0d1117",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              width: "100vw",
+              height: "100vh",
+              boxSizing: "border-box",
+            }
+          : {
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              height: "100%",
+            }
+      }
+    >
       {/* PASEK NARZĘDZI (TOOLBAR) */}
       <div
         style={{
@@ -1041,6 +1460,115 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
           <Eye size={14} /> Legenda
         </button>
 
+        {/* WYŚRODKUJ RYSUNEK */}
+        <button
+          type="button"
+          onClick={centerDrawing}
+          disabled={nodes.length === 0}
+          style={{
+            ...btnStyle(false),
+            opacity: nodes.length === 0 ? 0.4 : 1,
+            cursor: nodes.length === 0 ? "not-allowed" : "pointer",
+          }}
+          title="Wyśrodkuj rysunek i dopasuj widok"
+        >
+          <Focus size={14} /> Wyśrodkuj
+        </button>
+
+        {/* KONTROLKI ZOOM CAD */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            background: "#21262d",
+            border: "1px solid #30363d",
+            borderRadius: 6,
+            padding: "2px 6px",
+          }}
+          title="Scrolluj kółkiem myszy (lub przytrzymaj Ctrl/Cmd/Alt) aby powiększać i pomniejszać"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const canvas = canvasRef.current;
+              const sx = canvas ? canvas.width / 2 : 0;
+              const sy = canvas ? canvas.height / 2 : 0;
+              const wx = (sx - panOffset.x) / zoom;
+              const wy = (sy - panOffset.y) / zoom;
+              const newZoom = Math.max(0.2, Math.round((zoom - 0.2) * 10) / 10);
+              setZoom(newZoom);
+              setPanOffset({ x: Math.round(sx - wx * newZoom), y: Math.round(sy - wy * newZoom) });
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#c9d1d9",
+              cursor: "pointer",
+              padding: "2px 4px",
+              display: "flex",
+              alignItems: "center",
+            }}
+            title="Oddal (Zoom -)"
+          >
+            <ZoomOut size={13} />
+          </button>
+          <span
+            onClick={() => {
+              setZoom(1.0);
+              setPanOffset({ x: 0, y: 0 });
+            }}
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: "#58a6ff",
+              minWidth: 38,
+              textAlign: "center",
+              cursor: "pointer",
+              userSelect: "none",
+            }}
+            title="Kliknij, aby zresetować zoom do 100%"
+          >
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const canvas = canvasRef.current;
+              const sx = canvas ? canvas.width / 2 : 0;
+              const sy = canvas ? canvas.height / 2 : 0;
+              const wx = (sx - panOffset.x) / zoom;
+              const wy = (sy - panOffset.y) / zoom;
+              const newZoom = Math.min(5.0, Math.round((zoom + 0.2) * 10) / 10);
+              setZoom(newZoom);
+              setPanOffset({ x: Math.round(sx - wx * newZoom), y: Math.round(sy - wy * newZoom) });
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#c9d1d9",
+              cursor: "pointer",
+              padding: "2px 4px",
+              display: "flex",
+              alignItems: "center",
+            }}
+            title="Przybliż (Zoom +)"
+          >
+            <ZoomIn size={13} />
+          </button>
+        </div>
+
+        {/* PEŁNY EKRAN */}
+        <button
+          type="button"
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          style={btnStyle(isFullscreen, "green")}
+          title={isFullscreen ? "Zmniejsz widok (Wyjdź z pełnego ekranu)" : "Tryb pełnoekranowy (Fullscreen)"}
+        >
+          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          {isFullscreen ? "Zmniejsz" : "Pełny ekran"}
+        </button>
+
         {activeNodeId && (
           <button
             type="button"
@@ -1085,13 +1613,124 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
         </div>
       </div>
 
+      {/* PASEK SZYBKIEJ EDYCJI WYMIARÓW I KĄTÓW */}
+      {nodes.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            overflowX: "auto",
+            padding: "8px 12px",
+            background: "#161b22",
+            borderRadius: 8,
+            border: "1px solid #30363d",
+            fontSize: 12,
+            scrollbarWidth: "thin",
+          }}
+        >
+          <span style={{ color: "#8b949e", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
+            📐 Wymiary (kliknij aby edytować):
+          </span>
+          {nodes.slice(0, -1).map((_, i) => {
+            const p1 = nodes[i];
+            const p2 = nodes[i + 1];
+            const pxLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            const custom = segmentCustoms[i] || {};
+            const valMm = custom.lengthMm !== undefined ? custom.lengthMm : Math.round(pxLen * scaleFactor);
+            const label = custom.label || DEFAULT_LABELS[i] || `L${i + 1}`;
+
+            return (
+              <button
+                key={`chip-seg-${i}`}
+                type="button"
+                onClick={() => {
+                  setEditingSegmentIndex(i);
+                  setEditingLabelValue(label);
+                  setEditingLengthMmValue(valMm.toString());
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  background: "#21262d",
+                  border: "1px solid #30363d",
+                  color: "#58a6ff",
+                  padding: "4px 10px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 11,
+                  whiteSpace: "nowrap",
+                }}
+                title={`Kliknij, aby edytować wymiar odcinka ${label}`}
+              >
+                <span>{label}: <b>{valMm} mm</b></span>
+                <Type size={11} style={{ opacity: 0.7 }} />
+              </button>
+            );
+          })}
+
+          {nodes.length > 2 && (
+            <>
+              <span style={{ borderLeft: "1px solid #30363d", height: 18, margin: "0 4px" }} />
+              <span style={{ color: "#8b949e", fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>
+                📐 Kąty:
+              </span>
+              {nodes.slice(1, -1).map((_, idx) => {
+                const i = idx + 1;
+                const pPrev = nodes[i - 1];
+                const pCurr = nodes[i];
+                const pNext = nodes[i + 1];
+                const a1 = Math.atan2(pPrev.y - pCurr.y, pPrev.x - pCurr.x);
+                const a2 = Math.atan2(pNext.y - pCurr.y, pNext.x - pCurr.x);
+                let diff = a2 - a1;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                const angleDeg = Math.round((Math.abs(diff) * 180) / Math.PI);
+                const text = angleCustoms[i]?.overrideText || `${angleDeg}°`;
+
+                return (
+                  <button
+                    key={`chip-ang-${i}`}
+                    type="button"
+                    onClick={() => {
+                      setEditingAngleIndex(i);
+                      setEditingAngleValue(text);
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      background: "#21262d",
+                      border: "1px solid #30363d",
+                      color: "#a5d6ff",
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      fontSize: 11,
+                      whiteSpace: "nowrap",
+                    }}
+                    title={`Kliknij, aby edytować kąt gięcia w punkcie ${i + 1}`}
+                  >
+                    <span>∡ P{i + 1}: <b>{text}</b></span>
+                    <CornerDownRight size={11} style={{ opacity: 0.7 }} />
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
+
       {/* KONTENER CANVAS */}
       <div
         ref={containerRef}
         style={{
           width: "100%",
           flex: 1,
-          minHeight: 450,
+          minHeight: isFullscreen ? 500 : 450,
           position: "relative",
           background: "#0d1117",
           border: "2px dashed #30363d",
@@ -1109,7 +1748,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
               mode === "profile_add"
                 ? "crosshair"
                 : mode === "profile_select"
-                ? "pointer"
+                ? "grab"
                 : mode === "profile_color"
                 ? "cell"
                 : "crosshair",
@@ -1121,6 +1760,35 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
           onMouseUp={handleMouseUp}
           onDoubleClick={handleDoubleClick}
         />
+
+        {/* Podpowiedź dla użytkownika, gdy scrolluje bez klawisza Ctrl */}
+        {showCtrlZoomHint && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              background: "rgba(15, 23, 42, 0.9)",
+              backdropFilter: "blur(6px)",
+              color: "#ffffff",
+              padding: "10px 20px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              pointerEvents: "none",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.6)",
+              zIndex: 30,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              border: "1px solid rgba(255,255,255,0.18)",
+            }}
+          >
+            <ZoomIn size={16} style={{ color: "#60a5fa" }} />
+            <span>Przytrzymaj <b>Ctrl</b> i scrolluj, aby powiększyć / pomniejszyć</span>
+          </div>
+        )}
       </div>
 
       {/* MODAL EDYCJI NAZWY I WYMIARU W MM */}
@@ -1133,7 +1801,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 9999,
+            zIndex: 99999,
           }}
         >
           <div
@@ -1157,9 +1825,13 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
               <label style={{ fontSize: 12, color: "#8b949e", fontWeight: 600 }}>Etykieta litery (np. A, B, C):</label>
               <input
                 type="text"
-                autoFocus
                 value={editingLabelValue}
                 onChange={(e) => setEditingLabelValue(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveSegmentEdit();
+                  if (e.key === "Escape") setEditingSegmentIndex(null);
+                }}
                 style={{
                   background: "#0d1117",
                   border: "1px solid #30363d",
@@ -1176,8 +1848,10 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
               <label style={{ fontSize: 12, color: "#8b949e", fontWeight: 600 }}>Długość w milimetrach (mm):</label>
               <input
                 type="text"
+                autoFocus
                 value={editingLengthMmValue}
                 onChange={(e) => setEditingLengthMmValue(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 placeholder="np. 70 lub 1.5"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") saveSegmentEdit();
@@ -1243,7 +1917,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 9999,
+            zIndex: 99999,
           }}
         >
           <div
@@ -1270,6 +1944,7 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
                 autoFocus
                 value={editingAngleValue}
                 onChange={(e) => setEditingAngleValue(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") saveAngleEdit();
                   if (e.key === "Escape") setEditingAngleIndex(null);
@@ -1326,30 +2001,56 @@ export function PaintEditor({ onApply }: PaintEditorProps) {
 
       {/* STOPKA I INSTRUKCJA */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
-        <div style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ fontSize: 11, color: "#8b949e", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span>💡 <b>Shift</b>: Blokowanie kątów (0°, 45°, 90°).</span>
-          <span>🖱️ <b>Kliknij na etykietę wymiaru lub kąt</b>: Zmień wartość (mm / °).</span>
+          <span>🔍 <b>Kółko myszy / Ctrl+Scroll</b>: Zoom widoku.</span>
+          <span>✋ <b>Spacja / Śr. przycisk</b>: Przesuwanie widoku (Pan).</span>
+          <span>🖱️ <b>Kliknij wymiar lub kąt</b>: Edycja wartości.</span>
+          {isFullscreen && <span style={{ color: "#38bdf8" }}>🖥️ <b>Tryb Pełnoekranowy (Esc - wyjdź)</b></span>}
         </div>
-        <button
-          type="button"
-          onClick={handleApplyDrawing}
-          style={{
-            background: "#238636",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 6,
-            color: "#ffffff",
-            fontSize: 13,
-            fontWeight: 700,
-            padding: "8px 24px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            boxShadow: "0 2px 8px rgba(35, 134, 54, 0.2)",
-          }}
-        >
-          <Check size={16} /> Zatwierdź Szkic
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {isFullscreen && (
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              style={{
+                background: "#21262d",
+                border: "1px solid #30363d",
+                borderRadius: 6,
+                color: "#c9d1d9",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "8px 16px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Minimize2 size={15} /> Zmniejsz
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleApplyDrawing}
+            style={{
+              background: "#238636",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: 6,
+              color: "#ffffff",
+              fontSize: 13,
+              fontWeight: 700,
+              padding: "8px 24px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 8px rgba(35, 134, 54, 0.2)",
+            }}
+          >
+            <Check size={16} /> Zatwierdź Szkic
+          </button>
+        </div>
       </div>
     </div>
   );

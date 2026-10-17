@@ -19,7 +19,7 @@ set -euo pipefail
 # fi
 # echo ""
 
-PORT=3000
+PORT=${1:-${PORT:-3000}}
 
 # Kill anything on port 3000
 PIDS=$(lsof -ti tcp:$PORT 2>/dev/null || true)

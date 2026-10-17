@@ -1353,6 +1353,107 @@
   font-size: 13px;
 }
 
+/* === Grouped quote list === */
+.quote-list-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.quote-list-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 980px;
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.025);
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease;
+  text-align: left;
+}
+
+.quote-list-group:first-child .quote-list-group-header {
+  border-top: none;
+}
+
+.quote-list-group-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.quote-list-group-header:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -2px;
+}
+
+.quote-list-group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quote-list-group-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  transition: transform 160ms ease;
+}
+
+.quote-list-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.quote-list-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.quote-list-group-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quote-list-group-total-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.quote-list-group-total-val {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+}
+
+.quote-list-group-empty {
+  min-width: 980px;
+  padding: 14px 18px 14px 44px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
 @media (max-width: 1100px) {
   .quote-list {
     overflow-x: auto;

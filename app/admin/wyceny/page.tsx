@@ -50,11 +50,15 @@ type WycenyViewMode = "kanban" | "lista";
 function WycenyRibbon({
   view,
   onViewChange,
+  groupByStatus,
+  onToggleGroupByStatus,
   onNewQuote,
   onArchive,
 }: {
   view: WycenyViewMode;
   onViewChange: (v: WycenyViewMode) => void;
+  groupByStatus?: boolean;
+  onToggleGroupByStatus?: () => void;
   onNewQuote: () => void;
   onArchive: () => void;
 }) {
@@ -82,12 +86,26 @@ function WycenyRibbon({
             { value: "lista", label: "Lista" },
           ]}
         />
+        {view === "lista" && onToggleGroupByStatus && (
+          <RibbonBtn
+            icon={<I.layers s={22} />}
+            label={groupByStatus ? "Rozgrupuj" : "Grupuj wg statusu"}
+            active={groupByStatus}
+            onClick={onToggleGroupByStatus}
+          />
+        )}
       </RibbonGroup>
     </div>
   );
 }
 
-function WycenyView({ view }: { view: WycenyViewMode }) {
+function WycenyView({
+  view,
+  groupByStatus = true,
+}: {
+  view: WycenyViewMode;
+  groupByStatus?: boolean;
+}) {
   const convexQuotes = useQuery(api.quotes.list) ?? [];
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const setStatusMutation = useMutation(api.quotes.setStatus);
@@ -102,10 +120,27 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
   const typeNames = useMemo(() => projectTypes.map((t) => t.name), [projectTypes]);
   const counts = useMemo(() => computeProjectTypeCounts(localQuotes, typeNames), [localQuotes, typeNames]);
 
+  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
+  const currentUserId = allUsersRaw.find((u: any) => u.isCurrentUser)?._id;
+  const allUsers = useMemo(() => {
+    return [...allUsersRaw].sort((a, b) => {
+      if (a.isCurrentUser) return -1;
+      if (b.isCurrentUser) return 1;
+      return (a.name || a.email || "").localeCompare(b.name || b.email || "");
+    });
+  }, [allUsersRaw]);
+
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
   const filteredQuotes = useMemo(() => {
     if (filter === "Wszystkie") return localQuotes;
     return localQuotes.filter((q) => q.projectType.includes(filter));
   }, [localQuotes, filter]);
+
+  const finalFilteredQuotes = useMemo(() => {
+    if (selectedUserIds.length === 0) return filteredQuotes;
+    return filteredQuotes.filter((q) => q.ownerId && selectedUserIds.includes(q.ownerId));
+  }, [filteredQuotes, selectedUserIds]);
 
   function handleStatusChange(id: Id<"quotes">, status: QuoteStatus) {
     void setStatusMutation({ id, status });
@@ -114,17 +149,33 @@ function WycenyView({ view }: { view: WycenyViewMode }) {
   return (
     <OwnerNamesProvider quotes={localQuotes}>
       <ProjectTypeFilterStrip allTypes={projectTypes} value={filter} counts={counts} onChange={setFilter} />
+      <UserFilterBar
+        users={allUsers as { _id: string; name: string | null; email: string | null }[]}
+        selectedUserIds={selectedUserIds}
+        currentUserId={currentUserId as string | undefined}
+        onToggle={(id) => {
+          setSelectedUserIds((prev) => {
+            if (prev.includes(id)) {
+              return prev.filter((pid) => pid !== id);
+            } else {
+              return [...prev, id];
+            }
+          });
+        }}
+        label="Filtruj przypisane wyceny"
+        variant="chip"
+      />
       {view === "kanban" ? (
         <WycenyKanbanBoard
           quotes={localQuotes}
           setQuotes={setLocalQuotes}
-          filteredQuotes={filteredQuotes}
+          filteredQuotes={finalFilteredQuotes}
           onStatusChange={handleStatusChange}
           onDragStart={() => { isDraggingRef.current = true; }}
           onDragEnd={() => { isDraggingRef.current = false; }}
         />
       ) : (
-        <QuoteListView quotes={filteredQuotes} />
+        <QuoteListView quotes={finalFilteredQuotes} groupByStatus={groupByStatus} />
       )}
     </OwnerNamesProvider>
   );
@@ -149,23 +200,6 @@ function WycenyKanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const originalStatusRef = useRef<QuoteStatus | null>(null);
 
-  const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
-  const currentUserId = allUsersRaw.find((u: any) => u.isCurrentUser)?._id;
-  const allUsers = useMemo(() => {
-    return [...allUsersRaw].sort((a, b) => {
-      if (a.isCurrentUser) return -1;
-      if (b.isCurrentUser) return 1;
-      return (a.name || a.email || "").localeCompare(b.name || b.email || "");
-    });
-  }, [allUsersRaw]);
-
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
-
-  const finalFilteredQuotes = useMemo(() => {
-    if (selectedUserIds.length === 0) return filteredQuotes;
-    return filteredQuotes.filter((q) => q.ownerId && selectedUserIds.includes(q.ownerId));
-  }, [filteredQuotes, selectedUserIds]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -177,9 +211,9 @@ function WycenyKanbanBoard({
       "Pomiary i uzgodnienia": [],
       Zrobione: [],
     };
-    finalFilteredQuotes.forEach((q) => map[q.status].push(q));
+    filteredQuotes.forEach((q) => map[q.status].push(q));
     return map;
-  }, [finalFilteredQuotes]);
+  }, [filteredQuotes]);
 
   const activeQuote = activeId ? quotes.find((q) => q.id === activeId) ?? null : null;
 
@@ -273,22 +307,6 @@ function WycenyKanbanBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={() => { setActiveId(null); onDragEnd(); originalStatusRef.current = null; }}
     >
-      <UserFilterBar
-        users={allUsers as { _id: string; name: string | null; email: string | null }[]}
-        selectedUserIds={selectedUserIds}
-        currentUserId={currentUserId as string | undefined}
-        onToggle={(id, isMe) => {
-          setSelectedUserIds((prev) => {
-            if (prev.includes(id)) {
-              return prev.filter((pid) => pid !== id);
-            } else {
-              return [...prev, id];
-            }
-          });
-        }}
-        label="Filtruj przypisane wyceny"
-        variant="chip"
-      />
       <div className="kanban-board">
         {QUOTE_STATUSES.map((status) => (
           <KanbanColumn
@@ -493,17 +511,20 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
 export default function WycenyPage() {
   const router = useRouter();
   const [wycenyView, setWycenyView] = useState<WycenyViewMode>("kanban");
+  const [groupByStatus, setGroupByStatus] = useState<boolean>(true);
 
   return (
     <>
       <WycenyRibbon
         view={wycenyView}
         onViewChange={setWycenyView}
+        groupByStatus={groupByStatus}
+        onToggleGroupByStatus={() => setGroupByStatus((prev) => !prev)}
         onNewQuote={() => router.push("/admin/wyceny/nowa")}
         onArchive={() => router.push("/admin/archiwum")}
       />
       <main className="fluent-content">
-        <WycenyView view={wycenyView} />
+        <WycenyView view={wycenyView} groupByStatus={groupByStatus} />
       </main>
     </>
   );
