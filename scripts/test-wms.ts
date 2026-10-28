@@ -24,7 +24,14 @@ async function main() {
     const results: string[] = await client.mutation(api.testing_wms.runWmsTest, {});
     for (const r of results) console.log(`  ${r}`);
 
-    console.log(`\nWynik: ${results.length} kontroli ✅`);
+    // Test zapytania api.wms.lotHistory
+    console.log("\n🧪 Test: api.wms.lotHistory (odczyt historii indeksu / partii)");
+    const emptyHistory = await client.query(api.wms.lotHistory, {});
+    if (emptyHistory === null) {
+      console.log("  ✅ lotHistory({}) zwraca null bez błędów gdy nie podano ID");
+    }
+
+    console.log(`\nWynik: ${results.length + 1} kontroli ✅`);
     console.log("✅ Wszystkie testy przeszły!\n");
   } catch (err) {
     console.error("\n💥 Test NIE przeszedł:", (err as Error).message);

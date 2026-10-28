@@ -1138,21 +1138,48 @@ export const listLots = query({
 });
 
 export const lotHistory = query({
-  args: { lotId: v.id("wms_lots") },
-  handler: async (ctx, { lotId }) => {
+  args: {
+    lotId: v.optional(v.id("wms_lots")),
+    materialId: v.optional(v.id("materials")),
+  },
+  handler: async (ctx, args) => {
     if (!(await getAuthUserId(ctx))) return null;
-    const lot = await ctx.db.get(lotId);
-    if (!lot) return null;
-    const [enriched] = await enrichLots(ctx, [lot]);
-    const [movements, locs] = await Promise.all([
-      ctx.db
-        .query("wms_movements")
-        .withIndex("by_lot", (q) => q.eq("lotId", lotId))
-        .collect(),
+
+    let targetMaterialId = args.materialId;
+    const targetLot = args.lotId ? await ctx.db.get(args.lotId) : null;
+    if (targetLot && !targetMaterialId) {
+      targetMaterialId = targetLot.materialId;
+    }
+
+    if (!targetMaterialId && !targetLot) return null;
+
+    // Pobierz wszystkie partie magazynowe tego indeksu materiałowego
+    const allLots = targetMaterialId
+      ? await ctx.db
+          .query("wms_lots")
+          .withIndex("by_material", (q) => q.eq("materialId", targetMaterialId!))
+          .collect()
+      : targetLot
+      ? [targetLot]
+      : [];
+
+    const enrichedLots = await enrichLots(ctx, allLots);
+
+    // Pobierz ruchy dla wszystkich partii tego indeksu
+    const [allMovements, locs] = await Promise.all([
+      Promise.all(
+        allLots.map((l) =>
+          ctx.db
+            .query("wms_movements")
+            .withIndex("by_lot", (q) => q.eq("lotId", l._id))
+            .collect(),
+        ),
+      ).then((res) => res.flat()),
       locationMap(ctx),
     ]);
+
     const rows = await Promise.all(
-      movements.map(async (m) => {
+      allMovements.map(async (m) => {
         const d = m.documentId ? await ctx.db.get(m.documentId) : null;
         const u = await ctx.db.get(m.operatorId);
 
@@ -1204,7 +1231,27 @@ export const lotHistory = query({
         };
       }),
     );
-    return { lot: enriched, movements: rows.sort((a, b) => a.createdAt - b.createdAt) };
+
+    // Suma ilości na stanie
+    const totalAvailable = allLots
+      .filter((l) => l.status === "AVAILABLE")
+      .reduce((s, l) => s + l.quantityPieces, 0);
+    const totalAll = allLots
+      .filter((l) => l.status !== "DEPLETED")
+      .reduce((s, l) => s + l.quantityPieces, 0);
+
+    const primaryLot =
+      (args.lotId ? enrichedLots.find((l) => l._id === args.lotId) : null) ??
+      enrichedLots[0] ??
+      null;
+
+    return {
+      lot: primaryLot,
+      lots: enrichedLots,
+      totalAvailablePieces: totalAvailable,
+      totalPieces: totalAll,
+      movements: rows.sort((a, b) => b.createdAt - a.createdAt),
+    };
   },
 });
 

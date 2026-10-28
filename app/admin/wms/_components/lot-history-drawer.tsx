@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -41,19 +41,19 @@ export interface SiblingLotDef {
 }
 
 interface LotHistoryDrawerProps {
-  lotId: Id<"wms_lots">;
+  materialId?: Id<"materials">;
+  lotId?: Id<"wms_lots">;
   onClose: () => void;
   siblingLots?: SiblingLotDef[];
 }
 
-export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDrawerProps) {
-  const [activeLotId, setActiveLotId] = useState<Id<"wms_lots">>(lotId);
+export function LotHistoryDrawer({ materialId, lotId, onClose }: LotHistoryDrawerProps) {
+  const [activeLotFilter, setActiveLotFilter] = useState<Id<"wms_lots"> | "ALL">("ALL");
 
-  useEffect(() => {
-    setActiveLotId(lotId);
-  }, [lotId]);
-
-  const data = useQuery(api.wms.lotHistory, { lotId: activeLotId });
+  const data = useQuery(api.wms.lotHistory, {
+    materialId,
+    lotId,
+  });
 
   // Zamknięcie po naciśnięciu Escape
   useEffect(() => {
@@ -74,7 +74,13 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
   }, []);
 
   const lot = data?.lot;
-  const movements = data?.movements ?? [];
+  const allLots = data?.lots ?? [];
+  const rawMovements = data?.movements ?? [];
+
+  const movements = useMemo(() => {
+    if (activeLotFilter === "ALL") return rawMovements;
+    return rawMovements.filter((m) => m.lotId === activeLotFilter);
+  }, [rawMovements, activeLotFilter]);
 
   return (
     <div
@@ -266,15 +272,15 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(2, 1fr)",
+                    gridTemplateColumns: allLots.length > 1 ? "repeat(3, 1fr)" : "repeat(2, 1fr)",
                     gap: 12,
                     fontSize: 13,
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: 11, color: "#8b949e" }}>Dostępna ilość</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: "#58a6ff", marginTop: 2 }}>
-                      {fmtNum(lot?.quantityPieces ?? 0)} {lot?.unit || "szt."}
+                    <div style={{ fontSize: 11, color: "#8b949e" }}>Łączna dostępna ilość</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: "#58a6ff", marginTop: 2 }}>
+                      {fmtNum(data?.totalAvailablePieces ?? lot?.quantityPieces ?? 0)} {lot?.unit || "szt."}
                     </div>
                     {Boolean(lot?.totalMb && lot.totalMb > 0) && (
                       <div style={{ fontSize: 11, color: "#8b949e" }}>{fmtMb(lot!.totalMb)}</div>
@@ -284,8 +290,17 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                     )}
                   </div>
 
+                  {allLots.length > 1 && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "#8b949e" }}>Partie w magazynie</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "#c9d1d9", marginTop: 4 }}>
+                        {allLots.length} {allLots.length === 1 ? "partia" : allLots.length < 5 ? "partie" : "partii"}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <div style={{ fontSize: 11, color: "#8b949e" }}>Status partii</div>
+                    <div style={{ fontSize: 11, color: "#8b949e" }}>Status</div>
                     <div style={{ marginTop: 4 }}>
                       <Badge status={lot?.status ?? "AVAILABLE"} />
                     </div>
@@ -365,16 +380,57 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    marginBottom: 12,
+                    marginBottom: 10,
                   }}
                 >
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#f0f6fc" }}>
-                    Dziennik zdarzeń i przesunięć ({movements.length})
+                    Dziennik zdarzeń i wydań ({movements.length})
                   </div>
                   <div style={{ fontSize: 11, color: "#8b949e" }}>
-                    Traceability od przyjęcia
+                    Traceability przyjęć i rozchodów
                   </div>
                 </div>
+
+                {/* Filtr partii jeśli jest ich więcej niż jedna */}
+                {allLots.length > 1 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveLotFilter("ALL")}
+                      style={{
+                        background: activeLotFilter === "ALL" ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.05)",
+                        color: activeLotFilter === "ALL" ? "#60a5fa" : "#8b949e",
+                        border: `1px solid ${activeLotFilter === "ALL" ? "#3b82f6" : "#30363d"}`,
+                        borderRadius: 4,
+                        padding: "4px 8px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Wszystkie operacje ({rawMovements.length})
+                    </button>
+                    {allLots.map((l, i) => (
+                      <button
+                        key={l._id}
+                        type="button"
+                        onClick={() => setActiveLotFilter(l._id)}
+                        style={{
+                          background: activeLotFilter === l._id ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.05)",
+                          color: activeLotFilter === l._id ? "#60a5fa" : "#8b949e",
+                          border: `1px solid ${activeLotFilter === l._id ? "#3b82f6" : "#30363d"}`,
+                          borderRadius: 4,
+                          padding: "4px 8px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Partia {i + 1} ({l.quantityPieces} {l.unit})
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {movements.length === 0 ? (
                   <div

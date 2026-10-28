@@ -79,15 +79,8 @@ export default function StanyPage() {
   const [includeDepleted, setIncludeDepleted] = useState(false);
   const [groupByIndex, setGroupByIndex] = useState(true);
   const [drawerLot, setDrawerLot] = useState<{
-    lotId: Id<"wms_lots">;
-    siblingLots?: Array<{
-      _id: Id<"wms_lots">;
-      locationCode: string;
-      zone?: string;
-      quantityPieces: number;
-      status: string;
-      unit?: string;
-    }>;
+    materialId?: Id<"materials">;
+    lotId?: Id<"wms_lots">;
   } | null>(null);
 
   const lots = useQuery(api.wms.listLots, {
@@ -287,12 +280,10 @@ export default function StanyPage() {
                 <Tr
                   key={row.key}
                   onClick={() => {
-                    if (row.lots.length > 0) {
-                      setDrawerLot({
-                        lotId: row.lots[0]._id,
-                        siblingLots: row.lots,
-                      });
-                    }
+                    setDrawerLot({
+                      materialId: row.materialId,
+                      lotId: row.lots[0]?._id,
+                    });
                   }}
                 >
                   {/* 1. Indeks towarowy */}
@@ -382,6 +373,7 @@ export default function StanyPage() {
                   key={l._id}
                   onClick={() => {
                     setDrawerLot({
+                      materialId: l.materialId,
                       lotId: l._id,
                     });
                   }}
@@ -422,8 +414,8 @@ export default function StanyPage() {
       {/* ─── WYSUWANY PANEL HISTORII RUCHÓW (TRACEABILITY) ───────────── */}
       {drawerLot && (
         <LotHistoryDrawer
+          materialId={drawerLot.materialId}
           lotId={drawerLot.lotId}
-          siblingLots={drawerLot.siblingLots}
           onClose={() => setDrawerLot(null)}
         />
       )}
