@@ -66,7 +66,6 @@ export function DocumentDetailView({
   const [lineThickness, setLineThickness] = useState("");
   const [lineWeight, setLineWeight] = useState("");
   const [lineCustomAttrs, setLineCustomAttrs] = useState<Record<string, string>>({});
-  const [lineKind, setLineKind] = useState<"BAR_BUNDLE" | "BAR" | "REMNANT">("BAR_BUNDLE");
   const [lineColor, setLineColor] = useState("");
   const [lineSurface, setLineSurface] = useState<"MILL" | "RAL" | "ANODA" | "BICOLOR">("RAL");
   const [lineHeat, setLineHeat] = useState("");
@@ -209,7 +208,7 @@ export function DocumentDetailView({
         thicknessMm: lineThickness ? parseFloat(lineThickness) : undefined,
         weightKg: lineWeight ? parseFloat(lineWeight) : undefined,
         customAttributes: Object.keys(lineCustomAttrs).length > 0 ? lineCustomAttrs : undefined,
-        kind: type === "PZ" ? lineKind : undefined,
+        kind: undefined,
         colorCode: lineColor.trim() || undefined,
         surfaceType: lineSurface,
         heatNumber: lineHeat.trim() || undefined,
@@ -390,17 +389,6 @@ export function DocumentDetailView({
                             </span>
                           </div>
                         </div>
-                      )}
-
-                      {/* Rodzaj jednostki (tylko dla kategorii PROFILE) */}
-                      {cat?.code === "PROFILE" && (
-                        <Field label="Typ jednostki">
-                          <select style={inputStyle} value={lineKind} onChange={(e) => setLineKind(e.target.value as "BAR_BUNDLE" | "BAR" | "REMNANT")}>
-                            <option value="BAR_BUNDLE">Wiązka / kosz</option>
-                            <option value="BAR">Pojedyncza sztanga / sztuka</option>
-                            <option value="REMNANT">Spad / końcówka</option>
-                          </select>
-                        </Field>
                       )}
 
                       <Field label={`Liczba (${defaultUnit}) *`}>
@@ -691,7 +679,6 @@ export function DocumentDetailView({
                   {line.colorCode ?? "—"}
                   {line.surfaceType && <div style={{ fontSize: 11, color: C.muted }}>{SURFACE_LABEL[line.surfaceType]}</div>}
                   {line.heatNumber && <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>Partia: {line.heatNumber}</div>}
-                  {line.ssccCode && <div style={{ fontSize: 10, fontFamily: "monospace" }}>SSCC: {line.ssccCode}</div>}
                 </Td>
                 <Td mono>
                   {line.fromCode ? `${line.fromCode} → ${line.toCode ?? "—"}` : (line.toCode ?? "—")}

@@ -13,20 +13,13 @@ export function LotHistory({ lotId }: { lotId: Id<"wms_lots"> }) {
   return (
     <div style={{ padding: "12px 16px", background: C.bg, borderTop: `1px solid ${C.border}` }}>
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 12, color: C.muted, marginBottom: 10 }}>
-        <span>Rodzaj / Obiekt: <b style={{ color: C.text }}>{lot.kind ? (KIND_LABEL[lot.kind] ?? lot.kind) : (lot.objectName ?? "—")}</b></span>
-        <span>Powierzchnia: <b style={{ color: C.text }}>{lot.surfaceType ? SURFACE_LABEL[lot.surfaceType] : "—"}</b></span>
-        <span>SSCC: <b style={{ color: C.text }}>{lot.ssccCode ?? "—"}</b></span>
-        <span>
-          Atest 3.1:{" "}
-          {lot.certificateUrl ? (
-            <a href={lot.certificateUrl} target="_blank" rel="noreferrer" style={{ color: C.accent }}>
-              {lot.certificateName ?? "pobierz"}
-            </a>
-          ) : (
-            <b style={{ color: C.text }}>brak</b>
-          )}
-        </span>
-        <span>Razem: <b style={{ color: C.text }}>{fmtNum(lot.quantityPieces)} szt. ({fmtMb(lot.totalMb)})</b></span>
+        {lot.surfaceType && (
+          <span>Powierzchnia: <b style={{ color: C.text }}>{SURFACE_LABEL[lot.surfaceType] ?? lot.surfaceType}</b></span>
+        )}
+        {lot.heatNumber && (
+          <span>Nr partii / wytopu: <b style={{ color: C.text }}>{lot.heatNumber}</b></span>
+        )}
+        <span>Razem: <b style={{ color: C.text }}>{fmtNum(lot.quantityPieces)} szt.{lot.totalMb > 0 ? ` (${fmtMb(lot.totalMb)})` : ""}</b></span>
       </div>
       <Table headers={["Data", "Ruch", "Zmiana", "Z", "Do", "Dokument", "Operator", "Uwagi"]}>
         {movements.map((m) => (

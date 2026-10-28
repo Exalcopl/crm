@@ -95,7 +95,7 @@ export default function StanyPage() {
         ) : rows.length === 0 ? (
           <Empty title="Brak partii" text="Przyjmij towar dokumentem PZ, aby pojawił się na stanie." />
         ) : (
-          <Table headers={["Indeks towarowy", "Grupa / System", "Wymiary / Parametry", "Cechy", "Partia / SSCC", "Ilość", "Masa", "Lokalizacja", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Wymiary / Parametry", "Cechy", "Partia / Wytop", "Ilość", "Masa", "Lokalizacja", "Status"]}>
             {rows.map((l) => (
               <Fragment key={l._id}>
                 <Tr onClick={() => setOpenId(openId === l._id ? null : l._id)}>
@@ -118,7 +118,6 @@ export default function StanyPage() {
                   </Td>
                   <Td mono muted>
                     {l.heatNumber ?? "—"}
-                    {l.ssccCode && <div style={{ fontSize: 10 }}>SSCC: {l.ssccCode}</div>}
                   </Td>
                   <Td nowrap style={{ fontWeight: 600 }}>{fmtNum(l.quantityPieces)} {l.unit}</Td>
                   <Td nowrap muted>{fmtKg(l.weightKg)}</Td>

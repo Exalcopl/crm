@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -217,9 +218,29 @@ export default function WmsIndeksyPage() {
       title="Indeksy magazynowe"
       subtitle="Kartoteka indeksów (artykułów) przypisanych do grup towarowych i systemów (np. Grupa: Profile aluminiowe → System: Procural → Indeksy: PE50, PE68)."
       actions={
-        <Btn primary onClick={startNewIndex}>
-          + Nowy indeks
-        </Btn>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Link
+            href="/admin/wms/ustawienia"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "rgba(255,255,255,0.06)",
+              border: `1px solid ${C.border}`,
+              color: C.text,
+              padding: "6px 12px",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              textDecoration: "none",
+            }}
+          >
+            ⚙️ Zarządzaj grupami i systemami
+          </Link>
+          <Btn primary onClick={startNewIndex}>
+            + Nowy indeks
+          </Btn>
+        </div>
       }
     >
       {/* ─── FORMULARZ TWORZENIA / EDYCJI INDEKSU ──────────────────────── */}
@@ -272,6 +293,12 @@ export default function WmsIndeksyPage() {
                       </option>
                     ))}
                   </select>
+                  <span style={{ fontSize: 11, color: C.muted, marginTop: 4, display: "block" }}>
+                    Nie ma Twojego systemu?{" "}
+                    <Link href={`/admin/wms/ustawienia?tab=objects${form.categoryId ? `&cat=${form.categoryId}` : ""}`} target="_blank" style={{ color: C.accent, textDecoration: "none" }}>
+                      + Dodaj w Ustawieniach ↗
+                    </Link>
+                  </span>
                 </Field>
 
                 <Field label="3. Kod indeksu *">
