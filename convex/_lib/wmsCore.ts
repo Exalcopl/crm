@@ -257,6 +257,131 @@ export async function cancelDraft(ctx: MutationCtx, documentId: Id<"wms_document
   await ctx.db.patch(documentId, { status: "ANULOWANY" });
 }
 
+export async function deleteDocumentCore(
+  ctx: MutationCtx,
+  documentId: Id<"wms_documents">,
+): Promise<{ success: boolean; number: string; deletedLots: number; deletedMovements: number }> {
+  const doc = await ctx.db.get(documentId);
+  if (!doc) throw new Error("Dokument nie istnieje.");
+
+  // Sprawdź powiązania z sesjami inwentaryzacyjnymi
+  const invSession = await ctx.db
+    .query("wms_inventory_sessions")
+    .filter((q) => q.eq(q.field("correctionDocumentId"), documentId))
+    .first();
+  if (invSession) {
+    throw new Error(`Nie można usunąć dokumentu powiązanego z sesją inwentaryzacyjną: ${invSession.name}`);
+  }
+
+  const lines = await ctx.db
+    .query("wms_document_lines")
+    .withIndex("by_document", (q) => q.eq("documentId", documentId))
+    .collect();
+
+  let deletedLotsCount = 0;
+  let deletedMovementsCount = 0;
+
+  if (doc.status === "ZATWIERDZONY") {
+    if (doc.type !== "PZ") {
+      throw new Error(
+        `Usuwanie zatwierdzonego dokumentu typu ${doc.type} nie jest dozwolone. Tylko dokumenty PZ mogą zostać wycofane ze stanu magazynowego.`,
+      );
+    }
+
+    // 1. Zidentyfikuj partie utworzone przez to przyjęcie PZ
+    const lotIdsFromLines = lines
+      .map((l) => l.lotId)
+      .filter((id): id is Id<"wms_lots"> => id !== undefined);
+
+    const lotsFromQuery = await ctx.db
+      .query("wms_lots")
+      .filter((q) => q.eq(q.field("receivedByDocumentId"), documentId))
+      .collect();
+
+    const uniqueLotIds = Array.from(new Set([...lotIdsFromLines, ...lotsFromQuery.map((l) => l._id)]));
+
+    // 2. Walidacja nienaruszalności partii przed usunięciem
+    for (const lotId of uniqueLotIds) {
+      const lot = await ctx.db.get(lotId);
+      if (!lot) continue;
+
+      // Sprawdź, czy partia nie została podzielona (np. częściowe RW / MM)
+      const childLot = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("parentLotId"), lotId))
+        .first();
+      if (childLot) {
+        throw new Error(
+          `Nie można usunąć dokumentu PZ: partia materiałowa została już wydzielona lub podzielona w magazynie.`,
+        );
+      }
+
+      // Sprawdź, czy partia nie została objęta spisem inwentaryzacyjnym
+      const invCount = await ctx.db
+        .query("wms_inventory_counts")
+        .filter((q) => q.eq(q.field("lotId"), lotId))
+        .first();
+      if (invCount) {
+        throw new Error(
+          `Nie można usunąć dokumentu PZ: partia materiałowa została uwzględniona w sesji inwentaryzacyjnej.`,
+        );
+      }
+
+      // Sprawdź, czy nie ma innych ruchów magazynowych na tej partii
+      const movements = await ctx.db
+        .query("wms_movements")
+        .withIndex("by_lot", (q) => q.eq("lotId", lotId))
+        .collect();
+
+      const otherMovements = movements.filter((m) => m.documentId !== documentId);
+      if (otherMovements.length > 0) {
+        throw new Error(
+          `Nie można usunąć dokumentu PZ: przyjęty towar został już użyty lub przesunięty w magazynie (znaleziono ${otherMovements.length} powiązanych ruchów magazynowych, np. RW lub MM). Najpierw wycofaj powiązane dokumenty.`,
+        );
+      }
+    }
+
+    // 3. Usuń ruchy magazynowe powiązane z tym dokumentem
+    const docMovements = await ctx.db
+      .query("wms_movements")
+      .withIndex("by_document", (q) => q.eq("documentId", documentId))
+      .collect();
+
+    for (const mov of docMovements) {
+      await ctx.db.delete(mov._id);
+    }
+    deletedMovementsCount = docMovements.length;
+
+    // 4. Usuń partie materiałowe utworzone przez to PZ
+    for (const lotId of uniqueLotIds) {
+      await ctx.db.delete(lotId);
+      deletedLotsCount++;
+    }
+  }
+
+  // 5. Usuń pliki atestów oraz pozycje dokumentu
+  for (const line of lines) {
+    if (line.certificateStorageId) {
+      try {
+        await ctx.storage.delete(line.certificateStorageId);
+      } catch {
+        // Ignoruj błąd jeśli plik nie istnieje
+      }
+    }
+    await ctx.db.delete(line._id);
+  }
+
+  // 6. Usuń nagłówek dokumentu
+  await ctx.db.delete(documentId);
+
+  return {
+    success: true,
+    number: doc.number,
+    deletedLots: deletedLotsCount,
+    deletedMovements: deletedMovementsCount,
+  };
+}
+
 type MoveOpts = {
   ctx: MutationCtx;
   userId: Id<"users">;

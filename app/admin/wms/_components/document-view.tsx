@@ -37,6 +37,7 @@ export function DocumentDetailView({
   type: DocType;
   backHref: string;
 }) {
+  const router = useRouter();
   const data = useQuery(api.wms.getDocument, { id });
   const materials = useQuery(api.wms.listProfiles, { allCategories: true });
   const locations = useQuery(api.wms.listLocations, { onlyActive: true });
@@ -44,6 +45,7 @@ export function DocumentDetailView({
 
   const approve = useMutation(api.wms.approve);
   const cancel = useMutation(api.wms.cancel);
+  const deleteDocument = useMutation(api.wms.deleteDocument);
   const addLine = useMutation(api.wms.addLine);
   const removeLine = useMutation(api.wms.removeLine);
   const generateUploadUrl = useMutation(api.wms.generateUploadUrl);
@@ -54,6 +56,7 @@ export function DocumentDetailView({
   // Natywne modale potwierdzeń (zamiast window.confirm)
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [lineToDelete, setLineToDelete] = useState<{ id: Id<"wms_document_lines">; name: string } | null>(null);
 
   // Formularz nowej pozycji
@@ -98,6 +101,26 @@ export function DocumentDetailView({
   const customFields: CustomFieldDef[] = (obj?.customFields ?? cat?.customFields ?? []) as CustomFieldDef[];
   const defaultUnit = obj?.defaultUnit ?? cat?.defaultUnit ?? "szt.";
 
+  if (data === null) {
+    return (
+      <Page title={`${type} — Dokument nie istnieje`} subtitle="Wskazany dokument został usunięty lub nie istnieje">
+        <Card pad>
+          <div style={{ textAlign: "center", padding: "32px 16px" }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 8 }}>
+              Dokument nie istnieje lub został usunięty
+            </div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+              Ten dokument magazynowy nie został odnaleziony w bazie danych.
+            </div>
+            <Link href={backHref} className="fluent-btn">
+              ← Powrót do listy {type}
+            </Link>
+          </div>
+        </Card>
+      </Page>
+    );
+  }
+
   if (!data) {
     return (
       <Page title={`${type} — Dokument`} subtitle="Ładowanie dokumentu…">
@@ -131,6 +154,20 @@ export function DocumentDetailView({
       await cancel({ id: doc._id });
       toast.success("Dokument został anulowany");
       setShowCancelModal(false);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    setBusy(true);
+    try {
+      await deleteDocument({ id: doc._id });
+      toast.success(`Dokument ${doc.number} został trwale usunięty`);
+      setShowDeleteModal(false);
+      router.push(backHref);
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -267,6 +304,9 @@ export function DocumentDetailView({
           <Link href={backHref} className="fluent-btn">
             ← Powrót do listy
           </Link>
+          <Btn danger onClick={() => setShowDeleteModal(true)} disabled={busy}>
+            🗑 Usuń {type}
+          </Btn>
           {isDraft && (
             <>
               <Btn danger onClick={() => setShowCancelModal(true)} disabled={busy}>
@@ -842,6 +882,73 @@ export function DocumentDetailView({
         </div>
       )}
 
+      {/* ─── NATYWNY MODAL USUNIĘCIA DOKUMENTU ─────────────────────────── */}
+      {showDeleteModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setShowDeleteModal(false)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 520,
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.red }}>
+                Usuwanie dokumentu {doc.number}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                {doc.status === "ZATWIERDZONY" ? (
+                  <>
+                    Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> jest zatwierdzony.
+                    <br /><br />
+                    Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie przyjętych partii z magazynu</strong> oraz usunięcie historii ruchów powiązanych z tym PZ.
+                    <br /><br />
+                    <span style={{ fontSize: 12, color: C.amber }}>
+                      ⚠️ Jeśli jakakolwiek partia z tego przyjęcia została już częściowo lub całkowicie wydana (RW), przesunięta (MM) lub ujęta w spisie, operacja zostanie bezpiecznie zablokowana.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Czy na pewno chcesz trwale usunąć dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> (status: {doc.status}) wraz ze wszystkimi jego pozycjami ({lines.length})?
+                    <br /><br />
+                    Ta operacja jest nieodwracalna.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+              <Btn onClick={() => setShowDeleteModal(false)} disabled={busy}>
+                Wróć
+              </Btn>
+              <Btn danger onClick={handleDeleteConfirm} disabled={busy}>
+                {busy ? "Usuwanie…" : `Tak, trwale usuń ${type}`}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── NATYWNY MODAL USUNIĘCIA POZYCJI ───────────────────────────── */}
       {lineToDelete && (
         <div
@@ -910,13 +1017,29 @@ export function DocumentListPage({
   const router = useRouter();
   const docs = useQuery(api.wms.listDocuments, { type });
   const createDraft = useMutation(api.wms.createDraft);
+  const deleteDocument = useMutation(api.wms.deleteDocument);
 
   const [showNew, setShowNew] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<{ id: Id<"wms_documents">; number: string; status: string } | null>(null);
   const [supplier, setSupplier] = useState("");
   const [extNumber, setExtNumber] = useState("");
   const [targetNote, setTargetNote] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function handleDeleteDocConfirm() {
+    if (!docToDelete) return;
+    setBusy(true);
+    try {
+      await deleteDocument({ id: docToDelete.id });
+      toast.success(`Dokument ${docToDelete.number} został usunięty`);
+      setDocToDelete(null);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleCreate() {
     setBusy(true);
@@ -999,15 +1122,99 @@ export function DocumentListPage({
                 <Td><Badge status={d.status} /></Td>
                 <Td muted>{d.createdByName}</Td>
                 <Td>
-                  <Link href={`/admin/wms/${type.toLowerCase()}/${d._id}`} className="fluent-btn" style={{ fontSize: 12, padding: "3px 10px" }}>
-                    Szczegóły →
-                  </Link>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", justifyContent: "flex-end" }} onClick={(e) => e.stopPropagation()}>
+                    <Link href={`/admin/wms/${type.toLowerCase()}/${d._id}`} className="fluent-btn" style={{ fontSize: 12, padding: "3px 10px" }}>
+                      Szczegóły →
+                    </Link>
+                    {(type === "PZ" || d.status !== "ZATWIERDZONY") && (
+                      <button
+                        className="fluent-btn"
+                        style={{
+                          fontSize: 12,
+                          padding: "3px 8px",
+                          color: C.red,
+                          borderColor: "rgba(248,81,73,0.3)",
+                        }}
+                        onClick={() => setDocToDelete({ id: d._id, number: d.number, status: d.status })}
+                        title={`Usuń dokument ${d.number}`}
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </Td>
               </Tr>
             ))}
           </Table>
         )}
       </Card>
+
+      {/* ─── NATYWNY MODAL USUNIĘCIA DOKUMENTU Z LISTY ─────────────────── */}
+      {docToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setDocToDelete(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 500,
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.red }}>
+                Usuwanie dokumentu {docToDelete.number}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                {docToDelete.status === "ZATWIERDZONY" ? (
+                  <>
+                    Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> jest zatwierdzony.
+                    <br /><br />
+                    Usunięcie tego dokumentu wycofa przyjęte partie ze stanu magazynowego i usunie powiązane wpisy ruchów magazynowych.
+                    <br /><br />
+                    <span style={{ fontSize: 12, color: C.amber }}>
+                      ⚠️ Jeśli partie zostały już częściowo wydane (RW) lub przesunięte (MM), usunięcie zostanie zablokowane.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Czy na pewno chcesz trwale usunąć dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> (status: {docToDelete.status})?
+                    <br /><br />
+                    Ta operacja jest nieodwracalna.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+              <Btn onClick={() => setDocToDelete(null)} disabled={busy}>
+                Anuluj
+              </Btn>
+              <Btn danger onClick={handleDeleteDocConfirm} disabled={busy}>
+                {busy ? "Usuwanie…" : `Tak, usuń dokument`}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }

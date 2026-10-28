@@ -3,8 +3,10 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   approveDocument,
+  cancelDraft,
   closeInventorySession,
   createDocument,
+  deleteDocumentCore,
   openInventorySession,
   recordCount,
   resolveTrackingRule,
@@ -549,6 +551,125 @@ export const runWmsTest = mutation({
       await ctx.db.delete(procuralObjId);
       await ctx.db.delete(profileCatId);
       ok("3-poziomowa struktura magazynowa (Grupa -> Procural -> PE50/PE68) przetestowana i zweryfikowana");
+
+      // ── 7. Test usuwania PZ (DRAFT, ANULOWANY, ZATWIERDZONY, oraz ochrona przed usunięciem zużytych) ──
+      // 7.1 Usunięcie szkicu (DRAFT)
+      const pzDraftId = await newDoc("PZ");
+      await addLine(pzDraftId, {
+        materialId,
+        quantityPieces: 2,
+        toLocationId: locMG,
+      });
+      const delDraftRes = await deleteDocumentCore(ctx, pzDraftId);
+      assert(delDraftRes.success, "deleteDocumentCore usuwa szkic PZ");
+      assert((await ctx.db.get(pzDraftId)) === null, "Szkic PZ nie istnieje w bazie");
+      const draftLines = await ctx.db
+        .query("wms_document_lines")
+        .withIndex("by_document", (q) => q.eq("documentId", pzDraftId))
+        .collect();
+      assert(draftLines.length === 0, "Pozycje szkicu PZ zostały usunięte");
+
+      // 7.2 Usunięcie anulowanego PZ (ANULOWANY)
+      const pzCancelId = await newDoc("PZ");
+      await addLine(pzCancelId, {
+        materialId,
+        quantityPieces: 2,
+        toLocationId: locMG,
+      });
+      await cancelDraft(ctx, pzCancelId);
+      const delCancelRes = await deleteDocumentCore(ctx, pzCancelId);
+      assert(delCancelRes.success, "deleteDocumentCore usuwa anulowany PZ");
+      assert((await ctx.db.get(pzCancelId)) === null, "Anulowany PZ nie istnieje w bazie");
+
+      // 7.3 Usunięcie zatwierdzonego PZ (ZATWIERDZONY) bez późniejszych ruchów
+      const pzApproveId = await newDoc("PZ");
+      await addLine(pzApproveId, {
+        materialId,
+        quantityPieces: 3,
+        lengthMm: 4000,
+        heatNumber: "HEAT-DEL-TEST",
+        toLocationId: locMG,
+      });
+      await approveDocument(ctx, userId, pzApproveId);
+      const approvedDoc = await ctx.db.get(pzApproveId);
+      assert(approvedDoc?.status === "ZATWIERDZONY", "PZ zatwierdzony");
+      const createdLots = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("receivedByDocumentId"), pzApproveId))
+        .collect();
+      assert(createdLots.length === 1, "PZ utworzył partię w magazynie");
+      const lotIdToClean = createdLots[0]._id;
+
+      // Usunięcie zatwierdzonego PZ
+      const delApproveRes = await deleteDocumentCore(ctx, pzApproveId);
+      assert(delApproveRes.success, "deleteDocumentCore usuwa zatwierdzony PZ");
+      assert(delApproveRes.deletedLots === 1, "deleteDocumentCore raportuje usunięcie 1 partii");
+      assert((await ctx.db.get(pzApproveId)) === null, "Zatwierdzony PZ został usunięty");
+      assert((await ctx.db.get(lotIdToClean)) === null, "Partia z usuniętego PZ została usunięta z magazynu");
+      const remainingMovs = await ctx.db
+        .query("wms_movements")
+        .withIndex("by_document", (q) => q.eq("documentId", pzApproveId))
+        .collect();
+      assert(remainingMovs.length === 0, "Ruchy magazynowe powiązane z usuniętym PZ zostały usunięte");
+
+      // 7.4 Bezpieczeństwo: blokada usunięcia PZ, jeśli partia została ruszona innym dokumentem
+      const pzBlockedId = await newDoc("PZ");
+      await addLine(pzBlockedId, {
+        materialId,
+        quantityPieces: 5,
+        lengthMm: 4000,
+        heatNumber: "HEAT-BLOCK-TEST",
+        toLocationId: locMG,
+      });
+      await approveDocument(ctx, userId, pzBlockedId);
+      const blockedLots = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("receivedByDocumentId"), pzBlockedId))
+        .collect();
+      const blockedLotId = blockedLots[0]._id;
+
+      // Wykonaj ruch RW na tej partii
+      const rwDocId = await newDoc("RW");
+      await addLine(rwDocId, {
+        lotId: blockedLotId,
+        quantityPieces: 2,
+        toLocationId: locBuf,
+      });
+      await approveDocument(ctx, userId, rwDocId);
+
+      // Próba usunięcia PZ musi rzucić błąd
+      await expectThrow(
+        () => deleteDocumentCore(ctx, pzBlockedId),
+        "Nie można usunąć dokumentu PZ",
+        "Ochrona integralności: blokada usunięcia PZ po wykonaniu RW na partii",
+      );
+      assert((await ctx.db.get(pzBlockedId)) !== null, "PZ chroniony przed usunięciem nadal istnieje");
+
+      // Sprzątanie po pzBlockedId i rwDocId
+      const pzBlockedLots = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("receivedByDocumentId"), pzBlockedId))
+        .collect();
+      for (const l of pzBlockedLots) {
+        const mvs = await ctx.db.query("wms_movements").withIndex("by_lot", (q) => q.eq("lotId", l._id)).collect();
+        for (const m of mvs) await ctx.db.delete(m._id);
+        await ctx.db.delete(l._id);
+      }
+      const childLotsOfBlocked = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("parentLotId"), blockedLotId))
+        .collect();
+      for (const cl of childLotsOfBlocked) {
+        const mvs = await ctx.db.query("wms_movements").withIndex("by_lot", (q) => q.eq("lotId", cl._id)).collect();
+        for (const m of mvs) await ctx.db.delete(m._id);
+        await ctx.db.delete(cl._id);
+      }
+      for (const dId of [pzBlockedId, rwDocId]) {
+        const lns = await ctx.db.query("wms_document_lines").withIndex("by_document", (q) => q.eq("documentId", dId)).collect();
+        for (const l of lns) await ctx.db.delete(l._id);
+        await ctx.db.delete(dId);
+      }
+      ok("Usuwanie PZ (szkic, anulowany, zatwierdzony oraz ochrona magazynowa) przetestowane i w pełni sprawne");
     } finally {
       // Sprzątanie (w razie błędu mutacja i tak się cofa, ale zachowujemy porządek)
       await cleanup(ctx, {
@@ -601,6 +722,8 @@ async function cleanup(
     await ctx.db.delete(id);
   }
   for (const id of d.docIds) {
+    const doc = await ctx.db.get(id);
+    if (!doc) continue;
     const ls = await ctx.db
       .query("wms_document_lines")
       .withIndex("by_document", (q) => q.eq("documentId", id))

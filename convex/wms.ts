@@ -8,6 +8,7 @@ import {
   cancelDraft,
   closeInventorySession,
   createDocument,
+  deleteDocumentCore,
   lotTotalMb,
   openInventorySession,
   recordCount,
@@ -1547,6 +1548,14 @@ export const cancel = mutation({
   },
 });
 
+export const deleteDocument = mutation({
+  args: { id: v.id("wms_documents") },
+  handler: async (ctx, { id }) => {
+    await requireUser(ctx);
+    return deleteDocumentCore(ctx, id);
+  },
+});
+
 // ─── Inwentaryzacja ─────────────────────────────────────────────────────────
 
 export const listSessions = query({
@@ -1633,5 +1642,81 @@ export const closeSession = mutation({
   handler: async (ctx, { id }) => {
     const userId = await requireUser(ctx);
     return closeInventorySession(ctx, userId, id);
+  },
+});
+
+/**
+ * Całkowite wyczyszczenie danych WMS (stany, partie, ruchy, dokumenty, inwentaryzacje, grupy i systemy).
+ */
+export const wipeWmsData = mutation({
+  args: {
+    includeLocations: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    // 1. Partie i stany magazynowe
+    const lots = await ctx.db.query("wms_lots").collect();
+    for (const l of lots) await ctx.db.delete(l._id);
+
+    // 2. Dziennik ruchów
+    const movs = await ctx.db.query("wms_movements").collect();
+    for (const m of movs) await ctx.db.delete(m._id);
+
+    // 3. Pozycje dokumentów oraz dokumenty (PZ, RW, MM, KOREKTA)
+    const lines = await ctx.db.query("wms_document_lines").collect();
+    for (const dl of lines) await ctx.db.delete(dl._id);
+
+    const docs = await ctx.db.query("wms_documents").collect();
+    for (const d of docs) await ctx.db.delete(d._id);
+
+    // 4. Inwentaryzacje i zliczenia
+    const counts = await ctx.db.query("wms_inventory_counts").collect();
+    for (const c of counts) await ctx.db.delete(c._id);
+
+    const sessions = await ctx.db.query("wms_inventory_sessions").collect();
+    for (const s of sessions) await ctx.db.delete(s._id);
+
+    // 5. Liczniki numeracji dokumentów
+    const counters = await ctx.db.query("wms_counters").collect();
+    for (const c of counters) await ctx.db.delete(c._id);
+
+    // 6. Systemy / podgrupy (wms_objects)
+    const objs = await ctx.db.query("wms_objects").collect();
+    for (const o of objs) await ctx.db.delete(o._id);
+
+    // 7. Grupy towarowe (wms_categories)
+    const cats = await ctx.db.query("wms_categories").collect();
+    for (const c of cats) await ctx.db.delete(c._id);
+
+    // 8. Opcjonalnie lokalizacje
+    let deletedLocs = 0;
+    if (args.includeLocations) {
+      const locs = await ctx.db.query("wms_locations").collect();
+      for (const loc of locs) await ctx.db.delete(loc._id);
+      deletedLocs = locs.length;
+    }
+
+    // 9. Odpięcie powiązań w indeksach materiałowych
+    const mats = await ctx.db.query("materials").collect();
+    for (const m of mats) {
+      if (m.wmsCategoryId || m.wmsObjectId) {
+        await ctx.db.patch(m._id, {
+          wmsCategoryId: undefined,
+          wmsObjectId: undefined,
+        });
+      }
+    }
+
+    return {
+      deletedLots: lots.length,
+      deletedMovements: movs.length,
+      deletedDocuments: docs.length,
+      deletedDocumentLines: lines.length,
+      deletedCategories: cats.length,
+      deletedObjects: objs.length,
+      deletedSessions: sessions.length,
+      deletedInventoryCounts: counts.length,
+      deletedCounters: counters.length,
+      deletedLocations: deletedLocs,
+    };
   },
 });

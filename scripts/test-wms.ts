@@ -23,6 +23,7 @@ async function main() {
   try {
     const results: string[] = await client.mutation(api.testing_wms.runWmsTest, {});
     for (const r of results) console.log(`  ${r}`);
+
     console.log(`\nWynik: ${results.length} kontroli ✅`);
     console.log("✅ Wszystkie testy przeszły!\n");
   } catch (err) {
