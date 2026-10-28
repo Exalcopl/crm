@@ -5,7 +5,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { C, fmtDate, fmtMb, fmtNum, KIND_LABEL, MOVEMENT_LABEL, SURFACE_LABEL, Table, Td, Tr, Badge } from "./ui";
 
-/** Historia partii: dane, atest oraz pełny dziennik ruchów (traceability). */
+/** Historia pozycji magazynowej: pełny dziennik ruchów (traceability). */
 export function LotHistory({ lotId }: { lotId: Id<"wms_lots"> }) {
   const data = useQuery(api.wms.lotHistory, { lotId });
   if (!data) return <div style={{ padding: 12, color: C.muted, fontSize: 12 }}>Ładowanie historii…</div>;
@@ -15,9 +15,6 @@ export function LotHistory({ lotId }: { lotId: Id<"wms_lots"> }) {
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 12, color: C.muted, marginBottom: 10 }}>
         {lot.surfaceType && (
           <span>Powierzchnia: <b style={{ color: C.text }}>{SURFACE_LABEL[lot.surfaceType] ?? lot.surfaceType}</b></span>
-        )}
-        {lot.heatNumber && (
-          <span>Nr partii / wytopu: <b style={{ color: C.text }}>{lot.heatNumber}</b></span>
         )}
         <span>Razem: <b style={{ color: C.text }}>{fmtNum(lot.quantityPieces)} szt.{lot.totalMb > 0 ? ` (${fmtMb(lot.totalMb)})` : ""}</b></span>
       </div>

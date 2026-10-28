@@ -79,7 +79,7 @@ export const TRACKING_LABEL: Record<string, string> = {
 export const ATTRIBUTE_LABEL: Record<string, string> = {
   length: "Długość",
   color: "Kolor",
-  lot: "Partia / wytop",
+  lot: "Dostawa",
   certificate: "Atest",
 };
 export const MOVEMENT_LABEL: Record<string, string> = {
