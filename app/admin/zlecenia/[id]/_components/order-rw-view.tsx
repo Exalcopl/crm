@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -660,6 +660,7 @@ function SavingsDashboard({
 // ─── Widok pobrań z magazynu WMS (Rozchód wewnętrzny powiązany ze zleceniem) ───
 function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
   const data = useQuery(api.wms.listOrderWmsRw, { orderId });
+  const [viewMode, setViewMode] = useState<"history" | "materials">("history");
 
   if (data === undefined) {
     return (
@@ -671,209 +672,307 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
 
   const { documents, totalPiecesIssued } = data;
 
+  // Zagregowane podsumowanie materiałów pobranych do tego zlecenia
+  const materialSummary = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        name: string;
+        sku: string | null;
+        objectName: string | null;
+        unit: string;
+        totalPieces: number;
+        issuesCount: number;
+      }
+    >();
+
+    for (const doc of documents) {
+      for (const line of doc.lines) {
+        const key = line.materialSku || line.materialName;
+        const ex = map.get(key);
+        if (ex) {
+          ex.totalPieces += line.quantityPieces;
+          ex.issuesCount += 1;
+        } else {
+          map.set(key, {
+            name: line.materialName,
+            sku: line.materialSku,
+            objectName: line.objectName,
+            unit: line.unit,
+            totalPieces: line.quantityPieces,
+            issuesCount: 1,
+          });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.totalPieces - a.totalPieces);
+  }, [documents]);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Pasek podsumowania */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "10px 16px" }}>
-            <div style={{ fontSize: 10, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em" }}>Łącznie pobrano ze stanu</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#f0f6fc", marginTop: 2 }}>
-              {totalPiecesIssued} <span style={{ fontSize: 13, fontWeight: 500, color: "#8b949e" }}>szt.</span>
-            </div>
-          </div>
-          <div style={{ background: "#161b22", border: "1px solid #30363d", borderRadius: 8, padding: "10px 16px" }}>
-            <div style={{ fontSize: 10, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.05em" }}>Dokumenty RW</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: "#60a5fa", marginTop: 2 }}>
-              {documents.length}
-            </div>
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Pasek podsumowania (Minimalistyczny) */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 12,
+          padding: "12px 16px",
+          background: "#161b22",
+          border: "1px solid #21262d",
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Pobrano do zlecenia:
+          </span>
+          <span style={{ fontSize: 18, fontWeight: 700, color: "#f0f6fc" }}>
+            {totalPiecesIssued} szt.
+          </span>
+          <span style={{ fontSize: 12, color: "#8b949e" }}>
+            w {documents.length} {documents.length === 1 ? "dokumencie" : documents.length < 5 ? "dokumentach" : "dokumentów"} RW
+          </span>
         </div>
 
-        <Link
-          href={`/admin/wms/rw?orderId=${orderId}`}
-          className="fluent-btn fluent-btn-primary"
-          style={{ background: "#1f6beb", borderColor: "#1f6beb", gap: 6 }}
-        >
-          + Wystaw nowe RW w magazynie WMS
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {materialSummary.length > 0 && (
+            <div style={{ display: "flex", background: "#0d1117", border: "1px solid #21262d", borderRadius: 6, padding: 2 }}>
+              <button
+                type="button"
+                onClick={() => setViewMode("history")}
+                style={{
+                  background: viewMode === "history" ? "#21262d" : "transparent",
+                  color: viewMode === "history" ? "#f0f6fc" : "#8b949e",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                Dokumenty ({documents.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("materials")}
+                style={{
+                  background: viewMode === "materials" ? "#21262d" : "transparent",
+                  color: viewMode === "materials" ? "#f0f6fc" : "#8b949e",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "4px 10px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                Materiały ({materialSummary.length})
+              </button>
+            </div>
+          )}
+
+          <Link
+            href={`/admin/wms/rw?orderId=${orderId}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#21262d",
+              border: "1px solid #30363d",
+              color: "#f0f6fc",
+              padding: "6px 12px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              textDecoration: "none",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#30363d")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "#21262d")}
+          >
+            <span>+ Wystaw RW w WMS</span>
+          </Link>
+        </div>
       </div>
 
       {documents.length === 0 ? (
         <div
           style={{
             background: "#161b22",
-            border: "1px dashed #30363d",
+            border: "1px dashed #21262d",
             borderRadius: 8,
-            padding: 40,
+            padding: 36,
             textAlign: "center",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 12,
+            gap: 10,
           }}
         >
-          <div style={{ fontSize: 32 }}>📦</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: "#f0f6fc" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#f0f6fc" }}>
             Brak wydań magazynowych (RW) dla tego zlecenia
           </div>
-          <div style={{ fontSize: 13, color: "#8b949e", maxWidth: 460, lineHeight: 1.5 }}>
-            Dla tego zlecenia nie pobrano jeszcze żadnych materiałów z magazynu WMS. Możesz utworzyć dokument RW w WMS, wybrać indeks ze stanu i pobrać go bezpośrednio do realizacji tego zlecenia.
+          <div style={{ fontSize: 12, color: "#8b949e", maxWidth: 420, lineHeight: 1.5 }}>
+            Dla tego zlecenia nie pobrano jeszcze żadnych materiałów ze stanu magazynowego.
           </div>
           <Link
             href={`/admin/wms/rw?orderId=${orderId}`}
-            className="fluent-btn fluent-btn-primary"
-            style={{ marginTop: 6 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#21262d",
+              border: "1px solid #30363d",
+              color: "#f0f6fc",
+              padding: "6px 12px",
+              borderRadius: 6,
+              fontSize: 12,
+              fontWeight: 500,
+              textDecoration: "none",
+              marginTop: 6,
+            }}
           >
             + Pobierz materiały z WMS
           </Link>
         </div>
+      ) : viewMode === "materials" ? (
+        /* ── Widok zagregowanych materiałów ── */
+        <div style={{ background: "#161b22", border: "1px solid #21262d", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#0d1117", borderBottom: "1px solid #21262d", color: "#8b949e", textAlign: "left" }}>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Indeks / Materiał</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Grupa / System</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Liczba pobrań</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase", textAlign: "right" }}>Łącznie pobrano</th>
+              </tr>
+            </thead>
+            <tbody>
+              {materialSummary.map((m) => (
+                <tr key={m.name} style={{ borderBottom: "1px solid #1c2128", color: "#f0f6fc" }}>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                      <span style={{ fontWeight: 600 }}>{m.name}</span>
+                      {m.sku && (
+                        <span style={{ fontFamily: "monospace", fontSize: 11, color: "#8b949e" }}>
+                          {m.sku}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 12 }}>
+                    {m.objectName ?? "—"}
+                  </td>
+                  <td style={{ padding: "12px 16px", color: "#8b949e", fontSize: 12 }}>
+                    {m.issuesCount} {m.issuesCount === 1 ? "wydanie" : m.issuesCount < 5 ? "wydania" : "wydań"}
+                  </td>
+                  <td style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, fontFamily: "monospace", color: "#3fb950" }}>
+                    {m.totalPieces} {m.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {documents.map((doc) => (
-            <div
-              key={doc._id}
-              style={{
-                background: "#161b22",
-                border: "1px solid #30363d",
-                borderRadius: 8,
-                overflow: "hidden",
-              }}
-            >
-              {/* Nagłówek dokumentu RW */}
-              <div
-                style={{
-                  padding: "10px 14px",
-                  background: "#21262d",
-                  borderBottom: "1px solid #30363d",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Link
-                    href={`/admin/wms/rw/${doc._id}`}
-                    style={{
-                      fontFamily: "monospace",
-                      fontWeight: 700,
-                      fontSize: 14,
-                      color: "#60a5fa",
-                      textDecoration: "underline",
-                    }}
-                  >
-                    {doc.number} ↗
-                  </Link>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: "2px 8px",
-                      borderRadius: 4,
-                      fontWeight: 600,
-                      background: doc.status === "ZATWIERDZONY" ? "rgba(46, 160, 67, 0.15)" : "rgba(210, 153, 34, 0.15)",
-                      color: doc.status === "ZATWIERDZONY" ? "#3fb950" : "#d29922",
-                      border: `1px solid ${doc.status === "ZATWIERDZONY" ? "rgba(46, 160, 67, 0.4)" : "rgba(210, 153, 34, 0.4)"}`,
-                    }}
-                  >
-                    {doc.status}
-                  </span>
-                  <span style={{ fontSize: 12, color: "#8b949e" }}>
-                    {new Date(doc.approvedAt ?? doc.createdAt).toLocaleString("pl-PL", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  {doc.createdByName && (
-                    <span style={{ fontSize: 12, color: "#8b949e" }}>
-                      · Utworzył: <b style={{ color: "#c9d1d9" }}>{doc.createdByName}</b>
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <span style={{ fontSize: 12, color: "#8b949e" }}>
-                    Pozycji: <b style={{ color: "#f0f6fc" }}>{doc.lines.length}</b> · Łącznie:{" "}
-                    <b style={{ color: "#3fb950" }}>{doc.totalPieces} szt.</b>
-                  </span>
-                  <Link
-                    href={`/admin/wms/rw/${doc._id}`}
-                    className="fluent-btn fluent-btn-sm"
-                    style={{ fontSize: 11, padding: "2px 8px" }}
-                  >
-                    Pokaż w WMS →
-                  </Link>
-                </div>
-              </div>
-
-              {/* Tabela pozycji */}
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ background: "#0d1117", borderBottom: "1px solid #21262d", color: "#8b949e", textAlign: "left" }}>
-                      <th style={{ padding: "8px 12px", width: 40, fontFamily: "monospace" }}>Lp.</th>
-                      <th style={{ padding: "8px 12px" }}>Materiał / Indeks</th>
-                      <th style={{ padding: "8px 12px" }}>Wymiary / Parametry</th>
-                      <th style={{ padding: "8px 12px" }}>Cechy (kolor/partia)</th>
-                      <th style={{ padding: "8px 12px", textAlign: "right" }}>Ilość pobrana</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {doc.lines.map((line, idx) => (
-                      <tr
-                        key={line._id}
-                        style={{
-                          borderBottom: "1px solid #21262d",
-                          color: "#f0f6fc",
-                        }}
-                      >
-                        <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "#8b949e" }}>
-                          {idx + 1}
-                        </td>
-                        <td style={{ padding: "8px 12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontWeight: 600 }}>{line.materialName}</span>
-                            {line.objectName && (
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  background: "rgba(59, 130, 246, 0.15)",
-                                  color: "#60a5fa",
-                                  padding: "1px 6px",
-                                  borderRadius: 3,
-                                }}
-                              >
-                                {line.objectName}
-                              </span>
-                            )}
-                          </div>
-                          {line.note && <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>{line.note}</div>}
-                        </td>
-                        <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "#c9d1d9" }}>
-                          {line.dimensionsSummary}
-                        </td>
-                        <td style={{ padding: "8px 12px", color: "#8b949e" }}>
-                          {line.colorCode ? (
-                            <div>🎨 {line.colorCode} {line.surfaceType ? `(${line.surfaceType})` : ""}</div>
-                          ) : (
-                            "—"
+        /* ── Widok historii dokumentów RW (Pojedyncza minimalistyczna tabela) ── */
+        <div style={{ background: "#161b22", border: "1px solid #21262d", borderRadius: 8, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#0d1117", borderBottom: "1px solid #21262d", color: "#8b949e", textAlign: "left" }}>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Dokument RW</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Data i operator</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase" }}>Pobrane pozycje</th>
+                <th style={{ padding: "10px 16px", fontWeight: 500, fontSize: 11, textTransform: "uppercase", textAlign: "right" }}>Ilość</th>
+                <th style={{ padding: "10px 16px", width: 60 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((doc) => (
+                <tr key={doc._id} style={{ borderBottom: "1px solid #1c2128", color: "#f0f6fc" }}>
+                  <td style={{ padding: "12px 16px", verticalAlign: "top" }}>
+                    <Link
+                      href={`/admin/wms/rw/${doc._id}`}
+                      style={{
+                        fontFamily: "monospace",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        color: "#c9d1d9",
+                        textDecoration: "none",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#58a6ff")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#c9d1d9")}
+                    >
+                      {doc.number}
+                    </Link>
+                  </td>
+                  <td style={{ padding: "12px 16px", verticalAlign: "top", color: "#8b949e", fontSize: 12, whiteSpace: "nowrap" }}>
+                    <div>
+                      {new Date(doc.approvedAt ?? doc.createdAt).toLocaleString("pl-PL", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    {doc.createdByName && (
+                      <div style={{ fontSize: 11, color: "#6e7681", marginTop: 2 }}>
+                        {doc.createdByName}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: "12px 16px", verticalAlign: "top" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {doc.lines.map((l, i) => (
+                        <div key={l._id || i} style={{ display: "flex", alignItems: "baseline", gap: 6, fontSize: 13 }}>
+                          <span style={{ fontWeight: 500, color: "#f0f6fc" }}>{l.materialName}</span>
+                          {l.objectName && (
+                            <span style={{ fontSize: 11, color: "#8b949e" }}>• {l.objectName}</span>
                           )}
-                          {line.heatNumber && <div style={{ fontSize: 10, fontFamily: "monospace" }}>Partia: {line.heatNumber}</div>}
-                        </td>
-                        <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "#3fb950" }}>
-                          {line.quantityPieces} {line.unit}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ))}
+                          {l.dimensionsSummary && l.dimensionsSummary !== "—" && (
+                            <span style={{ fontSize: 11, color: "#8b949e", fontFamily: "monospace" }}>({l.dimensionsSummary})</span>
+                          )}
+                          {doc.lines.length > 1 && (
+                            <span style={{ marginLeft: "auto", fontFamily: "monospace", fontWeight: 600, fontSize: 12, color: "#3fb950" }}>
+                              {l.quantityPieces} {l.unit}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "right", whiteSpace: "nowrap" }}>
+                    <span style={{ fontWeight: 600, fontFamily: "monospace", color: "#3fb950", fontSize: 13 }}>
+                      {doc.totalPieces} szt.
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 16px", verticalAlign: "top", textAlign: "right" }}>
+                    <Link
+                      href={`/admin/wms/rw/${doc._id}`}
+                      style={{
+                        fontSize: 12,
+                        color: "#8b949e",
+                        textDecoration: "none",
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        transition: "color 0.15s",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = "#f0f6fc")}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = "#8b949e")}
+                    >
+                      Pokaż ↗
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -945,28 +1044,36 @@ export function OrderRwView({ orderId }: { orderId: Id<"orders"> }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Przełącznik zakładek RW */}
-      <div style={{ display: "flex", gap: 8, borderBottom: "1px solid #30363d", paddingBottom: 12 }}>
+      {/* Przełącznik zakładek RW (Minimalistyczny) */}
+      <div style={{ display: "flex", gap: 20, borderBottom: "1px solid #21262d", paddingBottom: 0, marginBottom: 4 }}>
         <button
           type="button"
-          className={`fluent-btn ${activeTab === "wms" ? "fluent-btn-primary" : "fluent-btn-ghost"}`}
           onClick={() => setActiveTab("wms")}
           style={{
-            gap: 8,
-            background: activeTab === "wms" ? "#1f6beb" : "transparent",
-            borderColor: activeTab === "wms" ? "#1f6beb" : "#30363d",
+            background: "transparent",
+            border: "none",
+            borderBottom: activeTab === "wms" ? "2px solid #58a6ff" : "2px solid transparent",
+            color: activeTab === "wms" ? "#f0f6fc" : "#8b949e",
+            padding: "8px 2px 12px",
+            fontSize: 13,
+            fontWeight: activeTab === "wms" ? 600 : 400,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            transition: "all 0.15s",
           }}
         >
-          <span>📦 Pobrania z magazynu WMS</span>
+          <span>Pobrania z magazynu WMS</span>
           {wmsData && wmsData.documents.length > 0 && (
             <span
               style={{
-                background: activeTab === "wms" ? "#fff" : "rgba(56, 139, 253, 0.2)",
-                color: activeTab === "wms" ? "#1f6beb" : "#60a5fa",
+                background: activeTab === "wms" ? "rgba(88, 166, 255, 0.15)" : "#21262d",
+                color: activeTab === "wms" ? "#58a6ff" : "#8b949e",
                 padding: "1px 6px",
                 borderRadius: 10,
                 fontSize: 11,
-                fontWeight: 700,
+                fontWeight: 600,
               }}
             >
               {wmsData.documents.length}
@@ -975,15 +1082,23 @@ export function OrderRwView({ orderId }: { orderId: Id<"orders"> }) {
         </button>
         <button
           type="button"
-          className={`fluent-btn ${activeTab === "ocr" ? "fluent-btn-primary" : "fluent-btn-ghost"}`}
           onClick={() => setActiveTab("ocr")}
           style={{
-            gap: 8,
-            background: activeTab === "ocr" ? "#1f6beb" : "transparent",
-            borderColor: activeTab === "ocr" ? "#1f6beb" : "#30363d",
+            background: "transparent",
+            border: "none",
+            borderBottom: activeTab === "ocr" ? "2px solid #58a6ff" : "2px solid transparent",
+            color: activeTab === "ocr" ? "#f0f6fc" : "#8b949e",
+            padding: "8px 2px 12px",
+            fontSize: 13,
+            fontWeight: activeTab === "ocr" ? 600 : 400,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            transition: "all 0.15s",
           }}
         >
-          <span>📋 Karta kosztowa RW / Specyfikacja OCR</span>
+          <span>Karta kosztowa RW / Specyfikacja OCR</span>
         </button>
       </div>
 
