@@ -131,9 +131,6 @@ export default function StanyPage() {
       categoryName: string;
       objectName: string;
       unit: string;
-      dimensionsSummary: string;
-      colorCode?: string;
-      surfaceType?: string;
       totalPieces: number;
       availablePieces: number;
       inProgressPieces: number;
@@ -143,8 +140,7 @@ export default function StanyPage() {
     }>();
 
     for (const l of filteredLots) {
-      // Klucz unikalnego indeksu wraz z ewentualnym wariantem wymiarowym/kolorystycznym
-      const key = `${l.materialId}_${l.dimensionsSummary}_${l.colorCode ?? ""}_${l.surfaceType ?? ""}`;
+      const key = l.materialId;
       let group = map.get(key);
       if (!group) {
         group = {
@@ -155,9 +151,6 @@ export default function StanyPage() {
           categoryName: l.categoryName,
           objectName: l.objectName,
           unit: l.unit,
-          dimensionsSummary: l.dimensionsSummary,
-          colorCode: l.colorCode,
-          surfaceType: l.surfaceType,
           totalPieces: 0,
           availablePieces: 0,
           inProgressPieces: 0,
@@ -279,11 +272,8 @@ export default function StanyPage() {
           <Empty title="Brak pozycji na stanie" text="Przyjmij towar dokumentem PZ, aby pojawił się na stanie magazynu." />
         ) : groupByIndex ? (
           /* Widok zagregowany per INDEKS TOWAROWY */
-          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Dostępność", "Ilość na stanie", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Dostępność", "Ilość na stanie", "Status"]}>
             {groupedIndexRows.map((row) => {
-              const hasDimensions = row.dimensionsSummary && row.dimensionsSummary !== "—";
-              const hasColor = Boolean(row.colorCode || row.surfaceType);
-
               const statusBadge =
                 row.totalPieces === 0
                   ? "DEPLETED"
@@ -334,28 +324,7 @@ export default function StanyPage() {
                     </span>
                   </Td>
 
-                  {/* 3. Parametry i Cechy (uniwersalna kolumna dla wszystkich indeksów) */}
-                  <Td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {hasDimensions && (
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
-                          📏 {row.dimensionsSummary}
-                        </span>
-                      )}
-                      {hasColor && (
-                        <span style={{ fontSize: 11, color: C.muted }}>
-                          🎨 {row.colorCode ?? ""} {row.surfaceType ? `(${row.surfaceType})` : ""}
-                        </span>
-                      )}
-                      {!hasDimensions && !hasColor && (
-                        <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
-                          Standard
-                        </span>
-                      )}
-                    </div>
-                  </Td>
-
-                  {/* 4. Progress bar dostępności */}
+                  {/* 3. Progress bar dostępności */}
                   <Td>
                     <AvailabilityProgressBar
                       available={row.availablePieces}
@@ -403,11 +372,8 @@ export default function StanyPage() {
           </Table>
         ) : (
           /* Widok szczegółowy per pojedyncza pozycja magazynowa */
-          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Dostępność", "Ilość", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Dostępność", "Ilość", "Status"]}>
             {filteredLots.map((l) => {
-              const hasDimensions = l.dimensionsSummary && l.dimensionsSummary !== "—";
-              const hasColor = Boolean(l.colorCode || l.surfaceType);
-
               const availableQty = l.status === "AVAILABLE" ? l.quantityPieces : 0;
               const inProgressQty = l.status === "IN_PROGRESS" ? l.quantityPieces : 0;
 
@@ -429,25 +395,6 @@ export default function StanyPage() {
                     <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.12)", color: "#60a5fa", padding: "1px 6px", borderRadius: 3, fontWeight: 600, display: "inline-block", marginTop: 2 }}>
                       {l.objectName}
                     </span>
-                  </Td>
-                  <Td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {hasDimensions && (
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
-                          📏 {l.dimensionsSummary}
-                        </span>
-                      )}
-                      {hasColor && (
-                        <span style={{ fontSize: 11, color: C.muted }}>
-                          🎨 {l.colorCode ?? ""} {l.surfaceType ? `(${l.surfaceType})` : ""}
-                        </span>
-                      )}
-                      {!hasDimensions && !hasColor && (
-                        <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
-                          Standard
-                        </span>
-                      )}
-                    </div>
                   </Td>
                   <Td>
                     <AvailabilityProgressBar
