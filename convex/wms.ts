@@ -101,12 +101,12 @@ export const DEFAULT_WMS_CATEGORIES = [
 export const DEFAULT_WMS_OBJECTS = [
   {
     categoryCode: "PROFILE",
-    code: "BAR",
-    name: "Sztanga / Wiązka",
+    code: "PROCURAL",
+    name: "Procural",
     defaultUnit: "mb.",
-    description: "Sztangi lub wiązki profili aluminiowych (standardowo 6000-7000 mm)",
+    description: "Systemy profili aluminiowych Procural (dawniej Ponzio), np. PE50, PE68",
     fieldsConfig: {
-      lengthMm: { enabled: true, required: true, label: "Długość handlowa (mm)" },
+      lengthMm: { enabled: true, required: false, label: "Długość handlowa (mm)" },
       widthMm: { enabled: false, required: false },
       heightMm: { enabled: false, required: false },
       thicknessMm: { enabled: false, required: false },
@@ -115,28 +115,26 @@ export const DEFAULT_WMS_OBJECTS = [
     customFields: [],
   },
   {
-    categoryCode: "GLASS",
-    code: "GLASS_PACK",
-    name: "Pakiet szybowy",
-    defaultUnit: "m²",
-    description: "Szyby zespolone, pakiety 2- i 3-szybowe docinane na wymiar",
+    categoryCode: "PROFILE",
+    code: "ALUPROF",
+    name: "Aluprof",
+    defaultUnit: "mb.",
+    description: "Systemy profili aluminiowych Aluprof, np. MB-86N, MB-79N",
     fieldsConfig: {
-      lengthMm: { enabled: false, required: false },
-      widthMm: { enabled: true, required: true, label: "Szerokość (mm)" },
-      heightMm: { enabled: true, required: true, label: "Wysokość (mm)" },
-      thicknessMm: { enabled: true, required: false, label: "Grubość pakietu (mm)" },
-      weightKg: { enabled: true, required: false, label: "Masa pakietu (kg)" },
+      lengthMm: { enabled: true, required: false, label: "Długość handlowa (mm)" },
+      widthMm: { enabled: false, required: false },
+      heightMm: { enabled: false, required: false },
+      thicknessMm: { enabled: false, required: false },
+      weightKg: { enabled: true, required: false, label: "Masa sztangi / wiązki (kg)" },
     },
-    customFields: [
-      { key: "glazingType", label: "Budowa pakietu (np. 4/16/4)", type: "text" as const, required: false },
-    ],
+    customFields: [],
   },
   {
     categoryCode: "HARDWARE",
-    code: "HARDWARE_SET",
-    name: "Komplet okuć / Zestaw",
+    code: "ROTO",
+    name: "Roto",
     defaultUnit: "kpl.",
-    description: "Zasuwnice, zawiasy, klamki, samozamykacze i automatyka",
+    description: "Okucia i zasuwnice Roto (np. Roto NX)",
     fieldsConfig: {
       lengthMm: { enabled: false, required: false },
       widthMm: { enabled: false, required: false },
@@ -145,8 +143,24 @@ export const DEFAULT_WMS_OBJECTS = [
       weightKg: { enabled: false, required: false },
     },
     customFields: [
-      { key: "producer", label: "Producent (np. Sobinco, Winkhaus, Geze)", type: "text" as const, required: false },
       { key: "side", label: "Strona (L/P)", type: "select" as const, options: ["Uniwersalna", "Lewa (L)", "Prawa (P)"], required: false },
+    ],
+  },
+  {
+    categoryCode: "GLASS",
+    code: "PILKINGTON",
+    name: "Pilkington",
+    defaultUnit: "m²",
+    description: "Szyby zespolone i formatki szklane",
+    fieldsConfig: {
+      lengthMm: { enabled: false, required: false },
+      widthMm: { enabled: true, required: false, label: "Szerokość (mm)" },
+      heightMm: { enabled: true, required: false, label: "Wysokość (mm)" },
+      thicknessMm: { enabled: true, required: false, label: "Grubość pakietu (mm)" },
+      weightKg: { enabled: true, required: false, label: "Masa pakietu (kg)" },
+    },
+    customFields: [
+      { key: "glazingType", label: "Budowa pakietu (np. 4/16/4)", type: "text" as const, required: false },
     ],
   },
   {
@@ -672,10 +686,10 @@ export const upsertIndex = mutation({
     const cleanName = name.trim();
     const cleanSku = sku.trim().toUpperCase();
     if (!cleanName) throw new Error("Nazwa indeksu jest wymagana.");
-    if (!cleanSku) throw new Error("Kod indeksu (SKU / QR) jest wymagany.");
+    if (!cleanSku) throw new Error("Kod indeksu jest wymagany (np. PE50, PE68).");
 
     const obj = await ctx.db.get(wmsObjectId);
-    if (!obj) throw new Error("Wybrany obiekt magazynowy nie istnieje.");
+    if (!obj) throw new Error("Wybrany system / podgrupa magazynowa nie istnieje.");
 
     const categoryId = wmsCategoryId ?? obj.categoryId;
     const cat = await ctx.db.get(categoryId);
@@ -1430,7 +1444,18 @@ export const addLine = mutation({
   args: { documentId: v.id("wms_documents"), ...lineFields },
   handler: async (ctx, args) => {
     await requireUser(ctx);
-    await draftOrThrow(ctx, args.documentId);
+    const doc = await draftOrThrow(ctx, args.documentId);
+    if (doc.type === "PZ") {
+      if (!args.materialId) throw new Error("Wybierz indeks materiałowy.");
+      if (args.damage?.disposition !== "REJECT" && !args.toLocationId) {
+        throw new Error("Wybierz lokalizację docelową dla przyjmowanego towaru.");
+      }
+    } else if (doc.type === "RW") {
+      if (!args.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
+      if (!args.toLocationId) {
+        throw new Error("Wybierz lokalizację docelową wydania.");
+      }
+    }
     return ctx.db.insert("wms_document_lines", args);
   },
 });
@@ -1441,8 +1466,18 @@ export const updateLine = mutation({
     await requireUser(ctx);
     const line = await ctx.db.get(id);
     if (!line) throw new Error("Pozycja nie istnieje.");
-    await draftOrThrow(ctx, line.documentId);
-    // replace: pola nieprzekazane są czyszczone (formularz wysyła pełny stan)
+    const doc = await draftOrThrow(ctx, line.documentId);
+    if (doc.type === "PZ") {
+      if (!rest.materialId) throw new Error("Wybierz indeks materiałowy.");
+      if (rest.damage?.disposition !== "REJECT" && !rest.toLocationId) {
+        throw new Error("Wybierz lokalizację docelową dla przyjmowanego towaru.");
+      }
+    } else if (doc.type === "RW") {
+      if (!rest.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
+      if (!rest.toLocationId) {
+        throw new Error("Wybierz lokalizację docelową wydania.");
+      }
+    }
     await ctx.db.replace(id, { documentId: line.documentId, ...rest });
   },
 });

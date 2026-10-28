@@ -349,6 +349,21 @@ export const runWmsTest = mutation({
         "PZ szyby: walidacja odrzuca brak szerokości wymaganej przez obiekt magazynowy",
       );
 
+      // Błąd walidacji: brak lokalizacji docelowej
+      const { id: noLocPzId } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(noLocPzId);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: noLocPzId,
+        materialId: glassMaterialId,
+        quantityPieces: 1,
+        // brak toLocationId!
+      });
+      await expectThrow(
+        () => approveDocument(ctx, userId, noLocPzId),
+        "nie wybrano lokalizacji docelowej",
+        "PZ bez lokalizacji docelowej jest blokowane z czytelnym komunikatem",
+      );
+
       // Przywracamy widthMm = 1200 na indeksie — teraz PZ bez wpisywania wymiarów w linii dziedziczy je z indeksu!
       await ctx.db.patch(glassMaterialId, { widthMm: 1200 });
       const { id: goodGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
@@ -395,7 +410,7 @@ export const runWmsTest = mutation({
       assert(bufGlassLot?.widthMm === 1200, "RW szyby: zachowano wymiary pakietu w buforze");
       assert(bufGlassLot?.objectId === glassObjectId, "RW szyby: partia buforowa ma przypisany obiekt");
 
-      // Sprzątanie testowej kategorii, obiektu i materiału
+      // Sprzątanie testowej kategorii, obiektu i materiału szyby
       const testGlassLots = await ctx.db
         .query("wms_lots")
         .withIndex("by_material", (q) => q.eq("materialId", glassMaterialId))
@@ -411,6 +426,129 @@ export const runWmsTest = mutation({
       await ctx.db.delete(glassMaterialId);
       await ctx.db.delete(glassObjectId);
       await ctx.db.delete(glassCatId);
+
+      // ── Test 3-poziomowej hierarchii: Grupa -> System (Procural) -> Indeksy (PE50, PE68) ─
+      // Poziom 1: Grupa towarowa
+      const profileCatId = await ctx.db.insert("wms_categories", {
+        code: `PROF_${now}`,
+        name: "Profile aluminiowe",
+        description: "Główna grupa towarowa profili",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Poziom 2: System / Podgrupa podrzędna dla grupy
+      const procuralObjId = await ctx.db.insert("wms_objects", {
+        categoryId: profileCatId,
+        code: `PROC_${now}`,
+        name: "Procural",
+        description: "Systemy okienno-drzwiowe Procural",
+        defaultUnit: "szt.",
+        fieldsConfig: {
+          lengthMm: { enabled: true, required: true, label: "Długość handlowa (mm)" },
+          widthMm: { enabled: false, required: false },
+          heightMm: { enabled: false, required: false },
+          thicknessMm: { enabled: false, required: false },
+          weightKg: { enabled: true, required: false, label: "Masa sztangi (kg)" },
+        },
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Poziom 3: Indeksy magazynowe podrzędne dla systemu Procural
+      const pe50MatId = await ctx.db.insert("materials", {
+        name: "Profil ramy PE50",
+        sku: "PE50",
+        unit: "szt.",
+        priceUnit: 120,
+        category: "PROFILE",
+        wmsCategoryId: profileCatId,
+        wmsObjectId: procuralObjId,
+        lengthMm: 6500,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const pe68MatId = await ctx.db.insert("materials", {
+        name: "Profil skrzydła PE68",
+        sku: "PE68",
+        unit: "szt.",
+        priceUnit: 145,
+        category: "PROFILE",
+        wmsCategoryId: profileCatId,
+        wmsObjectId: procuralObjId,
+        lengthMm: 6000,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      assert(pe50MatId && pe68MatId, "Hierarchia: utworzono indeksy PE50 i PE68 w systemie Procural");
+
+      // Przyjęcie PZ dla PE50
+      const { id: pzPe50Id } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(pzPe50Id);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: pzPe50Id,
+        materialId: pe50MatId,
+        objectId: procuralObjId,
+        quantityPieces: 10,
+        lengthMm: 6500,
+        toLocationId: locMG,
+      });
+      await approveDocument(ctx, userId, pzPe50Id);
+
+      const pe50Lots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", pe50MatId))
+        .collect();
+      assert(pe50Lots.length === 1, "PZ PE50: utworzono partię 10 sztuk");
+      const pe50Lot = pe50Lots[0];
+      assert(pe50Lot.quantityPieces === 10, "PZ PE50: stan = 10 sztuk");
+      assert(pe50Lot.lengthMm === 6500, "PZ PE50: długość = 6500 mm");
+      assert((pe50Lot.quantityPieces * (pe50Lot.lengthMm ?? 0)) / 1000 === 65, "PZ PE50: metry bieżące = 65 mb");
+      assert(pe50Lot.categoryId === profileCatId, "PZ PE50: partia przypisana do Grupy towarowej");
+      assert(pe50Lot.objectId === procuralObjId, "PZ PE50: partia przypisana do Systemu Procural");
+
+      // Test walidacji: brak lokalizacji docelowej przy PZ
+      const { id: pzFailId } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(pzFailId);
+      await ctx.db.insert("wms_document_lines", {
+        documentId: pzFailId,
+        materialId: pe68MatId,
+        objectId: procuralObjId,
+        quantityPieces: 5,
+        lengthMm: 6000,
+        // brak toLocationId
+      });
+      await expectThrow(
+        () => approveDocument(ctx, userId, pzFailId),
+        "nie wybrano lokalizacji docelowej",
+        "Walidacja PZ: odrzucenie pozycji bez wskazanej lokalizacji docelowej",
+      );
+
+      // Sprzątanie danych testowych hierarchii
+      for (const matId of [pe50MatId, pe68MatId]) {
+        const lots = await ctx.db
+          .query("wms_lots")
+          .withIndex("by_material", (q) => q.eq("materialId", matId))
+          .collect();
+        for (const l of lots) {
+          const mvs = await ctx.db
+            .query("wms_movements")
+            .withIndex("by_lot", (q) => q.eq("lotId", l._id))
+            .collect();
+          for (const m of mvs) await ctx.db.delete(m._id);
+          await ctx.db.delete(l._id);
+        }
+        await ctx.db.delete(matId);
+      }
+      await ctx.db.delete(procuralObjId);
+      await ctx.db.delete(profileCatId);
+      ok("3-poziomowa struktura magazynowa (Grupa -> Procural -> PE50/PE68) przetestowana i zweryfikowana");
     } finally {
       // Sprzątanie (w razie błędu mutacja i tak się cofa, ale zachowujemy porządek)
       await cleanup(ctx, {

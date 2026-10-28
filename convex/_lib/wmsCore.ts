@@ -216,9 +216,9 @@ async function locationWarnings(
 }
 
 async function activeLocation(ctx: QueryCtx, id: Id<"wms_locations"> | undefined) {
-  if (!id) throw new Error("Nie wskazano lokalizacji.");
+  if (!id) throw new Error("Nie wskazano lokalizacji docelowej.");
   const loc = await ctx.db.get(id);
-  if (!loc) throw new Error("Lokalizacja nie istnieje.");
+  if (!loc) throw new Error("Wskazana lokalizacja nie istnieje.");
   if (!loc.isActive) throw new Error(`Lokalizacja ${loc.code} jest nieaktywna.`);
   return loc;
 }
@@ -373,6 +373,9 @@ export async function approveDocument(
         throw new Error(`${tag}: ilość sztuk musi być dodatnią liczbą całkowitą.`);
       const disposition = line.damage?.disposition;
       if (disposition === "REJECT") continue; // odrzucone — bez wejścia na stan
+      if (!line.toLocationId) {
+        throw new Error(`${tag}: nie wybrano lokalizacji docelowej. Usuń tę pozycję i dodaj ją ponownie ze wskazanym regałem.`);
+      }
       const toLoc = await activeLocation(ctx, line.toLocationId);
 
       const material = await ctx.db.get(line.materialId);
@@ -542,6 +545,9 @@ export async function approveDocument(
         throw new Error(
           `${tag}: ilość (${line.quantityPieces}) większa niż stan partii (${lot.quantityPieces}).`,
         );
+      if (!line.toLocationId) {
+        throw new Error(`${tag}: nie wybrano lokalizacji docelowej wydania.`);
+      }
       const toLoc = await activeLocation(ctx, line.toLocationId);
 
       if (lot.status === "IN_PROGRESS")

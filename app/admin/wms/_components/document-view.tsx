@@ -51,6 +51,11 @@ export function DocumentDetailView({
   const [busy, setBusy] = useState(false);
   const [showAddLine, setShowAddLine] = useState(false);
 
+  // Natywne modale potwierdzeń (zamiast window.confirm)
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [lineToDelete, setLineToDelete] = useState<{ id: Id<"wms_document_lines">; name: string } | null>(null);
+
   // Formularz nowej pozycji
   const [lineMatId, setLineMatId] = useState("");
   const [lineLotId, setLineLotId] = useState("");
@@ -105,12 +110,12 @@ export function DocumentDetailView({
   const { doc, lines, createdByName, approvedByName } = data;
   const isDraft = doc.status === "DRAFT";
 
-  async function handleApprove() {
-    if (!confirm(`Czy na pewno chcesz zatwierdzić dokument ${doc.number}? Operacja zaktualizuje stany magazynowe.`)) return;
+  async function handleApproveConfirm() {
     setBusy(true);
     try {
       const res = await approve({ id: doc._id });
       toast.success(`Dokument ${doc.number} został zatwierdzony`);
+      setShowApproveModal(false);
       if (res.warnings && res.warnings.length > 0) {
         for (const w of res.warnings) toast.warning(w);
       }
@@ -121,12 +126,26 @@ export function DocumentDetailView({
     }
   }
 
-  async function handleCancel() {
-    if (!confirm(`Czy na pewno chcesz anulować dokument ${doc.number}?`)) return;
+  async function handleCancelConfirm() {
     setBusy(true);
     try {
       await cancel({ id: doc._id });
       toast.success("Dokument został anulowany");
+      setShowCancelModal(false);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemoveLineConfirm() {
+    if (!lineToDelete) return;
+    setBusy(true);
+    try {
+      await removeLine({ id: lineToDelete.id });
+      toast.success("Pozycja usunięta");
+      setLineToDelete(null);
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -135,6 +154,32 @@ export function DocumentDetailView({
   }
 
   async function handleAddLine() {
+    if (type === "PZ") {
+      if (!lineMatId) {
+        toast.error("Wybierz indeks materiałowy z listy.");
+        return;
+      }
+      if ((!hasDamage || damageDisp !== "REJECT") && !lineToLoc) {
+        toast.error("Wybierz lokalizację docelową (regał) przed dodaniem pozycji.");
+        return;
+      }
+    } else if (type === "RW") {
+      if (!lineLotId) {
+        toast.error("Wybierz partię ze stanu magazynowego.");
+        return;
+      }
+      if (!lineToLoc) {
+        toast.error("Wybierz lokalizację docelową wydania.");
+        return;
+      }
+    }
+
+    const qtyNum = parseInt(lineQty, 10);
+    if (!qtyNum || qtyNum <= 0) {
+      toast.error("Podaj poprawną liczbę sztuk (większą od 0).");
+      return;
+    }
+
     setBusy(true);
     try {
       let certificateStorageId: Id<"_storage"> | undefined;
@@ -157,7 +202,7 @@ export function DocumentDetailView({
         materialId: lineMatId ? (lineMatId as Id<"materials">) : undefined,
         objectId: obj?._id,
         lotId: lineLotId ? (lineLotId as Id<"wms_lots">) : undefined,
-        quantityPieces: parseInt(lineQty, 10) || 1,
+        quantityPieces: qtyNum,
         lengthMm: lineLength ? parseInt(lineLength, 10) : undefined,
         widthMm: lineWidth ? parseInt(lineWidth, 10) : undefined,
         heightMm: lineHeight ? parseInt(lineHeight, 10) : undefined,
@@ -194,6 +239,7 @@ export function DocumentDetailView({
       setLineColor("");
       setLineHeat("");
       setLineSscc("");
+      setLineToLoc("");
       setLineNote("");
       setHasDamage(false);
       setDamageDesc("");
@@ -206,14 +252,11 @@ export function DocumentDetailView({
     }
   }
 
-  async function handleRemoveLine(lineId: Id<"wms_document_lines">) {
-    if (!confirm("Usunąć tę pozycję z dokumentu?")) return;
-    try {
-      await removeLine({ id: lineId });
-      toast.success("Pozycja usunięta");
-    } catch (e) {
-      toast.error(errMsg(e));
-    }
+  function handleRemoveLine(line: typeof lines[number]) {
+    setLineToDelete({
+      id: line._id,
+      name: line.materialName ?? line.lotLabel ?? "Tę pozycję",
+    });
   }
 
   return (
@@ -227,10 +270,10 @@ export function DocumentDetailView({
           </Link>
           {isDraft && (
             <>
-              <Btn danger onClick={handleCancel} disabled={busy}>
+              <Btn danger onClick={() => setShowCancelModal(true)} disabled={busy}>
                 Anuluj dokument
               </Btn>
-              <Btn primary onClick={handleApprove} disabled={busy || lines.length === 0}>
+              <Btn primary onClick={() => setShowApproveModal(true)} disabled={busy || lines.length === 0}>
                 {busy ? "Zatwierdzanie…" : "✓ Zatwierdź dokument"}
               </Btn>
             </>
@@ -324,10 +367,12 @@ export function DocumentDetailView({
                             }
                           }}
                         >
-                          <option value="">Wybierz materiał z bazy…</option>
+                          <option value="">Wybierz indeks towarowy…</option>
                           {(materials ?? []).map((m) => (
                             <option key={m.material._id} value={m.material._id}>
-                              {m.material.sku ? `[${m.material.sku}] ` : ""}{m.material.name} {m.category ? `(${m.category.name}${m.object ? ` → ${m.object.name}` : ""})` : ""}
+                              {m.category && m.object ? `[${m.category.name} → ${m.object.name}] ` : ""}
+                              {m.material.sku ? `${m.material.sku} — ` : ""}
+                              {m.material.name}
                             </option>
                           ))}
                         </select>
@@ -335,7 +380,7 @@ export function DocumentDetailView({
 
                       {cat && (
                         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Kategoria / Obiekt</div>
+                          <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Grupa towarowa / System</div>
                           <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
                             <span style={{ background: "rgba(255,255,255,0.08)", color: C.text, padding: "2px 8px", borderRadius: 4, fontSize: 12, fontWeight: 600 }}>
                               {cat.name}
@@ -432,14 +477,26 @@ export function DocumentDetailView({
 
                       {/* Lokalizacja docelowa */}
                       <Field label="Lokalizacja docelowa *">
-                        <select style={inputStyle} value={lineToLoc} onChange={(e) => setLineToLoc(e.target.value)}>
+                        <select
+                          style={{
+                            ...inputStyle,
+                            ...(!lineToLoc ? { borderColor: C.amber } : null),
+                          }}
+                          value={lineToLoc}
+                          onChange={(e) => setLineToLoc(e.target.value)}
+                        >
                           <option value="">Wybierz regał / lokalizację…</option>
                           {(locations ?? []).map((l) => (
                             <option key={l._id} value={l._id}>
-                              {l.name}
+                              {l.name} ({l.code})
                             </option>
                           ))}
                         </select>
+                        {(locations ?? []).length === 0 && (
+                          <span style={{ fontSize: 11, color: C.amber, marginTop: 2 }}>
+                            Brak aktywnych lokalizacji w magazynie. Dodaj je w Ustawieniach.
+                          </span>
+                        )}
                       </Field>
 
                       {/* Atest */}
@@ -589,7 +646,7 @@ export function DocumentDetailView({
           <Table
             headers={[
               "Lp.",
-              type === "PZ" ? "Produkt / Obiekt" : "Partia źródłowa",
+              type === "PZ" ? "Indeks / System" : "Partia źródłowa",
               "Wymiary / Parametry",
               "Ilość",
               "Cechy (kolor/partia)",
@@ -663,7 +720,9 @@ export function DocumentDetailView({
                 </Td>
                 {isDraft && (
                   <Td>
-                    <Btn small danger onClick={() => handleRemoveLine(line._id)}>Usuń</Btn>
+                    <Btn small danger onClick={() => handleRemoveLine(line)}>
+                      Usuń
+                    </Btn>
                   </Td>
                 )}
               </Tr>
@@ -671,6 +730,181 @@ export function DocumentDetailView({
           </Table>
         )}
       </Card>
+
+      {/* ─── NATYWNY MODAL ZATWIERDZENIA DOKUMENTU ────────────────────── */}
+      {showApproveModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setShowApproveModal(false)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.borderFocus}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 520,
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                  Zatwierdzenie dokumentu {doc.number}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                  {type === "PZ" ? "Przyjęcie zewnętrzne na stan magazynowy" : "Rozchód wewnętrzny (wydanie do bufora)"}
+                </div>
+              </div>
+              <Btn small onClick={() => !busy && setShowApproveModal(false)}>✕</Btn>
+            </div>
+
+            <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Liczba pozycji</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{lines.length}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Łączna ilość sztuk</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                    {fmtNum(lines.reduce((s, l) => s + l.quantityPieces, 0))} szt.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+              Czy na pewno chcesz zatwierdzić dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong>? Operacja zaktualizuje stany magazynowe i jest nieodwracalna.
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+              <Btn onClick={() => setShowApproveModal(false)} disabled={busy}>
+                Wróć
+              </Btn>
+              <Btn primary onClick={handleApproveConfirm} disabled={busy}>
+                {busy ? "Zatwierdzanie…" : "✓ Tak, zatwierdź dokument"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── NATYWNY MODAL ANULOWANIA DOKUMENTU ────────────────────────── */}
+      {showCancelModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setShowCancelModal(false)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 480,
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.red }}>
+                Anulowanie dokumentu {doc.number}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                Czy na pewno chcesz anulować dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong>? Dokument przejdzie w status <strong style={{ color: C.red }}>ANULOWANY</strong> i dalsza edycja nie będzie możliwa.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+              <Btn onClick={() => setShowCancelModal(false)} disabled={busy}>
+                Wróć
+              </Btn>
+              <Btn danger onClick={handleCancelConfirm} disabled={busy}>
+                {busy ? "Anulowanie…" : "Tak, anuluj dokument"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── NATYWNY MODAL USUNIĘCIA POZYCJI ───────────────────────────── */}
+      {lineToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setLineToDelete(null)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 440,
+              padding: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                Usunięcie pozycji z dokumentu
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+                Czy na pewno chcesz usunąć tę pozycję (<strong style={{ color: C.text }}>{lineToDelete.name}</strong>) ze szkicu dokumentu?
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <Btn onClick={() => setLineToDelete(null)} disabled={busy}>
+                Anuluj
+              </Btn>
+              <Btn danger onClick={handleRemoveLineConfirm} disabled={busy}>
+                {busy ? "Usuwanie…" : "Usuń pozycję"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </Page>
   );
 }

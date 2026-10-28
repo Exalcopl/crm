@@ -62,12 +62,12 @@ export default function StanyPage() {
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <input
           style={{ ...inputStyle, flex: 1, minWidth: 220, width: "auto" }}
-          placeholder="Szukaj: produkt, SKU, kategoria, obiekt, kolor, partia…"
+          placeholder="Szukaj: indeks, SKU, grupa towarowa, system/podgrupa, kolor, partia…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
         <select style={{ ...inputStyle, width: "auto" }} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          <option value="">Wszystkie kategorie</option>
+          <option value="">Wszystkie grupy towarowe</option>
           {(categories ?? []).map((c) => (
             <option key={c._id} value={c._id}>{c.name}</option>
           ))}
@@ -95,7 +95,7 @@ export default function StanyPage() {
         ) : rows.length === 0 ? (
           <Empty title="Brak partii" text="Przyjmij towar dokumentem PZ, aby pojawił się na stanie." />
         ) : (
-          <Table headers={["Produkt / Indeks", "Kategoria / Obiekt", "Wymiary / Parametry", "Cechy", "Partia / SSCC", "Ilość", "Masa", "Lokalizacja", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Wymiary / Parametry", "Cechy", "Partia / SSCC", "Ilość", "Masa", "Lokalizacja", "Status"]}>
             {rows.map((l) => (
               <Fragment key={l._id}>
                 <Tr onClick={() => setOpenId(openId === l._id ? null : l._id)}>

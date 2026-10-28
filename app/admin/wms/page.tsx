@@ -25,11 +25,11 @@ export default function WmsOverviewPage() {
   return (
     <Page
       title="Magazyn WMS — Przegląd"
-      subtitle="Ewidencja magazynu: kategorie, jednostki obiektów, stany wielowymiarowe, dokumenty PZ/RW i ruchy."
+      subtitle="Ewidencja magazynu: grupy towarowe, systemy/podgrupy, indeksy (np. Procural → PE50, PE68), stany i dokumenty PZ/RW."
       actions={
         <div style={{ display: "flex", gap: 8 }}>
           <Link href="/admin/wms/ustawienia" className="fluent-btn">
-            ⚙️ Ustawienia (Kategorie)
+            ⚙️ Ustawienia (Grupy i systemy)
           </Link>
           <Link href="/admin/wms/pz" className="fluent-btn fluent-btn-primary">
             + Przyjęcie (PZ)
@@ -61,10 +61,10 @@ export default function WmsOverviewPage() {
             <Stat
               label="Szacowana masa"
               value={fmtKg(data.totalKg || undefined)}
-              sub="ze wszystkich kategorii"
+              sub="ze wszystkich grup"
             />
             <Stat
-              label="Kategorie obiektów"
+              label="Grupy towarowe"
               value={fmtNum(data.categoryCount)}
               sub="zdefiniowanych grup"
             />
@@ -94,23 +94,23 @@ export default function WmsOverviewPage() {
             </div>
           )}
 
-          {/* Podsumowanie stanów wg Kategorii i Obiektów */}
+          {/* Podsumowanie stanów wg Grup towarowych i Systemów */}
           <div style={{ marginBottom: 20 }}>
             <Card
-              title="Stany magazynowe wg kategorii i obiektów"
+              title="Stany magazynowe wg grup towarowych i systemów"
               pad={false}
             >
               {data.categoriesBreakdown.length === 0 ? (
                 <Empty
                   icon="📦"
                   title="Brak stanów magazynowych"
-                  text="Przyjmij pierwszy towar dokumentem PZ lub skonfiguruj kategorie w zakładce 'Ustawienia'."
+                  text="Przyjmij pierwszy towar dokumentem PZ lub skonfiguruj grupy towarowe i systemy w zakładce 'Ustawienia'."
                 />
               ) : (
                 <Table
                   headers={[
-                    "Kategoria magazynowa",
-                    "Nazwa obiektu",
+                    "Grupa towarowa",
+                    "System / Podgrupa",
                     "Domyślna jednostka",
                     "Partie na stanie",
                     "Łączna ilość",

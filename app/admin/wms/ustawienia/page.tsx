@@ -166,11 +166,11 @@ function WmsSettingsContent() {
 
   async function handleSaveCategory() {
     if (!catForm.name.trim()) {
-      toast.error("Wpisz nazwę kategorii");
+      toast.error("Wpisz nazwę grupy towarowej");
       return;
     }
     if (!catForm.code.trim()) {
-      toast.error("Wpisz kod kategorii");
+      toast.error("Wpisz kod grupy towarowej");
       return;
     }
 
@@ -183,7 +183,7 @@ function WmsSettingsContent() {
         description: catForm.description.trim() || undefined,
         isActive: catForm.isActive,
       });
-      toast.success(catForm.id ? "Zaktualizowano kategorię" : "Utworzono nową kategorię");
+      toast.success(catForm.id ? "Zaktualizowano grupę towarową" : "Utworzono nową grupę towarową");
       setEditingCat(false);
     } catch (e) {
       toast.error(errMsg(e));
@@ -193,20 +193,20 @@ function WmsSettingsContent() {
   }
 
   async function handleDeleteCategory(id: Id<"wms_categories">, name: string) {
-    if (!confirm(`Czy na pewno chcesz usunąć kategorię "${name}"?`)) return;
+    if (!confirm(`Czy na pewno chcesz usunąć grupę towarową "${name}"?`)) return;
     try {
       const res = await deleteCat({ id });
       if (res.deactivated) {
-        toast.info(`Kategoria "${name}" została dezaktywowana (posiada obiekty lub partie w magazynie)`);
+        toast.info(`Grupa towarowa "${name}" została dezaktywowana (posiada systemy lub partie w magazynie)`);
       } else {
-        toast.success(`Kategoria "${name}" została usunięta`);
+        toast.success(`Grupa towarowa "${name}" została usunięta`);
       }
     } catch (e) {
       toast.error(errMsg(e));
     }
   }
 
-  // ─── Handlery dla Obiektów (Podrzędne) ───────────────────────
+  // ─── Handlery dla Systemów / Podgrup (np. Procural, Aluprof) ──
   function startNewObject(presetCatId?: string) {
     const firstCatId = presetCatId || (categories && categories.length > 0 ? categories[0]._id : "");
     setObjForm({
@@ -239,11 +239,11 @@ function WmsSettingsContent() {
 
   async function handleSaveObject() {
     if (!objForm.categoryId) {
-      toast.error("Wybierz kategorię nadrzędną");
+      toast.error("Wybierz grupę towarową nadrzędną");
       return;
     }
     if (!objForm.name.trim()) {
-      toast.error("Wpisz nazwę obiektu magazynowego");
+      toast.error("Wpisz nazwę systemu / podgrupy (np. Procural)");
       return;
     }
 
@@ -259,7 +259,7 @@ function WmsSettingsContent() {
         customFields: objForm.customFields,
         isActive: objForm.isActive,
       });
-      toast.success(objForm.id ? "Zaktualizowano obiekt magazynowy" : "Utworzono obiekt magazynowy");
+      toast.success(objForm.id ? "Zaktualizowano system / podgrupę" : "Utworzono system / podgrupę");
       setEditingObj(false);
     } catch (e) {
       toast.error(errMsg(e));
@@ -269,13 +269,13 @@ function WmsSettingsContent() {
   }
 
   async function handleDeleteObject(id: Id<"wms_objects">, name: string) {
-    if (!confirm(`Czy na pewno chcesz usunąć obiekt magazynowy "${name}"?`)) return;
+    if (!confirm(`Czy na pewno chcesz usunąć system / podgrupę "${name}"?`)) return;
     try {
       const res = await deleteObj({ id });
       if (res.deactivated) {
-        toast.info(`Obiekt "${name}" został dezaktywowany (posiada partie na magazynie)`);
+        toast.info(`System "${name}" został dezaktywowany (posiada partie na magazynie)`);
       } else {
-        toast.success(`Obiekt "${name}" został usunięty`);
+        toast.success(`System "${name}" został usunięty`);
       }
     } catch (e) {
       toast.error(errMsg(e));
@@ -374,17 +374,17 @@ function WmsSettingsContent() {
   return (
     <Page
       title="Ustawienia WMS"
-      subtitle="Zarządzaj nadrzędnymi kategoriami, podrzędnymi obiektami magazynowymi, ich cechami wymiarowymi, lokalizacjami i powiązaniami z materiałami."
+      subtitle="Zarządzanie grupami towarowymi, systemami i podgrupami (np. Procural, Aluprof), lokalizacjami magazynu oraz przypisaniem indeksów."
       actions={
         <div style={{ display: "flex", gap: 8 }}>
           {activeTab === "categories" && (
             <Btn primary onClick={startNewCategory}>
-              + Nowa kategoria
+              + Nowa grupa towarowa
             </Btn>
           )}
           {activeTab === "objects" && (
             <Btn primary onClick={() => startNewObject(filterObjCatId)}>
-              + Nowy obiekt magazynowy
+              + Nowy system / podgrupa
             </Btn>
           )}
           {activeTab === "locations" && (
@@ -411,7 +411,7 @@ function WmsSettingsContent() {
             fontWeight: activeTab === "categories" ? 600 : 400,
           }}
         >
-          Kategorie ({(categories ?? []).length})
+          Grupy towarowe ({(categories ?? []).length})
         </button>
         <button
           type="button"
@@ -427,7 +427,7 @@ function WmsSettingsContent() {
             fontWeight: activeTab === "objects" ? 600 : 400,
           }}
         >
-          Obiekty magazynowe ({(objects ?? []).length})
+          Systemy i podgrupy ({(objects ?? []).length})
         </button>
         <button
           type="button"
@@ -463,44 +463,44 @@ function WmsSettingsContent() {
         </button>
       </div>
 
-      {/* ─── ZAKŁADKA 1: KATEGORIE (Nadrzędne) ──────────────────────── */}
+      {/* ─── ZAKŁADKA 1: GRUPY TOWAROWE (Nadrzędne) ────────────────── */}
       {activeTab === "categories" && (
         <>
           {editingCat && (
             <div style={{ marginBottom: 20 }}>
-              <Card title={catForm.id ? `Edycja kategorii: ${catForm.name}` : "Nowa kategoria nadrzędna"}>
+              <Card title={catForm.id ? `Edycja grupy towarowej: ${catForm.name}` : "Nowa grupa towarowa"}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <Grid cols={3}>
-                    <Field label="Nazwa kategorii *">
+                    <Field label="Nazwa grupy towarowej *">
                       <input
                         style={inputStyle}
                         value={catForm.name}
                         onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-                        placeholder="np. Szyby zespolone, Profile aluminiowe, Okucia"
+                        placeholder="np. Profile aluminiowe, Okucia i zamki, Szyby zespolone"
                         autoFocus
                       />
                     </Field>
-                    <Field label="Kod kategorii (identyfikator) *">
+                    <Field label="Kod grupy (identyfikator) *">
                       <input
                         style={{ ...inputStyle, fontFamily: "monospace" }}
                         value={catForm.code}
                         onChange={(e) => setCatForm({ ...catForm, code: e.target.value.toUpperCase() })}
-                        placeholder="np. GLASS, PROFILE, HARDWARE"
+                        placeholder="np. PROFILE, HARDWARE, GLASS"
                       />
                     </Field>
-                    <Field label="Opis kategorii (opcjonalnie)">
+                    <Field label="Opis grupy towarowej (opcjonalnie)">
                       <input
                         style={inputStyle}
                         value={catForm.description}
                         onChange={(e) => setCatForm({ ...catForm, description: e.target.value })}
-                        placeholder="Krótki opis przeznaczenia kategorii…"
+                        placeholder="Krótki opis przeznaczenia grupy…"
                       />
                     </Field>
                   </Grid>
 
                   <div style={{ display: "flex", gap: 8 }}>
                     <Btn primary onClick={handleSaveCategory} disabled={catBusy}>
-                      {catBusy ? "Zapisywanie…" : catForm.id ? "Zapisz zmiany" : "Utwórz kategorię"}
+                      {catBusy ? "Zapisywanie…" : catForm.id ? "Zapisz zmiany" : "Utwórz grupę towarową"}
                     </Btn>
                     <Btn onClick={() => setEditingCat(false)}>Anuluj</Btn>
                   </div>
@@ -509,16 +509,16 @@ function WmsSettingsContent() {
             </div>
           )}
 
-          <Card title={`Kategorie nadrzędne (${(categories ?? []).length})`} pad={false}>
+          <Card title={`Grupy towarowe (${(categories ?? []).length})`} pad={false}>
             {!categories ? (
-              <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Wczytywanie kategorii…</div>
+              <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Wczytywanie grup towarowych…</div>
             ) : categories.length === 0 ? (
               <Empty
-                title="Brak zdefiniowanych kategorii"
-                text="Kliknij '+ Nowa kategoria', aby utworzyć pierwszą kategorię."
+                title="Brak zdefiniowanych grup towarowych"
+                text="Kliknij '+ Nowa grupa towarowa', aby utworzyć pierwszą grupę (np. Profile aluminiowe)."
               />
             ) : (
-              <Table headers={["Kod", "Nazwa kategorii", "Opis", "Obiekty podrzędne", "Status", "Akcje"]}>
+              <Table headers={["Kod", "Grupa towarowa", "Opis", "Systemy / Podgrupy", "Status", "Akcje"]}>
                 {categories.map((c) => (
                   <Tr key={c._id}>
                     <Td mono bold>{c.code}</Td>
@@ -537,7 +537,7 @@ function WmsSettingsContent() {
                           fontWeight: 600,
                         }}
                       >
-                        {c.objectCount === 1 ? "1 obiekt" : `${c.objectCount} obiektów`}
+                        {c.objectCount === 1 ? "1 system / podgrupa" : `${c.objectCount} systemów`}
                       </span>
                     </Td>
                     <Td>
@@ -555,7 +555,7 @@ function WmsSettingsContent() {
                             startNewObject(c._id);
                           }}
                         >
-                          + Dodaj obiekt
+                          + Dodaj system
                         </Btn>
                         <Btn small onClick={() => startEditCategory(c)}>Edytuj</Btn>
                         <Btn small danger onClick={() => handleDeleteCategory(c._id, c.name)}>Usuń</Btn>
@@ -569,25 +569,25 @@ function WmsSettingsContent() {
         </>
       )}
 
-      {/* ─── ZAKŁADKA 2: OBIEKTY MAGAZYNOWE (Podrzędne) ─────────────── */}
+      {/* ─── ZAKŁADKA 2: SYSTEMY I PODGRUPY (np. Procural, Aluprof) ── */}
       {activeTab === "objects" && (
         <>
           {editingObj && (
             <div style={{ marginBottom: 20 }}>
-              <Card title={objForm.id ? `Edycja obiektu: ${objForm.name}` : "Nowy obiekt magazynowy"}>
+              <Card title={objForm.id ? `Edycja systemu / podgrupy: ${objForm.name}` : "Nowy system / podgrupa"}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                   <div style={{ fontSize: 12, color: C.muted }}>
-                    Obiekt definiuje fizyczną postać magazynowaną pod kategorią (np. pod kategorią &quot;Szyby zespolone&quot; obiektem jest &quot;Pakiet szybowy&quot; lub &quot;Formatka&quot;).
+                    System lub podgrupa reprezentuje producenta lub serię w danej grupie towarowej (np. w grupie &quot;Profile aluminiowe&quot; systemem jest &quot;Procural&quot; lub &quot;Aluprof&quot;).
                   </div>
 
                   <Grid cols={3}>
-                    <Field label="Kategoria nadrzędna *">
+                    <Field label="Grupa towarowa (nadrzędna) *">
                       <select
                         style={inputStyle}
                         value={objForm.categoryId}
                         onChange={(e) => setObjForm({ ...objForm, categoryId: e.target.value })}
                       >
-                        <option value="">Wybierz kategorię nadrzędną…</option>
+                        <option value="">Wybierz grupę towarową…</option>
                         {(categories ?? []).map((cat) => (
                           <option key={cat._id} value={cat._id}>
                             {cat.name} ({cat.code})
@@ -596,36 +596,36 @@ function WmsSettingsContent() {
                       </select>
                     </Field>
 
-                    <Field label="Nazwa obiektu magazynowego *">
+                    <Field label="Nazwa systemu / podgrupy *">
                       <input
                         style={inputStyle}
                         value={objForm.name}
                         onChange={(e) => setObjForm({ ...objForm, name: e.target.value })}
-                        placeholder="np. Pakiet szybowy, Formatka, Sztanga, Rolka"
+                        placeholder="np. Procural, Aluprof, Aliplast, Roto"
                         autoFocus
                       />
                     </Field>
 
-                    <Field label="Kod obiektu (opcjonalnie)">
+                    <Field label="Kod systemu (opcjonalnie)">
                       <input
                         style={{ ...inputStyle, fontFamily: "monospace" }}
                         value={objForm.code}
                         onChange={(e) => setObjForm({ ...objForm, code: e.target.value.toUpperCase() })}
-                        placeholder="np. GLASS_PACK, BAR"
+                        placeholder="np. PROCURAL, ALUPROF"
                       />
                     </Field>
                   </Grid>
 
-                  <Field label="Opis obiektu (opcjonalnie)">
+                  <Field label="Opis systemu / podgrupy (opcjonalnie)">
                     <input
                       style={inputStyle}
                       value={objForm.description}
                       onChange={(e) => setObjForm({ ...objForm, description: e.target.value })}
-                      placeholder="Krótki opis tego obiektu…"
+                      placeholder="Krótki opis przeznaczenia lub serii…"
                     />
                   </Field>
 
-                  {/* Konfiguracja pól wymiarów fizycznych obiektu */}
+                  {/* Konfiguracja pól wymiarów fizycznych */}
                   <div
                     style={{
                       background: "rgba(255,255,255,0.02)",
@@ -635,10 +635,10 @@ function WmsSettingsContent() {
                     }}
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-                      Wymiary fizyczne obiektu
+                      Wymiary fizyczne i parametry dla indeksów tego systemu
                     </div>
                     <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
-                      Zaznacz, jakie parametry fizyczne posiada ten obiekt. Oznaczenie &quot;Wymagane&quot; wymusza ich uzupełnienie w formularzu przyjęcia (PZ).
+                      Zaznacz, jakie parametry fizyczne posiadają indeksy w tym systemie (np. długość dla profili, szerokość i wysokość dla szyb).
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
@@ -741,10 +741,10 @@ function WmsSettingsContent() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                          Dodatkowe cechy niestandardowe obiektu
+                          Dodatkowe cechy niestandardowe systemu
                         </div>
                         <div style={{ fontSize: 12, color: C.muted }}>
-                          Np. Producent, Strona L/P, Budowa pakietu szybowego itp.
+                          Np. Seria, Strona L/P, Budowa pakietu itp.
                         </div>
                       </div>
                       <Btn small onClick={addCustomField}>+ Dodaj pole</Btn>
@@ -752,7 +752,7 @@ function WmsSettingsContent() {
 
                     {objForm.customFields.length === 0 ? (
                       <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", padding: "8px 0" }}>
-                        Brak zdefiniowanych pól niestandardowych dla tego obiektu.
+                        Brak zdefiniowanych dodatkowych cech dla tego systemu.
                       </div>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
@@ -770,7 +770,7 @@ function WmsSettingsContent() {
                           >
                             <input
                               style={{ ...inputStyle, flex: 2 }}
-                              placeholder="Etykieta pola (np. Budowa pakietu)"
+                              placeholder="Etykieta pola (np. Seria profili)"
                               value={cf.label}
                               onChange={(e) => {
                                 const next = [...objForm.customFields];
@@ -824,7 +824,7 @@ function WmsSettingsContent() {
 
                   <div style={{ display: "flex", gap: 8 }}>
                     <Btn primary onClick={handleSaveObject} disabled={objBusy}>
-                      {objBusy ? "Zapisywanie…" : objForm.id ? "Zapisz zmiany" : "Utwórz obiekt"}
+                      {objBusy ? "Zapisywanie…" : objForm.id ? "Zapisz zmiany" : "Utwórz system / podgrupę"}
                     </Btn>
                     <Btn onClick={() => setEditingObj(false)}>Anuluj</Btn>
                   </div>
@@ -833,16 +833,16 @@ function WmsSettingsContent() {
             </div>
           )}
 
-          <Card title={`Obiekty magazynowe (${(filteredObjects ?? []).length})`} pad={false}>
+          <Card title={`Systemy i podgrupy (${(filteredObjects ?? []).length})`} pad={false}>
             {/* Filtr kategorii */}
             <div style={{ padding: 12, borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, alignItems: "center" }}>
-              <span style={{ fontSize: 12, color: C.muted }}>Filtruj wg kategorii nadrzędnej:</span>
+              <span style={{ fontSize: 12, color: C.muted }}>Filtruj wg grupy towarowej:</span>
               <select
                 style={{ ...inputStyle, width: 260 }}
                 value={filterObjCatId}
                 onChange={(e) => setFilterObjCatId(e.target.value)}
               >
-                <option value="">Wszystkie kategorie</option>
+                <option value="">Wszystkie grupy towarowe</option>
                 {(categories ?? []).map((cat) => (
                   <option key={cat._id} value={cat._id}>
                     {cat.name} ({cat.code})
@@ -852,14 +852,14 @@ function WmsSettingsContent() {
             </div>
 
             {!objects ? (
-              <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Wczytywanie obiektów magazynowych…</div>
+              <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Wczytywanie systemów / podgrup…</div>
             ) : filteredObjects.length === 0 ? (
               <Empty
-                title="Brak obiektów magazynowych"
-                text="Kliknij '+ Nowy obiekt magazynowy', aby utworzyć obiekt i przypisać go do kategorii."
+                title="Brak zdefiniowanych systemów / podgrup"
+                text="Kliknij '+ Nowy system / podgrupa', aby utworzyć pierwszy system (np. Procural) i przypisać go do grupy towarowej."
               />
             ) : (
-              <Table headers={["Nazwa obiektu", "Kategoria nadrzędna", "Kod", "Wymiary fizyczne obiektu", "Pola własne", "Akcje"]}>
+              <Table headers={["Nazwa systemu / podgrupy", "Grupa towarowa", "Kod", "Wymiary fizyczne", "Pola własne", "Akcje"]}>
                 {filteredObjects.map((obj) => {
                   const activeFields = STANDARD_FIELD_KEYS.filter((k) => obj.fieldsConfig[k.key]?.enabled);
                   return (
@@ -887,7 +887,7 @@ function WmsSettingsContent() {
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                           {activeFields.length === 0 ? (
                             <span style={{ color: C.muted, fontSize: 11, fontStyle: "italic" }}>
-                              Brak (obiekt bezwymiarowy)
+                              Brak wymiarów
                             </span>
                           ) : (
                             activeFields.map((f) => {
@@ -896,43 +896,29 @@ function WmsSettingsContent() {
                                 <span
                                   key={f.key}
                                   style={{
-                                    fontSize: 10,
-                                    padding: "2px 6px",
+                                    fontSize: 11,
+                                    background: cfg.required ? "rgba(239, 68, 68, 0.15)" : "rgba(255,255,255,0.06)",
+                                    color: cfg.required ? "#fca5a5" : C.text,
+                                    border: `1px solid ${cfg.required ? "rgba(239, 68, 68, 0.3)" : C.border}`,
+                                    padding: "1px 6px",
                                     borderRadius: 3,
-                                    background: cfg?.required ? "rgba(239, 68, 68, 0.15)" : "rgba(255,255,255,0.06)",
-                                    color: cfg?.required ? C.red : C.text,
-                                    border: `1px solid ${cfg?.required ? "rgba(239, 68, 68, 0.3)" : C.border}`,
-                                    fontWeight: cfg?.required ? 600 : 400,
                                   }}
                                 >
-                                  {cfg?.label || f.defaultLabel} {cfg?.required ? "*" : ""}
+                                  {cfg.label || f.defaultLabel}
+                                  {cfg.required ? " *" : ""}
                                 </span>
                               );
                             })
                           )}
                         </div>
                       </Td>
-                      <Td>
-                        {obj.customFields && obj.customFields.length > 0 ? (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                            {obj.customFields.map((cf) => (
-                              <span
-                                key={cf.key}
-                                style={{
-                                  fontSize: 10,
-                                  padding: "2px 6px",
-                                  borderRadius: 3,
-                                  background: "rgba(168, 85, 247, 0.15)",
-                                  color: "#c084fc",
-                                  border: "1px solid rgba(168, 85, 247, 0.3)",
-                                }}
-                              >
-                                {cf.label} {cf.required ? "*" : ""}
-                              </span>
-                            ))}
-                          </div>
+                      <Td muted>
+                        {(obj.customFields ?? []).length > 0 ? (
+                          <span style={{ fontSize: 11 }}>
+                            {(obj.customFields ?? []).map((cf) => cf.label).join(", ")}
+                          </span>
                         ) : (
-                          <span style={{ color: C.muted, fontSize: 11 }}>brak</span>
+                          "—"
                         )}
                       </Td>
                       <Td>
@@ -1029,7 +1015,7 @@ function WmsSettingsContent() {
 
       {/* ─── ZAKŁADKA 4: PRZYPISANIE INDEKSÓW ──────────────────────── */}
       {activeTab === "materials" && (
-        <Card title="Przypisanie indeksów materiałowych do kategorii i obiektów WMS" pad={false}>
+        <Card title="Przypisanie indeksów materiałowych do grup towarowych i systemów" pad={false}>
           <div style={{ padding: 12, borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, alignItems: "center" }}>
             <input
               style={{ ...inputStyle, maxWidth: 300 }}
@@ -1042,8 +1028,8 @@ function WmsSettingsContent() {
               value={filterMatCatId}
               onChange={(e) => setFilterMatCatId(e.target.value)}
             >
-              <option value="">Wszystkie kategorie WMS</option>
-              <option value="NONE">Bez przypisanej kategorii WMS</option>
+              <option value="">Wszystkie grupy towarowe</option>
+              <option value="NONE">Bez przypisanej grupy towarowej</option>
               {(categories ?? []).map((cat) => (
                 <option key={cat._id} value={cat._id}>
                   {cat.name} ({cat.code})
@@ -1052,7 +1038,7 @@ function WmsSettingsContent() {
             </select>
           </div>
 
-          <Table headers={["Nazwa materiału", "SKU", "Kategoria cennikowa", "Kategoria WMS", "Obiekt magazynowy", "Stan szt."]}>
+          <Table headers={["Indeks / Nazwa materiału", "SKU / Kod", "Kategoria cennikowa", "Grupa towarowa WMS", "System / Podgrupa", "Stan szt."]}>
             {filteredMaterials.map((m) => {
               const currentCatId = m.material.wmsCategoryId;
               const availableObjects = (objects ?? []).filter((o) => !currentCatId || o.categoryId === currentCatId);
@@ -1080,13 +1066,13 @@ function WmsSettingsContent() {
                             wmsCategoryId: newCatId,
                             wmsObjectId: firstObjForCat,
                           });
-                          toast.success(`Zaktualizowano kategorię dla ${m.material.name}`);
+                          toast.success(`Zaktualizowano grupę towarową dla ${m.material.name}`);
                         } catch (err) {
                           toast.error(errMsg(err));
                         }
                       }}
                     >
-                      <option value="">Wybierz kategorię WMS…</option>
+                      <option value="">Wybierz grupę towarową…</option>
                       {(categories ?? []).map((cat) => (
                         <option key={cat._id} value={cat._id}>
                           {cat.name}
@@ -1107,13 +1093,13 @@ function WmsSettingsContent() {
                             wmsCategoryId: currentCatId,
                             wmsObjectId: val ? (val as Id<"wms_objects">) : undefined,
                           });
-                          toast.success(`Przypisano obiekt dla ${m.material.name}`);
+                          toast.success(`Przypisano system / podgrupę dla ${m.material.name}`);
                         } catch (err) {
                           toast.error(errMsg(err));
                         }
                       }}
                     >
-                      <option value="">{currentCatId ? "Wybierz obiekt…" : "Najpierw wybierz kategorię"}</option>
+                      <option value="">{currentCatId ? "Wybierz system…" : "Najpierw wybierz grupę"}</option>
                       {availableObjects.map((obj) => (
                         <option key={obj._id} value={obj._id}>
                           {obj.name}
