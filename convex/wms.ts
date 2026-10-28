@@ -399,23 +399,52 @@ export const deleteCategory = mutation({
   handler: async (ctx, { id }) => {
     await requireUser(ctx);
     const cat = await ctx.db.get(id);
-    if (!cat) throw new Error("Kategoria nie istnieje.");
+    if (!cat) throw new Error("Grupa towarowa nie istnieje.");
 
-    const [lot, obj] = await Promise.all([
-      ctx.db
+    // Sprawdź czy kategoria lub jej podrzędne systemy mają jakiekolwiek partie na stanie
+    const lot = await ctx.db
+      .query("wms_lots")
+      .withIndex("by_category", (q) => q.eq("categoryId", id))
+      .first();
+
+    const objs = await ctx.db
+      .query("wms_objects")
+      .withIndex("by_category", (q) => q.eq("categoryId", id))
+      .collect();
+
+    let hasLotsInObjects = false;
+    for (const obj of objs) {
+      const objLot = await ctx.db
         .query("wms_lots")
-        .withIndex("by_category", (q) => q.eq("categoryId", id))
-        .first(),
-      ctx.db
-        .query("wms_objects")
-        .withIndex("by_category", (q) => q.eq("categoryId", id))
-        .first(),
-    ]);
-
-    if (lot || obj) {
-      await ctx.db.patch(id, { isActive: false, updatedAt: Date.now() });
-      return { deactivated: true };
+        .withIndex("by_object", (q) => q.eq("objectId", obj._id))
+        .first();
+      if (objLot) {
+        hasLotsInObjects = true;
+        break;
+      }
     }
+
+    if (lot || hasLotsInObjects) {
+      await ctx.db.patch(id, { isActive: false, updatedAt: Date.now() });
+      return { deactivated: true, hasLots: true };
+    }
+
+    // Brak partii w magazynie — usuń podrzędne puste systemy / obiekty
+    for (const obj of objs) {
+      await ctx.db.delete(obj._id);
+    }
+
+    // Odłącz materiały powiązane z tą grupą
+    const mats = await ctx.db.query("materials").collect();
+    for (const m of mats) {
+      if (m.wmsCategoryId === id) {
+        await ctx.db.patch(m._id, {
+          wmsCategoryId: undefined,
+          wmsObjectId: undefined,
+        });
+      }
+    }
+
     await ctx.db.delete(id);
     return { deleted: true };
   },
@@ -508,15 +537,24 @@ export const deleteObject = mutation({
   handler: async (ctx, { id }) => {
     await requireUser(ctx);
     const obj = await ctx.db.get(id);
-    if (!obj) throw new Error("Obiekt nie istnieje.");
+    if (!obj) throw new Error("System / podgrupa nie istnieje.");
     const lot = await ctx.db
       .query("wms_lots")
       .withIndex("by_object", (q) => q.eq("objectId", id))
       .first();
     if (lot) {
       await ctx.db.patch(id, { isActive: false, updatedAt: Date.now() });
-      return { deactivated: true };
+      return { deactivated: true, hasLots: true };
     }
+
+    // Odłącz materiały powiązane z tym systemem
+    const mats = await ctx.db.query("materials").collect();
+    for (const m of mats) {
+      if (m.wmsObjectId === id) {
+        await ctx.db.patch(m._id, { wmsObjectId: undefined });
+      }
+    }
+
     await ctx.db.delete(id);
     return { deleted: true };
   },

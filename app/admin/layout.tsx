@@ -259,7 +259,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <PermissionsProvider>
       <AdminShell>{children}</AdminShell>
       <CalendarPanel />
-      <Toaster position="bottom-right" richColors theme="dark" duration={500} style={{ pointerEvents: "none" }} />
+      <Toaster position="bottom-right" richColors theme="dark" duration={4500} closeButton />
     </PermissionsProvider>
   );
 }

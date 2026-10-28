@@ -208,28 +208,37 @@ function WmsSettingsContent() {
       if (deleteModal.type === "category") {
         const res = await deleteCat({ id: deleteModal.id as Id<"wms_categories"> });
         if (res.deactivated) {
-          toast.info(`Grupa towarowa "${deleteModal.name}" została dezaktywowana (posiada systemy lub partie w magazynie)`);
+          toast.warning(
+            `Grupa towarowa "${deleteModal.name}" posiada zarejestrowane partie w magazynie, dlatego została oznaczona jako nieaktywna (nie można jej trwale usunąć ze względu na historię stanów).`,
+            { duration: 7000 }
+          );
         } else {
-          toast.success(`Grupa towarowa "${deleteModal.name}" została usunięta`);
+          toast.success(`Grupa towarowa "${deleteModal.name}" została trwale usunięta.`);
         }
       } else if (deleteModal.type === "object") {
         const res = await deleteObj({ id: deleteModal.id as Id<"wms_objects"> });
         if (res.deactivated) {
-          toast.info(`System "${deleteModal.name}" został dezaktywowany (posiada partie na magazynie)`);
+          toast.warning(
+            `System "${deleteModal.name}" posiada zarejestrowane partie w magazynie, dlatego został oznaczony jako nieaktywny.`,
+            { duration: 7000 }
+          );
         } else {
-          toast.success(`System "${deleteModal.name}" został usunięty`);
+          toast.success(`System "${deleteModal.name}" został trwale usunięty.`);
         }
       } else if (deleteModal.type === "location") {
         const res = await removeLoc({ id: deleteModal.id as Id<"wms_locations"> });
         if (res?.deactivated) {
-          toast.info("Lokalizacja została oznaczona jako nieaktywna (posiada historię ruchów).");
+          toast.warning(
+            `Lokalizacja "${deleteModal.name}" posiada historię ruchów, dlatego została oznaczona jako nieaktywna.`,
+            { duration: 7000 }
+          );
         } else {
-          toast.success("Usunięto lokalizację");
+          toast.success(`Lokalizacja "${deleteModal.name}" została usunięta.`);
         }
       }
       setDeleteModal(null);
     } catch (e) {
-      toast.error(errMsg(e));
+      toast.error(errMsg(e), { duration: 6000 });
     } finally {
       setDeleteBusy(false);
     }
@@ -559,6 +568,27 @@ function WmsSettingsContent() {
                           + Dodaj system
                         </Btn>
                         <Btn small onClick={() => startEditCategory(c)}>Edytuj</Btn>
+                        {!c.isActive && (
+                          <Btn
+                            small
+                            onClick={async () => {
+                              try {
+                                await upsertCat({
+                                  id: c._id,
+                                  name: c.name,
+                                  code: c.code,
+                                  description: c.description,
+                                  isActive: true,
+                                });
+                                toast.success(`Przywrócono aktywność grupy "${c.name}"`);
+                              } catch (e) {
+                                toast.error(errMsg(e));
+                              }
+                            }}
+                          >
+                            Aktywuj
+                          </Btn>
+                        )}
                         <Btn small danger onClick={() => setDeleteModal({ type: "category", id: c._id, name: c.name })}>Usuń</Btn>
                       </div>
                     </Td>
@@ -1129,16 +1159,16 @@ function WmsSettingsContent() {
         message={
           deleteModal?.type === "category" ? (
             <>
-              Czy na pewno chcesz usunąć grupę towarową <strong style={{ color: C.text }}>&quot;{deleteModal.name}&quot;</strong>?
+              Czy na pewno chcesz trwale usunąć grupę towarową <strong style={{ color: C.text }}>&quot;{deleteModal.name}&quot;</strong>?
               <div style={{ marginTop: 6, fontSize: 12 }}>
-                Jeśli grupa posiada powiązane systemy lub historię w magazynie, zostanie bezpiecznie dezaktywowana bez utraty danych.
+                Jeśli w magazynie nie ma zarejestrowanych partii towarowych dla tej grupy, zostanie ona trwale usunięta wraz z pustymi podgrupami.
               </div>
             </>
           ) : deleteModal?.type === "object" ? (
             <>
               Czy na pewno chcesz usunąć system / podgrupę <strong style={{ color: C.text }}>&quot;{deleteModal.name}&quot;</strong>?
               <div style={{ marginTop: 6, fontSize: 12 }}>
-                Jeśli system posiada przypisane partie na magazynie, zostanie oznaczony jako nieaktywny.
+                Jeśli podgrupa nie posiada partii towarowych w magazynie, zostanie całkowicie usunięta.
               </div>
             </>
           ) : (
