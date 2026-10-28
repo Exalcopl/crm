@@ -244,6 +244,166 @@ function SupplierCombobox({
   );
 }
 
+function OrderCombobox({
+  orderId,
+  orderNumber,
+  onChange,
+  orders,
+  placeholder = "Wybierz lub wpisz numer zlecenia (np. ZL/2026/0001)…",
+}: {
+  orderId?: string;
+  orderNumber?: string;
+  onChange: (order: { _id: string; orderNumber: string; clientName?: string } | null) => void;
+  orders: Array<{ _id: string; orderNumber: string; clientName?: string }>;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOrder = orders.find(
+    (o) => o._id === orderId || (orderNumber && o.orderNumber === orderNumber),
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return orders.slice(0, 50);
+    return orders
+      .filter((o) => {
+        const num = o.orderNumber.toLowerCase();
+        const client = (o.clientName ?? "").toLowerCase();
+        return num.includes(q) || client.includes(q);
+      })
+      .slice(0, 50);
+  }, [orders, query]);
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      {selectedOrder ? (
+        <div
+          style={{
+            ...inputStyle,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "rgba(59, 130, 246, 0.08)",
+            border: "1px solid #3b82f6",
+            padding: "6px 12px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontWeight: 700, color: "#60a5fa", fontFamily: "monospace" }}>
+              {selectedOrder.orderNumber}
+            </span>
+            {selectedOrder.clientName && (
+              <span style={{ fontSize: 12, color: C.text }}>· {selectedOrder.clientName}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onChange(null);
+              setQuery("");
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: C.muted,
+              cursor: "pointer",
+              padding: "2px 6px",
+              fontSize: 14,
+            }}
+            title="Usuń powiązanie ze zleceniem"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          <input
+            style={{
+              ...inputStyle,
+              borderColor: open ? C.borderFocus : C.border,
+            }}
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (!open) setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            placeholder={placeholder}
+            autoComplete="off"
+          />
+          {open && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                right: 0,
+                background: "#161b22",
+                border: "1px solid #30363d",
+                borderRadius: 6,
+                maxHeight: 220,
+                overflowY: "auto",
+                zIndex: 1100,
+                boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+                padding: 4,
+              }}
+            >
+              {filtered.length === 0 ? (
+                <div style={{ padding: "10px 12px", color: C.muted, fontSize: 12 }}>
+                  Nie znaleziono zlecenia &quot;{query}&quot;
+                </div>
+              ) : (
+                filtered.map((ord) => (
+                  <div
+                    key={ord._id}
+                    onClick={() => {
+                      onChange(ord);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      cursor: "pointer",
+                      borderBottom: "1px solid #21262d",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      borderRadius: 4,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#21262d")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <span style={{ fontWeight: 700, color: "#60a5fa", fontFamily: "monospace" }}>
+                      {ord.orderNumber}
+                    </span>
+                    {ord.clientName && (
+                      <span style={{ fontSize: 12, color: C.muted }}>{ord.clientName}</span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DocumentDetailView({
   id,
   type,
@@ -259,6 +419,7 @@ export function DocumentDetailView({
   const locations = useQuery(api.wms.listLocations, { onlyActive: true });
   const lots = useQuery(api.wms.listLots, { includeDepleted: false });
   const suppliers = useQuery(api.suppliers.list, {}) ?? [];
+  const orders = useQuery(api.orders.list, {}) ?? [];
 
   const approve = useMutation(api.wms.approve);
   const cancel = useMutation(api.wms.cancel);
@@ -280,6 +441,8 @@ export function DocumentDetailView({
   const [editExtNumber, setEditExtNumber] = useState("");
   const [editExpectedBundles, setEditExpectedBundles] = useState("");
   const [editTargetNote, setEditTargetNote] = useState("");
+  const [editOrderId, setEditOrderId] = useState<string | undefined>(undefined);
+  const [editOrderNumber, setEditOrderNumber] = useState<string | undefined>(undefined);
   const [editNotes, setEditNotes] = useState("");
   const [lineToDelete, setLineToDelete] = useState<{ id: Id<"wms_document_lines">; name: string } | null>(null);
 
@@ -404,6 +567,8 @@ export function DocumentDetailView({
     setEditExtNumber(doc.externalDocNumber ?? "");
     setEditExpectedBundles(doc.expectedBundles !== undefined ? String(doc.expectedBundles) : "");
     setEditTargetNote(doc.targetNote ?? "");
+    setEditOrderId(doc.orderId);
+    setEditOrderNumber(doc.orderNumber);
     setEditNotes(doc.notes ?? "");
     setShowEditHeaderModal(true);
   }
@@ -414,6 +579,10 @@ export function DocumentDetailView({
       toast.error("Wybierz lub wpisz dostawcę.");
       return;
     }
+    if (type === "RW" && !editOrderId) {
+      toast.error("Wybierz zlecenie produkcyjne dla dokumentu RW.");
+      return;
+    }
     setBusy(true);
     try {
       await updateHeader({
@@ -422,6 +591,8 @@ export function DocumentDetailView({
         externalDocNumber: editExtNumber.trim() || undefined,
         expectedBundles: editExpectedBundles ? parseInt(editExpectedBundles, 10) : undefined,
         targetNote: editTargetNote.trim() || undefined,
+        orderId: editOrderId ? (editOrderId as Id<"orders">) : undefined,
+        orderNumber: editOrderNumber || undefined,
         notes: editNotes.trim() || undefined,
       });
       toast.success("Dane nagłówka zostały zaktualizowane");
@@ -460,10 +631,6 @@ export function DocumentDetailView({
     } else if (type === "RW") {
       if (!lineLotId) {
         toast.error("Wybierz partię ze stanu magazynowego.");
-        return;
-      }
-      if (!lineToLoc) {
-        toast.error("Wybierz lokalizację docelową wydania.");
         return;
       }
     }
@@ -618,8 +785,21 @@ export function DocumentDetailView({
           )}
           {doc.targetNote && (
             <div>
-              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Cel / Odbiorca / Maszyna</div>
+              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Cel / Maszyna / Odbiorca</div>
               <div style={{ fontSize: 13, color: C.text }}>{doc.targetNote}</div>
+            </div>
+          )}
+          {doc.orderNumber && (
+            <div>
+              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Powiązane zlecenie</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa" }}>
+                <Link
+                  href={`/admin/zlecenia/${doc.orderId}`}
+                  style={{ color: "#60a5fa", textDecoration: "underline", fontFamily: "monospace" }}
+                >
+                  {doc.orderNumber} ↗
+                </Link>
+              </div>
             </div>
           )}
           {approvedByName && (
@@ -844,7 +1024,7 @@ export function DocumentDetailView({
                     </Grid>
                   </>
                 ) : (
-                  /* RW — wybieramy istniejącą partię ze stanu */
+                  /* RW — pobranie ze stanu do zlecenia */
                   <Grid cols={3}>
                     <Field label="Wybierz partię ze stanu *" span={2}>
                       <select
@@ -858,10 +1038,10 @@ export function DocumentDetailView({
                       >
                         <option value="">Wybierz partię ze stanu magazynowego…</option>
                         {(lots ?? [])
-                          .filter((l) => l.status !== "IN_PROGRESS")
+                          .filter((l) => l.status !== "IN_PROGRESS" && l.status !== "DEPLETED" && l.quantityPieces > 0)
                           .map((l) => (
                             <option key={l._id} value={l._id}>
-                              {l.materialName} · {l.objectName}: {l.dimensionsSummary} · {l.colorCode ?? "brak koloru"} · Lok: {l.locationCode} · Stan: {l.quantityPieces} {l.unit} ({l.status})
+                              {l.materialName} · {l.objectName}: {l.dimensionsSummary} · {l.colorCode ?? "brak koloru"} · Lok: {l.locationCode} · Dostępne: {l.quantityPieces} {l.unit}
                             </option>
                           ))}
                       </select>
@@ -869,22 +1049,8 @@ export function DocumentDetailView({
                     <Field label="Ilość do wydania *">
                       <input style={inputStyle} type="number" min="1" value={lineQty} onChange={(e) => setLineQty(e.target.value)} />
                     </Field>
-                    <Field label="Lokalizacja docelowa *" span={2}>
-                      <select style={inputStyle} value={lineToLoc} onChange={(e) => setLineToLoc(e.target.value)}>
-                        <option value="">Wybierz lokalizację docelową…</option>
-                        {(() => {
-                          const rwLocs = (locations ?? []).filter((l) => l.zone === "BUFOR_PRODUKCYJNY");
-                          const list = type === "RW" && rwLocs.length > 0 ? rwLocs : (locations ?? []);
-                          return list.map((l) => (
-                            <option key={l._id} value={l._id}>
-                              {l.name}
-                            </option>
-                          ));
-                        })()}
-                      </select>
-                    </Field>
-                    <Field label="Uwagi">
-                      <input style={inputStyle} value={lineNote} onChange={(e) => setLineNote(e.target.value)} placeholder="np. dla zlecenia / stanowiska…" />
+                    <Field label="Uwagi do pobrania" span={3}>
+                      <input style={inputStyle} value={lineNote} onChange={(e) => setLineNote(e.target.value)} placeholder="np. dla pracownika / stanowiska…" />
                     </Field>
                   </Grid>
                 )}
@@ -945,7 +1111,7 @@ export function DocumentDetailView({
               "Wymiary / Parametry",
               "Ilość",
               "Cechy (kolor/partia)",
-              type === "PZ" ? "Do lokalizacji" : "Lokalizacja docelowa",
+              type === "PZ" ? "Do regału" : "Lokalizacja w magazynie",
               "Atest",
               "Kontrola jakości",
               ...(isDraft ? [""] : []),
@@ -988,7 +1154,7 @@ export function DocumentDetailView({
                   {line.heatNumber && <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>Partia: {line.heatNumber}</div>}
                 </Td>
                 <Td mono>
-                  {line.fromCode ? `${line.fromCode} → ${line.toCode ?? "—"}` : (line.toCode ?? "—")}
+                  {type === "RW" ? (line.fromCode ?? "—") : line.fromCode ? `${line.fromCode} → ${line.toCode ?? "—"}` : (line.toCode ?? "—")}
                 </Td>
                 <Td>
                   {line.certificateUrl ? (
@@ -1061,7 +1227,7 @@ export function DocumentDetailView({
                   Zatwierdzenie dokumentu {doc.number}
                 </div>
                 <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                  {type === "PZ" ? "Przyjęcie zewnętrzne na stan magazynowy" : "Rozchód wewnętrzny (wydanie do bufora)"}
+                  {type === "PZ" ? "Przyjęcie zewnętrzne na stan magazynowy" : "Rozchód wewnętrzny (pobranie ze stanu do zlecenia)"}
                 </div>
               </div>
               <Btn small onClick={() => !busy && setShowApproveModal(false)}>✕</Btn>
@@ -1189,10 +1355,10 @@ export function DocumentDetailView({
                     <>
                       Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> jest zatwierdzony.
                       <br /><br />
-                      Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie wydania towaru</strong> — wydane pozycje powrócą na stan partii źródłowej w magazynie, a pozycje w buforze produkcyjnym oraz historia ruchów powiązana z tym RW zostaną usunięte.
+                      Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie wydania materiałów</strong> — pobrane sztuki powrócą na stan partii źródłowej w magazynie, a historia ruchów magazynowych powiązana z tym RW zostanie usunięta.
                       <br /><br />
-                      <span style={{ fontSize: 12, color: C.amber }}>
-                        ⚠️ Jeśli wydany towar w buforze produkcyjnym został już przesunięty lub przetworzony w kolejnych ruchach magazynowych, operacja zostanie bezpiecznie zablokowana.
+                      <span style={{ fontSize: 12, color: C.muted }}>
+                        Partie źródłowe zostaną automatycznie przywrócone do statusu aktywnego na swoich pierwotnych lokalizacjach.
                       </span>
                     </>
                   ) : (
@@ -1298,14 +1464,27 @@ export function DocumentDetailView({
                   </Field>
                 </>
               ) : (
-                <Field label="Cel wydania / Maszyna / Odbiorca">
-                  <input
-                    style={inputStyle}
-                    value={editTargetNote}
-                    onChange={(e) => setEditTargetNote(e.target.value)}
-                    placeholder="np. Piła dwugłowicowa nr 1"
-                  />
-                </Field>
+                <>
+                  <Field label="Powiązane zlecenie *">
+                    <OrderCombobox
+                      orderId={editOrderId}
+                      orderNumber={editOrderNumber}
+                      onChange={(ord) => {
+                        setEditOrderId(ord?._id);
+                        setEditOrderNumber(ord?.orderNumber);
+                      }}
+                      orders={orders}
+                    />
+                  </Field>
+                  <Field label="Cel wydania / Maszyna / Odbiorca (opcjonalnie)">
+                    <input
+                      style={inputStyle}
+                      value={editTargetNote}
+                      onChange={(e) => setEditTargetNote(e.target.value)}
+                      placeholder="np. Piła dwugłowicowa nr 1"
+                    />
+                  </Field>
+                </>
               )}
               <Field label="Uwagi">
                 <input
@@ -1397,6 +1576,7 @@ export function DocumentListPage({
   const router = useRouter();
   const docs = useQuery(api.wms.listDocuments, { type });
   const suppliers = useQuery(api.suppliers.list, {}) ?? [];
+  const orders = useQuery(api.orders.list, {}) ?? [];
   const createDraft = useMutation(api.wms.createDraft);
   const deleteDocument = useMutation(api.wms.deleteDocument);
 
@@ -1405,6 +1585,8 @@ export function DocumentListPage({
   const [supplier, setSupplier] = useState("");
   const [extNumber, setExtNumber] = useState("");
   const [targetNote, setTargetNote] = useState("");
+  const [orderId, setOrderId] = useState<string | undefined>(undefined);
+  const [orderNumber, setOrderNumber] = useState<string | undefined>(undefined);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1428,6 +1610,10 @@ export function DocumentListPage({
       toast.error("Wybierz lub wpisz dostawcę.");
       return;
     }
+    if (type === "RW" && !orderId) {
+      toast.error("Wybierz zlecenie produkcyjne dla dokumentu RW.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -1436,6 +1622,8 @@ export function DocumentListPage({
         supplier: finalSupplier || undefined,
         externalDocNumber: extNumber.trim() || undefined,
         targetNote: targetNote.trim() || undefined,
+        orderId: orderId ? (orderId as Id<"orders">) : undefined,
+        orderNumber: orderNumber || undefined,
         notes: notes.trim() || undefined,
       });
       toast.success(`Utworzono dokument ${res.number}`);
@@ -1443,6 +1631,8 @@ export function DocumentListPage({
       setSupplier("");
       setExtNumber("");
       setTargetNote("");
+      setOrderId(undefined);
+      setOrderNumber(undefined);
       setNotes("");
       router.push(`/admin/wms/${type.toLowerCase()}/${res.id}`);
     } catch (e) {
@@ -1480,9 +1670,22 @@ export function DocumentListPage({
                 </Field>
               </>
             ) : type === "RW" ? (
-              <Field label="Cel wydania / Maszyna / Odbiorca" span={2}>
-                <input style={inputStyle} value={targetNote} onChange={(e) => setTargetNote(e.target.value)} placeholder="np. Piła dwugłowicowa nr 1" />
-              </Field>
+              <>
+                <Field label="Powiązane zlecenie *" span={2}>
+                  <OrderCombobox
+                    orderId={orderId}
+                    orderNumber={orderNumber}
+                    onChange={(ord) => {
+                      setOrderId(ord?._id);
+                      setOrderNumber(ord?.orderNumber);
+                    }}
+                    orders={orders}
+                  />
+                </Field>
+                <Field label="Cel wydania / Maszyna (opcjonalnie)">
+                  <input style={inputStyle} value={targetNote} onChange={(e) => setTargetNote(e.target.value)} placeholder="np. Piła dwugłowicowa nr 1" />
+                </Field>
+              </>
             ) : null}
             <Field label="Uwagi ogólne" span={2}>
               <input style={inputStyle} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Dodatkowe informacje…" />
@@ -1503,12 +1706,20 @@ export function DocumentListPage({
         ) : docs.length === 0 ? (
           <Empty title={`Brak dokumentów ${type}`} text={`Użyj przycisku „+ ${createLabel}”, aby rozpocząć.`} />
         ) : (
-          <Table headers={["Numer", "Data utworzenia", "Dostawca / Cel", "Pozycji", "Łącznie sztuk", "Status", "Autor", ""]}>
+          <Table headers={["Numer", "Data utworzenia", type === "RW" ? "Zlecenie" : "Dostawca / Nr WZ", "Pozycji", "Łącznie sztuk", "Status", "Autor", ""]}>
             {docs.map((d) => (
               <Tr key={d._id} onClick={() => router.push(`/admin/wms/${type.toLowerCase()}/${d._id}`)}>
                 <Td mono style={{ fontWeight: 700 }}>{d.number}</Td>
                 <Td muted nowrap>{fmtDate(d.createdAt)}</Td>
-                <Td>{d.supplier ?? d.targetNote ?? d.externalDocNumber ?? "—"}</Td>
+                <Td>
+                  {type === "RW" && d.orderNumber ? (
+                    <span style={{ color: "#60a5fa", fontWeight: 600, fontFamily: "monospace" }}>
+                      {d.orderNumber}
+                    </span>
+                  ) : (
+                    d.supplier ?? d.externalDocNumber ?? d.targetNote ?? "—"
+                  )}
+                </Td>
                 <Td>{fmtNum(d.lineCount)}</Td>
                 <Td nowrap>{fmtNum(d.totalPieces)} szt.</Td>
                 <Td><Badge status={d.status} /></Td>
@@ -1581,11 +1792,7 @@ export function DocumentListPage({
                     <>
                       Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> jest zatwierdzony.
                       <br /><br />
-                      Usunięcie tego dokumentu wycofa wydanie materiałów — ilości powrócą na stan partii źródłowej w magazynie, a partia w buforze zostanie usunięta wraz z wpisami ruchów.
-                      <br /><br />
-                      <span style={{ fontSize: 12, color: C.amber }}>
-                        ⚠️ Jeśli wydany towar w buforze został już przesunięty lub przetworzony, operacja zostanie bezpiecznie zablokowana.
-                      </span>
+                      Usunięcie tego dokumentu wycofa wydanie materiałów — pobrane ilości powrócą na stan partii źródłowej w magazynie, a powiązane wpisy ruchów zostaną usunięte.
                     </>
                   ) : (
                     <>

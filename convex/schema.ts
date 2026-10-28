@@ -1044,6 +1044,8 @@ export default defineSchema({
     supplier: v.optional(v.string()),
     externalDocNumber: v.optional(v.string()),
     expectedBundles: v.optional(v.number()), // PZ etap 1 — kontrola ilościowa
+    orderId: v.optional(v.id("orders")), // RW: powiązane zlecenie produkcyjne z CRM
+    orderNumber: v.optional(v.string()), // RW: numer zlecenia (np. ZL/2026/0001)
     targetNote: v.optional(v.string()), // RW: cel / odbiorca (wolny tekst)
     notes: v.optional(v.string()),
     createdBy: v.id("users"),
@@ -1053,7 +1055,8 @@ export default defineSchema({
   })
     .index("by_type", ["type"])
     .index("by_number", ["number"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_order", ["orderId"]),
 
   wms_document_lines: defineTable({
     documentId: v.id("wms_documents"),

@@ -1424,6 +1424,8 @@ export const createDraft = mutation({
     supplier: v.optional(v.string()),
     externalDocNumber: v.optional(v.string()),
     expectedBundles: v.optional(v.number()),
+    orderId: v.optional(v.id("orders")),
+    orderNumber: v.optional(v.string()),
     targetNote: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -1446,6 +1448,8 @@ export const updateHeader = mutation({
     supplier: v.optional(v.string()),
     externalDocNumber: v.optional(v.string()),
     expectedBundles: v.optional(v.number()),
+    orderId: v.optional(v.id("orders")),
+    orderNumber: v.optional(v.string()),
     targetNote: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -1491,9 +1495,6 @@ export const addLine = mutation({
       }
     } else if (doc.type === "RW") {
       if (!args.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
-      if (!args.toLocationId) {
-        throw new Error("Wybierz lokalizację docelową wydania.");
-      }
     }
     return ctx.db.insert("wms_document_lines", args);
   },
@@ -1513,9 +1514,6 @@ export const updateLine = mutation({
       }
     } else if (doc.type === "RW") {
       if (!rest.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
-      if (!rest.toLocationId) {
-        throw new Error("Wybierz lokalizację docelową wydania.");
-      }
     }
     await ctx.db.replace(id, { documentId: line.documentId, ...rest });
   },
@@ -1553,6 +1551,82 @@ export const deleteDocument = mutation({
   handler: async (ctx, { id }) => {
     await requireUser(ctx);
     return deleteDocumentCore(ctx, id);
+  },
+});
+
+export const listOrderWmsRw = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, { orderId }) => {
+    if (!(await getAuthUserId(ctx))) return { documents: [], totalPiecesIssued: 0 };
+    const docs = await ctx.db
+      .query("wms_documents")
+      .withIndex("by_order", (q) => q.eq("orderId", orderId))
+      .collect();
+
+    const [mats, locs, objs] = await Promise.all([
+      materialMap(ctx),
+      locationMap(ctx),
+      objectMap(ctx),
+    ]);
+
+    const documents = await Promise.all(
+      docs
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .map(async (doc) => {
+          const lines = await ctx.db
+            .query("wms_document_lines")
+            .withIndex("by_document", (q) => q.eq("documentId", doc._id))
+            .collect();
+          const creator = await ctx.db.get(doc.createdBy);
+
+          const linesMapped = lines.map((l) => {
+            const mat = l.materialId ? mats.get(l.materialId) : null;
+            const obj = l.objectId ? objs.get(l.objectId) : mat?.wmsObjectId ? objs.get(mat.wmsObjectId) : null;
+            let dims = "";
+            if (l.widthMm && l.heightMm) dims = `${l.widthMm} × ${l.heightMm} mm`;
+            else if (l.lengthMm) dims = `${l.lengthMm} mm`;
+            else if (mat?.lengthMm) dims = `${mat.lengthMm} mm`;
+            else if (l.thicknessMm) dims = `gr. ${l.thicknessMm} mm`;
+
+            return {
+              _id: l._id,
+              materialName: mat?.name ?? (l.lotId ? "Partia magazynowa" : "—"),
+              materialSku: mat?.sku ?? null,
+              objectName: obj?.name ?? null,
+              dimensionsSummary: dims || "—",
+              quantityPieces: l.quantityPieces,
+              unit: obj?.defaultUnit ?? mat?.unit ?? "szt.",
+              colorCode: l.colorCode,
+              surfaceType: l.surfaceType,
+              heatNumber: l.heatNumber,
+              fromLocationCode: l.fromLocationId ? (locs.get(l.fromLocationId)?.code ?? "—") : "—",
+              note: l.note,
+            };
+          });
+
+          return {
+            _id: doc._id,
+            number: doc.number,
+            status: doc.status,
+            createdAt: doc.createdAt,
+            approvedAt: doc.approvedAt,
+            targetNote: doc.targetNote,
+            notes: doc.notes,
+            createdByName: creator?.name ?? creator?.email ?? "—",
+            lines: linesMapped,
+            totalPieces: linesMapped.reduce((s, it) => s + it.quantityPieces, 0),
+          };
+        }),
+    );
+
+    const totalPiecesIssued = documents
+      .filter((d) => d.status === "ZATWIERDZONY")
+      .reduce((s, d) => s + d.totalPieces, 0);
+
+    return {
+      documents,
+      totalPiecesIssued,
+    };
   },
 });
 

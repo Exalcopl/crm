@@ -13,32 +13,27 @@ import { LotHistoryDrawer } from "../_components/lot-history-drawer";
  */
 function AvailabilityProgressBar({
   available,
-  inProgress,
   total,
   unit = "szt.",
 }: {
   available: number;
-  inProgress: number;
+  inProgress?: number;
   total: number;
   unit?: string;
 }) {
   const availPct = total > 0 ? Math.min(100, Math.round((available / total) * 100)) : 0;
-  const inProgPct = total > 0 ? Math.min(100 - availPct, Math.round((inProgress / total) * 100)) : 0;
-
-  const isAllAvailable = availPct === 100;
-  const isDepleted = total === 0 || (available === 0 && inProgress === 0);
-  const isPartiallyAvailable = availPct > 0 && availPct < 100;
+  const isDepleted = total === 0 || available === 0;
 
   const barColor = isDepleted
     ? C.muted
-    : isAllAvailable
+    : availPct === 100
     ? C.green
-    : isPartiallyAvailable
-    ? C.accent
-    : C.amber;
+    : availPct < 25
+    ? C.amber
+    : C.accent;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 150, maxWidth: 210 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 5, minWidth: 140, maxWidth: 200 }}>
       {/* Licznik i procent dostępności */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11 }}>
         <span style={{ fontWeight: 700, color: barColor, letterSpacing: "0.01em" }}>
@@ -49,7 +44,7 @@ function AvailabilityProgressBar({
         </span>
       </div>
 
-      {/* Wizualny pasek postępu (dwukolorowy dla magazynu i bufora) */}
+      {/* Wizualny pasek postępu */}
       <div
         style={{
           height: 6,
@@ -59,7 +54,7 @@ function AvailabilityProgressBar({
           display: "flex",
           width: "100%",
         }}
-        title={`Dostępne na magazynie: ${available} ${unit} (${availPct}%)\nW toku w buforze: ${inProgress} ${unit} (${inProgPct}%)`}
+        title={`Dostępne na magazynie: ${available} ${unit} (${availPct}%)`}
       >
         {availPct > 0 && (
           <div
@@ -67,35 +62,10 @@ function AvailabilityProgressBar({
               width: `${availPct}%`,
               background: "linear-gradient(90deg, #10b981, #059669)",
               height: "100%",
-              borderRadius: inProgPct === 0 ? 3 : "3px 0 0 3px",
+              borderRadius: 3,
               transition: "width 0.3s ease",
             }}
           />
-        )}
-        {inProgPct > 0 && (
-          <div
-            style={{
-              width: `${inProgPct}%`,
-              background: "linear-gradient(90deg, #3b82f6, #2563eb)",
-              height: "100%",
-              borderRadius: availPct === 0 ? 3 : "0 3px 3px 0",
-              transition: "width 0.3s ease",
-            }}
-          />
-        )}
-      </div>
-
-      {/* Legenda stref */}
-      <div style={{ display: "flex", gap: 8, fontSize: 10, color: C.muted }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#10b981", display: "inline-block" }} />
-          Magazyn: <b style={{ color: C.text, fontWeight: 500 }}>{fmtNum(available)}</b>
-        </span>
-        {inProgress > 0 && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#3b82f6", display: "inline-block" }} />
-            Bufor: <b style={{ color: "#93c5fd", fontWeight: 500 }}>{fmtNum(inProgress)}</b>
-          </span>
         )}
       </div>
     </div>

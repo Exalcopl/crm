@@ -233,6 +233,8 @@ export async function createDocument(
     supplier?: string;
     externalDocNumber?: string;
     expectedBundles?: number;
+    orderId?: Id<"orders">;
+    orderNumber?: string;
     targetNote?: string;
     notes?: string;
   },
@@ -361,95 +363,29 @@ export async function deleteDocumentCore(
 
       const now = Date.now();
 
-      for (const [idx, line] of lines.entries()) {
-        const tag = `Poz. ${idx + 1}`;
+      for (const line of lines) {
         if (!line.lotId) continue;
+        const lot = await ctx.db.get(line.lotId);
+        if (lot) {
+          // Przywróć ilość w partii magazynowej
+          const restoredQty = lot.quantityPieces + line.quantityPieces;
+          const loc = await ctx.db.get(lot.locationId);
+          const restoredStatus: LotStatus = loc ? statusForZone(loc.zone) : "AVAILABLE";
 
-        // Szukamy partii potomnej utworzonej dla tej linii przy częściowym RW (quantityDelta > 0)
-        const childMov = docMovements.find(
-          (m) => m.lineId === line._id && m.quantityDelta > 0 && m.type === "RW",
-        );
+          await ctx.db.patch(lot._id, {
+            quantityPieces: restoredQty,
+            status: restoredStatus,
+            updatedAt: now,
+          });
+        }
 
+        // Czyszczenie ewentualnych partii buforowych (wsteczna kompatybilność)
+        const childMov = docMovements.find((m) => m.lineId === line._id && m.quantityDelta > 0);
         if (childMov) {
-          // --- PRZYPADEK CZĘŚCIOWEGO RW (wydzielono partię do bufora) ---
           const childLot = await ctx.db.get(childMov.lotId);
           if (childLot) {
-            // Sprawdź, czy partia w buforze nie miała innych ruchów
-            const childMovs = await ctx.db
-              .query("wms_movements")
-              .withIndex("by_lot", (q) => q.eq("lotId", childLot._id))
-              .collect();
-            const otherChildMovs = childMovs.filter((m) => m.documentId !== documentId);
-            if (otherChildMovs.length > 0) {
-              throw new Error(
-                `${tag}: Nie można usunąć dokumentu RW: wydany towar w buforze został już przesunięty lub użyty (znaleziono inne ruchy magazynowe).`,
-              );
-            }
-
-            // Sprawdź, czy partia buforowa nie ma partii potomnych
-            const grandChild = await ctx.db
-              .query("wms_lots")
-              .filter((q) => q.eq(q.field("parentLotId"), childLot._id))
-              .first();
-            if (grandChild) {
-              throw new Error(
-                `${tag}: Nie można usunąć dokumentu RW: partia buforowa została już podzielona w magazynie.`,
-              );
-            }
-
-            // Sprawdź inwentaryzację
-            const invCount = await ctx.db
-              .query("wms_inventory_counts")
-              .filter((q) => q.eq(q.field("lotId"), childLot._id))
-              .first();
-            if (invCount) {
-              throw new Error(
-                `${tag}: Nie można usunąć dokumentu RW: partia buforowa została uwzględniona w inwentaryzacji.`,
-              );
-            }
-
-            // Przywróć ilość w partii macierzystej
-            const parentLot = await ctx.db.get(line.lotId);
-            if (parentLot) {
-              const restoredQty = parentLot.quantityPieces + line.quantityPieces;
-              const loc = await ctx.db.get(parentLot.locationId);
-              const restoredStatus: LotStatus = loc ? statusForZone(loc.zone) : "AVAILABLE";
-              await ctx.db.patch(parentLot._id, {
-                quantityPieces: restoredQty,
-                status: restoredStatus,
-                updatedAt: now,
-              });
-            }
-
-            // Usuń partię potomną z bufora
             await ctx.db.delete(childLot._id);
             deletedLotsCount++;
-          }
-        } else {
-          // --- PRZYPADEK PEŁNEGO RW (przeniesiono całą partię) ---
-          const lot = await ctx.db.get(line.lotId);
-          if (lot) {
-            const lotMovs = await ctx.db
-              .query("wms_movements")
-              .withIndex("by_lot", (q) => q.eq("lotId", lot._id))
-              .collect();
-            const otherLotMovs = lotMovs.filter((m) => m.documentId !== documentId);
-            if (otherLotMovs.length > 0) {
-              throw new Error(
-                `${tag}: Nie można usunąć dokumentu RW: wydana partia została już użyta lub przesunięta (znaleziono inne ruchy magazynowe).`,
-              );
-            }
-
-            // Przywróć pierwotną lokalizację źródłową oraz status magazynu
-            const fromLocId = line.fromLocationId;
-            const fromLoc = fromLocId ? await ctx.db.get(fromLocId) : null;
-            const origStatus: LotStatus = fromLoc ? statusForZone(fromLoc.zone) : "AVAILABLE";
-
-            await ctx.db.patch(lot._id, {
-              locationId: fromLocId ?? lot.locationId,
-              status: origStatus,
-              updatedAt: now,
-            });
           }
         }
       }
@@ -457,8 +393,8 @@ export async function deleteDocumentCore(
       // Usuń ruchy tego RW
       for (const mov of docMovements) {
         await ctx.db.delete(mov._id);
+        deletedMovementsCount++;
       }
-      deletedMovementsCount = docMovements.length;
     } else {
       throw new Error(
         `Usuwanie zatwierdzonego dokumentu typu ${doc.type} nie jest dozwolone. Tylko dokumenty PZ i RW mogą zostać bezpiecznie wycofane.`,
@@ -766,35 +702,46 @@ export async function approveDocument(
         idempotencyKey: `${doc._id}:${line._id}:pz`,
       });
     } else if (doc.type === "RW") {
+      if (!doc.orderId) {
+        throw new Error("Dokument RW wymaga przypisania do zlecenia produkcyjnego z CRM.");
+      }
       if (!line.lotId) throw new Error(`${tag}: wybierz partię.`);
       if (!isPositiveInt(line.quantityPieces))
         throw new Error(`${tag}: ilość sztuk musi być dodatnią liczbą całkowitą.`);
       const lot = await ctx.db.get(line.lotId);
       if (!lot) throw new Error(`${tag}: partia nie istnieje.`);
-      if (lot.status === "DEPLETED")
+      if (lot.status === "DEPLETED" || lot.quantityPieces <= 0)
         throw new Error(`${tag}: partia jest wyczerpana.`);
       if (line.quantityPieces > lot.quantityPieces)
         throw new Error(
           `${tag}: ilość (${line.quantityPieces}) większa niż stan partii (${lot.quantityPieces}).`,
         );
-      if (!line.toLocationId) {
-        throw new Error(`${tag}: nie wybrano lokalizacji docelowej wydania.`);
-      }
-      const toLoc = await activeLocation(ctx, line.toLocationId);
 
-      if (lot.status === "IN_PROGRESS")
-        throw new Error(`${tag}: partia jest już w buforze produkcyjnym.`);
-      const hasBufferZone =
-        (await ctx.db
-          .query("wms_locations")
-          .withIndex("by_zone", (q) => q.eq("zone", "BUFOR_PRODUKCYJNY"))
-          .first()) !== null;
-      if (hasBufferZone && toLoc.zone !== "BUFOR_PRODUKCYJNY")
-        throw new Error(`${tag}: RW wymaga lokalizacji w strefie bufora produkcyjnego.`);
-      warnings.push(
-        ...(await locationWarnings(ctx, toLoc, lot.materialId, lot.lengthMm, line.quantityPieces, lot.weightKg)),
-      );
-      await moveLot({ ctx, userId, doc, line, lot, qty: line.quantityPieces, toLoc, newStatus: "IN_PROGRESS" });
+      const newQty = lot.quantityPieces - line.quantityPieces;
+      const newStatus: LotStatus = newQty === 0 ? "DEPLETED" : lot.status;
+
+      await ctx.db.patch(lot._id, {
+        quantityPieces: newQty,
+        status: newStatus,
+        updatedAt: now,
+      });
+
+      await insertMovement(ctx, {
+        documentId: doc._id,
+        lineId: line._id,
+        lotId: lot._id,
+        objectId: lot.objectId,
+        type: "RW",
+        quantityDelta: -line.quantityPieces,
+        quantityPieces: line.quantityPieces,
+        lengthMm: lot.lengthMm,
+        fromLocationId: lot.locationId,
+        toLocationId: undefined,
+        operatorId: userId,
+        note: doc.orderNumber ? `Zlecenie: ${doc.orderNumber}` : undefined,
+        idempotencyKey: `${doc._id}:${line._id}:rw_out`,
+      });
+
       await ctx.db.patch(line._id, { fromLocationId: lot.locationId });
     } else {
       // KOREKTA: quantityPieces = różnica ze znakiem

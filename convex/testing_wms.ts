@@ -97,11 +97,27 @@ export const runWmsTest = mutation({
     const locBuf = await mkLoc("BUF", "BUFOR_PRODUKCYJNY");
     const locSmall = await mkLoc("SMALL", "MAGAZYN_GLOWNY", { maxWeightKg: 50, maxLengthMm: 3000 });
 
+    const orderId = await ctx.db.insert("orders", {
+      orderNumber: `${tag}-ORD-1`,
+      clientName: `${tag} Klient`,
+      status: "nowe",
+      valueNetto: 1000,
+      valueVat: 230,
+      valueBrutto: 1230,
+      vatRate: 23,
+      items: [],
+      createdAt: now,
+    });
+
     const docIds: Id<"wms_documents">[] = [];
     const sessionIds: Id<"wms_inventory_sessions">[] = [];
     const ruleIds: Id<"wms_tracking_rules">[] = [];
-    const newDoc = async (type: "PZ" | "RW") => {
-      const { id } = await createDocument(ctx, userId, { type });
+    const newDoc = async (type: "PZ" | "RW", extra: { orderId?: Id<"orders">; orderNumber?: string } = {}) => {
+      const { id } = await createDocument(ctx, userId, {
+        type,
+        orderId: extra.orderId ?? (type === "RW" ? orderId : undefined),
+        orderNumber: extra.orderNumber ?? (type === "RW" ? `${tag}-ORD-1` : undefined),
+      });
       docIds.push(id);
       return id;
     };
@@ -203,26 +219,47 @@ export const runWmsTest = mutation({
       await expectThrow(() => approveDocument(ctx, userId, pz1), "już zatwierdzony", "ponowne zatwierdzenie jest blokowane");
 
       // ── 4. RW ────────────────────────────────────────────────────────────
-      const rwZone = await newDoc("RW");
-      await addLine(rwZone, { lotId: lotA._id, quantityPieces: 1, toLocationId: locMG2 });
-      await expectThrow(() => approveDocument(ctx, userId, rwZone), "bufora produkcyjnego", "RW tylko do strefy bufora produkcyjnego");
+      // RW wymaga powiązania ze zleceniem (orderId)
+      const rwNoOrder = await ctx.db.insert("wms_documents", {
+        type: "RW",
+        number: `RW-TEST-NO-ORD-${now}`,
+        status: "DRAFT",
+        createdBy: userId,
+        createdAt: now,
+      });
+      docIds.push(rwNoOrder);
+      await addLine(rwNoOrder, { lotId: lotA._id, quantityPieces: 1 });
+      await expectThrow(
+        () => approveDocument(ctx, userId, rwNoOrder),
+        "wymaga przypisania do zlecenia",
+        "RW bez powiązanego zlecenia (orderId) jest blokowane",
+      );
 
+      // RW ponad stan partii jest blokowane
       const rwTooMany = await newDoc("RW");
-      await addLine(rwTooMany, { lotId: lotA._id, quantityPieces: 99, toLocationId: locBuf });
-      await expectThrow(() => approveDocument(ctx, userId, rwTooMany), "większa niż stan", "RW ponad stan partii jest blokowane");
+      await addLine(rwTooMany, { lotId: lotA._id, quantityPieces: 99 });
+      await expectThrow(
+        () => approveDocument(ctx, userId, rwTooMany),
+        "większa niż stan",
+        "RW ponad stan partii jest blokowane",
+      );
 
+      // Częściowe RW bezpośrednio zmniejsza ilość partii w magazynie (10 -> 6 szt.)
       const rw = await newDoc("RW");
-      await addLine(rw, { lotId: lotA._id, quantityPieces: 4, toLocationId: locBuf });
+      await addLine(rw, { lotId: lotA._id, quantityPieces: 4 });
       await approveDocument(ctx, userId, rw);
       const lotAafter = (await ctx.db.get(lotA._id))!;
-      assert(lotAafter.quantityPieces === 6 && lotAafter.status === "AVAILABLE", "RW częściowe zmniejsza partię źródłową (10 → 6)");
-      const bufLots = await ctx.db
-        .query("wms_lots")
-        .withIndex("by_location", (q) => q.eq("locationId", locBuf))
+      assert(
+        lotAafter.quantityPieces === 6 && lotAafter.status === "AVAILABLE",
+        "RW częściowe bezpośrednio zmniejsza stan partii w magazynie (10 → 6 szt., AVAILABLE)",
+      );
+      const rwMovs = await ctx.db
+        .query("wms_movements")
+        .withIndex("by_document", (q) => q.eq("documentId", rw))
         .collect();
       assert(
-        bufLots.length === 1 && bufLots[0].quantityPieces === 4 && bufLots[0].status === "IN_PROGRESS" && bufLots[0].parentLotId === lotA._id,
-        "RW wydziela nową partię IN_PROGRESS w buforze (z odniesieniem do źródła)",
+        rwMovs.length === 1 && rwMovs[0].quantityDelta === -4 && rwMovs[0].type === "RW" && rwMovs[0].fromLocationId === lotA.locationId,
+        "RW rejestruje ruch rozchodu (quantityDelta = -4) ze wskazaniem pierwotnej lokalizacji",
       );
 
       // ── 5. Inwentaryzacja → KOREKTA ──────────────────────────────────────
@@ -391,26 +428,21 @@ export const runWmsTest = mutation({
       assert(glassLot.categoryId === glassCatId, "partia szyby: powiązana z kategorią nadrzędną GLASS");
       assert(glassLot.objectId === glassObjectId, "partia szyby: powiązana z podrzędnym obiektem Pakiet szybowy");
 
-      // Wydanie RW pakietów szybowych do bufora
-      const { id: glassRwId } = await createDocument(ctx, userId, { type: "RW" });
+      // Wydanie RW pakietów szybowych bezpośrednio do zlecenia
+      const { id: glassRwId } = await createDocument(ctx, userId, {
+        type: "RW",
+        orderId,
+        orderNumber: `${tag}-ORD-1`,
+      });
       docIds.push(glassRwId);
       await ctx.db.insert("wms_document_lines", {
         documentId: glassRwId,
         lotId: glassLot._id,
         quantityPieces: 1,
-        toLocationId: locBuf,
       });
       await approveDocument(ctx, userId, glassRwId);
       const updatedGlassLot = await ctx.db.get(glassLot._id);
-      assert(updatedGlassLot?.quantityPieces === 3, "RW szyby: na MG pozostały 3 sztuki");
-      const bufGlassLot = await ctx.db
-        .query("wms_lots")
-        .withIndex("by_location", (q) => q.eq("locationId", locBuf))
-        .filter((q) => q.eq(q.field("materialId"), glassMaterialId))
-        .first();
-      assert(bufGlassLot?.quantityPieces === 1, "RW szyby: w buforze wydano 1 sztukę");
-      assert(bufGlassLot?.widthMm === 1200, "RW szyby: zachowano wymiary pakietu w buforze");
-      assert(bufGlassLot?.objectId === glassObjectId, "RW szyby: partia buforowa ma przypisany obiekt");
+      assert(updatedGlassLot?.quantityPieces === 3, "RW szyby: na stanie magazynu pozostały 3 sztuki");
 
       // Sprzątanie testowej kategorii, obiektu i materiału szyby
       const testGlassLots = await ctx.db
@@ -633,7 +665,6 @@ export const runWmsTest = mutation({
       await addLine(rwDocId, {
         lotId: blockedLotId,
         quantityPieces: 2,
-        toLocationId: locBuf,
       });
       await approveDocument(ctx, userId, rwDocId);
 
@@ -654,15 +685,6 @@ export const runWmsTest = mutation({
         const mvs = await ctx.db.query("wms_movements").withIndex("by_lot", (q) => q.eq("lotId", l._id)).collect();
         for (const m of mvs) await ctx.db.delete(m._id);
         await ctx.db.delete(l._id);
-      }
-      const childLotsOfBlocked = await ctx.db
-        .query("wms_lots")
-        .filter((q) => q.eq(q.field("parentLotId"), blockedLotId))
-        .collect();
-      for (const cl of childLotsOfBlocked) {
-        const mvs = await ctx.db.query("wms_movements").withIndex("by_lot", (q) => q.eq("lotId", cl._id)).collect();
-        for (const m of mvs) await ctx.db.delete(m._id);
-        await ctx.db.delete(cl._id);
       }
       for (const dId of [pzBlockedId, rwDocId]) {
         const lns = await ctx.db.query("wms_document_lines").withIndex("by_document", (q) => q.eq("documentId", dId)).collect();
@@ -687,34 +709,25 @@ export const runWmsTest = mutation({
         .collect();
       const rwSourceLotId = rwTestLots[0]._id;
 
-      // Zatwierdź częściowe RW (wydanie 4 szt. do bufora, w MG zostaje 6 szt.)
+      // Zatwierdź częściowe RW (pobranie 4 szt. bezpośrednio do zlecenia, w MG zostaje 6 szt.)
       const testRwDocId = await newDoc("RW");
       await addLine(testRwDocId, {
         lotId: rwSourceLotId,
         quantityPieces: 4,
-        toLocationId: locBuf,
       });
       await approveDocument(ctx, userId, testRwDocId);
 
       const lotAfterRw = await ctx.db.get(rwSourceLotId);
       assert(lotAfterRw?.quantityPieces === 6, "Po RW na partii źródłowej zostało 6 szt.");
 
-      const bufferLots = await ctx.db
-        .query("wms_lots")
-        .filter((q) => q.eq(q.field("parentLotId"), rwSourceLotId))
-        .collect();
-      assert(bufferLots.length === 1 && bufferLots[0].quantityPieces === 4, "Utworzono partię buforową 4 szt.");
-      const bufferLotId = bufferLots[0]._id;
-
       // Usunięcie zatwierdzonego RW
       const delRwRes = await deleteDocumentCore(ctx, testRwDocId);
       assert(delRwRes.success, "deleteDocumentCore usuwa zatwierdzony RW");
       assert((await ctx.db.get(testRwDocId)) === null, "Dokument RW został usunięty z bazy");
-      assert((await ctx.db.get(bufferLotId)) === null, "Partia buforowa została usunięta");
 
       const lotRestored = await ctx.db.get(rwSourceLotId);
       assert(lotRestored?.quantityPieces === 10, "Stan partii źródłowej został w pełni przywrócony (6 -> 10 szt.)");
-      ok("Usuwanie zatwierdzonego RW przywraca stan partii źródłowej i usuwa partię buforową");
+      ok("Usuwanie zatwierdzonego RW przywraca stan partii źródłowej w magazynie");
 
       // Posprzątaj PZ testowe
       await deleteDocumentCore(ctx, pzForRwTestId);
@@ -724,6 +737,7 @@ export const runWmsTest = mutation({
         materialId,
         profileId,
         userId,
+        orderId,
         locs: [locMG, locMG2, locBuf, locSmall],
         docIds,
         sessionIds,
@@ -742,6 +756,7 @@ async function cleanup(
     materialId: Id<"materials">;
     profileId: Id<"wms_material_profiles">;
     userId: Id<"users">;
+    orderId: Id<"orders">;
     locs: Id<"wms_locations">[];
     docIds: Id<"wms_documents">[];
     sessionIds: Id<"wms_inventory_sessions">[];
@@ -784,6 +799,7 @@ async function cleanup(
   await ctx.db.delete(d.profileId);
   await ctx.db.delete(d.materialId);
   await ctx.db.delete(d.userId);
+  await ctx.db.delete(d.orderId);
   for (const [key, before] of d.counterBefore) {
     const c = await ctx.db
       .query("wms_counters")
