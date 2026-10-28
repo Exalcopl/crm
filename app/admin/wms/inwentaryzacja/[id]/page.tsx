@@ -10,6 +10,7 @@ import {
   Badge,
   Btn,
   Card,
+  ConfirmModal,
   Empty,
   errMsg,
   fmtDate,
@@ -37,6 +38,7 @@ export default function InwentaryzacjaDetailPage({
 
   const [busy, setBusy] = useState(false);
   const [localCounts, setLocalCounts] = useState<Record<string, string>>({});
+  const [showCloseModal, setShowCloseModal] = useState(false);
 
   if (!data) {
     return (
@@ -75,17 +77,11 @@ export default function InwentaryzacjaDetailPage({
     }
   }
 
-  async function handleClose() {
-    const uncounted = rows.filter((r) => r.countedPieces === undefined);
-    if (uncounted.length > 0) {
-      if (!confirm(`Uwaga: ${uncounted.length} pozycji nie zostało jeszcze policzonych. Pozycje bez wpisanej ilości zostaną pominięte w korekcie. Zamknąć inwentaryzację?`)) {
-        return;
-      }
-    } else {
-      if (!confirm("Zamknąć sesję inwentaryzacji? Wszelkie różnice wygenerują zatwierdzony dokument KOREKTA.")) {
-        return;
-      }
-    }
+  function handleClose() {
+    setShowCloseModal(true);
+  }
+
+  async function handleCloseConfirm() {
     setBusy(true);
     try {
       const res = await closeSession({ id: sessionId });
@@ -94,6 +90,7 @@ export default function InwentaryzacjaDetailPage({
       } else {
         toast.success("Inwentaryzacja zamknięta. Wszystkie stany były w 100% zgodne.");
       }
+      setShowCloseModal(false);
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -235,6 +232,30 @@ export default function InwentaryzacjaDetailPage({
           </Table>
         )}
       </Card>
+
+      {/* ─── NATYWNY MODAL ZAMKNIĘCIA SESJI INWENTARYZACJI ─────────── */}
+      <ConfirmModal
+        isOpen={showCloseModal}
+        title="Zamknięcie sesji inwentaryzacji"
+        message={
+          <>
+            <div>
+              Czy na pewno chcesz zamknąć tę sesję inwentaryzacji? Wszelkie wykryte różnice wygenerują zatwierdzony dokument <strong>KOREKTA</strong> korygujący stany magazynowe.
+            </div>
+            {rows.filter((r) => r.countedPieces === undefined).length > 0 && (
+              <div style={{ marginTop: 10, padding: 10, background: "rgba(210, 153, 34, 0.15)", border: `1px solid ${C.amber}`, borderRadius: 6, color: C.amber, fontSize: 12 }}>
+                ⚠️ <strong>Uwaga:</strong> {rows.filter((r) => r.countedPieces === undefined).length} pozycji nie zostało jeszcze policzonych. Pozycje bez wpisanej ilości zostaną pominięte w korekcie.
+              </div>
+            )}
+          </>
+        }
+        confirmLabel="Tak, zamknij inwentaryzację"
+        cancelLabel="Anuluj"
+        danger={false}
+        busy={busy}
+        onConfirm={handleCloseConfirm}
+        onCancel={() => !busy && setShowCloseModal(false)}
+      />
     </Page>
   );
 }

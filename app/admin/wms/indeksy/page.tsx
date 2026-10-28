@@ -9,6 +9,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import {
   Btn,
   Card,
+  ConfirmModal,
   Empty,
   errMsg,
   Field,
@@ -185,17 +186,25 @@ export default function WmsIndeksyPage() {
     }
   }
 
-  async function handleDelete(id: Id<"materials">, name: string) {
-    if (!confirm(`Czy na pewno chcesz usunąć indeks "${name}"?`)) return;
+  // Natywny modal potwierdzenia usunięcia
+  const [deleteModal, setDeleteModal] = useState<{ id: Id<"materials">; name: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  async function handleConfirmDelete() {
+    if (!deleteModal) return;
+    setDeleteBusy(true);
     try {
-      const res = await deleteIndex({ id });
+      const res = await deleteIndex({ id: deleteModal.id });
       if (res.deactivated) {
-        toast.info(`Indeks "${name}" został dezaktywowany (posiada historię partii w magazynie)`);
+        toast.info(`Indeks "${deleteModal.name}" został dezaktywowany (posiada historię partii w magazynie)`);
       } else {
-        toast.success(`Usunięto indeks "${name}"`);
+        toast.success(`Usunięto indeks "${deleteModal.name}"`);
       }
+      setDeleteModal(null);
     } catch (e) {
       toast.error(errMsg(e));
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -595,7 +604,7 @@ export default function WmsIndeksyPage() {
                       <Btn small onClick={() => startEditIndex(row)}>
                         Edytuj
                       </Btn>
-                      <Btn small danger onClick={() => handleDelete(m._id, m.name)}>
+                      <Btn small danger onClick={() => setDeleteModal({ id: m._id, name: m.name })}>
                         Usuń
                       </Btn>
                     </div>
@@ -606,6 +615,26 @@ export default function WmsIndeksyPage() {
           </Table>
         )}
       </Card>
+
+      {/* ─── NATYWNY MODAL POTWIERDZENIA USUNIĘCIA INDEKSU ─────────── */}
+      <ConfirmModal
+        isOpen={!!deleteModal}
+        title="Usunięcie indeksu magazynowego"
+        message={
+          <>
+            Czy na pewno chcesz usunąć indeks <strong style={{ color: C.text }}>&quot;{deleteModal?.name}&quot;</strong>?
+            <div style={{ marginTop: 6, fontSize: 12 }}>
+              Jeśli indeks posiada powiązane partie lub ruchy magazynowe, zostanie bezpiecznie dezaktywowany.
+            </div>
+          </>
+        }
+        confirmLabel="Tak, usuń"
+        cancelLabel="Anuluj"
+        danger={true}
+        busy={deleteBusy}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => !deleteBusy && setDeleteModal(null)}
+      />
     </Page>
   );
 }

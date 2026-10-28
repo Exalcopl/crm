@@ -415,3 +415,78 @@ export function Td({
     </td>
   );
 }
+
+export function ConfirmModal({
+  isOpen,
+  title,
+  message,
+  confirmLabel = "Tak, usuń",
+  cancelLabel = "Anuluj",
+  danger = true,
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  isOpen: boolean;
+  title: string;
+  message: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (!isOpen) return null;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+      }}
+      onClick={() => !busy && onCancel()}
+    >
+      <div
+        style={{
+          background: "#161b22",
+          border: `1px solid ${danger ? "rgba(248, 81, 73, 0.4)" : C.borderFocus}`,
+          borderRadius: 10,
+          width: "100%",
+          maxWidth: 460,
+          padding: 22,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: danger ? C.red : C.text }}>
+            {title}
+          </div>
+          <Btn small onClick={() => !busy && onCancel()}>✕</Btn>
+        </div>
+
+        <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>
+          {message}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+          <Btn onClick={onCancel} disabled={busy}>
+            {cancelLabel}
+          </Btn>
+          <Btn danger={danger} primary={!danger} onClick={onConfirm} disabled={busy}>
+            {busy ? "Wykonywanie…" : confirmLabel}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
