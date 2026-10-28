@@ -31,11 +31,6 @@ type IndexFormState = {
   name: string; // Nazwa indeksu
   supplier: string;
   description: string;
-  lengthMm: string;
-  widthMm: string;
-  heightMm: string;
-  thicknessMm: string;
-  weightKg: string;
   customAttributes: Record<string, string>;
 };
 
@@ -46,11 +41,6 @@ const DEFAULT_INDEX_FORM: IndexFormState = {
   name: "",
   supplier: "",
   description: "",
-  lengthMm: "",
-  widthMm: "",
-  heightMm: "",
-  thicknessMm: "",
-  weightKg: "",
   customAttributes: {},
 };
 
@@ -73,7 +63,6 @@ export default function WmsIndeksyPage() {
   const [filterObjId, setFilterObjId] = useState("");
 
   const selectedObj = (objects ?? []).find((o) => o._id === form.wmsObjectId);
-  const fc = selectedObj?.fieldsConfig;
   type CustomFieldDef = {
     key: string;
     label: string;
@@ -112,11 +101,6 @@ export default function WmsIndeksyPage() {
       name: m.name,
       supplier: m.supplier ?? "",
       description: m.description ?? "",
-      lengthMm: m.lengthMm !== undefined ? String(m.lengthMm) : "",
-      widthMm: m.widthMm !== undefined ? String(m.widthMm) : "",
-      heightMm: m.heightMm !== undefined ? String(m.heightMm) : "",
-      thicknessMm: m.thicknessMm !== undefined ? String(m.thicknessMm) : "",
-      weightKg: m.weightKg !== undefined ? String(m.weightKg) : "",
       customAttributes: (m.customAttributes as Record<string, string>) ?? {},
     });
     setEditing(true);
@@ -136,30 +120,6 @@ export default function WmsIndeksyPage() {
       return;
     }
 
-    // Walidacja wymaganych wymiarów z obiektu
-    if (fc) {
-      if (fc.lengthMm?.enabled && fc.lengthMm?.required && !form.lengthMm) {
-        toast.error(`Pole "${fc.lengthMm.label || "Długość (mm)"}" jest wymagane dla tego systemu`);
-        return;
-      }
-      if (fc.widthMm?.enabled && fc.widthMm?.required && !form.widthMm) {
-        toast.error(`Pole "${fc.widthMm.label || "Szerokość (mm)"}" jest wymagane dla tego systemu`);
-        return;
-      }
-      if (fc.heightMm?.enabled && fc.heightMm?.required && !form.heightMm) {
-        toast.error(`Pole "${fc.heightMm.label || "Wysokość (mm)"}" jest wymagane dla tego systemu`);
-        return;
-      }
-      if (fc.thicknessMm?.enabled && fc.thicknessMm?.required && !form.thicknessMm) {
-        toast.error(`Pole "${fc.thicknessMm.label || "Grubość (mm)"}" jest wymagane dla tego systemu`);
-        return;
-      }
-      if (fc.weightKg?.enabled && fc.weightKg?.required && !form.weightKg) {
-        toast.error(`Pole "${fc.weightKg.label || "Masa (kg)"}" jest wymagane dla tego systemu`);
-        return;
-      }
-    }
-
     for (const cf of customFields) {
       if (cf.required && !form.customAttributes[cf.key]?.trim()) {
         toast.error(`Parametr "${cf.label}" jest wymagany dla tego systemu`);
@@ -177,11 +137,6 @@ export default function WmsIndeksyPage() {
         name: form.name.trim(),
         supplier: form.supplier.trim() || undefined,
         description: form.description.trim() || undefined,
-        lengthMm: form.lengthMm ? Number(form.lengthMm) : undefined,
-        widthMm: form.widthMm ? Number(form.widthMm) : undefined,
-        heightMm: form.heightMm ? Number(form.heightMm) : undefined,
-        thicknessMm: form.thicknessMm ? Number(form.thicknessMm) : undefined,
-        weightKg: form.weightKg ? Number(form.weightKg) : undefined,
         customAttributes: Object.keys(form.customAttributes).length > 0 ? form.customAttributes : undefined,
       });
       toast.success(form.id ? "Zaktualizowano indeks magazynowy" : "Utworzono nowy indeks magazynowy");
@@ -348,8 +303,8 @@ export default function WmsIndeksyPage() {
                 </Field>
               </Grid>
 
-              {/* Dynamiczne wymiary fizyczne wynikające z wybranego systemu */}
-              {selectedObj && (
+              {/* Dodatkowe parametry techniczne wynikające z wybranego systemu */}
+              {selectedObj && customFields.length > 0 && (
                 <div
                   style={{
                     background: "rgba(59, 130, 246, 0.04)",
@@ -359,77 +314,10 @@ export default function WmsIndeksyPage() {
                   }}
                 >
                   <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 10 }}>
-                    Wymiary i parametry dla systemu: <span style={{ color: "#60a5fa" }}>{selectedObj.name}</span> ({selectedObj.categoryName})
+                    Parametry techniczne dla systemu: <span style={{ color: "#60a5fa" }}>{selectedObj.name}</span> ({selectedObj.categoryName})
                   </div>
 
-                  <Grid cols={4}>
-                    {fc?.lengthMm?.enabled && (
-                      <Field label={`${fc.lengthMm.label || "Długość (mm)"} ${fc.lengthMm.required ? "*" : ""}`}>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          min="0"
-                          value={form.lengthMm}
-                          onChange={(e) => setForm({ ...form, lengthMm: e.target.value })}
-                          placeholder="np. 6500"
-                        />
-                      </Field>
-                    )}
-
-                    {fc?.widthMm?.enabled && (
-                      <Field label={`${fc.widthMm.label || "Szerokość (mm)"} ${fc.widthMm.required ? "*" : ""}`}>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          min="0"
-                          value={form.widthMm}
-                          onChange={(e) => setForm({ ...form, widthMm: e.target.value })}
-                          placeholder="np. 1200"
-                        />
-                      </Field>
-                    )}
-
-                    {fc?.heightMm?.enabled && (
-                      <Field label={`${fc.heightMm.label || "Wysokość (mm)"} ${fc.heightMm.required ? "*" : ""}`}>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          min="0"
-                          value={form.heightMm}
-                          onChange={(e) => setForm({ ...form, heightMm: e.target.value })}
-                          placeholder="np. 900"
-                        />
-                      </Field>
-                    )}
-
-                    {fc?.thicknessMm?.enabled && (
-                      <Field label={`${fc.thicknessMm.label || "Grubość (mm)"} ${fc.thicknessMm.required ? "*" : ""}`}>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={form.thicknessMm}
-                          onChange={(e) => setForm({ ...form, thicknessMm: e.target.value })}
-                          placeholder="np. 24 lub 2.0"
-                        />
-                      </Field>
-                    )}
-
-                    {fc?.weightKg?.enabled && (
-                      <Field label={`${fc.weightKg.label || "Masa (kg)"} ${fc.weightKg.required ? "*" : ""}`}>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={form.weightKg}
-                          onChange={(e) => setForm({ ...form, weightKg: e.target.value })}
-                          placeholder="np. 14.5"
-                        />
-                      </Field>
-                    )}
-
+                  <Grid cols={3}>
                     {customFields.map((cf) => (
                       <Field key={cf.key} label={`${cf.label} ${cf.required ? "*" : ""}`}>
                         {cf.type === "select" ? (
@@ -554,7 +442,7 @@ export default function WmsIndeksyPage() {
               "Nazwa indeksu",
               "Grupa towarowa",
               "System / Podgrupa",
-              "Wymiary / Parametry",
+              "Parametry techniczne",
               "Stan magazynowy",
               "Akcje",
             ]}
@@ -601,31 +489,38 @@ export default function WmsIndeksyPage() {
                     </span>
                   </Td>
                   <Td>
-                    <div style={{ fontFamily: "monospace", color: C.muted }}>{row.dimensionsSummary}</div>
-                    {m.customAttributes && typeof m.customAttributes === "object" && Object.keys(m.customAttributes).length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
-                        {Object.entries(m.customAttributes as Record<string, string>).map(([k, v]) => {
-                          if (!v) return null;
-                          const cfDef = (row.object?.customFields ?? []).find((c) => c.key === k);
-                          const label = cfDef?.label || k;
-                          return (
-                            <span
-                              key={k}
-                              style={{
-                                fontSize: 10,
-                                background: "rgba(59, 130, 246, 0.12)",
-                                color: "#93c5fd",
-                                border: "1px solid rgba(59, 130, 246, 0.25)",
-                                padding: "1px 5px",
-                                borderRadius: 3,
-                              }}
-                            >
-                              {label}: {v}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {(() => {
+                      const attrs =
+                        m.customAttributes && typeof m.customAttributes === "object"
+                          ? Object.entries(m.customAttributes as Record<string, string>).filter(([, v]) => !!v)
+                          : [];
+                      if (attrs.length === 0) {
+                        return <span style={{ color: C.muted }}>—</span>;
+                      }
+                      return (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                          {attrs.map(([k, v]) => {
+                            const cfDef = (row.object?.customFields ?? []).find((c) => c.key === k);
+                            const label = cfDef?.label || k;
+                            return (
+                              <span
+                                key={k}
+                                style={{
+                                  fontSize: 11,
+                                  background: "rgba(59, 130, 246, 0.12)",
+                                  color: "#93c5fd",
+                                  border: "1px solid rgba(59, 130, 246, 0.25)",
+                                  padding: "2px 6px",
+                                  borderRadius: 4,
+                                }}
+                              >
+                                <span style={{ color: "rgba(255, 255, 255, 0.65)" }}>{label}:</span> {v}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </Td>
                   <Td nowrap style={{ fontWeight: 600 }}>
                     {fmtNum(row.stockPieces)} {row.object?.defaultUnit || m.unit || "szt."}
