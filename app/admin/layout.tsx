@@ -105,8 +105,12 @@ const TABS: TabDef[] = [
 const isWmsPath = (p: string) => p === "/admin/wms" || p.startsWith("/admin/wms/");
 
 const WMS_TABS: TabDef[] = [
-  { id: "wms-przeglad", label: "Przegląd", href: "/admin/wms", match: (p) => p === "/admin/wms" },
-  { id: "wms-stany", label: "Stany", href: "/admin/wms/stany", match: (p) => p.startsWith("/admin/wms/stany") },
+  {
+    id: "wms-stany",
+    label: "Stany",
+    href: "/admin/wms/stany",
+    match: (p) => p === "/admin/wms" || p.startsWith("/admin/wms/stany"),
+  },
   { id: "wms-indeksy", label: "Indeksy", href: "/admin/wms/indeksy", match: (p) => p.startsWith("/admin/wms/indeksy") },
   { id: "wms-pz", label: "PZ", href: "/admin/wms/pz", match: (p) => p.startsWith("/admin/wms/pz") },
   { id: "wms-rw", label: "RW", href: "/admin/wms/rw", match: (p) => p.startsWith("/admin/wms/rw") },
@@ -166,9 +170,9 @@ function AdminShell({ children }: { children: ReactNode }) {
     <div className="fluent-shell" data-theme="carbon" data-density="compact">
       <div className="fluent-titlebar">
         <Link
-          href={inWms ? "/admin/wms" : "/admin/panel"}
+          href={inWms ? "/admin/wms/stany" : "/admin/panel"}
           className="brand"
-          title={inWms ? "Przejdź do Przeglądu WMS" : "Przejdź do Panelu"}
+          title={inWms ? "Przejdź do Stanów magazynowych" : "Przejdź do Panelu"}
         >
           <div className="brand-mark">E</div>
           <span>Exalco {inWms ? "WMS" : "CRM"}</span>

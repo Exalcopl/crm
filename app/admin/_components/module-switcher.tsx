@@ -27,10 +27,10 @@ export function ModuleSwitcher() {
 
   function go(target: "crm" | "wms") {
     if ((target === "wms") === inWms) return;
-    let dest = target === "wms" ? "/admin/wms" : "/admin/panel";
+    let dest = target === "wms" ? "/admin/wms/stany" : "/admin/panel";
     try {
       const saved = localStorage.getItem(target === "wms" ? KEY_WMS : KEY_CRM);
-      if (saved && isWmsPath(saved) === (target === "wms")) dest = saved;
+      if (saved && isWmsPath(saved) === (target === "wms") && saved !== "/admin/wms") dest = saved;
     } catch {
       /* ignore */
     }
