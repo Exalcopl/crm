@@ -5,6 +5,8 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { C, fmtDate, fmtMb, fmtNum, KIND_LABEL, MOVEMENT_LABEL, SURFACE_LABEL, Table, Td, Tr, Badge } from "./ui";
 
+export { LotHistoryDrawer } from "./lot-history-drawer";
+
 /** Historia pozycji magazynowej: pełny dziennik ruchów (traceability). */
 export function LotHistory({ lotId }: { lotId: Id<"wms_lots"> }) {
   const data = useQuery(api.wms.lotHistory, { lotId });

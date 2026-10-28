@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Badge, Card, Empty, fmtKg, fmtMb, fmtNum, inputStyle, Page, Table, Td, Tr, C, ZONE_LABEL } from "../_components/ui";
-import { LotHistory } from "../_components/lot-history";
+import { LotHistoryDrawer } from "../_components/lot-history-drawer";
 
 /**
  * Komponent paska postępu dostępności dla danego indeksu lub pozycji magazynowej.
@@ -110,6 +110,7 @@ export default function StanyPage() {
   const [includeDepleted, setIncludeDepleted] = useState(false);
   const [groupByIndex, setGroupByIndex] = useState(true);
   const [openRowKey, setOpenRowKey] = useState<string | null>(null);
+  const [selectedLotId, setSelectedLotId] = useState<Id<"wms_lots"> | null>(null);
 
   const lots = useQuery(api.wms.listLots, {
     locationId: locationId ? (locationId as Id<"wms_locations">) : undefined,
@@ -483,7 +484,7 @@ export default function StanyPage() {
                     </Td>
                   </Tr>
 
-                  {/* Rozwinięcie szczegółów indeksu i historii */}
+                  {/* Rozwinięcie szczegółów indeksu (lokalizacje i pozycje) */}
                   {isOpen && (
                     <tr>
                       <td colSpan={7} style={{ padding: 0 }}>
@@ -493,13 +494,16 @@ export default function StanyPage() {
                               Szczegółowe rozmieszczenie pozycji w magazynie: {row.materialName}
                             </div>
                             <div style={{ fontSize: 11, color: C.muted }}>
-                              Kliknij w daną pozycję, aby zobaczyć pełną historię przesunięć (traceability)
+                              Kliknij w pozycję lub przycisk, aby wysunąć pełną historię przesunięć (traceability)
                             </div>
                           </div>
 
                           <Table headers={["Lokalizacja", "Strefa", "Ilość", "Stan / Dostępność", "Akcja"]}>
                             {row.lots.map((lot) => (
-                              <Tr key={lot._id}>
+                              <Tr
+                                key={lot._id}
+                                onClick={() => setSelectedLotId(lot._id)}
+                              >
                                 <Td mono style={{ fontWeight: 600, color: C.text }}>
                                   {lot.locationCode}
                                 </Td>
@@ -514,22 +518,36 @@ export default function StanyPage() {
                                   <Badge status={lot.status} />
                                 </Td>
                                 <Td>
-                                  <span style={{ fontSize: 11, color: C.accent, textDecoration: "underline" }}>
-                                    Pokaż dziennik ruchów
-                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedLotId(lot._id);
+                                    }}
+                                    style={{
+                                      background: "rgba(59, 130, 246, 0.12)",
+                                      border: "1px solid rgba(59, 130, 246, 0.3)",
+                                      color: "#60a5fa",
+                                      padding: "3px 10px",
+                                      borderRadius: 4,
+                                      fontSize: 11,
+                                      fontWeight: 600,
+                                      cursor: "pointer",
+                                      transition: "all 0.15s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background = "rgba(59, 130, 246, 0.12)";
+                                    }}
+                                  >
+                                    Pokaż dziennik ruchów →
+                                  </button>
                                 </Td>
                               </Tr>
                             ))}
                           </Table>
-
-                          {row.lots.length > 0 && (
-                            <div style={{ marginTop: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
-                                Historia ruchów pierwszej pozycji magazynowej:
-                              </div>
-                              <LotHistory lotId={row.lots[0]._id} />
-                            </div>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -551,7 +569,7 @@ export default function StanyPage() {
 
               return (
                 <Fragment key={l._id}>
-                  <Tr onClick={() => setOpenRowKey(isOpen ? null : l._id)}>
+                  <Tr onClick={() => setSelectedLotId(l._id)}>
                     <Td>
                       <div style={{ fontWeight: 600, color: C.text }}>{l.materialName}</div>
                       {l.materialSku && <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginTop: 2 }}>SKU: {l.materialSku}</div>}
@@ -602,19 +620,20 @@ export default function StanyPage() {
                     </Td>
                     <Td><Badge status={l.status} /></Td>
                   </Tr>
-                  {isOpen && (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 0 }}>
-                        <LotHistory lotId={l._id} />
-                      </td>
-                    </tr>
-                  )}
                 </Fragment>
               );
             })}
           </Table>
         )}
       </Card>
+
+      {/* ─── WYSUWANY PANEL HISTORII RUCHÓW (TRACEABILITY) ───────────── */}
+      {selectedLotId && (
+        <LotHistoryDrawer
+          lotId={selectedLotId}
+          onClose={() => setSelectedLotId(null)}
+        />
+      )}
     </Page>
   );
 }
