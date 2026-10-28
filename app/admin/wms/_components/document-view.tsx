@@ -781,7 +781,7 @@ export function DocumentDetailView({
           )}
           {doc.targetNote && (
             <div>
-              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Cel / Maszyna / Odbiorca</div>
+              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Cel</div>
               <div style={{ fontSize: 13, color: C.text }}>{doc.targetNote}</div>
             </div>
           )}
@@ -1444,12 +1444,12 @@ export function DocumentDetailView({
                       orders={orders}
                     />
                   </Field>
-                  <Field label="Cel wydania / Maszyna / Odbiorca (opcjonalnie)">
+                  <Field label="Cel (opcjonalnie)">
                     <input
                       style={inputStyle}
                       value={editTargetNote}
                       onChange={(e) => setEditTargetNote(e.target.value)}
-                      placeholder="np. Piła dwugłowicowa nr 1"
+                      placeholder="np. Produkcja, Montaż…"
                     />
                   </Field>
                 </>
@@ -1650,8 +1650,8 @@ export function DocumentListPage({
                     orders={orders}
                   />
                 </Field>
-                <Field label="Cel wydania / Maszyna (opcjonalnie)">
-                  <input style={inputStyle} value={targetNote} onChange={(e) => setTargetNote(e.target.value)} placeholder="np. Piła dwugłowicowa nr 1" />
+                <Field label="Cel (opcjonalnie)">
+                  <input style={inputStyle} value={targetNote} onChange={(e) => setTargetNote(e.target.value)} placeholder="np. Produkcja, Montaż…" />
                 </Field>
               </>
             ) : null}

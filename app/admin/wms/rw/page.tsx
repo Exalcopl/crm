@@ -334,7 +334,7 @@ function RwListPageContent() {
             }
           />
         ) : (
-          <Table headers={["Numer RW", "Powiązane zlecenie produkcyjne", "Data utworzenia", "Pozycje / Sztuki", "Cel / Maszyna", "Status", "Autor", ""]}>
+          <Table headers={["Numer RW", "Powiązane zlecenie produkcyjne", "Data utworzenia", "Pozycje / Sztuki", "Cel", "Status", "Autor", ""]}>
             {filteredDocs.map((d) => {
               const isDraft = d.status === "DRAFT";
 
@@ -396,7 +396,7 @@ function RwListPageContent() {
                     </div>
                   </Td>
 
-                  {/* 5. Cel / Maszyna */}
+                  {/* 5. Cel */}
                   <Td>
                     <span style={{ fontSize: 12, color: d.targetNote ? C.text : C.muted }}>
                       {d.targetNote || "—"}
@@ -522,14 +522,14 @@ function RwListPageContent() {
               />
             </div>
 
-            {/* Cel wydania / Stanowisko */}
+            {/* Cel */}
             <div>
               <label style={{ fontSize: 12, fontWeight: 600, color: C.text, display: "block", marginBottom: 6 }}>
-                Cel wydania / Maszyna / Stanowisko (opcjonalnie)
+                Cel (opcjonalnie)
               </label>
               <input
                 style={inputStyle}
-                placeholder="np. Piła dwugłowicowa nr 1, Montaż zadaszeń, Zgrzewarka…"
+                placeholder="np. Produkcja, Montaż, Prototyp…"
                 value={newTargetNote}
                 onChange={(e) => setNewTargetNote(e.target.value)}
               />
