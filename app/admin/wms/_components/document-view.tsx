@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -27,6 +27,222 @@ import {
 } from "./ui";
 
 type DocType = "PZ" | "RW";
+
+function SupplierCombobox({
+  value,
+  onChange,
+  suppliers,
+  placeholder = "Wpisz nazwę lub NIP dostawcy…",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  suppliers: Array<{ _id: string; name: string; nip?: string; city?: string; category?: string }>;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const query = value.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!query) return suppliers;
+    const cleanQ = query.replace(/\D/g, "");
+    return suppliers.filter((s) => {
+      const n = s.name.toLowerCase();
+      const nip = (s.nip ?? "").replace(/\D/g, "");
+      const city = (s.city ?? "").toLowerCase();
+      const cat = (s.category ?? "").toLowerCase();
+      return (
+        n.includes(query) ||
+        (cleanQ.length > 0 && nip.includes(cleanQ)) ||
+        city.includes(query) ||
+        cat.includes(query)
+      );
+    });
+  }, [suppliers, query]);
+
+  const hasExactMatch = suppliers.some(
+    (s) => s.name.toLowerCase() === value.trim().toLowerCase()
+  );
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+        <input
+          style={{
+            ...inputStyle,
+            paddingRight: value ? 52 : 30,
+            borderColor: open ? C.borderFocus : C.border,
+          }}
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+        <div
+          style={{
+            position: "absolute",
+            right: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {value && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setOpen(true);
+              }}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: C.muted,
+                cursor: "pointer",
+                padding: "2px 4px",
+                fontSize: 12,
+                borderRadius: 4,
+              }}
+              title="Wyczyść"
+            >
+              ✕
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: open ? C.accent : C.muted,
+              cursor: "pointer",
+              padding: "2px",
+              fontSize: 11,
+            }}
+            title={open ? "Zwiń" : "Rozwiń listę"}
+          >
+            {open ? "▲" : "▼"}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            maxHeight: 240,
+            overflowY: "auto",
+            background: "#161b22",
+            border: `1px solid ${C.borderFocus}`,
+            borderRadius: 6,
+            zIndex: 1100,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+            padding: 4,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div style={{ padding: "10px 12px", color: C.muted, fontSize: 12 }}>
+              Brak dopasowania w bazie dostawców.
+              {value.trim() && (
+                <div style={{ marginTop: 4, color: C.accent }}>
+                  Zostanie zapisana wpisana nazwa: <strong>{value.trim()}</strong>
+                </div>
+              )}
+            </div>
+          ) : (
+            filtered.map((s) => {
+              const isSelected = s.name.toLowerCase() === value.trim().toLowerCase();
+              return (
+                <div
+                  key={s._id}
+                  onClick={() => {
+                    onChange(s.name);
+                    setOpen(false);
+                  }}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                    background: isSelected ? "rgba(56, 139, 253, 0.18)" : "transparent",
+                    border: isSelected ? "1px solid rgba(56, 139, 253, 0.4)" : "1px solid transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    transition: "background 0.12s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>
+                      {s.name}
+                    </div>
+                    {(s.nip || s.city || s.category) && (
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2, display: "flex", gap: 6 }}>
+                        {s.nip && <span>NIP: {s.nip}</span>}
+                        {s.city && <span>• {s.city}</span>}
+                        {s.category && <span>• [{s.category}]</span>}
+                      </div>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <span style={{ color: C.accent, fontSize: 13, fontWeight: 700 }}>✓</span>
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          {value.trim() && !hasExactMatch && (
+            <div
+              onClick={() => setOpen(false)}
+              style={{
+                marginTop: 4,
+                borderTop: `1px solid ${C.border}`,
+                padding: "8px 10px",
+                fontSize: 12,
+                color: C.accent,
+                cursor: "pointer",
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span>✍️</span> Użyj wpisanej nazwy: <strong>„{value.trim()}”</strong>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function DocumentDetailView({
   id,
@@ -61,8 +277,6 @@ export function DocumentDetailView({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showEditHeaderModal, setShowEditHeaderModal] = useState(false);
   const [editSupplier, setEditSupplier] = useState("");
-  const [isEditCustomSupplier, setIsEditCustomSupplier] = useState(false);
-  const [editCustomSupplier, setEditCustomSupplier] = useState("");
   const [editExtNumber, setEditExtNumber] = useState("");
   const [editExpectedBundles, setEditExpectedBundles] = useState("");
   const [editTargetNote, setEditTargetNote] = useState("");
@@ -186,15 +400,7 @@ export function DocumentDetailView({
   }
 
   function openEditHeader() {
-    const isKnown = suppliers.some((s) => s.name === doc.supplier);
     setEditSupplier(doc.supplier ?? "");
-    if (doc.supplier && !isKnown) {
-      setIsEditCustomSupplier(true);
-      setEditCustomSupplier(doc.supplier);
-    } else {
-      setIsEditCustomSupplier(false);
-      setEditCustomSupplier("");
-    }
     setEditExtNumber(doc.externalDocNumber ?? "");
     setEditExpectedBundles(doc.expectedBundles !== undefined ? String(doc.expectedBundles) : "");
     setEditTargetNote(doc.targetNote ?? "");
@@ -203,9 +409,9 @@ export function DocumentDetailView({
   }
 
   async function handleSaveHeader() {
-    const finalSupplier = (isEditCustomSupplier ? editCustomSupplier : editSupplier).trim();
+    const finalSupplier = editSupplier.trim();
     if (type === "PZ" && !finalSupplier) {
-      toast.error("Wybierz dostawcę z listy.");
+      toast.error("Wybierz lub wpisz dostawcę.");
       return;
     }
     setBusy(true);
@@ -1053,39 +1259,12 @@ export function DocumentDetailView({
               {type === "PZ" ? (
                 <>
                   <Field label="Dostawca *">
-                    <select
-                      style={inputStyle}
-                      value={isEditCustomSupplier ? "__CUSTOM__" : editSupplier}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "__CUSTOM__") {
-                          setIsEditCustomSupplier(true);
-                        } else {
-                          setIsEditCustomSupplier(false);
-                          setEditSupplier(val);
-                        }
-                      }}
-                    >
-                      <option value="">-- Wybierz dostawcę z listy --</option>
-                      {suppliers.map((s) => (
-                        <option key={s._id} value={s.name}>
-                          {s.name} {s.nip ? `(NIP: ${s.nip})` : ""} {s.city ? `• ${s.city}` : ""}
-                        </option>
-                      ))}
-                      <option value="__CUSTOM__">+ Inny dostawca (wpisz ręcznie)…</option>
-                    </select>
-                    {isEditCustomSupplier && (
-                      <input
-                        style={{ ...inputStyle, marginTop: 6 }}
-                        value={editCustomSupplier}
-                        onChange={(e) => {
-                          setEditCustomSupplier(e.target.value);
-                          setEditSupplier(e.target.value);
-                        }}
-                        placeholder="Wpisz nazwę dostawcy…"
-                        autoFocus
-                      />
-                    )}
+                    <SupplierCombobox
+                      value={editSupplier}
+                      onChange={setEditSupplier}
+                      suppliers={suppliers}
+                      placeholder="Wpisz nazwę lub NIP dostawcy…"
+                    />
                   </Field>
                   <Field label="Nr dokumentu dostawcy (WZ / faktura / list przewozowy)">
                     <input
@@ -1212,8 +1391,6 @@ export function DocumentListPage({
   const [showNew, setShowNew] = useState(false);
   const [docToDelete, setDocToDelete] = useState<{ id: Id<"wms_documents">; number: string; status: string } | null>(null);
   const [supplier, setSupplier] = useState("");
-  const [isCustomSupplier, setIsCustomSupplier] = useState(false);
-  const [customSupplier, setCustomSupplier] = useState("");
   const [extNumber, setExtNumber] = useState("");
   const [targetNote, setTargetNote] = useState("");
   const [notes, setNotes] = useState("");
@@ -1234,9 +1411,9 @@ export function DocumentListPage({
   }
 
   async function handleCreate() {
-    const finalSupplier = (isCustomSupplier ? customSupplier : supplier).trim();
+    const finalSupplier = supplier.trim();
     if (type === "PZ" && !finalSupplier) {
-      toast.error("Wybierz dostawcę z listy.");
+      toast.error("Wybierz lub wpisz dostawcę.");
       return;
     }
 
@@ -1252,8 +1429,6 @@ export function DocumentListPage({
       toast.success(`Utworzono dokument ${res.number}`);
       setShowNew(false);
       setSupplier("");
-      setIsCustomSupplier(false);
-      setCustomSupplier("");
       setExtNumber("");
       setTargetNote("");
       setNotes("");
@@ -1281,38 +1456,12 @@ export function DocumentListPage({
             {type === "PZ" ? (
               <>
                 <Field label="Dostawca *">
-                  <select
-                    style={inputStyle}
-                    value={isCustomSupplier ? "__CUSTOM__" : supplier}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "__CUSTOM__") {
-                        setIsCustomSupplier(true);
-                      } else {
-                        setIsCustomSupplier(false);
-                        setSupplier(val);
-                      }
-                    }}
-                  >
-                    <option value="">-- Wybierz dostawcę z listy --</option>
-                    {suppliers.map((s) => (
-                      <option key={s._id} value={s.name}>
-                        {s.name} {s.nip ? `(NIP: ${s.nip})` : ""} {s.city ? `• ${s.city}` : ""}
-                      </option>
-                    ))}
-                    <option value="__CUSTOM__">+ Inny dostawca (wpisz ręcznie)…</option>
-                  </select>
-                  {isCustomSupplier && (
-                    <input
-                      style={{ ...inputStyle, marginTop: 6 }}
-                      value={customSupplier}
-                      onChange={(e) => {
-                        setCustomSupplier(e.target.value);
-                      }}
-                      placeholder="Wpisz nazwę dostawcy…"
-                      autoFocus
-                    />
-                  )}
+                  <SupplierCombobox
+                    value={supplier}
+                    onChange={setSupplier}
+                    suppliers={suppliers}
+                    placeholder="Wpisz nazwę lub NIP dostawcy…"
+                  />
                 </Field>
                 <Field label="Nr dokumentu dostawcy (WZ / faktura / list przewozowy)">
                   <input style={inputStyle} value={extNumber} onChange={(e) => setExtNumber(e.target.value)} placeholder="np. WZ/2026/0411" />
