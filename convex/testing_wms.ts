@@ -670,6 +670,54 @@ export const runWmsTest = mutation({
         await ctx.db.delete(dId);
       }
       ok("Usuwanie PZ (szkic, anulowany, zatwierdzony oraz ochrona magazynowa) przetestowane i w pełni sprawne");
+
+      // 7.5 Usunięcie zatwierdzonego RW i przywrócenie stanu partii źródłowej
+      const pzForRwTestId = await newDoc("PZ");
+      await addLine(pzForRwTestId, {
+        materialId,
+        quantityPieces: 10,
+        lengthMm: 3000,
+        heatNumber: "HEAT-RW-DEL-TEST",
+        toLocationId: locMG,
+      });
+      await approveDocument(ctx, userId, pzForRwTestId);
+      const rwTestLots = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("receivedByDocumentId"), pzForRwTestId))
+        .collect();
+      const rwSourceLotId = rwTestLots[0]._id;
+
+      // Zatwierdź częściowe RW (wydanie 4 szt. do bufora, w MG zostaje 6 szt.)
+      const testRwDocId = await newDoc("RW");
+      await addLine(testRwDocId, {
+        lotId: rwSourceLotId,
+        quantityPieces: 4,
+        toLocationId: locBuf,
+      });
+      await approveDocument(ctx, userId, testRwDocId);
+
+      const lotAfterRw = await ctx.db.get(rwSourceLotId);
+      assert(lotAfterRw?.quantityPieces === 6, "Po RW na partii źródłowej zostało 6 szt.");
+
+      const bufferLots = await ctx.db
+        .query("wms_lots")
+        .filter((q) => q.eq(q.field("parentLotId"), rwSourceLotId))
+        .collect();
+      assert(bufferLots.length === 1 && bufferLots[0].quantityPieces === 4, "Utworzono partię buforową 4 szt.");
+      const bufferLotId = bufferLots[0]._id;
+
+      // Usunięcie zatwierdzonego RW
+      const delRwRes = await deleteDocumentCore(ctx, testRwDocId);
+      assert(delRwRes.success, "deleteDocumentCore usuwa zatwierdzony RW");
+      assert((await ctx.db.get(testRwDocId)) === null, "Dokument RW został usunięty z bazy");
+      assert((await ctx.db.get(bufferLotId)) === null, "Partia buforowa została usunięta");
+
+      const lotRestored = await ctx.db.get(rwSourceLotId);
+      assert(lotRestored?.quantityPieces === 10, "Stan partii źródłowej został w pełni przywrócony (6 -> 10 szt.)");
+      ok("Usuwanie zatwierdzonego RW przywraca stan partii źródłowej i usuwa partię buforową");
+
+      // Posprzątaj PZ testowe
+      await deleteDocumentCore(ctx, pzForRwTestId);
     } finally {
       // Sprzątanie (w razie błędu mutacja i tak się cofa, ale zachowujemy porządek)
       await cleanup(ctx, {

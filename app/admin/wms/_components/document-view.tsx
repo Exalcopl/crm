@@ -1185,15 +1185,27 @@ export function DocumentDetailView({
               </div>
               <div style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
                 {doc.status === "ZATWIERDZONY" ? (
-                  <>
-                    Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> jest zatwierdzony.
-                    <br /><br />
-                    Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie przyjętych partii z magazynu</strong> oraz usunięcie historii ruchów powiązanych z tym PZ.
-                    <br /><br />
-                    <span style={{ fontSize: 12, color: C.amber }}>
-                      ⚠️ Jeśli jakakolwiek partia z tego przyjęcia została już częściowo lub całkowicie wydana (RW), przesunięta (MM) lub ujęta w spisie, operacja zostanie bezpiecznie zablokowana.
-                    </span>
-                  </>
+                  doc.type === "RW" ? (
+                    <>
+                      Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> jest zatwierdzony.
+                      <br /><br />
+                      Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie wydania towaru</strong> — wydane pozycje powrócą na stan partii źródłowej w magazynie, a pozycje w buforze produkcyjnym oraz historia ruchów powiązana z tym RW zostaną usunięte.
+                      <br /><br />
+                      <span style={{ fontSize: 12, color: C.amber }}>
+                        ⚠️ Jeśli wydany towar w buforze produkcyjnym został już przesunięty lub przetworzony w kolejnych ruchach magazynowych, operacja zostanie bezpiecznie zablokowana.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> jest zatwierdzony.
+                      <br /><br />
+                      Usunięcie tego dokumentu spowoduje <strong style={{ color: C.red }}>całkowite wycofanie przyjętych partii z magazynu</strong> oraz usunięcie historii ruchów powiązanych z tym PZ.
+                      <br /><br />
+                      <span style={{ fontSize: 12, color: C.amber }}>
+                        ⚠️ Jeśli jakakolwiek partia z tego przyjęcia została już częściowo lub całkowicie wydana (RW), przesunięta (MM) lub ujęta w spisie, operacja zostanie bezpiecznie zablokowana.
+                      </span>
+                    </>
+                  )
                 ) : (
                   <>
                     Czy na pewno chcesz trwale usunąć dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{doc.number}</strong> (status: {doc.status}) wraz ze wszystkimi jego pozycjami ({lines.length})?
@@ -1565,15 +1577,27 @@ export function DocumentListPage({
               </div>
               <div style={{ fontSize: 13, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
                 {docToDelete.status === "ZATWIERDZONY" ? (
-                  <>
-                    Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> jest zatwierdzony.
-                    <br /><br />
-                    Usunięcie tego dokumentu wycofa przyjęte partie ze stanu magazynowego i usunie powiązane wpisy ruchów magazynowych.
-                    <br /><br />
-                    <span style={{ fontSize: 12, color: C.amber }}>
-                      ⚠️ Jeśli partie zostały już częściowo wydane (RW) lub przesunięte (MM), usunięcie zostanie zablokowane.
-                    </span>
-                  </>
+                  type === "RW" ? (
+                    <>
+                      Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> jest zatwierdzony.
+                      <br /><br />
+                      Usunięcie tego dokumentu wycofa wydanie materiałów — ilości powrócą na stan partii źródłowej w magazynie, a partia w buforze zostanie usunięta wraz z wpisami ruchów.
+                      <br /><br />
+                      <span style={{ fontSize: 12, color: C.amber }}>
+                        ⚠️ Jeśli wydany towar w buforze został już przesunięty lub przetworzony, operacja zostanie bezpiecznie zablokowana.
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      Dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> jest zatwierdzony.
+                      <br /><br />
+                      Usunięcie tego dokumentu wycofa przyjęte partie ze stanu magazynowego i usunie powiązane wpisy ruchów magazynowych.
+                      <br /><br />
+                      <span style={{ fontSize: 12, color: C.amber }}>
+                        ⚠️ Jeśli partie zostały już częściowo wydane (RW) lub przesunięte (MM), usunięcie zostanie zablokowane.
+                      </span>
+                    </>
+                  )
                 ) : (
                   <>
                     Czy na pewno chcesz trwale usunąć dokument <strong style={{ color: C.text, fontFamily: "monospace" }}>{docToDelete.number}</strong> (status: {docToDelete.status})?

@@ -282,80 +282,187 @@ export async function deleteDocumentCore(
   let deletedMovementsCount = 0;
 
   if (doc.status === "ZATWIERDZONY") {
-    if (doc.type !== "PZ") {
-      throw new Error(
-        `Usuwanie zatwierdzonego dokumentu typu ${doc.type} nie jest dozwolone. Tylko dokumenty PZ mogą zostać wycofane ze stanu magazynowego.`,
-      );
-    }
+    if (doc.type === "PZ") {
+      // 1. Zidentyfikuj partie utworzone przez to przyjęcie PZ
+      const lotIdsFromLines = lines
+        .map((l) => l.lotId)
+        .filter((id): id is Id<"wms_lots"> => id !== undefined);
 
-    // 1. Zidentyfikuj partie utworzone przez to przyjęcie PZ
-    const lotIdsFromLines = lines
-      .map((l) => l.lotId)
-      .filter((id): id is Id<"wms_lots"> => id !== undefined);
-
-    const lotsFromQuery = await ctx.db
-      .query("wms_lots")
-      .filter((q) => q.eq(q.field("receivedByDocumentId"), documentId))
-      .collect();
-
-    const uniqueLotIds = Array.from(new Set([...lotIdsFromLines, ...lotsFromQuery.map((l) => l._id)]));
-
-    // 2. Walidacja nienaruszalności partii przed usunięciem
-    for (const lotId of uniqueLotIds) {
-      const lot = await ctx.db.get(lotId);
-      if (!lot) continue;
-
-      // Sprawdź, czy partia nie została podzielona (np. częściowe RW / MM)
-      const childLot = await ctx.db
+      const lotsFromQuery = await ctx.db
         .query("wms_lots")
-        .filter((q) => q.eq(q.field("parentLotId"), lotId))
-        .first();
-      if (childLot) {
-        throw new Error(
-          `Nie można usunąć dokumentu PZ: partia materiałowa została już wydzielona lub podzielona w magazynie.`,
-        );
-      }
-
-      // Sprawdź, czy partia nie została objęta spisem inwentaryzacyjnym
-      const invCount = await ctx.db
-        .query("wms_inventory_counts")
-        .filter((q) => q.eq(q.field("lotId"), lotId))
-        .first();
-      if (invCount) {
-        throw new Error(
-          `Nie można usunąć dokumentu PZ: partia materiałowa została uwzględniona w sesji inwentaryzacyjnej.`,
-        );
-      }
-
-      // Sprawdź, czy nie ma innych ruchów magazynowych na tej partii
-      const movements = await ctx.db
-        .query("wms_movements")
-        .withIndex("by_lot", (q) => q.eq("lotId", lotId))
+        .filter((q) => q.eq(q.field("receivedByDocumentId"), documentId))
         .collect();
 
-      const otherMovements = movements.filter((m) => m.documentId !== documentId);
-      if (otherMovements.length > 0) {
-        throw new Error(
-          `Nie można usunąć dokumentu PZ: przyjęty towar został już użyty lub przesunięty w magazynie (znaleziono ${otherMovements.length} powiązanych ruchów magazynowych, np. RW lub MM). Najpierw wycofaj powiązane dokumenty.`,
-        );
+      const uniqueLotIds = Array.from(new Set([...lotIdsFromLines, ...lotsFromQuery.map((l) => l._id)]));
+
+      // 2. Walidacja nienaruszalności partii przed usunięciem
+      for (const lotId of uniqueLotIds) {
+        const lot = await ctx.db.get(lotId);
+        if (!lot) continue;
+
+        // Sprawdź, czy partia nie została podzielona (np. częściowe RW / MM)
+        const childLot = await ctx.db
+          .query("wms_lots")
+          .filter((q) => q.eq(q.field("parentLotId"), lotId))
+          .first();
+        if (childLot) {
+          throw new Error(
+            `Nie można usunąć dokumentu PZ: partia materiałowa została już wydzielona lub podzielona w magazynie.`,
+          );
+        }
+
+        // Sprawdź, czy partia nie została objęta spisem inwentaryzacyjnym
+        const invCount = await ctx.db
+          .query("wms_inventory_counts")
+          .filter((q) => q.eq(q.field("lotId"), lotId))
+          .first();
+        if (invCount) {
+          throw new Error(
+            `Nie można usunąć dokumentu PZ: partia materiałowa została uwzględniona w sesji inwentaryzacyjnej.`,
+          );
+        }
+
+        // Sprawdź, czy nie ma innych ruchów magazynowych na tej partii
+        const movements = await ctx.db
+          .query("wms_movements")
+          .withIndex("by_lot", (q) => q.eq("lotId", lotId))
+          .collect();
+
+        const otherMovements = movements.filter((m) => m.documentId !== documentId);
+        if (otherMovements.length > 0) {
+          throw new Error(
+            `Nie można usunąć dokumentu PZ: przyjęty towar został już użyty lub przesunięty w magazynie (znaleziono ${otherMovements.length} powiązanych ruchów magazynowych, np. RW lub MM). Najpierw wycofaj powiązane dokumenty.`,
+          );
+        }
       }
-    }
 
-    // 3. Usuń ruchy magazynowe powiązane z tym dokumentem
-    const docMovements = await ctx.db
-      .query("wms_movements")
-      .withIndex("by_document", (q) => q.eq("documentId", documentId))
-      .collect();
+      // 3. Usuń ruchy magazynowe powiązane z tym dokumentem
+      const docMovements = await ctx.db
+        .query("wms_movements")
+        .withIndex("by_document", (q) => q.eq("documentId", documentId))
+        .collect();
 
-    for (const mov of docMovements) {
-      await ctx.db.delete(mov._id);
-    }
-    deletedMovementsCount = docMovements.length;
+      for (const mov of docMovements) {
+        await ctx.db.delete(mov._id);
+      }
+      deletedMovementsCount = docMovements.length;
 
-    // 4. Usuń partie materiałowe utworzone przez to PZ
-    for (const lotId of uniqueLotIds) {
-      await ctx.db.delete(lotId);
-      deletedLotsCount++;
+      // 4. Usuń partie materiałowe utworzone przez to PZ
+      for (const lotId of uniqueLotIds) {
+        await ctx.db.delete(lotId);
+        deletedLotsCount++;
+      }
+    } else if (doc.type === "RW") {
+      // 1. Zidentyfikuj ruchy i pozycje tego RW
+      const docMovements = await ctx.db
+        .query("wms_movements")
+        .withIndex("by_document", (q) => q.eq("documentId", documentId))
+        .collect();
+
+      const now = Date.now();
+
+      for (const [idx, line] of lines.entries()) {
+        const tag = `Poz. ${idx + 1}`;
+        if (!line.lotId) continue;
+
+        // Szukamy partii potomnej utworzonej dla tej linii przy częściowym RW (quantityDelta > 0)
+        const childMov = docMovements.find(
+          (m) => m.lineId === line._id && m.quantityDelta > 0 && m.type === "RW",
+        );
+
+        if (childMov) {
+          // --- PRZYPADEK CZĘŚCIOWEGO RW (wydzielono partię do bufora) ---
+          const childLot = await ctx.db.get(childMov.lotId);
+          if (childLot) {
+            // Sprawdź, czy partia w buforze nie miała innych ruchów
+            const childMovs = await ctx.db
+              .query("wms_movements")
+              .withIndex("by_lot", (q) => q.eq("lotId", childLot._id))
+              .collect();
+            const otherChildMovs = childMovs.filter((m) => m.documentId !== documentId);
+            if (otherChildMovs.length > 0) {
+              throw new Error(
+                `${tag}: Nie można usunąć dokumentu RW: wydany towar w buforze został już przesunięty lub użyty (znaleziono inne ruchy magazynowe).`,
+              );
+            }
+
+            // Sprawdź, czy partia buforowa nie ma partii potomnych
+            const grandChild = await ctx.db
+              .query("wms_lots")
+              .filter((q) => q.eq(q.field("parentLotId"), childLot._id))
+              .first();
+            if (grandChild) {
+              throw new Error(
+                `${tag}: Nie można usunąć dokumentu RW: partia buforowa została już podzielona w magazynie.`,
+              );
+            }
+
+            // Sprawdź inwentaryzację
+            const invCount = await ctx.db
+              .query("wms_inventory_counts")
+              .filter((q) => q.eq(q.field("lotId"), childLot._id))
+              .first();
+            if (invCount) {
+              throw new Error(
+                `${tag}: Nie można usunąć dokumentu RW: partia buforowa została uwzględniona w inwentaryzacji.`,
+              );
+            }
+
+            // Przywróć ilość w partii macierzystej
+            const parentLot = await ctx.db.get(line.lotId);
+            if (parentLot) {
+              const restoredQty = parentLot.quantityPieces + line.quantityPieces;
+              const loc = await ctx.db.get(parentLot.locationId);
+              const restoredStatus: LotStatus = loc ? statusForZone(loc.zone) : "AVAILABLE";
+              await ctx.db.patch(parentLot._id, {
+                quantityPieces: restoredQty,
+                status: restoredStatus,
+                updatedAt: now,
+              });
+            }
+
+            // Usuń partię potomną z bufora
+            await ctx.db.delete(childLot._id);
+            deletedLotsCount++;
+          }
+        } else {
+          // --- PRZYPADEK PEŁNEGO RW (przeniesiono całą partię) ---
+          const lot = await ctx.db.get(line.lotId);
+          if (lot) {
+            const lotMovs = await ctx.db
+              .query("wms_movements")
+              .withIndex("by_lot", (q) => q.eq("lotId", lot._id))
+              .collect();
+            const otherLotMovs = lotMovs.filter((m) => m.documentId !== documentId);
+            if (otherLotMovs.length > 0) {
+              throw new Error(
+                `${tag}: Nie można usunąć dokumentu RW: wydana partia została już użyta lub przesunięta (znaleziono inne ruchy magazynowe).`,
+              );
+            }
+
+            // Przywróć pierwotną lokalizację źródłową oraz status magazynu
+            const fromLocId = line.fromLocationId;
+            const fromLoc = fromLocId ? await ctx.db.get(fromLocId) : null;
+            const origStatus: LotStatus = fromLoc ? statusForZone(fromLoc.zone) : "AVAILABLE";
+
+            await ctx.db.patch(lot._id, {
+              locationId: fromLocId ?? lot.locationId,
+              status: origStatus,
+              updatedAt: now,
+            });
+          }
+        }
+      }
+
+      // Usuń ruchy tego RW
+      for (const mov of docMovements) {
+        await ctx.db.delete(mov._id);
+      }
+      deletedMovementsCount = docMovements.length;
+    } else {
+      throw new Error(
+        `Usuwanie zatwierdzonego dokumentu typu ${doc.type} nie jest dozwolone. Tylko dokumenty PZ i RW mogą zostać bezpiecznie wycofane.`,
+      );
     }
   }
 

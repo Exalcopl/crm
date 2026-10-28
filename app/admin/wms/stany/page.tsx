@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -109,8 +109,17 @@ export default function StanyPage() {
   const [status, setStatus] = useState("");
   const [includeDepleted, setIncludeDepleted] = useState(false);
   const [groupByIndex, setGroupByIndex] = useState(true);
-  const [openRowKey, setOpenRowKey] = useState<string | null>(null);
-  const [selectedLotId, setSelectedLotId] = useState<Id<"wms_lots"> | null>(null);
+  const [drawerLot, setDrawerLot] = useState<{
+    lotId: Id<"wms_lots">;
+    siblingLots?: Array<{
+      _id: Id<"wms_lots">;
+      locationCode: string;
+      zone?: string;
+      quantityPieces: number;
+      status: string;
+      unit?: string;
+    }>;
+  } | null>(null);
 
   const lots = useQuery(api.wms.listLots, {
     locationId: locationId ? (locationId as Id<"wms_locations">) : undefined,
@@ -335,7 +344,6 @@ export default function StanyPage() {
           /* Widok zagregowany per INDEKS TOWAROWY */
           <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Lokalizacja", "Dostępność", "Ilość na stanie", "Status"]}>
             {groupedIndexRows.map((row) => {
-              const isOpen = openRowKey === row.key;
               const hasDimensions = row.dimensionsSummary && row.dimensionsSummary !== "—";
               const hasColor = Boolean(row.colorCode || row.surfaceType);
 
@@ -349,210 +357,149 @@ export default function StanyPage() {
                   : "AVAILABLE";
 
               return (
-                <Fragment key={row.key}>
-                  <Tr onClick={() => setOpenRowKey(isOpen ? null : row.key)}>
-                    {/* 1. Indeks towarowy */}
-                    <Td>
-                      <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{row.materialName}</div>
-                      {row.materialSku && (
-                        <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginTop: 2 }}>
-                          SKU: {row.materialSku}
-                        </div>
+                <Tr
+                  key={row.key}
+                  onClick={() => {
+                    if (row.lots.length > 0) {
+                      setDrawerLot({
+                        lotId: row.lots[0]._id,
+                        siblingLots: row.lots,
+                      });
+                    }
+                  }}
+                >
+                  {/* 1. Indeks towarowy */}
+                  <Td>
+                    <div style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>{row.materialName}</div>
+                    {row.materialSku && (
+                      <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginTop: 2 }}>
+                        SKU: {row.materialSku}
+                      </div>
+                    )}
+                  </Td>
+
+                  {/* 2. Grupa / System */}
+                  <Td>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{row.categoryName}</div>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        background: "rgba(59, 130, 246, 0.12)",
+                        color: "#60a5fa",
+                        padding: "1px 6px",
+                        borderRadius: 3,
+                        fontWeight: 600,
+                        display: "inline-block",
+                        marginTop: 2,
+                      }}
+                    >
+                      {row.objectName}
+                    </span>
+                  </Td>
+
+                  {/* 3. Parametry i Cechy (uniwersalna kolumna dla wszystkich indeksów) */}
+                  <Td>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {hasDimensions && (
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
+                          📏 {row.dimensionsSummary}
+                        </span>
                       )}
-                    </Td>
+                      {hasColor && (
+                        <span style={{ fontSize: 11, color: C.muted }}>
+                          🎨 {row.colorCode ?? ""} {row.surfaceType ? `(${row.surfaceType})` : ""}
+                        </span>
+                      )}
+                      {!hasDimensions && !hasColor && (
+                        <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
+                          Standard
+                        </span>
+                      )}
+                    </div>
+                  </Td>
 
-                    {/* 2. Grupa / System */}
-                    <Td>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: C.text }}>{row.categoryName}</div>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          background: "rgba(59, 130, 246, 0.12)",
-                          color: "#60a5fa",
-                          padding: "1px 6px",
-                          borderRadius: 3,
-                          fontWeight: 600,
-                          display: "inline-block",
-                          marginTop: 2,
-                        }}
-                      >
-                        {row.objectName}
-                      </span>
-                    </Td>
-
-                    {/* 3. Parametry i Cechy (uniwersalna kolumna dla wszystkich indeksów) */}
-                    <Td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {hasDimensions && (
-                          <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
-                            📏 {row.dimensionsSummary}
-                          </span>
-                        )}
-                        {hasColor && (
-                          <span style={{ fontSize: 11, color: C.muted }}>
-                            🎨 {row.colorCode ?? ""} {row.surfaceType ? `(${row.surfaceType})` : ""}
-                          </span>
-                        )}
-                        {!hasDimensions && !hasColor && (
-                          <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
-                            Standard
-                          </span>
+                  {/* 4. Lokalizacja */}
+                  <Td>
+                    {row.locations.length === 1 ? (
+                      <div>
+                        <span style={{ fontFamily: "monospace", fontWeight: 500, color: C.text }}>
+                          {row.locations[0].locationCode}
+                        </span>
+                        {row.locations[0].zone && (
+                          <div style={{ fontSize: 10, color: C.muted }}>
+                            {ZONE_LABEL[row.locations[0].zone] ?? row.locations[0].zone}
+                          </div>
                         )}
                       </div>
-                    </Td>
-
-                    {/* 4. Lokalizacja */}
-                    <Td>
-                      {row.locations.length === 1 ? (
-                        <div>
-                          <span style={{ fontFamily: "monospace", fontWeight: 500, color: C.text }}>
-                            {row.locations[0].locationCode}
-                          </span>
-                          {row.locations[0].zone && (
-                            <div style={{ fontSize: 10, color: C.muted }}>
-                              {ZONE_LABEL[row.locations[0].zone] ?? row.locations[0].zone}
-                            </div>
-                          )}
+                    ) : (
+                      <div>
+                        <span style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>
+                          {row.locations.length} lokalizacje:
+                        </span>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+                          {row.locations.map((loc, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                fontSize: 10,
+                                fontFamily: "monospace",
+                                background: "rgba(255,255,255,0.06)",
+                                padding: "1px 4px",
+                                borderRadius: 3,
+                                color: C.muted,
+                              }}
+                            >
+                              {loc.locationCode} ({loc.quantity})
+                            </span>
+                          ))}
                         </div>
-                      ) : (
-                        <div>
-                          <span style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>
-                            {row.locations.length} lokalizacje:
-                          </span>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                            {row.locations.map((loc, i) => (
-                              <span
-                                key={i}
-                                style={{
-                                  fontSize: 10,
-                                  fontFamily: "monospace",
-                                  background: "rgba(255,255,255,0.06)",
-                                  padding: "1px 4px",
-                                  borderRadius: 3,
-                                  color: C.muted,
-                                }}
-                              >
-                                {loc.locationCode} ({loc.quantity})
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </Td>
-
-                    {/* 5. Progress bar dostępności */}
-                    <Td>
-                      <AvailabilityProgressBar
-                        available={row.availablePieces}
-                        inProgress={row.inProgressPieces}
-                        total={row.totalPieces}
-                        unit={row.unit}
-                      />
-                    </Td>
-
-                    {/* 6. Łączna ilość na stanie */}
-                    <Td nowrap>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
-                        {fmtNum(row.totalPieces)} {row.unit}
                       </div>
-                      {row.totalMb > 0 && (
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {fmtMb(row.totalMb)}
-                        </div>
-                      )}
-                      {row.totalWeightKg > 0 && (
-                        <div style={{ fontSize: 11, color: C.muted }}>
-                          {fmtKg(row.totalWeightKg)}
-                        </div>
-                      )}
-                    </Td>
+                    )}
+                  </Td>
 
-                    {/* 7. Status */}
-                    <Td>
-                      <Badge
-                        status={statusBadge}
-                        label={
-                          row.totalPieces === 0
-                            ? "Wyczerpany"
-                            : row.availablePieces === row.totalPieces
-                            ? "Dostępny"
-                            : row.inProgressPieces === row.totalPieces
-                            ? "W realizacji"
-                            : "Częściowo w toku"
-                        }
-                      />
-                    </Td>
-                  </Tr>
+                  {/* 5. Progress bar dostępności */}
+                  <Td>
+                    <AvailabilityProgressBar
+                      available={row.availablePieces}
+                      inProgress={row.inProgressPieces}
+                      total={row.totalPieces}
+                      unit={row.unit}
+                    />
+                  </Td>
 
-                  {/* Rozwinięcie szczegółów indeksu (lokalizacje i pozycje) */}
-                  {isOpen && (
-                    <tr>
-                      <td colSpan={7} style={{ padding: 0 }}>
-                        <div style={{ padding: "16px 20px", background: "rgba(255, 255, 255, 0.02)", borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}` }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                              Szczegółowe rozmieszczenie pozycji w magazynie: {row.materialName}
-                            </div>
-                            <div style={{ fontSize: 11, color: C.muted }}>
-                              Kliknij w pozycję lub przycisk, aby wysunąć pełną historię przesunięć (traceability)
-                            </div>
-                          </div>
+                  {/* 6. Łączna ilość na stanie */}
+                  <Td nowrap>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                      {fmtNum(row.totalPieces)} {row.unit}
+                    </div>
+                    {row.totalMb > 0 && (
+                      <div style={{ fontSize: 11, color: C.muted }}>
+                        {fmtMb(row.totalMb)}
+                      </div>
+                    )}
+                    {row.totalWeightKg > 0 && (
+                      <div style={{ fontSize: 11, color: C.muted }}>
+                        {fmtKg(row.totalWeightKg)}
+                      </div>
+                    )}
+                  </Td>
 
-                          <Table headers={["Lokalizacja", "Strefa", "Ilość", "Stan / Dostępność", "Akcja"]}>
-                            {row.lots.map((lot) => (
-                              <Tr
-                                key={lot._id}
-                                onClick={() => setSelectedLotId(lot._id)}
-                              >
-                                <Td mono style={{ fontWeight: 600, color: C.text }}>
-                                  {lot.locationCode}
-                                </Td>
-                                <Td muted>
-                                  {lot.zone ? ZONE_LABEL[lot.zone] ?? lot.zone : "—"}
-                                </Td>
-                                <Td style={{ fontWeight: 600 }}>
-                                  {fmtNum(lot.quantityPieces)} {row.unit}
-                                  {lot.totalMb > 0 && <span style={{ color: C.muted, fontWeight: 400, marginLeft: 6 }}>({fmtMb(lot.totalMb)})</span>}
-                                </Td>
-                                <Td>
-                                  <Badge status={lot.status} />
-                                </Td>
-                                <Td>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedLotId(lot._id);
-                                    }}
-                                    style={{
-                                      background: "rgba(59, 130, 246, 0.12)",
-                                      border: "1px solid rgba(59, 130, 246, 0.3)",
-                                      color: "#60a5fa",
-                                      padding: "3px 10px",
-                                      borderRadius: 4,
-                                      fontSize: 11,
-                                      fontWeight: 600,
-                                      cursor: "pointer",
-                                      transition: "all 0.15s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background = "rgba(59, 130, 246, 0.25)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background = "rgba(59, 130, 246, 0.12)";
-                                    }}
-                                  >
-                                    Pokaż dziennik ruchów →
-                                  </button>
-                                </Td>
-                              </Tr>
-                            ))}
-                          </Table>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
+                  {/* 7. Status */}
+                  <Td>
+                    <Badge
+                      status={statusBadge}
+                      label={
+                        row.totalPieces === 0
+                          ? "Wyczerpany"
+                          : row.availablePieces === row.totalPieces
+                          ? "Dostępny"
+                          : row.inProgressPieces === row.totalPieces
+                          ? "W realizacji"
+                          : "Częściowo w toku"
+                      }
+                    />
+                  </Td>
+                </Tr>
               );
             })}
           </Table>
@@ -560,7 +507,6 @@ export default function StanyPage() {
           /* Widok szczegółowy per pojedyncza pozycja magazynowa */
           <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Lokalizacja", "Dostępność", "Ilość", "Status"]}>
             {filteredLots.map((l) => {
-              const isOpen = openRowKey === l._id;
               const hasDimensions = l.dimensionsSummary && l.dimensionsSummary !== "—";
               const hasColor = Boolean(l.colorCode || l.surfaceType);
 
@@ -568,59 +514,64 @@ export default function StanyPage() {
               const inProgressQty = l.status === "IN_PROGRESS" ? l.quantityPieces : 0;
 
               return (
-                <Fragment key={l._id}>
-                  <Tr onClick={() => setSelectedLotId(l._id)}>
-                    <Td>
-                      <div style={{ fontWeight: 600, color: C.text }}>{l.materialName}</div>
-                      {l.materialSku && <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginTop: 2 }}>SKU: {l.materialSku}</div>}
-                    </Td>
-                    <Td>
-                      <div style={{ fontSize: 12, color: C.text }}>{l.categoryName}</div>
-                      <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.12)", color: "#60a5fa", padding: "1px 6px", borderRadius: 3, fontWeight: 600, display: "inline-block", marginTop: 2 }}>
-                        {l.objectName}
-                      </span>
-                    </Td>
-                    <Td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {hasDimensions && (
-                          <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
-                            📏 {l.dimensionsSummary}
-                          </span>
-                        )}
-                        {hasColor && (
-                          <span style={{ fontSize: 11, color: C.muted }}>
-                            🎨 {l.colorCode ?? ""} {l.surfaceType ? `(${l.surfaceType})` : ""}
-                          </span>
-                        )}
-                        {!hasDimensions && !hasColor && (
-                          <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
-                            Standard
-                          </span>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>
-                      <span style={{ fontFamily: "monospace", fontWeight: 600, color: C.text }}>{l.locationCode}</span>
-                      {l.zone && <div style={{ fontSize: 11, color: C.muted }}>{ZONE_LABEL[l.zone]}</div>}
-                    </Td>
-                    <Td>
-                      <AvailabilityProgressBar
-                        available={availableQty}
-                        inProgress={inProgressQty}
-                        total={l.quantityPieces}
-                        unit={l.unit}
-                      />
-                    </Td>
-                    <Td nowrap>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
-                        {fmtNum(l.quantityPieces)} {l.unit}
-                      </div>
-                      {l.totalMb > 0 && <div style={{ fontSize: 11, color: C.muted }}>{fmtMb(l.totalMb)}</div>}
-                      {l.weightKg !== undefined && <div style={{ fontSize: 11, color: C.muted }}>{fmtKg(l.weightKg)}</div>}
-                    </Td>
-                    <Td><Badge status={l.status} /></Td>
-                  </Tr>
-                </Fragment>
+                <Tr
+                  key={l._id}
+                  onClick={() => {
+                    setDrawerLot({
+                      lotId: l._id,
+                    });
+                  }}
+                >
+                  <Td>
+                    <div style={{ fontWeight: 600, color: C.text }}>{l.materialName}</div>
+                    {l.materialSku && <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginTop: 2 }}>SKU: {l.materialSku}</div>}
+                  </Td>
+                  <Td>
+                    <div style={{ fontSize: 12, color: C.text }}>{l.categoryName}</div>
+                    <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.12)", color: "#60a5fa", padding: "1px 6px", borderRadius: 3, fontWeight: 600, display: "inline-block", marginTop: 2 }}>
+                      {l.objectName}
+                    </span>
+                  </Td>
+                  <Td>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {hasDimensions && (
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: C.text }}>
+                          📏 {l.dimensionsSummary}
+                        </span>
+                      )}
+                      {hasColor && (
+                        <span style={{ fontSize: 11, color: C.muted }}>
+                          🎨 {l.colorCode ?? ""} {l.surfaceType ? `(${l.surfaceType})` : ""}
+                        </span>
+                      )}
+                      {!hasDimensions && !hasColor && (
+                        <span style={{ fontSize: 11, color: C.muted, fontStyle: "italic" }}>
+                          Standard
+                        </span>
+                      )}
+                    </div>
+                  </Td>
+                  <Td>
+                    <span style={{ fontFamily: "monospace", fontWeight: 600, color: C.text }}>{l.locationCode}</span>
+                    {l.zone && <div style={{ fontSize: 11, color: C.muted }}>{ZONE_LABEL[l.zone]}</div>}
+                  </Td>
+                  <Td>
+                    <AvailabilityProgressBar
+                      available={availableQty}
+                      inProgress={inProgressQty}
+                      total={l.quantityPieces}
+                      unit={l.unit}
+                    />
+                  </Td>
+                  <Td nowrap>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
+                      {fmtNum(l.quantityPieces)} {l.unit}
+                    </div>
+                    {l.totalMb > 0 && <div style={{ fontSize: 11, color: C.muted }}>{fmtMb(l.totalMb)}</div>}
+                    {l.weightKg !== undefined && <div style={{ fontSize: 11, color: C.muted }}>{fmtKg(l.weightKg)}</div>}
+                  </Td>
+                  <Td><Badge status={l.status} /></Td>
+                </Tr>
               );
             })}
           </Table>
@@ -628,10 +579,11 @@ export default function StanyPage() {
       </Card>
 
       {/* ─── WYSUWANY PANEL HISTORII RUCHÓW (TRACEABILITY) ───────────── */}
-      {selectedLotId && (
+      {drawerLot && (
         <LotHistoryDrawer
-          lotId={selectedLotId}
-          onClose={() => setSelectedLotId(null)}
+          lotId={drawerLot.lotId}
+          siblingLots={drawerLot.siblingLots}
+          onClose={() => setDrawerLot(null)}
         />
       )}
     </Page>

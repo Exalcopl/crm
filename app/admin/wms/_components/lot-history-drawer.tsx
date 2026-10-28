@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -29,13 +29,29 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+export interface SiblingLotDef {
+  _id: Id<"wms_lots">;
+  locationCode: string;
+  zone?: string;
+  quantityPieces: number;
+  status: string;
+  unit?: string;
+}
+
 interface LotHistoryDrawerProps {
   lotId: Id<"wms_lots">;
   onClose: () => void;
+  siblingLots?: SiblingLotDef[];
 }
 
-export function LotHistoryDrawer({ lotId, onClose }: LotHistoryDrawerProps) {
-  const data = useQuery(api.wms.lotHistory, { lotId });
+export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDrawerProps) {
+  const [activeLotId, setActiveLotId] = useState<Id<"wms_lots">>(lotId);
+
+  useEffect(() => {
+    setActiveLotId(lotId);
+  }, [lotId]);
+
+  const data = useQuery(api.wms.lotHistory, { lotId: activeLotId });
 
   // Zamknięcie po naciśnięciu Escape
   useEffect(() => {
@@ -223,6 +239,65 @@ export function LotHistoryDrawer({ lotId, onClose }: LotHistoryDrawerProps) {
             </div>
           ) : (
             <>
+              {/* Przełącznik partii/lokalizacji jeśli indeks jest w wielu miejscach */}
+              {siblingLots && siblingLots.length > 1 && (
+                <div
+                  style={{
+                    background: "#161b22",
+                    border: "1px solid #30363d",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#8b949e",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Lokalizacje tego indeksu ({siblingLots.length}):
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {siblingLots.map((s) => {
+                      const isCurrent = s._id === activeLotId;
+                      return (
+                        <button
+                          key={s._id}
+                          type="button"
+                          onClick={() => setActiveLotId(s._id)}
+                          style={{
+                            background: isCurrent ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
+                            border: `1px solid ${isCurrent ? "#58a6ff" : "#30363d"}`,
+                            color: isCurrent ? "#ffffff" : "#c9d1d9",
+                            borderRadius: 6,
+                            padding: "5px 10px",
+                            fontSize: 12,
+                            fontWeight: isCurrent ? 700 : 500,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            transition: "all 0.15s",
+                          }}
+                        >
+                          <MapPin size={13} color={isCurrent ? "#58a6ff" : "#8b949e"} />
+                          <span>{s.locationCode}</span>
+                          <span style={{ color: isCurrent ? "#93c5fd" : "#8b949e", fontFamily: "monospace" }}>
+                            ({fmtNum(s.quantityPieces)} {s.unit || "szt."})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Karta bieżącego stanu pozycji */}
               <div
                 style={{
