@@ -78,7 +78,7 @@ const DEFAULT_OBJ_FORM: ObjectFormState = {
   defaultUnit: "szt.",
   description: "",
   fieldsConfig: {
-    lengthMm: { enabled: true, required: false, label: "Długość (mm)" },
+    lengthMm: { enabled: false, required: false, label: "Długość (mm)" },
     widthMm: { enabled: false, required: false, label: "Szerokość (mm)" },
     heightMm: { enabled: false, required: false, label: "Wysokość (mm)" },
     thicknessMm: { enabled: false, required: false, label: "Grubość (mm)" },
@@ -250,6 +250,14 @@ function WmsSettingsContent() {
     setObjForm({
       ...DEFAULT_OBJ_FORM,
       categoryId: firstCatId,
+      fieldsConfig: {
+        lengthMm: { enabled: false, required: false, label: "Długość (mm)" },
+        widthMm: { enabled: false, required: false, label: "Szerokość (mm)" },
+        heightMm: { enabled: false, required: false, label: "Wysokość (mm)" },
+        thicknessMm: { enabled: false, required: false, label: "Grubość (mm)" },
+        weightKg: { enabled: false, required: false, label: "Masa (kg)" },
+      },
+      customFields: [],
     });
     setEditingObj(true);
   }
@@ -685,8 +693,37 @@ function WmsSettingsContent() {
 
                     {/* 1. Podstawowe wymiary fizyczne */}
                     <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
-                        Podstawowe wymiary geometryczne i masa
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          Podstawowe wymiary geometryczne i masa
+                        </div>
+                        {Object.values(objForm.fieldsConfig).some((f) => f.enabled) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setObjForm({
+                                ...objForm,
+                                fieldsConfig: {
+                                  lengthMm: { enabled: false, required: false, label: "Długość (mm)" },
+                                  widthMm: { enabled: false, required: false, label: "Szerokość (mm)" },
+                                  heightMm: { enabled: false, required: false, label: "Wysokość (mm)" },
+                                  thicknessMm: { enabled: false, required: false, label: "Grubość (mm)" },
+                                  weightKg: { enabled: false, required: false, label: "Masa (kg)" },
+                                },
+                              });
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              color: C.muted,
+                              fontSize: 11,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Odznacz wszystkie
+                          </button>
+                        )}
                       </div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
                         {STANDARD_FIELD_KEYS.map(({ key, defaultLabel }) => {
@@ -787,9 +824,27 @@ function WmsSettingsContent() {
                             Możesz zdefiniować dowolne parametry techniczne wymagane dla indeksów tej podgrupy.
                           </div>
                         </div>
-                        <Btn small primary onClick={() => addCustomField()}>
-                          + Dodaj własny parametr
-                        </Btn>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          {objForm.customFields.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setObjForm({ ...objForm, customFields: [] })}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: C.muted,
+                                fontSize: 11,
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                              }}
+                            >
+                              Wyczyść listę własnych parametrów
+                            </button>
+                          )}
+                          <Btn small primary onClick={() => addCustomField()}>
+                            + Dodaj własny parametr
+                          </Btn>
+                        </div>
                       </div>
 
                       {/* Lista zdefiniowanych parametrów własnych */}
