@@ -119,7 +119,7 @@ export function Page({
   actions,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   subtitle?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
@@ -210,6 +210,7 @@ export function Btn({
   small,
   disabled,
   type = "button",
+  style,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -218,6 +219,7 @@ export function Btn({
   small?: boolean;
   disabled?: boolean;
   type?: "button" | "submit";
+  style?: CSSProperties;
 }) {
   return (
     <button
@@ -231,6 +233,7 @@ export function Btn({
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? "not-allowed" : "pointer",
         ...(danger ? { color: C.red, borderColor: C.red } : null),
+        ...style,
       }}
     >
       {children}

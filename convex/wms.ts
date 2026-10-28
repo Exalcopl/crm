@@ -1317,10 +1317,15 @@ export const listDocuments = query({
   args: { type: docType },
   handler: async (ctx, args) => {
     if (!(await getAuthUserId(ctx))) return [];
-    const docs = await ctx.db
-      .query("wms_documents")
-      .withIndex("by_type", (q) => q.eq("type", args.type))
-      .collect();
+    const [docs, orders] = await Promise.all([
+      ctx.db
+        .query("wms_documents")
+        .withIndex("by_type", (q) => q.eq("type", args.type))
+        .collect(),
+      args.type === "RW" ? ctx.db.query("orders").collect() : Promise.resolve([]),
+    ]);
+    const orderMap = new Map(orders.map((o) => [o._id, o]));
+
     return Promise.all(
       docs
         .sort((a, b) => b.createdAt - a.createdAt)
@@ -1330,8 +1335,12 @@ export const listDocuments = query({
             .withIndex("by_document", (q) => q.eq("documentId", d._id))
             .collect();
           const u = await ctx.db.get(d.createdBy);
+          const order = d.orderId ? orderMap.get(d.orderId) : null;
           return {
             ...d,
+            orderNumber: d.orderNumber || order?.orderNumber,
+            clientName: order?.clientName,
+            orderStatus: order?.status,
             lineCount: lines.length,
             totalPieces: lines.reduce((s, l) => s + l.quantityPieces, 0),
             createdByName: u?.name ?? u?.email ?? "—",
@@ -1409,8 +1418,22 @@ export const getDocument = query({
     );
     const creator = await ctx.db.get(doc.createdBy);
     const approver = doc.approvedBy ? await ctx.db.get(doc.approvedBy) : null;
+    const order = doc.orderId ? await ctx.db.get(doc.orderId) : null;
     return {
-      doc,
+      doc: {
+        ...doc,
+        orderNumber: doc.orderNumber || order?.orderNumber,
+        clientName: order?.clientName,
+        orderStatus: order?.status,
+      },
+      order: order
+        ? {
+            _id: order._id,
+            orderNumber: order.orderNumber,
+            clientName: order.clientName,
+            status: order.status,
+          }
+        : null,
       lines: rows,
       createdByName: creator?.name ?? creator?.email ?? "—",
       approvedByName: approver?.name ?? approver?.email ?? null,
@@ -1431,7 +1454,12 @@ export const createDraft = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
-    return createDocument(ctx, userId, args);
+    let finalOrderNumber = args.orderNumber;
+    if (args.orderId && !finalOrderNumber) {
+      const ord = await ctx.db.get(args.orderId);
+      if (ord) finalOrderNumber = ord.orderNumber;
+    }
+    return createDocument(ctx, userId, { ...args, orderNumber: finalOrderNumber });
   },
 });
 
@@ -1456,7 +1484,12 @@ export const updateHeader = mutation({
   handler: async (ctx, { id, ...rest }) => {
     await requireUser(ctx);
     await draftOrThrow(ctx, id);
-    await ctx.db.patch(id, rest);
+    let finalOrderNumber = rest.orderNumber;
+    if (rest.orderId && !finalOrderNumber) {
+      const ord = await ctx.db.get(rest.orderId);
+      if (ord) finalOrderNumber = ord.orderNumber;
+    }
+    await ctx.db.patch(id, { ...rest, orderNumber: finalOrderNumber });
   },
 });
 
