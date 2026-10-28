@@ -1155,9 +1155,49 @@ export const lotHistory = query({
       movements.map(async (m) => {
         const d = m.documentId ? await ctx.db.get(m.documentId) : null;
         const u = await ctx.db.get(m.operatorId);
+
+        let orderId = d?.orderId ?? null;
+        let orderNumber = d?.orderNumber ?? null;
+
+        // Jeśli orderId nie ma na dokumencie, sprawdź czy jest w notatce "Zlecenie: ..."
+        if (!orderId && m.note) {
+          const match = m.note.match(/Zlecenie:\s*([^\s,]+)/);
+          if (match) {
+            const rawNum = match[1];
+            const cleanNum = rawNum.replace(/^#/, "");
+            const ord =
+              (await ctx.db
+                .query("orders")
+                .filter((q) => q.eq(q.field("orderNumber"), rawNum))
+                .first()) ??
+              (await ctx.db
+                .query("orders")
+                .filter((q) => q.eq(q.field("orderNumber"), `#${cleanNum}`))
+                .first()) ??
+              (await ctx.db
+                .query("orders")
+                .filter((q) => q.eq(q.field("orderNumber"), cleanNum))
+                .first());
+
+            if (ord) {
+              orderId = ord._id;
+              orderNumber = ord.orderNumber;
+            } else {
+              orderNumber = rawNum;
+            }
+          }
+        }
+
+        const order = orderId ? await ctx.db.get(orderId) : null;
+
         return {
           ...m,
+          documentId: m.documentId ?? null,
           documentNumber: d?.number ?? null,
+          documentType: d?.type ?? m.type,
+          orderId: orderId ?? null,
+          orderNumber: orderNumber ?? order?.orderNumber ?? null,
+          clientName: order?.clientName ?? null,
           fromCode: m.fromLocationId ? (locs.get(m.fromLocationId)?.code ?? "—") : null,
           toCode: m.toLocationId ? (locs.get(m.toLocationId)?.code ?? "—") : null,
           operatorName: u?.name ?? u?.email ?? "—",

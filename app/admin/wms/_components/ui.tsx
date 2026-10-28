@@ -84,7 +84,7 @@ export const ATTRIBUTE_LABEL: Record<string, string> = {
 };
 export const MOVEMENT_LABEL: Record<string, string> = {
   PZ: "PZ — przyjęcie",
-  RW: "RW — wydanie do bufora",
+  RW: "RW — wydanie na zlecenie",
   MM: "MM — przesunięcie",
   KOREKTA: "Korekta",
 };

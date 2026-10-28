@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -27,6 +28,7 @@ import {
   History,
   CheckCircle,
   AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 
 export interface SiblingLotDef {
@@ -456,20 +458,40 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                               </span>
 
                               {m.documentNumber && (
-                                <span
-                                  style={{
-                                    fontSize: 12,
-                                    fontFamily: "monospace",
-                                    color: "#58a6ff",
-                                    fontWeight: 600,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                  }}
-                                >
-                                  <FileText size={13} />
-                                  {m.documentNumber}
-                                </span>
+                                m.documentId ? (
+                                  <Link
+                                    href={`/admin/wms/${(m.documentType ?? m.type).toLowerCase()}/${m.documentId}`}
+                                    style={{
+                                      fontSize: 12,
+                                      fontFamily: "monospace",
+                                      color: "#58a6ff",
+                                      fontWeight: 600,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      textDecoration: "underline",
+                                    }}
+                                  >
+                                    <FileText size={13} />
+                                    <span>{m.documentNumber}</span>
+                                    <ExternalLink size={11} />
+                                  </Link>
+                                ) : (
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      fontFamily: "monospace",
+                                      color: "#58a6ff",
+                                      fontWeight: 600,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <FileText size={13} />
+                                    {m.documentNumber}
+                                  </span>
+                                )
                               )}
                             </div>
 
@@ -488,6 +510,62 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                               )}
                             </div>
                           </div>
+
+                          {/* CTA do powiązanego zlecenia CRM */}
+                          {(m.orderId || m.orderNumber) && (
+                            <Link
+                              href={m.orderId ? `/admin/zlecenia/${m.orderId}` : `/admin/zlecenia`}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                background: "rgba(59, 130, 246, 0.12)",
+                                border: "1px solid rgba(59, 130, 246, 0.35)",
+                                borderRadius: 6,
+                                padding: "8px 12px",
+                                color: "#60a5fa",
+                                textDecoration: "none",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                <span
+                                  style={{
+                                    background: "#1f6feb",
+                                    color: "#ffffff",
+                                    padding: "2px 7px",
+                                    borderRadius: 4,
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  Zlecenie: {m.orderNumber}
+                                </span>
+                                {m.clientName && (
+                                  <span style={{ color: "#c9d1d9", fontWeight: 400 }}>
+                                    {m.clientName}
+                                  </span>
+                                )}
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: "#60a5fa",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  fontWeight: 700,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <span>Przejdź do zlecenia w CRM</span>
+                                <ExternalLink size={12} />
+                              </span>
+                            </Link>
+                          )}
 
                           {/* Przepływ lokalizacji (Z -> Do) - opcjonalne w MVP */}
                           {Boolean(m.fromCode || m.toCode) && (
@@ -550,7 +628,7 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                             </div>
                           </div>
 
-                          {m.note && (
+                          {m.note && !((m.orderId || m.orderNumber) && m.note.startsWith("Zlecenie:")) && (
                             <div
                               style={{
                                 fontSize: 11,
