@@ -42,10 +42,12 @@ export function DocumentDetailView({
   const materials = useQuery(api.wms.listProfiles, { allCategories: true });
   const locations = useQuery(api.wms.listLocations, { onlyActive: true });
   const lots = useQuery(api.wms.listLots, { includeDepleted: false });
+  const suppliers = useQuery(api.suppliers.list, {}) ?? [];
 
   const approve = useMutation(api.wms.approve);
   const cancel = useMutation(api.wms.cancel);
   const deleteDocument = useMutation(api.wms.deleteDocument);
+  const updateHeader = useMutation(api.wms.updateHeader);
   const addLine = useMutation(api.wms.addLine);
   const removeLine = useMutation(api.wms.removeLine);
   const generateUploadUrl = useMutation(api.wms.generateUploadUrl);
@@ -57,6 +59,14 @@ export function DocumentDetailView({
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditHeaderModal, setShowEditHeaderModal] = useState(false);
+  const [editSupplier, setEditSupplier] = useState("");
+  const [isEditCustomSupplier, setIsEditCustomSupplier] = useState(false);
+  const [editCustomSupplier, setEditCustomSupplier] = useState("");
+  const [editExtNumber, setEditExtNumber] = useState("");
+  const [editExpectedBundles, setEditExpectedBundles] = useState("");
+  const [editTargetNote, setEditTargetNote] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [lineToDelete, setLineToDelete] = useState<{ id: Id<"wms_document_lines">; name: string } | null>(null);
 
   // Formularz nowej pozycji
@@ -168,6 +178,48 @@ export function DocumentDetailView({
       toast.success(`Dokument ${doc.number} został trwale usunięty`);
       setShowDeleteModal(false);
       router.push(backHref);
+    } catch (e) {
+      toast.error(errMsg(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditHeader() {
+    const isKnown = suppliers.some((s) => s.name === doc.supplier);
+    setEditSupplier(doc.supplier ?? "");
+    if (doc.supplier && !isKnown) {
+      setIsEditCustomSupplier(true);
+      setEditCustomSupplier(doc.supplier);
+    } else {
+      setIsEditCustomSupplier(false);
+      setEditCustomSupplier("");
+    }
+    setEditExtNumber(doc.externalDocNumber ?? "");
+    setEditExpectedBundles(doc.expectedBundles !== undefined ? String(doc.expectedBundles) : "");
+    setEditTargetNote(doc.targetNote ?? "");
+    setEditNotes(doc.notes ?? "");
+    setShowEditHeaderModal(true);
+  }
+
+  async function handleSaveHeader() {
+    const finalSupplier = (isEditCustomSupplier ? editCustomSupplier : editSupplier).trim();
+    if (type === "PZ" && !finalSupplier) {
+      toast.error("Wybierz dostawcę z listy.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateHeader({
+        id: doc._id,
+        supplier: finalSupplier || undefined,
+        externalDocNumber: editExtNumber.trim() || undefined,
+        expectedBundles: editExpectedBundles ? parseInt(editExpectedBundles, 10) : undefined,
+        targetNote: editTargetNote.trim() || undefined,
+        notes: editNotes.trim() || undefined,
+      });
+      toast.success("Dane nagłówka zostały zaktualizowane");
+      setShowEditHeaderModal(false);
     } catch (e) {
       toast.error(errMsg(e));
     } finally {
@@ -321,7 +373,16 @@ export function DocumentDetailView({
       }
     >
       {/* Nagłówek dokumentu */}
-      <Card title="Informacje o dokumencie">
+      <Card
+        title="Informacje o dokumencie"
+        right={
+          isDraft ? (
+            <Btn small onClick={openEditHeader}>
+              ✏️ Edytuj dane
+            </Btn>
+          ) : undefined
+        }
+      >
         <Grid cols={4}>
           <div>
             <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase" }}>Numer</div>
@@ -949,6 +1010,134 @@ export function DocumentDetailView({
         </div>
       )}
 
+      {/* ─── NATYWNY MODAL EDYCJI NAGŁÓWKA DOKUMENTU ─────────────────── */}
+      {showEditHeaderModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20,
+          }}
+          onClick={() => !busy && setShowEditHeaderModal(false)}
+        >
+          <div
+            style={{
+              background: "#161b22",
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              width: "100%",
+              maxWidth: 550,
+              padding: 22,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.6)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>
+                Edycja danych dokumentu {doc.number}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                Możesz zmienić dane nagłówkowe dokumentu roboczego.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {type === "PZ" ? (
+                <>
+                  <Field label="Dostawca *">
+                    <select
+                      style={inputStyle}
+                      value={isEditCustomSupplier ? "__CUSTOM__" : editSupplier}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "__CUSTOM__") {
+                          setIsEditCustomSupplier(true);
+                        } else {
+                          setIsEditCustomSupplier(false);
+                          setEditSupplier(val);
+                        }
+                      }}
+                    >
+                      <option value="">-- Wybierz dostawcę z listy --</option>
+                      {suppliers.map((s) => (
+                        <option key={s._id} value={s.name}>
+                          {s.name} {s.nip ? `(NIP: ${s.nip})` : ""} {s.city ? `• ${s.city}` : ""}
+                        </option>
+                      ))}
+                      <option value="__CUSTOM__">+ Inny dostawca (wpisz ręcznie)…</option>
+                    </select>
+                    {isEditCustomSupplier && (
+                      <input
+                        style={{ ...inputStyle, marginTop: 6 }}
+                        value={editCustomSupplier}
+                        onChange={(e) => {
+                          setEditCustomSupplier(e.target.value);
+                          setEditSupplier(e.target.value);
+                        }}
+                        placeholder="Wpisz nazwę dostawcy…"
+                        autoFocus
+                      />
+                    )}
+                  </Field>
+                  <Field label="Nr dokumentu dostawcy (WZ / faktura / list przewozowy)">
+                    <input
+                      style={inputStyle}
+                      value={editExtNumber}
+                      onChange={(e) => setEditExtNumber(e.target.value)}
+                      placeholder="np. WZ/2026/0411"
+                    />
+                  </Field>
+                  <Field label="Oczekiwane paczki (kontrola wstępna)">
+                    <input
+                      style={inputStyle}
+                      type="number"
+                      min="0"
+                      value={editExpectedBundles}
+                      onChange={(e) => setEditExpectedBundles(e.target.value)}
+                      placeholder="np. 5"
+                    />
+                  </Field>
+                </>
+              ) : (
+                <Field label="Cel wydania / Maszyna / Odbiorca">
+                  <input
+                    style={inputStyle}
+                    value={editTargetNote}
+                    onChange={(e) => setEditTargetNote(e.target.value)}
+                    placeholder="np. Piła dwugłowicowa nr 1"
+                  />
+                </Field>
+              )}
+              <Field label="Uwagi">
+                <input
+                  style={inputStyle}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Dodatkowe uwagi…"
+                />
+              </Field>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 4 }}>
+              <Btn onClick={() => setShowEditHeaderModal(false)} disabled={busy}>
+                Anuluj
+              </Btn>
+              <Btn primary onClick={handleSaveHeader} disabled={busy}>
+                {busy ? "Zapisywanie…" : "Zapisz zmiany"}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ─── NATYWNY MODAL USUNIĘCIA POZYCJI ───────────────────────────── */}
       {lineToDelete && (
         <div
@@ -1016,12 +1205,15 @@ export function DocumentListPage({
 }) {
   const router = useRouter();
   const docs = useQuery(api.wms.listDocuments, { type });
+  const suppliers = useQuery(api.suppliers.list, {}) ?? [];
   const createDraft = useMutation(api.wms.createDraft);
   const deleteDocument = useMutation(api.wms.deleteDocument);
 
   const [showNew, setShowNew] = useState(false);
   const [docToDelete, setDocToDelete] = useState<{ id: Id<"wms_documents">; number: string; status: string } | null>(null);
   const [supplier, setSupplier] = useState("");
+  const [isCustomSupplier, setIsCustomSupplier] = useState(false);
+  const [customSupplier, setCustomSupplier] = useState("");
   const [extNumber, setExtNumber] = useState("");
   const [targetNote, setTargetNote] = useState("");
   const [notes, setNotes] = useState("");
@@ -1042,11 +1234,17 @@ export function DocumentListPage({
   }
 
   async function handleCreate() {
+    const finalSupplier = (isCustomSupplier ? customSupplier : supplier).trim();
+    if (type === "PZ" && !finalSupplier) {
+      toast.error("Wybierz dostawcę z listy.");
+      return;
+    }
+
     setBusy(true);
     try {
       const res = await createDraft({
         type,
-        supplier: supplier.trim() || undefined,
+        supplier: finalSupplier || undefined,
         externalDocNumber: extNumber.trim() || undefined,
         targetNote: targetNote.trim() || undefined,
         notes: notes.trim() || undefined,
@@ -1054,6 +1252,8 @@ export function DocumentListPage({
       toast.success(`Utworzono dokument ${res.number}`);
       setShowNew(false);
       setSupplier("");
+      setIsCustomSupplier(false);
+      setCustomSupplier("");
       setExtNumber("");
       setTargetNote("");
       setNotes("");
@@ -1081,7 +1281,38 @@ export function DocumentListPage({
             {type === "PZ" ? (
               <>
                 <Field label="Dostawca *">
-                  <input style={inputStyle} value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="np. Aluprof, Pilkington, Aliplast, Wurth…" />
+                  <select
+                    style={inputStyle}
+                    value={isCustomSupplier ? "__CUSTOM__" : supplier}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__CUSTOM__") {
+                        setIsCustomSupplier(true);
+                      } else {
+                        setIsCustomSupplier(false);
+                        setSupplier(val);
+                      }
+                    }}
+                  >
+                    <option value="">-- Wybierz dostawcę z listy --</option>
+                    {suppliers.map((s) => (
+                      <option key={s._id} value={s.name}>
+                        {s.name} {s.nip ? `(NIP: ${s.nip})` : ""} {s.city ? `• ${s.city}` : ""}
+                      </option>
+                    ))}
+                    <option value="__CUSTOM__">+ Inny dostawca (wpisz ręcznie)…</option>
+                  </select>
+                  {isCustomSupplier && (
+                    <input
+                      style={{ ...inputStyle, marginTop: 6 }}
+                      value={customSupplier}
+                      onChange={(e) => {
+                        setCustomSupplier(e.target.value);
+                      }}
+                      placeholder="Wpisz nazwę dostawcy…"
+                      autoFocus
+                    />
+                  )}
                 </Field>
                 <Field label="Nr dokumentu dostawcy (WZ / faktura / list przewozowy)">
                   <input style={inputStyle} value={extNumber} onChange={(e) => setExtNumber(e.target.value)} placeholder="np. WZ/2026/0411" />
