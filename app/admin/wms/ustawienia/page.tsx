@@ -312,7 +312,13 @@ function WmsSettingsContent() {
       ...objForm,
       customFields: [
         ...objForm.customFields,
-        { key, label: "Nowe pole", type: "text", required: false },
+        {
+          key,
+          label: "",
+          type: "number",
+          required: false,
+          options: undefined,
+        },
       ],
     });
   }
@@ -656,201 +662,225 @@ function WmsSettingsContent() {
                     />
                   </Field>
 
-                  {/* Konfiguracja pól wymiarów fizycznych */}
+                  {/* Konfiguracja parametrów i wymiarów systemu */}
                   <div
                     style={{
                       background: "rgba(255,255,255,0.02)",
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 6,
+                      border: `1px solid ${C.borderFocus}`,
+                      borderRadius: 8,
                       padding: 16,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 16,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-                      Wymiary fizyczne i parametry dla indeksów tego systemu
-                    </div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12 }}>
-                      Zaznacz, jakie parametry fizyczne posiadają indeksy w tym systemie (np. długość dla profili, szerokość i wysokość dla szyb).
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: C.text, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>📐</span> Wymiary fizyczne i parametry dla indeksów tego systemu
+                      </div>
+                      <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+                        Wskaż parametry geometryczne lub dodaj własne parametry techniczne (np. głębokość zabudowy, grubość, waga czy seria), które będą wypełniane przy tworzeniu indeksów w tym systemie.
+                      </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-                      {STANDARD_FIELD_KEYS.map(({ key, defaultLabel }) => {
-                        const cfg = objForm.fieldsConfig[key];
-                        return (
-                          <div
-                            key={key}
-                            style={{
-                              border: `1px solid ${cfg.enabled ? C.borderFocus : C.border}`,
-                              borderRadius: 6,
-                              padding: "10px 12px",
-                              background: cfg.enabled ? "rgba(59, 130, 246, 0.05)" : "transparent",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 6,
-                            }}
-                          >
-                            <label
+                    {/* 1. Podstawowe wymiary fizyczne */}
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                        Podstawowe wymiary geometryczne i masa
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+                        {STANDARD_FIELD_KEYS.map(({ key, defaultLabel }) => {
+                          const cfg = objForm.fieldsConfig[key];
+                          return (
+                            <div
+                              key={key}
                               style={{
+                                border: `1px solid ${cfg.enabled ? C.borderFocus : C.border}`,
+                                borderRadius: 6,
+                                padding: "10px 12px",
+                                background: cfg.enabled ? "rgba(59, 130, 246, 0.06)" : "transparent",
                                 display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                                cursor: "pointer",
-                                fontSize: 13,
-                                fontWeight: cfg.enabled ? 600 : 400,
-                                color: cfg.enabled ? C.text : C.muted,
+                                flexDirection: "column",
+                                gap: 6,
                               }}
                             >
-                              <input
-                                type="checkbox"
-                                checked={cfg.enabled}
-                                onChange={(e) => {
-                                  const en = e.target.checked;
-                                  setObjForm({
-                                    ...objForm,
-                                    fieldsConfig: {
-                                      ...objForm.fieldsConfig,
-                                      [key]: {
-                                        ...cfg,
-                                        enabled: en,
-                                        required: en ? cfg.required : false,
-                                      },
-                                    },
-                                  });
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  cursor: "pointer",
+                                  fontSize: 13,
+                                  fontWeight: cfg.enabled ? 600 : 400,
+                                  color: cfg.enabled ? C.text : C.muted,
                                 }}
-                              />
-                              {defaultLabel}
-                            </label>
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={cfg.enabled}
+                                  onChange={(e) => {
+                                    const en = e.target.checked;
+                                    setObjForm({
+                                      ...objForm,
+                                      fieldsConfig: {
+                                        ...objForm.fieldsConfig,
+                                        [key]: {
+                                          ...cfg,
+                                          enabled: en,
+                                          required: en ? cfg.required : false,
+                                        },
+                                      },
+                                    });
+                                  }}
+                                />
+                                {defaultLabel}
+                              </label>
 
-                            {cfg.enabled && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 24 }}>
-                                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.muted, cursor: "pointer" }}>
+                              {cfg.enabled && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 24, marginTop: 2 }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: C.muted, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={cfg.required}
+                                      onChange={(e) => {
+                                        setObjForm({
+                                          ...objForm,
+                                          fieldsConfig: {
+                                            ...objForm.fieldsConfig,
+                                            [key]: { ...cfg, required: e.target.checked },
+                                          },
+                                        });
+                                      }}
+                                    />
+                                    <span style={{ color: cfg.required ? C.red : C.muted }}>Wymagane</span>
+                                  </label>
                                   <input
-                                    type="checkbox"
-                                    checked={cfg.required}
+                                    style={{ ...inputStyle, fontSize: 11, padding: "2px 6px", height: 26, flex: 1 }}
+                                    value={cfg.label ?? ""}
+                                    placeholder="Własna nazwa pola…"
                                     onChange={(e) => {
                                       setObjForm({
                                         ...objForm,
                                         fieldsConfig: {
                                           ...objForm.fieldsConfig,
-                                          [key]: { ...cfg, required: e.target.checked },
+                                          [key]: { ...cfg, label: e.target.value },
                                         },
                                       });
                                     }}
                                   />
-                                  <span style={{ color: cfg.required ? C.red : C.muted }}>Wymagane</span>
-                                </label>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* 2. Własne parametry dodawane przez użytkownika */}
+                    <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
+                            Własne parametry i cechy indeksów tego systemu
+                          </div>
+                          <div style={{ fontSize: 11, color: C.muted }}>
+                            Możesz zdefiniować dowolne parametry techniczne wymagane dla indeksów tej podgrupy.
+                          </div>
+                        </div>
+                        <Btn small primary onClick={() => addCustomField()}>
+                          + Dodaj własny parametr
+                        </Btn>
+                      </div>
+
+                      {/* Lista zdefiniowanych parametrów własnych */}
+                      {objForm.customFields.length === 0 ? (
+                        <div style={{ padding: "12px", background: "rgba(255,255,255,0.02)", border: `1px dashed ${C.border}`, borderRadius: 6, textAlign: "center", color: C.muted, fontSize: 12 }}>
+                          Brak zdefiniowanych dodatkowych parametrów. Kliknij <strong>„+ Dodaj własny parametr”</strong> powyżej, aby dodać parametr dla indeksów tego systemu.
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {objForm.customFields.map((cf, idx) => (
+                            <div
+                              key={cf.key || idx}
+                              style={{
+                                display: "flex",
+                                gap: 10,
+                                alignItems: "center",
+                                background: "rgba(255,255,255,0.03)",
+                                border: `1px solid ${C.border}`,
+                                padding: 10,
+                                borderRadius: 6,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <div style={{ flex: 2, minWidth: 200 }}>
+                                <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Nazwa parametru *</div>
                                 <input
-                                  style={{ ...inputStyle, fontSize: 11, padding: "2px 6px", height: 24, flex: 1 }}
-                                  value={cfg.label ?? ""}
-                                  placeholder="Własna etykieta…"
+                                  style={inputStyle}
+                                  placeholder="np. Głębokość zabudowy (mm)"
+                                  value={cf.label}
                                   onChange={(e) => {
-                                    setObjForm({
-                                      ...objForm,
-                                      fieldsConfig: {
-                                        ...objForm.fieldsConfig,
-                                        [key]: { ...cfg, label: e.target.value },
-                                      },
-                                    });
+                                    const next = [...objForm.customFields];
+                                    next[idx].label = e.target.value;
+                                    setObjForm({ ...objForm, customFields: next });
                                   }}
                                 />
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
 
-                  {/* Pola niestandardowe */}
-                  <div
-                    style={{
-                      background: "rgba(255,255,255,0.02)",
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 6,
-                      padding: 16,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
-                          Dodatkowe cechy niestandardowe systemu
-                        </div>
-                        <div style={{ fontSize: 12, color: C.muted }}>
-                          Np. Seria, Strona L/P, Budowa pakietu itp.
-                        </div>
-                      </div>
-                      <Btn small onClick={addCustomField}>+ Dodaj pole</Btn>
-                    </div>
+                              <div style={{ width: 150 }}>
+                                <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Typ wartości</div>
+                                <select
+                                  style={inputStyle}
+                                  value={cf.type}
+                                  onChange={(e) => {
+                                    const next = [...objForm.customFields];
+                                    next[idx].type = e.target.value as "text" | "number" | "select";
+                                    setObjForm({ ...objForm, customFields: next });
+                                  }}
+                                >
+                                  <option value="number">Liczba / Wymiar</option>
+                                  <option value="text">Tekst</option>
+                                  <option value="select">Lista wyboru</option>
+                                </select>
+                              </div>
 
-                    {objForm.customFields.length === 0 ? (
-                      <div style={{ fontSize: 12, color: C.muted, fontStyle: "italic", padding: "8px 0" }}>
-                        Brak zdefiniowanych dodatkowych cech dla tego systemu.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-                        {objForm.customFields.map((cf, idx) => (
-                          <div
-                            key={cf.key || idx}
-                            style={{
-                              display: "flex",
-                              gap: 10,
-                              alignItems: "center",
-                              background: "rgba(255,255,255,0.03)",
-                              padding: 8,
-                              borderRadius: 4,
-                            }}
-                          >
-                            <input
-                              style={{ ...inputStyle, flex: 2 }}
-                              placeholder="Etykieta pola (np. Seria profili)"
-                              value={cf.label}
-                              onChange={(e) => {
-                                const next = [...objForm.customFields];
-                                next[idx].label = e.target.value;
-                                setObjForm({ ...objForm, customFields: next });
-                              }}
-                            />
-                            <select
-                              style={{ ...inputStyle, width: 140 }}
-                              value={cf.type}
-                              onChange={(e) => {
-                                const next = [...objForm.customFields];
-                                next[idx].type = e.target.value as "text" | "number" | "select";
-                                setObjForm({ ...objForm, customFields: next });
-                              }}
-                            >
-                              <option value="text">Tekst</option>
-                              <option value="number">Liczba</option>
-                              <option value="select">Lista wyboru</option>
-                            </select>
-                            {cf.type === "select" && (
-                              <input
-                                style={{ ...inputStyle, flex: 2 }}
-                                placeholder="Opcje rozdzielone przecinkiem (np. Lewa, Prawa)"
-                                value={(cf.options ?? []).join(", ")}
-                                onChange={(e) => {
-                                  const next = [...objForm.customFields];
-                                  next[idx].options = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
-                                  setObjForm({ ...objForm, customFields: next });
-                                }}
-                              />
-                            )}
-                            <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.muted, cursor: "pointer", whiteSpace: "nowrap" }}>
-                              <input
-                                type="checkbox"
-                                checked={cf.required}
-                                onChange={(e) => {
-                                  const next = [...objForm.customFields];
-                                  next[idx].required = e.target.checked;
-                                  setObjForm({ ...objForm, customFields: next });
-                                }}
-                              />
-                              Wymagane
-                            </label>
-                            <Btn small danger onClick={() => removeCustomField(idx)}>Usuń</Btn>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                              {cf.type === "select" && (
+                                <div style={{ flex: 2, minWidth: 200 }}>
+                                  <div style={{ fontSize: 10, color: C.muted, marginBottom: 2 }}>Opcje wyboru (po przecinku)</div>
+                                  <input
+                                    style={inputStyle}
+                                    placeholder="np. Wariant 1, Wariant 2"
+                                    value={(cf.options ?? []).join(", ")}
+                                    onChange={(e) => {
+                                      const next = [...objForm.customFields];
+                                      next[idx].options = e.target.value.split(",").map((s) => s.trim()).filter(Boolean);
+                                      setObjForm({ ...objForm, customFields: next });
+                                    }}
+                                  />
+                                </div>
+                              )}
+
+                              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.muted, cursor: "pointer", whiteSpace: "nowrap" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={cf.required}
+                                    onChange={(e) => {
+                                      const next = [...objForm.customFields];
+                                      next[idx].required = e.target.checked;
+                                      setObjForm({ ...objForm, customFields: next });
+                                    }}
+                                  />
+                                  <span style={{ color: cf.required ? C.red : C.muted }}>Wymagane</span>
+                                </label>
+
+                                <Btn small danger onClick={() => removeCustomField(idx)}>Usuń</Btn>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div style={{ display: "flex", gap: 8 }}>

@@ -160,6 +160,13 @@ export default function WmsIndeksyPage() {
       }
     }
 
+    for (const cf of customFields) {
+      if (cf.required && !form.customAttributes[cf.key]?.trim()) {
+        toast.error(`Parametr "${cf.label}" jest wymagany dla tego systemu`);
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       await upsertIndex({
@@ -593,8 +600,32 @@ export default function WmsIndeksyPage() {
                       {row.object?.name ?? "—"}
                     </span>
                   </Td>
-                  <Td mono muted>
-                    {row.dimensionsSummary}
+                  <Td>
+                    <div style={{ fontFamily: "monospace", color: C.muted }}>{row.dimensionsSummary}</div>
+                    {m.customAttributes && typeof m.customAttributes === "object" && Object.keys(m.customAttributes).length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                        {Object.entries(m.customAttributes as Record<string, string>).map(([k, v]) => {
+                          if (!v) return null;
+                          const cfDef = (row.object?.customFields ?? []).find((c) => c.key === k);
+                          const label = cfDef?.label || k;
+                          return (
+                            <span
+                              key={k}
+                              style={{
+                                fontSize: 10,
+                                background: "rgba(59, 130, 246, 0.12)",
+                                color: "#93c5fd",
+                                border: "1px solid rgba(59, 130, 246, 0.25)",
+                                padding: "1px 5px",
+                                borderRadius: 3,
+                              }}
+                            >
+                              {label}: {v}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </Td>
                   <Td nowrap style={{ fontWeight: 600 }}>
                     {fmtNum(row.stockPieces)} {row.object?.defaultUnit || m.unit || "szt."}
