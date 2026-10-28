@@ -662,18 +662,9 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
   const data = useQuery(api.wms.listOrderWmsRw, { orderId });
   const [viewMode, setViewMode] = useState<"history" | "materials">("history");
 
-  if (data === undefined) {
-    return (
-      <div style={{ padding: 40, color: "#8b949e", textAlign: "center", fontSize: 13 }}>
-        Wczytywanie wydań magazynowych WMS…
-      </div>
-    );
-  }
-
-  const { documents, totalPiecesIssued } = data;
-
-  // Zagregowane podsumowanie materiałów pobranych do tego zlecenia
+  // Zagregowane podsumowanie materiałów pobranych do tego zlecenia (Hook zawsze na samej górze)
   const materialSummary = useMemo(() => {
+    if (!data?.documents) return [];
     const map = new Map<
       string,
       {
@@ -686,7 +677,7 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
       }
     >();
 
-    for (const doc of documents) {
+    for (const doc of data.documents) {
       for (const line of doc.lines) {
         const key = line.materialSku || line.materialName;
         const ex = map.get(key);
@@ -706,7 +697,17 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
       }
     }
     return Array.from(map.values()).sort((a, b) => b.totalPieces - a.totalPieces);
-  }, [documents]);
+  }, [data?.documents]);
+
+  if (data === undefined) {
+    return (
+      <div style={{ padding: 40, color: "#8b949e", textAlign: "center", fontSize: 13 }}>
+        Wczytywanie wydań magazynowych WMS…
+      </div>
+    );
+  }
+
+  const { documents, totalPiecesIssued } = data;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
