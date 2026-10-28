@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -22,6 +23,7 @@ import {
   Tr,
   C,
 } from "../_components/ui";
+import { buildScanUrl, downloadLabelPng, QrSvg } from "../_components/qr";
 
 type IndexFormState = {
   id?: Id<"materials">;
@@ -56,6 +58,26 @@ export default function WmsIndeksyPage() {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<IndexFormState>(DEFAULT_INDEX_FORM);
   const [busy, setBusy] = useState(false);
+
+  const router = useRouter();
+
+  // Etykiety QR: zaznaczenie wielu indeksów + podgląd pojedynczego
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [qrPreview, setQrPreview] = useState<{ id: string; sku: string; name: string } | null>(null);
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function printLabels(ids: string[]) {
+    if (ids.length === 0) return;
+    router.push(`/admin/wms/indeksy/etykiety?ids=${ids.join(",")}`);
+  }
 
   // Filtry listy
   const [search, setSearch] = useState("");
@@ -208,6 +230,9 @@ export default function WmsIndeksyPage() {
           >
             ⚙️ Zarządzaj grupami i systemami
           </Link>
+          <Btn onClick={() => printLabels(Array.from(selected))} disabled={selected.size === 0}>
+            Drukuj etykiety QR{selected.size > 0 ? ` (${selected.size})` : ""}
+          </Btn>
           <Btn primary onClick={startNewIndex}>
             + Nowy indeks
           </Btn>
@@ -426,6 +451,29 @@ export default function WmsIndeksyPage() {
                 </option>
               ))}
           </select>
+
+          {filtered.length > 0 && (
+            <label
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: C.muted, cursor: "pointer", marginLeft: "auto" }}
+            >
+              <input
+                type="checkbox"
+                checked={filtered.every((r) => selected.has(r.material._id))}
+                onChange={(e) => {
+                  const ids = filtered.filter((r) => !!r.material.sku).map((r) => r.material._id as string);
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    for (const id of ids) {
+                      if (e.target.checked) next.add(id);
+                      else next.delete(id);
+                    }
+                    return next;
+                  });
+                }}
+              />
+              Zaznacz wszystkie do wydruku QR
+            </label>
+          )}
         </div>
 
         {!indexes ? (
@@ -438,6 +486,7 @@ export default function WmsIndeksyPage() {
         ) : (
           <Table
             headers={[
+              "",
               "Kod indeksu",
               "Nazwa indeksu",
               "Grupa towarowa",
@@ -453,6 +502,15 @@ export default function WmsIndeksyPage() {
 
               return (
                 <Tr key={m._id}>
+                  <Td style={{ width: 32 }}>
+                    <input
+                      type="checkbox"
+                      disabled={!m.sku}
+                      title={m.sku ? "Zaznacz do wydruku etykiety QR" : "Indeks bez kodu SKU"}
+                      checked={selected.has(m._id)}
+                      onChange={() => toggleSelected(m._id)}
+                    />
+                  </Td>
                   <Td mono bold style={{ fontSize: 14, color: C.text }}>
                     {sku}
                   </Td>
@@ -527,6 +585,11 @@ export default function WmsIndeksyPage() {
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 6 }}>
+                      {m.sku && (
+                        <Btn small onClick={() => setQrPreview({ id: m._id, sku: m.sku!, name: m.name })}>
+                          QR
+                        </Btn>
+                      )}
                       <Btn small onClick={() => startEditIndex(row)}>
                         Edytuj
                       </Btn>
@@ -541,6 +604,55 @@ export default function WmsIndeksyPage() {
           </Table>
         )}
       </Card>
+
+      {/* ─── PODGLĄD ETYKIETY QR ───────────────────────────────────────── */}
+      {qrPreview && (
+        <div
+          onClick={() => setQrPreview(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              padding: 24,
+              width: 340,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 14,
+            }}
+          >
+            <div style={{ alignSelf: "stretch" }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Etykieta QR</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{qrPreview.name}</div>
+            </div>
+            <div style={{ background: "#fff", padding: 16, borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+              <QrSvg value={buildScanUrl(qrPreview.sku)} size={200} />
+              <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 22, color: "#000" }}>{qrPreview.sku}</div>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, textAlign: "center", wordBreak: "break-all" }}>
+              {buildScanUrl(qrPreview.sku)}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignSelf: "stretch" }}>
+              <Btn primary onClick={() => printLabels([qrPreview.id])}>Drukuj</Btn>
+              <Btn onClick={() => downloadLabelPng(qrPreview.sku)}>Pobierz PNG</Btn>
+              <div style={{ flex: 1 }} />
+              <Btn onClick={() => setQrPreview(null)}>Zamknij</Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── NATYWNY MODAL POTWIERDZENIA USUNIĘCIA INDEKSU ─────────── */}
       <ConfirmModal

@@ -596,19 +596,32 @@
   gap: 2px;
 }
 
-/* Larger Orders Bubble – Amber/Gold Gradient */
+/* Orders Bubble – Amber/Gold Gradient */
 .mobile-nav-bubble--orders {
-  width: 72px;
-  height: 72px;
-  border-radius: 36px;
+  width: 58px;
+  height: 58px;
+  border-radius: 29px;
   background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
   box-shadow: 0 8px 24px rgba(245, 158, 11, 0.45);
   border: 2px solid rgba(255, 255, 255, 0.25);
 }
 
 .mobile-nav-bubble--orders:active {
-  transform: translateX(-50%) translateY(-98px) scale(0.95) !important;
   background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+}
+
+/* WMS Skaner bubble – Indigo / Violet */
+.mobile-nav-bubble--wms {
+  width: 58px;
+  height: 58px;
+  border-radius: 29px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+.mobile-nav-bubble--wms:active {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
 }
 
 /* Zadania bubble – green */
@@ -631,25 +644,32 @@
   background: #2563eb;
 }
 
-/* Show bubbles when sygnet wrap is expanded (Pyramid/Fan layout) */
-/* Top centered: Zamówienia (larger bubble) */
+/* Show bubbles when sygnet wrap is expanded (4-bubble Fan layout) */
+/* Top-left: Zamówienia */
 .mobile-nav-sygnet-wrap--expanded .mobile-nav-bubble--orders {
   opacity: 1;
-  transform: translateX(-50%) translateY(-98px) scale(1);
+  transform: translateX(-76px) translateY(-94px) scale(1);
   pointer-events: auto;
 }
 
-/* Lower left: Tasks */
+/* Top-right: WMS (Skaner QR) */
+.mobile-nav-sygnet-wrap--expanded .mobile-nav-bubble--wms {
+  opacity: 1;
+  transform: translateX(18px) translateY(-94px) scale(1);
+  pointer-events: auto;
+}
+
+/* Far-left: Tasks */
 .mobile-nav-sygnet-wrap--expanded .mobile-nav-bubble--tasks {
   opacity: 1;
-  transform: translateX(-68px) translateY(-14px) scale(1);
+  transform: translateX(-104px) translateY(-18px) scale(1);
   pointer-events: auto;
 }
 
-/* Lower right: Events */
+/* Far-right: Events */
 .mobile-nav-sygnet-wrap--expanded .mobile-nav-bubble--events {
   opacity: 1;
-  transform: translateX(14px) translateY(-14px) scale(1);
+  transform: translateX(48px) translateY(-18px) scale(1);
   pointer-events: auto;
 }
 

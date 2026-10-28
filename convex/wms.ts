@@ -10,7 +10,9 @@ import {
   createDocument,
   deleteDocumentCore,
   lotTotalMb,
+  isIssuableLot,
   openInventorySession,
+  quickRwCore,
   recordCount,
   resolveTrackingRule,
 } from "./_lib/wmsCore";
@@ -1741,6 +1743,132 @@ export const listOrderWmsRw = query({
       documents,
       totalPiecesIssued,
     };
+  },
+});
+
+// ─── Aplikacja mobilna (PWA): skaner QR + szybkie RW ────────────────────────
+// PWA loguje się PIN-em (bez sesji Convex Auth), więc — jak pozostałe
+// endpointy *ForApp — przyjmujemy `currentUserId` i weryfikujemy użytkownika.
+
+async function requireAppUser(ctx: QueryCtx, currentUserId: string) {
+  const id = ctx.db.normalizeId("users", currentUserId);
+  const user = id ? await ctx.db.get(id) : null;
+  if (!user) throw new Error("Nieprawidłowy użytkownik — zaloguj się ponownie PIN-em.");
+  return user._id;
+}
+
+/** Wyciąga SKU z zeskanowanej treści: link `...?sku=PE50` albo sam kod. */
+function normalizeScannedSku(raw: string) {
+  const text = raw.trim();
+  const m = text.match(/[?&]sku=([^&#]+)/i);
+  return (m ? decodeURIComponent(m[1]) : text).trim().toUpperCase();
+}
+
+async function findMaterialBySku(ctx: QueryCtx, raw: string) {
+  const sku = normalizeScannedSku(raw);
+  if (!sku) return null;
+  const mats = await ctx.db
+    .query("materials")
+    .withIndex("by_sku", (q) => q.eq("sku", sku))
+    .collect();
+  return mats.find((m) => m.isActive !== false) ?? null;
+}
+
+export const appGetIndexBySku = query({
+  args: { sku: v.string(), currentUserId: v.string() },
+  handler: async (ctx, { sku, currentUserId }) => {
+    await requireAppUser(ctx, currentUserId);
+    const material = await findMaterialBySku(ctx, sku);
+    if (!material) return null;
+
+    const obj = material.wmsObjectId ? await ctx.db.get(material.wmsObjectId) : null;
+    const lots = await ctx.db
+      .query("wms_lots")
+      .withIndex("by_material", (q) => q.eq("materialId", material._id))
+      .collect();
+    const issuable = lots.filter(isIssuableLot);
+
+    // Ostatnie wydania RW tego indeksu
+    const movements = (
+      await Promise.all(
+        lots.map((l) =>
+          ctx.db
+            .query("wms_movements")
+            .withIndex("by_lot", (q) => q.eq("lotId", l._id))
+            .collect(),
+        ),
+      )
+    )
+      .flat()
+      .filter((m) => m.type === "RW")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 5);
+
+    const recentRw = await Promise.all(
+      movements.map(async (m) => {
+        const d = m.documentId ? await ctx.db.get(m.documentId) : null;
+        const order = d?.orderId ? await ctx.db.get(d.orderId) : null;
+        return {
+          _id: m._id,
+          createdAt: m.createdAt,
+          quantity: Math.abs(m.quantityDelta),
+          documentNumber: d?.number ?? null,
+          orderNumber: order?.orderNumber ?? d?.orderNumber ?? null,
+          clientName: order?.clientName ?? null,
+        };
+      }),
+    );
+
+    return {
+      materialId: material._id,
+      sku: material.sku ?? "",
+      name: material.name,
+      unit: obj?.defaultUnit ?? material.unit ?? "szt.",
+      objectName: obj?.name ?? null,
+      totalAvailable: issuable.reduce((s, l) => s + l.quantityPieces, 0),
+      deliveriesCount: issuable.length,
+      recentRw,
+    };
+  },
+});
+
+export const appSearchOrders = query({
+  args: { search: v.optional(v.string()), currentUserId: v.string() },
+  handler: async (ctx, { search, currentUserId }) => {
+    await requireAppUser(ctx, currentUserId);
+    const term = (search ?? "").trim().toLowerCase();
+    const orders = (await ctx.db.query("orders").order("desc").collect()).filter(
+      (o) => o.archived !== true,
+    );
+    const filtered = term
+      ? orders.filter(
+          (o) =>
+            o.orderNumber.toLowerCase().includes(term) ||
+            (o.clientName ?? "").toLowerCase().includes(term) ||
+            (o.customLabel ?? "").toLowerCase().includes(term),
+        )
+      : orders.filter((o) => o.status !== "gotowe");
+    return filtered.slice(0, 25).map((o) => ({
+      _id: o._id,
+      orderNumber: o.orderNumber,
+      clientName: o.clientName,
+      status: o.status,
+      customLabel: o.customLabel ?? null,
+    }));
+  },
+});
+
+export const appQuickRw = mutation({
+  args: {
+    materialId: v.id("materials"),
+    orderId: v.id("orders"),
+    quantity: v.number(),
+    currentUserId: v.string(),
+  },
+  handler: async (ctx, { materialId, orderId, quantity, currentUserId }) => {
+    const userId = await requireAppUser(ctx, currentUserId);
+    const res = await quickRwCore(ctx, userId, { materialId, orderId, quantity });
+    return { documentId: res.documentId, number: res.number, linesCount: res.lines.length };
   },
 });
 

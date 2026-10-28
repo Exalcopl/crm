@@ -886,3 +886,69 @@ export async function closeInventorySession(
   });
   return { correctionDocumentId, differences: diffs.length };
 }
+
+// ─── Szybkie RW ze skanera (PWA) ────────────────────────────────────────────
+
+/** Partie, z których można wydawać (nie wyczerpane, nie w kwarantannie). */
+export function isIssuableLot(lot: Doc<"wms_lots">) {
+  return lot.status !== "DEPLETED" && lot.status !== "QUALITY_HOLD" && lot.quantityPieces > 0;
+}
+
+/**
+ * Tworzy i od razu zatwierdza RW dla jednego indeksu i jednego zlecenia.
+ * Ilość rozdzielana jest metodą FIFO (najstarsza dostawa najpierw) —
+ * jeśli nie wystarcza jedna partia, RW dostaje kilka pozycji.
+ */
+export async function quickRwCore(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  args: { materialId: Id<"materials">; orderId: Id<"orders">; quantity: number; note?: string },
+): Promise<{ documentId: Id<"wms_documents">; number: string; lines: { lotId: Id<"wms_lots">; quantity: number }[] }> {
+  const { materialId, orderId, quantity } = args;
+  if (!Number.isInteger(quantity) || quantity <= 0)
+    throw new Error("Ilość musi być dodatnią liczbą całkowitą.");
+
+  const material = await ctx.db.get(materialId);
+  if (!material) throw new Error("Indeks nie istnieje.");
+  const order = await ctx.db.get(orderId);
+  if (!order) throw new Error("Zlecenie nie istnieje.");
+
+  const lots = (
+    await ctx.db
+      .query("wms_lots")
+      .withIndex("by_material", (q) => q.eq("materialId", materialId))
+      .collect()
+  )
+    .filter(isIssuableLot)
+    .sort((a, b) => a.createdAt - b.createdAt || a._creationTime - b._creationTime);
+
+  const available = lots.reduce((s, l) => s + l.quantityPieces, 0);
+  if (quantity > available)
+    throw new Error(`Za mało towaru na stanie: dostępne ${available}, żądane ${quantity}.`);
+
+  const plan: { lotId: Id<"wms_lots">; quantity: number }[] = [];
+  let remaining = quantity;
+  for (const lot of lots) {
+    if (remaining <= 0) break;
+    const take = Math.min(lot.quantityPieces, remaining);
+    plan.push({ lotId: lot._id, quantity: take });
+    remaining -= take;
+  }
+
+  const { id, number } = await createDocument(ctx, userId, {
+    type: "RW",
+    orderId,
+    orderNumber: order.orderNumber,
+    notes: args.note ?? "RW ze skanera QR (aplikacja mobilna)",
+  });
+  for (const p of plan) {
+    await ctx.db.insert("wms_document_lines", {
+      documentId: id,
+      lotId: p.lotId,
+      materialId,
+      quantityPieces: p.quantity,
+    });
+  }
+  await approveDocument(ctx, userId, id);
+  return { documentId: id, number, lines: plan };
+}

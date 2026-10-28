@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { I } from "../admin/_lib/icons";
@@ -26,35 +27,10 @@ import {
   Layers
 } from "lucide-react";
 
+import { loadSession, saveSession, clearSession, type PinSession } from "./session";
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 type TaskStatus = "todo" | "in_progress" | "done";
-
-interface PinSession {
-  userId: string;
-  email: string;
-  name: string;
-}
-
-// ─── Session helpers (sessionStorage) ─────────────────────────────────────
-const SESSION_KEY = "app_pin_session";
-
-function loadSession(): PinSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    return raw ? (JSON.parse(raw) as PinSession) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveSession(session: PinSession) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
-
-function clearSession() {
-  sessionStorage.removeItem(SESSION_KEY);
-}
 
 // ─── Calendar helper functions ──────────────────────────────────────────
 function getDaysInMonth(year: number, month: number) {
@@ -74,6 +50,7 @@ const MONTH_NAMES = [
 
 // ─── Main Page ─────────────────────────────────────────────────────────────
 export default function MobileAppPage() {
+  const router = useRouter();
   const resolvePin = useAction(api.authPin.resolvePin);
 
   // Session state
@@ -1215,7 +1192,7 @@ export default function MobileAppPage() {
 
         {/* Sygnet – center elevated trigger */}
         <div className={`mobile-nav-sygnet-wrap ${fabExpanded ? "mobile-nav-sygnet-wrap--expanded" : ""}`}>
-          {/* Amber Zamówienia bubble (Top - Larger) */}
+          {/* Amber Zamówienia bubble (Top Left) */}
           <button
             type="button"
             className="mobile-nav-bubble mobile-nav-bubble--orders"
@@ -1227,8 +1204,8 @@ export default function MobileAppPage() {
             title="Zamówienia"
           >
             <svg
-              width="24"
-              height="24"
+              width="22"
+              height="22"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -1241,6 +1218,35 @@ export default function MobileAppPage() {
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
             <span className="mobile-nav-bubble-tag">Zamówienia</span>
+          </button>
+
+          {/* Violet WMS Skaner QR bubble (Top Right) */}
+          <button
+            type="button"
+            className="mobile-nav-bubble mobile-nav-bubble--wms"
+            onClick={() => {
+              setFabExpanded(false);
+              router.push("/app/wms/scan");
+            }}
+            aria-label="WMS — Skaner QR"
+            title="WMS — Skaner QR"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+            <span className="mobile-nav-bubble-tag">WMS</span>
           </button>
 
           {/* Green Zadania bubble (Left) */}

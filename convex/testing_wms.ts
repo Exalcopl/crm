@@ -8,6 +8,7 @@ import {
   createDocument,
   deleteDocumentCore,
   openInventorySession,
+  quickRwCore,
   recordCount,
   resolveTrackingRule,
 } from "./_lib/wmsCore";
@@ -715,6 +716,87 @@ export const runWmsTest = mutation({
 
       // Posprzątaj PZ testowe
       await deleteDocumentCore(ctx, pzForRwTestId);
+
+      // ── 11. Szybkie RW ze skanera QR (PWA): FIFO po dostawach ───────────
+      const qrSku = `${tag}-QR`.toUpperCase();
+      const qrMatId = await ctx.db.insert("materials", {
+        name: `${tag} Klamka QR`,
+        sku: qrSku,
+        unit: "szt.",
+        priceUnit: 50,
+        category: "AKCESORIA",
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const qrBySku = await ctx.db
+        .query("materials")
+        .withIndex("by_sku", (q) => q.eq("sku", qrSku))
+        .first();
+      assert(qrBySku?._id === qrMatId, "QR: indeks odnajdywany po SKU zakodowanym w etykiecie");
+
+      // Dwie dostawy: 5 szt. (starsza) i 8 szt. (nowsza)
+      const qrPz1 = await newDoc("PZ");
+      await addLine(qrPz1, { materialId: qrMatId, quantityPieces: 5 });
+      await approveDocument(ctx, userId, qrPz1);
+      const qrPz2 = await newDoc("PZ");
+      await addLine(qrPz2, { materialId: qrMatId, quantityPieces: 8 });
+      await approveDocument(ctx, userId, qrPz2);
+      const qrLots = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", qrMatId))
+        .collect();
+      const oldLot = qrLots.find((l) => l.receivedByDocumentId === qrPz1)!;
+      const newLot = qrLots.find((l) => l.receivedByDocumentId === qrPz2)!;
+      assert(oldLot && newLot, "QR: dwie dostawy PZ = dwie partie tego samego indeksu");
+
+      // FIFO z jednej partii
+      const q1 = await quickRwCore(ctx, userId, { materialId: qrMatId, orderId, quantity: 3 });
+      docIds.push(q1.documentId);
+      assert(
+        q1.lines.length === 1 && q1.lines[0].lotId === oldLot._id &&
+          (await ctx.db.get(oldLot._id))!.quantityPieces === 2,
+        `QR RW (FIFO): ${q1.number} zdejmuje 3 szt. z najstarszej dostawy (5 → 2)`,
+      );
+      const q1Doc = await ctx.db.get(q1.documentId);
+      assert(
+        q1Doc?.status === "ZATWIERDZONY" && q1Doc.orderId === orderId,
+        "QR RW: dokument od razu zatwierdzony i powiązany ze zleceniem",
+      );
+
+      // FIFO rozłożone na dwie partie
+      const q2 = await quickRwCore(ctx, userId, { materialId: qrMatId, orderId, quantity: 6 });
+      docIds.push(q2.documentId);
+      const oldAfter = (await ctx.db.get(oldLot._id))!;
+      const newAfter = (await ctx.db.get(newLot._id))!;
+      assert(
+        q2.lines.length === 2 && oldAfter.quantityPieces === 0 && oldAfter.status === "DEPLETED" &&
+          newAfter.quantityPieces === 4,
+        "QR RW (FIFO): 6 szt. = 2 szt. ze starszej (wyczerpana) + 4 szt. z nowszej (8 → 4)",
+      );
+
+      await expectThrow(
+        () => quickRwCore(ctx, userId, { materialId: qrMatId, orderId, quantity: 99 }),
+        "Za mało towaru",
+        "QR RW: ilość ponad łączny stan jest blokowana",
+      );
+      await expectThrow(
+        () => quickRwCore(ctx, userId, { materialId: qrMatId, orderId, quantity: 1.5 }),
+        "dodatnią liczbą całkowitą",
+        "QR RW: ilość ułamkowa jest blokowana",
+      );
+
+      // Sprzątanie danych testu QR
+      const qrLotsAll = await ctx.db
+        .query("wms_lots")
+        .withIndex("by_material", (q) => q.eq("materialId", qrMatId))
+        .collect();
+      for (const l of qrLotsAll) {
+        const mvs = await ctx.db.query("wms_movements").withIndex("by_lot", (q) => q.eq("lotId", l._id)).collect();
+        for (const m of mvs) await ctx.db.delete(m._id);
+        await ctx.db.delete(l._id);
+      }
+      await ctx.db.delete(qrMatId);
     } finally {
       // Sprzątanie (w razie błędu mutacja i tak się cofa, ale zachowujemy porządek)
       await cleanup(ctx, {
