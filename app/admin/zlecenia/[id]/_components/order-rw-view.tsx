@@ -819,7 +819,6 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
                       <th style={{ padding: "8px 12px" }}>Materiał / Indeks</th>
                       <th style={{ padding: "8px 12px" }}>Wymiary / Parametry</th>
                       <th style={{ padding: "8px 12px" }}>Cechy (kolor/partia)</th>
-                      <th style={{ padding: "8px 12px" }}>Pobrana z regału</th>
                       <th style={{ padding: "8px 12px", textAlign: "right" }}>Ilość pobrana</th>
                     </tr>
                   </thead>
@@ -864,9 +863,6 @@ function OrderWmsRwView({ orderId }: { orderId: Id<"orders"> }) {
                             "—"
                           )}
                           {line.heatNumber && <div style={{ fontSize: 10, fontFamily: "monospace" }}>Partia: {line.heatNumber}</div>}
-                        </td>
-                        <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "#60a5fa" }}>
-                          {line.fromLocationCode}
                         </td>
                         <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "#3fb950" }}>
                           {line.quantityPieces} {line.unit}

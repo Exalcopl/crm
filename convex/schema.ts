@@ -1008,7 +1008,7 @@ export default defineSchema({
     ssccCode: v.optional(v.string()),
     customAttributes: v.optional(v.any()),
     quantityPieces: v.number(),
-    locationId: v.id("wms_locations"),
+    locationId: v.optional(v.id("wms_locations")),
     status: v.union(
       v.literal("AVAILABLE"),
       v.literal("QUALITY_HOLD"),

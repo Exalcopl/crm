@@ -247,7 +247,7 @@ async function enrichLots(ctx: QueryCtx, lots: Doc<"wms_lots">[]) {
   return Promise.all(
     lots.map(async (l) => {
       const m = mats.get(l.materialId);
-      const loc = locs.get(l.locationId);
+      const loc = l.locationId ? locs.get(l.locationId) : undefined;
       const cat = l.categoryId
         ? cats.get(l.categoryId)
         : (m?.wmsCategoryId ? cats.get(m.wmsCategoryId) : (m?.category ? catsByCode.get(m.category.toUpperCase()) : null));
@@ -964,7 +964,7 @@ export const listLocations = query({
     ]);
     const stat = new Map<string, { lots: number; kg: number }>();
     for (const l of lots) {
-      if (l.status === "DEPLETED") continue;
+      if (l.status === "DEPLETED" || !l.locationId) continue;
       const s = stat.get(l.locationId) ?? { lots: 0, kg: 0 };
       s.lots += 1;
       const kg = profiles.get(l.materialId)?.kgPerMb;
@@ -1490,9 +1490,6 @@ export const addLine = mutation({
     const doc = await draftOrThrow(ctx, args.documentId);
     if (doc.type === "PZ") {
       if (!args.materialId) throw new Error("Wybierz indeks materiałowy.");
-      if (args.damage?.disposition !== "REJECT" && !args.toLocationId) {
-        throw new Error("Wybierz lokalizację docelową dla przyjmowanego towaru.");
-      }
     } else if (doc.type === "RW") {
       if (!args.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
     }
@@ -1509,9 +1506,6 @@ export const updateLine = mutation({
     const doc = await draftOrThrow(ctx, line.documentId);
     if (doc.type === "PZ") {
       if (!rest.materialId) throw new Error("Wybierz indeks materiałowy.");
-      if (rest.damage?.disposition !== "REJECT" && !rest.toLocationId) {
-        throw new Error("Wybierz lokalizację docelową dla przyjmowanego towaru.");
-      }
     } else if (doc.type === "RW") {
       if (!rest.lotId) throw new Error("Wybierz partię ze stanu magazynowego.");
     }
@@ -1680,7 +1674,7 @@ export const getSession = query({
           lengthMm: lot?.lengthMm ?? 0,
           colorCode: lot?.colorCode,
           heatNumber: lot?.heatNumber,
-          locationCode: lot ? (locs.get(lot.locationId)?.code ?? "—") : "—",
+          locationCode: lot && lot.locationId ? (locs.get(lot.locationId)?.code ?? "—") : "—",
         };
       }),
     );

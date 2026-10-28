@@ -75,7 +75,6 @@ function AvailabilityProgressBar({
 export default function StanyPage() {
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [locationId, setLocationId] = useState("");
   const [status, setStatus] = useState("");
   const [includeDepleted, setIncludeDepleted] = useState(false);
   const [groupByIndex, setGroupByIndex] = useState(true);
@@ -92,11 +91,9 @@ export default function StanyPage() {
   } | null>(null);
 
   const lots = useQuery(api.wms.listLots, {
-    locationId: locationId ? (locationId as Id<"wms_locations">) : undefined,
     status: status || undefined,
     includeDepleted,
   });
-  const locations = useQuery(api.wms.listLocations, {});
   const categories = useQuery(api.wms.listCategories, {});
 
   // Filtrowanie bazowych pozycji
@@ -142,14 +139,6 @@ export default function StanyPage() {
       inProgressPieces: number;
       totalMb: number;
       totalWeightKg: number;
-      locations: Array<{
-        locationId: Id<"wms_locations">;
-        locationCode: string;
-        locationName: string;
-        zone?: string;
-        quantity: number;
-        status: string;
-      }>;
       lots: NonNullable<typeof lots>;
     }>();
 
@@ -174,7 +163,6 @@ export default function StanyPage() {
           inProgressPieces: 0,
           totalMb: 0,
           totalWeightKg: 0,
-          locations: [],
           lots: [],
         };
         map.set(key, group);
@@ -188,21 +176,6 @@ export default function StanyPage() {
       }
       group.totalMb += l.totalMb ?? 0;
       group.totalWeightKg += l.weightKg ?? 0;
-
-      // Zapis lokalizacji
-      const existingLoc = group.locations.find((loc) => loc.locationId === l.locationId && loc.status === l.status);
-      if (existingLoc) {
-        existingLoc.quantity += l.quantityPieces;
-      } else {
-        group.locations.push({
-          locationId: l.locationId,
-          locationCode: l.locationCode,
-          locationName: l.locationName,
-          zone: l.zone,
-          quantity: l.quantityPieces,
-          status: l.status,
-        });
-      }
 
       group.lots.push(l);
     }
@@ -240,7 +213,7 @@ export default function StanyPage() {
       <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
         <input
           style={{ ...inputStyle, flex: 1, minWidth: 240, width: "auto" }}
-          placeholder="Szukaj: indeks, SKU, grupa towarowa, system/podgrupa, kolor, lokalizacja…"
+          placeholder="Szukaj: indeks, SKU, grupa towarowa, system/podgrupa, kolor…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -248,12 +221,6 @@ export default function StanyPage() {
           <option value="">Wszystkie grupy towarowe</option>
           {(categories ?? []).map((c) => (
             <option key={c._id} value={c._id}>{c.name}</option>
-          ))}
-        </select>
-        <select style={{ ...inputStyle, width: "auto" }} value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-          <option value="">Wszystkie lokalizacje</option>
-          {(locations ?? []).map((l) => (
-            <option key={l._id} value={l._id}>{l.name}</option>
           ))}
         </select>
         <select style={{ ...inputStyle, width: "auto" }} value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -312,7 +279,7 @@ export default function StanyPage() {
           <Empty title="Brak pozycji na stanie" text="Przyjmij towar dokumentem PZ, aby pojawił się na stanie magazynu." />
         ) : groupByIndex ? (
           /* Widok zagregowany per INDEKS TOWAROWY */
-          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Lokalizacja", "Dostępność", "Ilość na stanie", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Dostępność", "Ilość na stanie", "Status"]}>
             {groupedIndexRows.map((row) => {
               const hasDimensions = row.dimensionsSummary && row.dimensionsSummary !== "—";
               const hasColor = Boolean(row.colorCode || row.surfaceType);
@@ -388,46 +355,7 @@ export default function StanyPage() {
                     </div>
                   </Td>
 
-                  {/* 4. Lokalizacja */}
-                  <Td>
-                    {row.locations.length === 1 ? (
-                      <div>
-                        <span style={{ fontFamily: "monospace", fontWeight: 500, color: C.text }}>
-                          {row.locations[0].locationCode}
-                        </span>
-                        {row.locations[0].zone && (
-                          <div style={{ fontSize: 10, color: C.muted }}>
-                            {ZONE_LABEL[row.locations[0].zone] ?? row.locations[0].zone}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div>
-                        <span style={{ fontSize: 11, color: C.text, fontWeight: 600 }}>
-                          {row.locations.length} lokalizacje:
-                        </span>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
-                          {row.locations.map((loc, i) => (
-                            <span
-                              key={i}
-                              style={{
-                                fontSize: 10,
-                                fontFamily: "monospace",
-                                background: "rgba(255,255,255,0.06)",
-                                padding: "1px 4px",
-                                borderRadius: 3,
-                                color: C.muted,
-                              }}
-                            >
-                              {loc.locationCode} ({loc.quantity})
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </Td>
-
-                  {/* 5. Progress bar dostępności */}
+                  {/* 4. Progress bar dostępności */}
                   <Td>
                     <AvailabilityProgressBar
                       available={row.availablePieces}
@@ -437,7 +365,7 @@ export default function StanyPage() {
                     />
                   </Td>
 
-                  {/* 6. Łączna ilość na stanie */}
+                  {/* 5. Łączna ilość na stanie */}
                   <Td nowrap>
                     <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>
                       {fmtNum(row.totalPieces)} {row.unit}
@@ -454,7 +382,7 @@ export default function StanyPage() {
                     )}
                   </Td>
 
-                  {/* 7. Status */}
+                  {/* 6. Status */}
                   <Td>
                     <Badge
                       status={statusBadge}
@@ -475,7 +403,7 @@ export default function StanyPage() {
           </Table>
         ) : (
           /* Widok szczegółowy per pojedyncza pozycja magazynowa */
-          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Lokalizacja", "Dostępność", "Ilość", "Status"]}>
+          <Table headers={["Indeks towarowy", "Grupa / System", "Parametry i Cechy", "Dostępność", "Ilość", "Status"]}>
             {filteredLots.map((l) => {
               const hasDimensions = l.dimensionsSummary && l.dimensionsSummary !== "—";
               const hasColor = Boolean(l.colorCode || l.surfaceType);
@@ -520,10 +448,6 @@ export default function StanyPage() {
                         </span>
                       )}
                     </div>
-                  </Td>
-                  <Td>
-                    <span style={{ fontFamily: "monospace", fontWeight: 600, color: C.text }}>{l.locationCode}</span>
-                    {l.zone && <div style={{ fontSize: 11, color: C.muted }}>{ZONE_LABEL[l.zone]}</div>}
                   </Td>
                   <Td>
                     <AvailabilityProgressBar

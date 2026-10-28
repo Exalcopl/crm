@@ -369,7 +369,9 @@ export async function deleteDocumentCore(
         if (lot) {
           // Przywróć ilość w partii magazynowej
           const restoredQty = lot.quantityPieces + line.quantityPieces;
-          const loc = await ctx.db.get(lot.locationId);
+          const loc = lot.locationId
+            ? ((await ctx.db.get(lot.locationId)) as Doc<"wms_locations"> | null)
+            : null;
           const restoredStatus: LotStatus = loc ? statusForZone(loc.zone) : "AVAILABLE";
 
           await ctx.db.patch(lot._id, {
@@ -541,10 +543,7 @@ export async function approveDocument(
         throw new Error(`${tag}: ilość sztuk musi być dodatnią liczbą całkowitą.`);
       const disposition = line.damage?.disposition;
       if (disposition === "REJECT") continue; // odrzucone — bez wejścia na stan
-      if (!line.toLocationId) {
-        throw new Error(`${tag}: nie wybrano lokalizacji docelowej. Usuń tę pozycję i dodaj ją ponownie ze wskazanym regałem.`);
-      }
-      const toLoc = await activeLocation(ctx, line.toLocationId);
+      const toLoc = line.toLocationId ? await activeLocation(ctx, line.toLocationId) : null;
 
       const material = await ctx.db.get(line.materialId);
       if (!material) throw new Error(`${tag}: materiał nie istnieje.`);
@@ -647,10 +646,10 @@ export async function approveDocument(
           (r) =>
             (r.materialId === undefined || r.materialId === line.materialId) &&
             (r.category === undefined || r.category === material.category) &&
-            (r.zone === undefined || r.zone === toLoc.zone),
+            (r.zone === undefined || (toLoc ? r.zone === toLoc.zone : true)),
         );
         if (profile || hasMatchingRule) {
-          const rule = await resolveTrackingRule(ctx, line.materialId, toLoc.zone);
+          const rule = await resolveTrackingRule(ctx, line.materialId, toLoc?.zone);
           if (rule.trackingMode === "NONE")
             throw new Error(`${tag}: indeks nie podlega ewidencji w WMS.`);
           const errs = validateAttributes(rule, { ...line, lengthMm });
@@ -658,11 +657,13 @@ export async function approveDocument(
         }
       }
 
-      warnings.push(
-        ...(await locationWarnings(ctx, toLoc, line.materialId, lengthMm, line.quantityPieces, weightKg)),
-      );
+      if (toLoc) {
+        warnings.push(
+          ...(await locationWarnings(ctx, toLoc, line.materialId, lengthMm, line.quantityPieces, weightKg)),
+        );
+      }
 
-      const status: LotStatus = statusForZone(toLoc.zone);
+      const status: LotStatus = toLoc ? statusForZone(toLoc.zone) : "AVAILABLE";
       const lotId = await ctx.db.insert("wms_lots", {
         materialId: line.materialId,
         categoryId: category?._id,
@@ -681,7 +682,7 @@ export async function approveDocument(
         ssccCode: line.ssccCode,
         customAttributes,
         quantityPieces: line.quantityPieces,
-        locationId: toLoc._id,
+        locationId: toLoc?._id ?? undefined,
         status,
         receivedByDocumentId: doc._id,
         createdAt: now,
@@ -697,7 +698,7 @@ export async function approveDocument(
         quantityDelta: line.quantityPieces,
         quantityPieces: line.quantityPieces,
         lengthMm,
-        toLocationId: toLoc._id,
+        toLocationId: toLoc?._id ?? undefined,
         operatorId: userId,
         idempotencyKey: `${doc._id}:${line._id}:pz`,
       });
@@ -753,7 +754,9 @@ export async function approveDocument(
       const newQty = lot.quantityPieces + line.quantityPieces;
       if (newQty < 0)
         throw new Error(`${tag}: korekta zszedłaby poniżej zera (stan ${lot.quantityPieces}).`);
-      const loc = await ctx.db.get(lot.locationId);
+      const loc = lot.locationId
+        ? ((await ctx.db.get(lot.locationId)) as Doc<"wms_locations"> | null)
+        : null;
       let status: LotStatus = lot.status;
       if (newQty === 0) status = "DEPLETED";
       else if (lot.status === "DEPLETED") status = loc ? statusForZone(loc.zone) : "AVAILABLE";

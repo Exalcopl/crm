@@ -99,14 +99,12 @@ const STANDARD_FIELD_KEYS: { key: keyof ObjectFormState["fieldsConfig"]; default
 function WmsSettingsContent() {
   const searchParams = useSearchParams();
   const urlTab = searchParams.get("tab");
-  const [selectedTab, setSelectedTab] = useState<"categories" | "objects" | "locations" | "materials" | null>(null);
+  const [selectedTab, setSelectedTab] = useState<"categories" | "objects" | "materials" | null>(null);
 
-  const activeTab: "categories" | "objects" | "locations" | "materials" =
+  const activeTab: "categories" | "objects" | "materials" =
     selectedTab ??
     (urlTab === "objects"
       ? "objects"
-      : urlTab === "locations"
-      ? "locations"
       : urlTab === "materials"
       ? "materials"
       : "categories");
@@ -411,11 +409,6 @@ function WmsSettingsContent() {
               + Nowy system / podgrupa
             </Btn>
           )}
-          {activeTab === "locations" && (
-            <Btn primary onClick={startNewLocation}>
-              + Nowa lokalizacja
-            </Btn>
-          )}
         </div>
       }
     >
@@ -452,22 +445,6 @@ function WmsSettingsContent() {
           }}
         >
           Systemy i podgrupy ({(objects ?? []).length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedTab("locations")}
-          style={{
-            background: activeTab === "locations" ? "rgba(255,255,255,0.1)" : "transparent",
-            color: activeTab === "locations" ? C.text : C.muted,
-            border: `1px solid ${activeTab === "locations" ? C.borderFocus : C.border}`,
-            borderRadius: 6,
-            padding: "6px 14px",
-            fontSize: 13,
-            cursor: "pointer",
-            fontWeight: activeTab === "locations" ? 600 : 400,
-          }}
-        >
-          Lokalizacje magazynowe ({(locations ?? []).length})
         </button>
         <button
           type="button"
@@ -915,84 +892,7 @@ function WmsSettingsContent() {
         </>
       )}
 
-      {/* ─── ZAKŁADKA 3: LOKALIZACJE MAGAZYNOWE ───────────────────── */}
-      {activeTab === "locations" && (
-        <>
-          {showLocForm && (
-            <div style={{ marginBottom: 20 }}>
-              <Card title={locEditId ? "Edytuj lokalizację" : "Nowa lokalizacja"}>
-                <div style={{ maxWidth: 460 }}>
-                  <Field label="Nazwa lokalizacji *">
-                    <input
-                      style={inputStyle}
-                      value={locName}
-                      onChange={(e) => setLocName(e.target.value)}
-                      placeholder="np. Regał 1, Regał A, Półka B, Bufor produkcyjny..."
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleSaveLocation();
-                        }
-                      }}
-                    />
-                  </Field>
-                  <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                    <Btn primary onClick={handleSaveLocation} disabled={locBusy || !locName.trim()}>
-                      {locBusy ? "Zapisywanie…" : locEditId ? "Zapisz zmiany" : "Dodaj lokalizację"}
-                    </Btn>
-                    <Btn
-                      onClick={() => {
-                        setShowLocForm(false);
-                        setLocEditId(null);
-                        setLocName("");
-                      }}
-                    >
-                      Anuluj
-                    </Btn>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
-
-          <Card title={`Lokalizacje magazynowe (${(locations ?? []).length})`} pad={false}>
-            {!locations ? (
-              <div style={{ padding: 16, color: C.muted, fontSize: 13 }}>Wczytywanie lokalizacji…</div>
-            ) : locations.length === 0 ? (
-              <Empty
-                icon="🧭"
-                title="Brak zdefiniowanych lokalizacji"
-                text="Kliknij „+ Nowa lokalizacja”, aby wpisać nazwę pierwszego regału lub miejsca składowania."
-              />
-            ) : (
-              <Table headers={["Nazwa lokalizacji", "Partie na stanie", "Łączna masa", "Akcje"]}>
-                {locations.map((l) => (
-                  <Tr key={l._id}>
-                    <Td>
-                      <span style={{ fontWeight: 600, color: C.text }}>{l.name}</span>
-                    </Td>
-                    <Td>{fmtNum(l.lotCount)} partii</Td>
-                    <Td nowrap muted>{l.loadKg ? fmtKg(l.loadKg) : "—"}</Td>
-                    <Td>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <Btn small onClick={() => startEditLocation(l)}>
-                          Edytuj
-                        </Btn>
-                        <Btn small danger onClick={() => setDeleteModal({ type: "location", id: l._id, name: l.name })}>
-                          Usuń
-                        </Btn>
-                      </div>
-                    </Td>
-                  </Tr>
-                ))}
-              </Table>
-            )}
-          </Card>
-        </>
-      )}
-
-      {/* ─── ZAKŁADKA 4: PRZYPISANIE INDEKSÓW ──────────────────────── */}
+      {/* ─── ZAKŁADKA 3: PRZYPISANIE INDEKSÓW ──────────────────────── */}
       {activeTab === "materials" && (
         <Card title="Przypisanie indeksów materiałowych do grup towarowych i systemów" pad={false}>
           <div style={{ padding: 12, borderBottom: `1px solid ${C.border}`, display: "flex", gap: 10, alignItems: "center" }}>

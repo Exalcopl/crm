@@ -388,23 +388,10 @@ export const runWmsTest = mutation({
         "PZ szyby: walidacja odrzuca brak szerokości wymaganej przez obiekt magazynowy",
       );
 
-      // Błąd walidacji: brak lokalizacji docelowej
-      const { id: noLocPzId } = await createDocument(ctx, userId, { type: "PZ" });
-      docIds.push(noLocPzId);
-      await ctx.db.insert("wms_document_lines", {
-        documentId: noLocPzId,
-        materialId: glassMaterialId,
-        quantityPieces: 1,
-        // brak toLocationId!
-      });
-      await expectThrow(
-        () => approveDocument(ctx, userId, noLocPzId),
-        "nie wybrano lokalizacji docelowej",
-        "PZ bez lokalizacji docelowej jest blokowane z czytelnym komunikatem",
-      );
-
       // Przywracamy widthMm = 1200 na indeksie — teraz PZ bez wpisywania wymiarów w linii dziedziczy je z indeksu!
+      // Weryfikacja: PZ bez lokalizacji docelowej (MVP) tworzy partię dostępną w magazynie
       await ctx.db.patch(glassMaterialId, { widthMm: 1200 });
+
       const { id: goodGlassPzId } = await createDocument(ctx, userId, { type: "PZ" });
       docIds.push(goodGlassPzId);
       await ctx.db.insert("wms_document_lines", {
@@ -412,9 +399,10 @@ export const runWmsTest = mutation({
         materialId: glassMaterialId,
         quantityPieces: 4,
         heatNumber: "GLASS-BATCH-1",
-        toLocationId: locMG,
+        // brak toLocationId — magazyn bez lokalizacji w MVP
       });
       await approveDocument(ctx, userId, goodGlassPzId);
+      ok("PZ bez lokalizacji docelowej zatwierdza się poprawnie (MVP bez lokalizacji)");
       const glassLots = await ctx.db
         .query("wms_lots")
         .withIndex("by_material", (q) => q.eq("materialId", glassMaterialId))
@@ -547,22 +535,18 @@ export const runWmsTest = mutation({
       assert(pe50Lot.categoryId === profileCatId, "PZ PE50: partia przypisana do Grupy towarowej");
       assert(pe50Lot.objectId === procuralObjId, "PZ PE50: partia przypisana do Systemu Procural");
 
-      // Test walidacji: brak lokalizacji docelowej przy PZ
-      const { id: pzFailId } = await createDocument(ctx, userId, { type: "PZ" });
-      docIds.push(pzFailId);
+      // Weryfikacja: PZ profilu bez lokalizacji
+      const { id: pzNoLocId } = await createDocument(ctx, userId, { type: "PZ" });
+      docIds.push(pzNoLocId);
       await ctx.db.insert("wms_document_lines", {
-        documentId: pzFailId,
+        documentId: pzNoLocId,
         materialId: pe68MatId,
         objectId: procuralObjId,
         quantityPieces: 5,
         lengthMm: 6000,
-        // brak toLocationId
       });
-      await expectThrow(
-        () => approveDocument(ctx, userId, pzFailId),
-        "nie wybrano lokalizacji docelowej",
-        "Walidacja PZ: odrzucenie pozycji bez wskazanej lokalizacji docelowej",
-      );
+      await approveDocument(ctx, userId, pzNoLocId);
+      ok("PZ PE68 bez lokalizacji zatwierdzony pomyślnie");
 
       // Sprzątanie danych testowych hierarchii
       for (const matId of [pe50MatId, pe68MatId]) {

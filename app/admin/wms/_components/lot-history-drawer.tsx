@@ -239,65 +239,6 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
             </div>
           ) : (
             <>
-              {/* Przełącznik partii/lokalizacji jeśli indeks jest w wielu miejscach */}
-              {siblingLots && siblingLots.length > 1 && (
-                <div
-                  style={{
-                    background: "#161b22",
-                    border: "1px solid #30363d",
-                    borderRadius: 8,
-                    padding: "10px 14px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: "#8b949e",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                    }}
-                  >
-                    Lokalizacje tego indeksu ({siblingLots.length}):
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {siblingLots.map((s) => {
-                      const isCurrent = s._id === activeLotId;
-                      return (
-                        <button
-                          key={s._id}
-                          type="button"
-                          onClick={() => setActiveLotId(s._id)}
-                          style={{
-                            background: isCurrent ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.04)",
-                            border: `1px solid ${isCurrent ? "#58a6ff" : "#30363d"}`,
-                            color: isCurrent ? "#ffffff" : "#c9d1d9",
-                            borderRadius: 6,
-                            padding: "5px 10px",
-                            fontSize: 12,
-                            fontWeight: isCurrent ? 700 : 500,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            transition: "all 0.15s",
-                          }}
-                        >
-                          <MapPin size={13} color={isCurrent ? "#58a6ff" : "#8b949e"} />
-                          <span>{s.locationCode}</span>
-                          <span style={{ color: isCurrent ? "#93c5fd" : "#8b949e", fontFamily: "monospace" }}>
-                            ({fmtNum(s.quantityPieces)} {s.unit || "szt."})
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Karta bieżącego stanu pozycji */}
               <div
                 style={{
@@ -342,24 +283,9 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                   </div>
 
                   <div>
-                    <div style={{ fontSize: 11, color: "#8b949e" }}>Lokalizacja</div>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: "#f0f6fc",
-                        fontFamily: "monospace",
-                        marginTop: 2,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <MapPin size={15} color="#3fb950" />
-                      {lot?.locationCode ?? "—"}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#8b949e", marginTop: 2 }}>
-                      {lot?.zone ? (ZONE_LABEL[lot.zone] ?? lot.zone) : "Magazyn główny"}
+                    <div style={{ fontSize: 11, color: "#8b949e" }}>Status partii</div>
+                    <div style={{ marginTop: 4 }}>
+                      <Badge status={lot?.status ?? "AVAILABLE"} />
                     </div>
                   </div>
                 </div>
@@ -563,40 +489,42 @@ export function LotHistoryDrawer({ lotId, onClose, siblingLots }: LotHistoryDraw
                             </div>
                           </div>
 
-                          {/* Przepływ lokalizacji (Z -> Do) */}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              fontSize: 12,
-                              background: "rgba(0, 0, 0, 0.25)",
-                              padding: "6px 10px",
-                              borderRadius: 6,
-                              border: "1px solid #21262d",
-                            }}
-                          >
-                            <span style={{ color: "#8b949e" }}>Trasa:</span>
-                            <span
+                          {/* Przepływ lokalizacji (Z -> Do) - opcjonalne w MVP */}
+                          {Boolean(m.fromCode || m.toCode) && (
+                            <div
                               style={{
-                                fontFamily: "monospace",
-                                color: m.fromCode ? "#c9d1d9" : "#484f58",
-                                fontWeight: 500,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                                background: "rgba(0, 0, 0, 0.25)",
+                                padding: "6px 10px",
+                                borderRadius: 6,
+                                border: "1px solid #21262d",
                               }}
                             >
-                              {m.fromCode || "—"}
-                            </span>
-                            <ArrowRight size={13} color="#8b949e" />
-                            <span
-                              style={{
-                                fontFamily: "monospace",
-                                color: m.toCode ? "#3fb950" : "#484f58",
-                                fontWeight: 700,
-                              }}
-                            >
-                              {m.toCode || "—"}
-                            </span>
-                          </div>
+                              <span style={{ color: "#8b949e" }}>Trasa:</span>
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  color: m.fromCode ? "#c9d1d9" : "#484f58",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {m.fromCode || "—"}
+                              </span>
+                              <ArrowRight size={13} color="#8b949e" />
+                              <span
+                                style={{
+                                  fontFamily: "monospace",
+                                  color: m.toCode ? "#3fb950" : "#484f58",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {m.toCode || "—"}
+                              </span>
+                            </div>
+                          )}
 
                           {/* Stopka wpisu: Data, Operator, Uwagi */}
                           <div

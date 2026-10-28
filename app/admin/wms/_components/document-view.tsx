@@ -624,10 +624,6 @@ export function DocumentDetailView({
         toast.error("Wybierz indeks materiałowy z listy.");
         return;
       }
-      if ((!hasDamage || damageDisp !== "REJECT") && !lineToLoc) {
-        toast.error("Wybierz lokalizację docelową (regał) przed dodaniem pozycji.");
-        return;
-      }
     } else if (type === "RW") {
       if (!lineLotId) {
         toast.error("Wybierz partię ze stanu magazynowego.");
@@ -950,30 +946,6 @@ export function DocumentDetailView({
                         </Field>
                       )}
 
-                      {/* Lokalizacja docelowa */}
-                      <Field label="Lokalizacja docelowa *">
-                        <select
-                          style={{
-                            ...inputStyle,
-                            ...(!lineToLoc ? { borderColor: C.amber } : null),
-                          }}
-                          value={lineToLoc}
-                          onChange={(e) => setLineToLoc(e.target.value)}
-                        >
-                          <option value="">Wybierz regał / lokalizację…</option>
-                          {(locations ?? []).map((l) => (
-                            <option key={l._id} value={l._id}>
-                              {l.name} ({l.code})
-                            </option>
-                          ))}
-                        </select>
-                        {(locations ?? []).length === 0 && (
-                          <span style={{ fontSize: 11, color: C.amber, marginTop: 2 }}>
-                            Brak aktywnych lokalizacji w magazynie. Dodaj je w Ustawieniach.
-                          </span>
-                        )}
-                      </Field>
-
                       {/* Atest */}
                       {fc?.certificate?.enabled && (
                         <Field label={`${fc.certificate.label || "Atest 3.1 / Certyfikat"} ${fc.certificate.required ? "*" : ""}`}>
@@ -1111,7 +1083,6 @@ export function DocumentDetailView({
               "Wymiary / Parametry",
               "Ilość",
               "Cechy (kolor/partia)",
-              type === "PZ" ? "Do regału" : "Lokalizacja w magazynie",
               "Atest",
               "Kontrola jakości",
               ...(isDraft ? [""] : []),
@@ -1152,9 +1123,6 @@ export function DocumentDetailView({
                   {line.colorCode ?? "—"}
                   {line.surfaceType && <div style={{ fontSize: 11, color: C.muted }}>{SURFACE_LABEL[line.surfaceType]}</div>}
                   {line.heatNumber && <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>Partia: {line.heatNumber}</div>}
-                </Td>
-                <Td mono>
-                  {type === "RW" ? (line.fromCode ?? "—") : line.fromCode ? `${line.fromCode} → ${line.toCode ?? "—"}` : (line.toCode ?? "—")}
                 </Td>
                 <Td>
                   {line.certificateUrl ? (
