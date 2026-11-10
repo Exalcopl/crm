@@ -228,9 +228,14 @@ export default defineSchema({
     authorName: v.string(),
     createdAt: v.number(),
     isPartner: v.optional(v.boolean()),
+    sentToPartner: v.optional(v.boolean()),
+    /** @deprecated Pozostawione dla kompatybilności wstecznej ze starymi wpisami wątkowymi. */
     threadId: v.optional(v.id("orderNotes")),
+    /** @deprecated Pozostawione dla kompatybilności wstecznej ze starymi wpisami wątkowymi. */
     parentNoteId: v.optional(v.id("orderNotes")),
+    /** @deprecated Pozostawione dla kompatybilności wstecznej ze starymi wpisami wątkowymi. */
     isPartnerThreadRoot: v.optional(v.boolean()),
+    /** @deprecated Pozostawione dla kompatybilności wstecznej ze starymi wpisami wątkowymi. */
     threadStatus: v.optional(
       v.union(v.literal("pending_response"), v.literal("replied"), v.literal("closed")),
     ),

@@ -56,18 +56,16 @@ export const add = mutation({
     text: v.string(),
     authorName: v.string(),
     isPartner: v.optional(v.boolean()),
-    isPartnerThread: v.optional(v.boolean()),
-    threadId: v.optional(v.id("orderNotes")),
+    sendToPartner: v.optional(v.boolean()),
   },
-  handler: async (ctx, { orderId, text, authorName, isPartner, isPartnerThread, threadId }) => {
+  handler: async (ctx, { orderId, text, authorName, isPartner, sendToPartner }) => {
     const callerId = await getAuthUserId(ctx);
     if (!callerId && !isPartner) throw new Error("Brak autoryzacji");
     const trimmed = text.trim();
     if (!trimmed) throw new Error("Treść notatki nie może być pusta");
     const createdAt = Date.now();
 
-    const isThreadRoot = !!isPartnerThread && !threadId;
-    const initialThreadStatus = isThreadRoot ? "pending_response" : undefined;
+    const shouldSendToPartner = Boolean(sendToPartner) && !isPartner;
 
     const noteId = await ctx.db.insert("orderNotes", {
       orderId,
@@ -76,23 +74,10 @@ export const add = mutation({
       authorName,
       createdAt,
       isPartner: isPartner ?? false,
-      threadId: threadId ?? undefined,
-      parentNoteId: threadId ?? undefined,
-      isPartnerThreadRoot: isThreadRoot ? true : undefined,
-      threadStatus: initialThreadStatus,
+      sentToPartner: shouldSendToPartner ? true : undefined,
     });
 
-    // Jeśli to odpowiedź w istniejącym wątku wysłana przez Exalco, przywróć status "pending_response"
-    if (threadId && !isPartner) {
-      const rootNote = await ctx.db.get(threadId);
-      if (rootNote && rootNote.threadStatus !== "closed") {
-        await ctx.db.patch(threadId, { threadStatus: "pending_response" });
-      }
-    }
-
     // Wysyłaj Webhook do partnera TYLKO jeśli wiadomość jest skierowana do partnera
-    // (jest korzeniem nowego wątku partnera LUB jest odpowiedzią w wątku partnera)
-    const shouldSendToPartner = (isThreadRoot || !!threadId) && !isPartner;
     if (shouldSendToPartner) {
       const order = await ctx.db.get(orderId);
       if (order) {
@@ -108,7 +93,6 @@ export const add = mutation({
           }
         }
         if (partnerId) {
-          const targetThreadId = isThreadRoot ? noteId : threadId!;
           await ctx.scheduler.runAfter(0, internal.webhooks.triggerPartnerWebhook, {
             partnerId,
             orderId: order._id,
@@ -118,7 +102,6 @@ export const add = mutation({
               text: trimmed,
               authorName,
               createdAt,
-              threadId: targetThreadId,
               noteId,
             },
           });
@@ -139,7 +122,7 @@ export const update = mutation({
     if (!note) throw new Error("Notatka nie istnieje");
 
     // Zabezpieczenie spójności audytowej — notatki oficjalnej komunikacji z ADK są zablokowane
-    if (note.isPartner || note.isPartnerThreadRoot || note.threadId) {
+    if (note.isPartner || note.sentToPartner || note.isPartnerThreadRoot || note.threadId) {
       throw new Error("Nie można edytować wiadomości przesłanych do lub odebranych od ADK Okna");
     }
 
@@ -166,37 +149,11 @@ export const remove = mutation({
     if (!note) return;
 
     // Zabezpieczenie spójności audytowej — notatki oficjalnej komunikacji z ADK są zablokowane
-    if (note.isPartner || note.isPartnerThreadRoot || note.threadId) {
+    if (note.isPartner || note.sentToPartner || note.isPartnerThreadRoot || note.threadId) {
       throw new Error("Nie można usuwać wiadomości stanowiących część oficjalnej komunikacji z ADK Okna");
     }
 
     await ctx.db.delete(id);
-  },
-});
-
-export const closeThread = mutation({
-  args: { threadId: v.id("orderNotes") },
-  handler: async (ctx, { threadId }) => {
-    const callerId = await getAuthUserId(ctx);
-    if (!callerId) throw new Error("Brak autoryzacji");
-
-    const note = await ctx.db.get(threadId);
-    if (!note) throw new Error("Wątek nie istnieje");
-
-    await ctx.db.patch(threadId, { threadStatus: "closed" });
-  },
-});
-
-export const reopenThread = mutation({
-  args: { threadId: v.id("orderNotes") },
-  handler: async (ctx, { threadId }) => {
-    const callerId = await getAuthUserId(ctx);
-    if (!callerId) throw new Error("Brak autoryzacji");
-
-    const note = await ctx.db.get(threadId);
-    if (!note) throw new Error("Wątek nie istnieje");
-
-    await ctx.db.patch(threadId, { threadStatus: "pending_response" });
   },
 });
 

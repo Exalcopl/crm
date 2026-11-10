@@ -903,9 +903,8 @@ export const appendNotesFromPartnerApi = internalMutation({
     orderIdOrNumber: v.string(),
     notes: v.string(),
     authorName: v.optional(v.string()),
-    threadId: v.optional(v.union(v.id("orderNotes"), v.string())),
   },
-  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; notes: Array<any>; threadId?: string }> => {
+  handler: async (ctx, args): Promise<{ orderId: Id<"orders">; notes: Array<any> }> => {
     // 1. Znajdź zlecenie po ID lub numerze zlecenia
     let order: any = null;
     if (args.orderIdOrNumber.length === 32) {
@@ -923,52 +922,21 @@ export const appendNotesFromPartnerApi = internalMutation({
     const trimmed = args.notes.trim();
     const now = Date.now();
 
-    // 2. Znajdź docelowy wątek
-    let targetThreadId: Id<"orderNotes"> | undefined = undefined;
-
-    if (args.threadId && typeof args.threadId === "string" && args.threadId.length === 32) {
-      const rootCandidate = await ctx.db.get(args.threadId as Id<"orderNotes">);
-      if (rootCandidate && rootCandidate.orderId === order._id) {
-        targetThreadId = rootCandidate._id;
-      }
-    }
-
-    // Jeśli brak podanego threadId, znajdź ostatni otwarty wątek w tym zleceniu
-    if (!targetThreadId) {
-      const openThreads = await ctx.db
-        .query("orderNotes")
-        .withIndex("by_order", (q) => q.eq("orderId", order._id))
-        .collect();
-      const lastPending = openThreads
-        .filter((n) => n.isPartnerThreadRoot && n.threadStatus === "pending_response")
-        .sort((a, b) => b.createdAt - a.createdAt)[0];
-      if (lastPending) {
-        targetThreadId = lastPending._id;
-      }
-    }
-
-    // 3. Jeśli mamy wątek, zaktualizuj jego status na "replied"
-    if (targetThreadId) {
-      await ctx.db.patch(targetThreadId, { threadStatus: "replied" });
-    }
-
-    // 4. Dodaj notatkę do komunikatora orderNotes
-    const newNoteId = await ctx.db.insert("orderNotes", {
+    // 2. Dodaj prostą notatkę do komunikatora orderNotes
+    await ctx.db.insert("orderNotes", {
       orderId: order._id,
       text: trimmed,
       authorId: null,
       authorName,
       createdAt: now,
       isPartner: true,
-      threadId: targetThreadId,
-      parentNoteId: targetThreadId,
     });
 
-    // 5. Powiadomienie w systemie dla pracowników CRM
+    // 3. Powiadomienie w systemie dla pracowników CRM
     await ctx.db.insert("notifications", {
       type: "partner_note_reply",
-      title: `Odpowiedź od ${authorName}`,
-      message: `Otrzymano odpowiedź w zleceniu ${order.orderNumber}: "${trimmed.slice(0, 60)}${trimmed.length > 60 ? "..." : ""}"`,
+      title: `Wiadomość od ${authorName}`,
+      message: `Otrzymano wiadomość w zleceniu ${order.orderNumber}: "${trimmed.slice(0, 60)}${trimmed.length > 60 ? "..." : ""}"`,
       link: `/admin/zlecenia/${order._id}`,
       targetUserId: order.ownerId ?? undefined,
       readBy: [],
@@ -976,7 +944,7 @@ export const appendNotesFromPartnerApi = internalMutation({
       createdAt: now,
     });
 
-    // 6. Dodaj wpis do aktywności zlecenia
+    // 4. Dodaj wpis do aktywności zlecenia
     await ctx.db.insert("orderActivity", {
       orderId: order._id,
       type: "comment",
@@ -987,7 +955,7 @@ export const appendNotesFromPartnerApi = internalMutation({
       createdAt: now,
     });
 
-    // 7. Pobierz pełną listę notatek komunikatora dla zlecenia
+    // 5. Pobierz pełną listę notatek komunikatora dla zlecenia
     const allNotes = await ctx.db
       .query("orderNotes")
       .withIndex("by_order", (q) => q.eq("orderId", order._id))
@@ -996,14 +964,12 @@ export const appendNotesFromPartnerApi = internalMutation({
 
     return {
       orderId: order._id,
-      threadId: targetThreadId ?? newNoteId,
       notes: allNotes.map((n) => ({
         _id: n._id,
         text: n.text,
         authorName: n.authorName,
         createdAt: n.createdAt,
         isPartner: n.isPartner ?? (n.authorName.includes("ADK")),
-        threadId: n.threadId,
       })),
     };
   },

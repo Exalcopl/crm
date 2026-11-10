@@ -17,11 +17,10 @@ type OrderNote = {
   authorName: string;
   createdAt: number;
   isPartner?: boolean;
+  sentToPartner?: boolean;
   isLegacy?: boolean;
   threadId?: Id<"orderNotes">;
-  parentNoteId?: Id<"orderNotes">;
   isPartnerThreadRoot?: boolean;
-  threadStatus?: "pending_response" | "replied" | "closed";
 };
 
 function relTime(ts: number): string {
@@ -45,8 +44,6 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
   const add = useMutation(api.orderNotes.add);
   const update = useMutation(api.orderNotes.update);
   const remove = useMutation(api.orderNotes.remove);
-  const closeThread = useMutation(api.orderNotes.closeThread);
-  const reopenThread = useMutation(api.orderNotes.reopenThread);
 
   const { user } = usePermissions();
   const currentUserId = (user as { _id?: Id<"users"> } | null | undefined)?._id;
@@ -61,11 +58,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
   const [editDraft, setEditDraft] = useState("");
   const editTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Stan wpisywania odpowiedzi w konkretnym wątku
-  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
-  const [replyingThreadId, setReplyingThreadId] = useState<Id<"orderNotes"> | null>(null);
-
-  async function handleAdd(opts: { isPartnerThread?: boolean }) {
+  async function handleAdd(opts: { sendToPartner?: boolean }) {
     const text = draft.trim();
     if (!text || submitting) return;
     setSubmitting(true);
@@ -74,37 +67,16 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
         orderId,
         text,
         authorName: user?.name ?? user?.email ?? "Zespół ALCO",
-        isPartnerThread: opts.isPartnerThread,
+        sendToPartner: opts.sendToPartner,
       });
       setDraft("");
       toast.success(
-        opts.isPartnerThread
-          ? `Wysłano wiadomość do ${partnerName} (utworzono wątek)`
+        opts.sendToPartner
+          ? `Wysłano wiadomość do ${partnerName}`
           : "Dodano notatkę wewnętrzną Exalco"
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Nie udało się zapisać wiadomości");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleSendReply(threadId: Id<"orderNotes">) {
-    const text = (replyDrafts[threadId] ?? "").trim();
-    if (!text || submitting) return;
-    setSubmitting(true);
-    try {
-      await add({
-        orderId,
-        text,
-        authorName: user?.name ?? user?.email ?? "Zespół ALCO",
-        threadId,
-      });
-      setReplyDrafts((prev) => ({ ...prev, [threadId]: "" }));
-      setReplyingThreadId(null);
-      toast.success(`Odpowiedź została wysłana do ${partnerName}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Nie udało się wysłać odpowiedzi");
     } finally {
       setSubmitting(false);
     }
@@ -148,52 +120,24 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
     }
   }
 
-  async function handleToggleThreadStatus(rootNote: OrderNote) {
-    try {
-      if (rootNote.threadStatus === "closed") {
-        await reopenThread({ threadId: rootNote._id });
-        toast.success(`Otworzono ponownie wątek z ${partnerName}`);
-      } else {
-        await closeThread({ threadId: rootNote._id });
-        toast.success(`Zamknięto wątek z ${partnerName}`);
-      }
-    } catch (e) {
-      toast.error("Błąd zmiany stanu wątku");
-    }
-  }
-
   type FeedTab = "all" | "internal" | "partner";
   const [activeTab, setActiveTab] = useState<FeedTab>("all");
 
-  // Grupowanie notatek: oddziel wpisy wolne od odpowiedzi w pod-wątkach
-  const threadMap = new Map<string, OrderNote[]>();
-  const rootNotes: OrderNote[] = [];
+  const isPartnerEntry = (n: OrderNote) =>
+    Boolean(n.isPartner || n.sentToPartner || n.isPartnerThreadRoot || n.threadId || n.authorName.includes("ADK") || !n.authorId);
 
-  if (notes) {
-    for (const n of notes) {
-      if (n.threadId) {
-        const list = threadMap.get(n.threadId) ?? [];
-        list.push(n);
-        threadMap.set(n.threadId, list);
-      } else {
-        rootNotes.push(n);
-      }
-    }
-  }
-
-  const orderedRoots = [...rootNotes].reverse();
+  const orderedNotes = notes ? [...notes].sort((a, b) => b.createdAt - a.createdAt) : [];
 
   // Statystyki dla odznak (badges)
-  const internalCount = orderedRoots.filter((n) => !n.isPartnerThreadRoot && !n.isPartner).length;
-  const partnerRoots = orderedRoots.filter((n) => n.isPartnerThreadRoot || n.isPartner);
-  const partnerCount = partnerRoots.length;
-  const pendingPartnerCount = partnerRoots.filter((n) => n.threadStatus === "pending_response").length;
+  const internalCount = orderedNotes.filter((n) => !isPartnerEntry(n)).length;
+  const partnerNotes = orderedNotes.filter((n) => isPartnerEntry(n));
+  const partnerCount = partnerNotes.length;
 
-  const filteredRoots = activeTab === "internal"
-    ? orderedRoots.filter((n) => !n.isPartnerThreadRoot && !n.isPartner)
+  const filteredNotes = activeTab === "internal"
+    ? orderedNotes.filter((n) => !isPartnerEntry(n))
     : activeTab === "partner"
-    ? partnerRoots
-    : orderedRoots;
+    ? partnerNotes
+    : orderedNotes;
 
   return (
     <div className="client-detail-notes">
@@ -232,7 +176,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
         >
           <span>Wszystkie</span>
           <span style={{ fontSize: 10, background: activeTab === "all" ? "#30363d" : "rgba(255,255,255,0.05)", padding: "1px 6px", borderRadius: 10 }}>
-            {orderedRoots.length}
+            {orderedNotes.length}
           </span>
         </button>
 
@@ -283,19 +227,15 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
           }}
         >
           <span>💬 {hasPartner ? partnerName : "Komunikacja z Partnerem"}</span>
-          {pendingPartnerCount > 0 ? (
-            <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.2)", color: "#facc15", border: "1px solid rgba(234, 179, 8, 0.4)", padding: "1px 6px", borderRadius: 10 }}>
-              🟡 {pendingPartnerCount}
-            </span>
-          ) : partnerCount > 0 ? (
+          {partnerCount > 0 && (
             <span style={{ fontSize: 10, background: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", padding: "1px 6px", borderRadius: 10 }}>
               {partnerCount}
             </span>
-          ) : null}
+          )}
         </button>
       </div>
 
-      {/* ── Tworzenie Nowej Notatki / Wątku do Partnera ── */}
+      {/* ── Tworzenie Nowej Notatki / Wiadomości do Partnera ── */}
       {!archived && (
         <div
           className="client-detail-notes-composer"
@@ -311,11 +251,11 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
             className="client-detail-notes-textarea"
             placeholder={
               activeTab === "partner"
-                ? `Wpisz treść zapytania do ${partnerName} (utworzy wątek)…`
+                ? `Napisz wiadomość do ${partnerName}…`
                 : activeTab === "internal"
                 ? "Napisz notatkę wewnętrzną Exalco…"
                 : hasPartner
-                ? `Napisz notatkę wewnętrzną Exalco lub treść zapytania do ${partnerName}…`
+                ? `Napisz notatkę wewnętrzną Exalco lub wiadomość do ${partnerName}…`
                 : "Napisz notatkę wewnętrzną Exalco…"
             }
             value={draft}
@@ -346,11 +286,11 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
           >
             <span className="client-detail-notes-hint" style={{ fontSize: 11, color: "#8b949e" }}>
               {activeTab === "partner"
-                ? `💡 Wiadomość utworzy nowy oficjalny wątek zapytania do ${partnerName}.`
+                ? `💡 Wiadomość zostanie wysłana bezpośrednio do ${partnerName}.`
                 : activeTab === "internal"
                 ? "💡 Notatka wewnętrzna widoczna tylko dla pracowników Exalco."
                 : hasPartner
-                ? `💡 Notatka wewnętrzna widoczna w Exalco. Wiadomość do ${partnerName} tworzy wątek.`
+                ? `💡 Notatka wewnętrzna widoczna w Exalco. Wiadomość do ${partnerName} trafia do partnera.`
                 : "💡 Notatki wewnętrzne są widoczne tylko dla pracowników Exalco."}
             </span>
 
@@ -360,7 +300,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                   type="button"
                   className="fluent-btn fluent-btn-ghost fluent-btn-sm"
                   disabled={!draft.trim() || submitting}
-                  onClick={() => void handleAdd({ isPartnerThread: false })}
+                  onClick={() => void handleAdd({ sendToPartner: false })}
                   style={{
                     background: "#21262d",
                     border: "1px solid #30363d",
@@ -381,7 +321,7 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                   type="button"
                   className="fluent-btn fluent-btn-primary fluent-btn-sm"
                   disabled={!draft.trim() || submitting}
-                  onClick={() => void handleAdd({ isPartnerThread: true })}
+                  onClick={() => void handleAdd({ sendToPartner: true })}
                   style={{
                     background: "#2563eb",
                     border: "none",
@@ -405,33 +345,29 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
         </div>
       )}
 
-      {/* ── Lista Notatek i Wątków ── */}
-      <div className="client-detail-notes-list" style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* ── Lista Wiadomości ── */}
+      <div className="client-detail-notes-list" style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
         {notes === undefined && <div className="client-detail-notes-empty">Wczytywanie wiadomości…</div>}
-        {notes !== undefined && filteredRoots.length === 0 && (
+        {notes !== undefined && filteredNotes.length === 0 && (
           <div className="client-detail-notes-empty" style={{ textAlign: "center", color: "#8b949e", padding: 20, background: "#0d1117", borderRadius: 8, border: "1px solid #21262d" }}>
             {activeTab === "partner"
-              ? `Brak wątków komunikacji z ${partnerName}. Napisz pierwsze zapytanie powyżej.`
+              ? `Brak wiadomości z ${partnerName}. Napisz pierwszą wiadomość powyżej.`
               : activeTab === "internal"
               ? "Brak notatek wewnętrznych w tym zleceniu."
               : "Brak notatek w tym zleceniu. Napisz pierwszą powyżej."}
           </div>
         )}
 
-        {filteredRoots.map((n) => {
-          const isThread = !!n.isPartnerThreadRoot;
-          const replies = isThread ? (threadMap.get(n._id) ?? []) : [];
-          const isPartnerMsg = n.isPartner || n.authorName.includes("ADK") || !n.authorId;
+        {filteredNotes.map((n) => {
+          const isIncomingPartner = Boolean(n.isPartner || (!n.sentToPartner && !n.isPartnerThreadRoot && (n.authorName.includes("ADK") || !n.authorId)));
+          const isOutgoingPartner = !isIncomingPartner && Boolean(n.sentToPartner || n.isPartnerThreadRoot || n.threadId);
           const mine = !!currentUserId && n.authorId === currentUserId;
           const color = n.authorId ? getUserColor(n.authorId) : "#38bdf8";
           const isEditing = editId === n._id;
           const isConfirming = confirmId === n._id;
 
-          // Blokada edycji dla wiadomości w wątkach partnera
-          const isLocked = isThread || isPartnerMsg || !!n.threadId;
-
-          // Status wątku
-          const status = n.threadStatus ?? "pending_response";
+          // Blokada edycji dla wiadomości wysłanych do lub otrzymanych od partnera
+          const isLocked = isIncomingPartner || isOutgoingPartner;
 
           return (
             <article
@@ -440,93 +376,40 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
+                gap: 8,
                 borderRadius: 8,
                 padding: 14,
-                background: isThread
-                  ? "rgba(13, 17, 23, 0.95)"
-                  : isPartnerMsg
-                  ? "rgba(56, 189, 248, 0.05)"
+                background: isIncomingPartner
+                  ? "rgba(56, 189, 248, 0.06)"
+                  : isOutgoingPartner
+                  ? "rgba(37, 99, 235, 0.06)"
                   : "#0d1117",
-                border: isThread
-                  ? `1px solid ${status === "replied" ? "rgba(59, 130, 246, 0.5)" : status === "closed" ? "#30363d" : "rgba(234, 179, 8, 0.5)"}`
+                border: isOutgoingPartner
+                  ? "1px solid rgba(59, 130, 246, 0.35)"
+                  : isIncomingPartner
+                  ? "1px solid rgba(56, 189, 248, 0.3)"
                   : "1px solid #21262d",
-                borderLeft: isThread
-                  ? `4px solid ${status === "replied" ? "#3b82f6" : status === "closed" ? "#8b949e" : "#eab308"}`
-                  : isPartnerMsg
+                borderLeft: isIncomingPartner
                   ? "4px solid #38bdf8"
+                  : isOutgoingPartner
+                  ? "4px solid #2563eb"
                   : `4px solid ${color || "#238636"}`,
-                boxShadow: isThread ? "0 4px 14px rgba(0,0,0,0.4)" : undefined,
               }}
             >
-              {/* Nagłówek Wątku (jeśli to korzeń wątku ADK) */}
-              {isThread && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 10,
-                    paddingBottom: 8,
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#60a5fa" }}>
-                      💬 Wątek komunikacji z {partnerName}
-                    </span>
-                    {status === "pending_response" && (
-                      <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(234, 179, 8, 0.15)", color: "#facc15", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(234, 179, 8, 0.3)" }}>
-                        🟡 Oczekuje na odpowiedź {partnerName}
-                      </span>
-                    )}
-                    {status === "replied" && (
-                      <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(34, 197, 94, 0.15)", color: "#4ade80", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(34, 197, 94, 0.3)" }}>
-                        🟢 Odpowiedziano przez {partnerName}
-                      </span>
-                    )}
-                    {status === "closed" && (
-                      <span style={{ fontSize: 10, fontWeight: 700, background: "rgba(139, 148, 158, 0.15)", color: "#8b949e", padding: "2px 8px", borderRadius: 12, border: "1px solid rgba(139, 148, 158, 0.3)" }}>
-                        ⚪ Wątek zamknięty
-                      </span>
-                    )}
-                  </div>
-
-                  {!archived && (
-                    <button
-                      type="button"
-                      onClick={() => void handleToggleThreadStatus(n)}
-                      style={{
-                        background: "none",
-                        border: "1px solid #30363d",
-                        color: status === "closed" ? "#4ade80" : "#8b949e",
-                        borderRadius: 4,
-                        fontSize: 11,
-                        padding: "2px 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {status === "closed" ? "Otwórz ponownie" : "Zamknij wątek"}
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Główna wiadomość */}
               <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                 <div
                   className="client-detail-note-avatar"
                   aria-hidden
                   style={{
                     flexShrink: 0,
-                    ...(isPartnerMsg
+                    ...(isIncomingPartner
                       ? { background: "rgba(56, 189, 248, 0.2)", color: "#38bdf8", borderColor: "rgba(56, 189, 248, 0.4)" }
                       : color
                       ? { background: `${color}22`, color, borderColor: `${color}55` }
                       : {}),
                   }}
                 >
-                  {isPartnerMsg ? "🏢" : ownerInitials(n.authorName)}
+                  {isIncomingPartner ? "🏢" : ownerInitials(n.authorName)}
                 </div>
 
                 <div className="client-detail-note-body" style={{ flex: 1 }}>
@@ -535,19 +418,19 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                       className="client-detail-note-author"
                       style={{
                         fontWeight: 700,
-                        color: isPartnerMsg ? "#38bdf8" : "#f0f6fc",
+                        color: isIncomingPartner ? "#38bdf8" : "#f0f6fc",
                         fontSize: 13,
                       }}
                     >
-                      {isPartnerMsg ? (
+                      {isIncomingPartner ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                           🏢 {n.authorName} <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: "rgba(56, 189, 248, 0.15)", padding: "1px 5px", borderRadius: 4 }}>Partner API</span>
                         </span>
                       ) : (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                           {n.authorName}{" "}
-                          <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: isThread ? "rgba(37,99,235,0.2)" : "rgba(35, 134, 54, 0.2)", color: isThread ? "#60a5fa" : "#3fb950", padding: "1px 5px", borderRadius: 4 }}>
-                            {isThread ? `Zapytanie do ${partnerName}` : "ALCO Wewnętrzna"}
+                          <span style={{ fontSize: 10, opacity: 0.8, fontWeight: 500, background: isOutgoingPartner ? "rgba(37,99,235,0.2)" : "rgba(35, 134, 54, 0.2)", color: isOutgoingPartner ? "#60a5fa" : "#3fb950", padding: "1px 5px", borderRadius: 4 }}>
+                            {isOutgoingPartner ? `Wysłano do ${partnerName}` : "ALCO Wewnętrzna"}
                           </span>
                         </span>
                       )}
@@ -631,91 +514,6 @@ export function OrderNotesFeed({ orderId, archived }: { orderId: Id<"orders">; a
                   )}
                 </div>
               </div>
-
-              {/* ── Pod-wątek odpowiedzi w wątku z ADK ── */}
-              {isThread && (
-                <div style={{ marginTop: 12, paddingLeft: 20, borderLeft: "2px solid rgba(59, 130, 246, 0.3)", display: "flex", flexDirection: "column", gap: 10 }}>
-                  {replies.map((reply) => {
-                    const isPartnerReply = reply.isPartner || reply.authorName.includes("ADK");
-                    const replyColor = reply.authorId ? getUserColor(reply.authorId) : "#38bdf8";
-
-                    return (
-                      <div
-                        key={reply._id}
-                        style={{
-                          background: isPartnerReply ? "rgba(56, 189, 248, 0.08)" : "#161b22",
-                          border: `1px solid ${isPartnerReply ? "rgba(56, 189, 248, 0.3)" : "#30363d"}`,
-                          borderRadius: 6,
-                          padding: 10,
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: isPartnerReply ? "#38bdf8" : replyColor || "#f0f6fc" }}>
-                            {isPartnerReply ? `🏢 ${reply.authorName} (ADK Okna)` : reply.authorName}
-                          </span>
-                          <span style={{ fontSize: 10, color: "#8b949e" }}>{relTime(reply.createdAt)}</span>
-                        </div>
-                        <div style={{ fontSize: 12, lineHeight: 1.4, color: "#e6edf3", whiteSpace: "pre-wrap" }}>
-                          {reply.text}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {/* Pole dopisywania kolejnej odpowiedzi w tym samym wątku */}
-                  {!archived && status !== "closed" && (
-                    <div style={{ marginTop: 4 }}>
-                      {replyingThreadId === n._id ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, background: "#161b22", padding: 8, borderRadius: 6, border: "1px solid #30363d" }}>
-                          <textarea
-                            placeholder={`Wpisz odpowiedź w tym wątku do ${partnerName}…`}
-                            value={replyDrafts[n._id] ?? ""}
-                            onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [n._id]: e.target.value }))}
-                            rows={2}
-                            style={{ background: "#0d1117", border: "1px solid #30363d", color: "#f0f6fc", borderRadius: 4, padding: 8, fontSize: 12, outline: "none" }}
-                          />
-                          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-                            <button
-                              type="button"
-                              onClick={() => setReplyingThreadId(null)}
-                              style={{ background: "none", border: "1px solid #30363d", color: "#8b949e", borderRadius: 4, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}
-                            >
-                              Anuluj
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleSendReply(n._id)}
-                              disabled={!(replyDrafts[n._id] ?? "").trim() || submitting}
-                              style={{ background: "#2563eb", border: "none", color: "#fff", borderRadius: 4, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                            >
-                              Wyślij odpowiedź do {partnerName}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setReplyingThreadId(n._id)}
-                          style={{
-                            background: "none",
-                            border: "1px dashed rgba(59, 130, 246, 0.4)",
-                            color: "#60a5fa",
-                            borderRadius: 6,
-                            padding: "6px 12px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            width: "100%",
-                            textAlign: "left",
-                          }}
-                        >
-                          💬 Odpowiedz w tym wątku do {partnerName}…
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
             </article>
           );
         })}

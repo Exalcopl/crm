@@ -380,8 +380,8 @@ export const testPartnerThreadWorkflow = mutation({
     let order = await ctx.db.query("orders").first();
     if (!order) {
       const dummyOrderId = await ctx.db.insert("orders", {
-        orderNumber: "TEST-THREAD-001",
-        clientName: "Klient Testowy Wątki",
+        orderNumber: "TEST-NOTES-001",
+        clientName: "Klient Testowy Wiadomości",
         valueNetto: 1000,
         valueVat: 230,
         valueBrutto: 1230,
@@ -406,73 +406,49 @@ export const testPartnerThreadWorkflow = mutation({
     });
 
     const internalNote = await ctx.db.get(internalNoteId);
-    if (!internalNote || internalNote.isPartner || internalNote.isPartnerThreadRoot) {
+    if (!internalNote || internalNote.isPartner || internalNote.sentToPartner) {
       throw new Error("❌ Test A nie powiódł się: Notatka wewnętrzna ma nieprawidłowe flagi");
     }
 
-    // ── TEST B: Utworzenie wątku do ADK Okna ──────────────────────────────────
-    const threadRootId = await ctx.db.insert("orderNotes", {
+    // ── TEST B: Prosta wiadomość wychodząca do ADK Okna ──────────────────────
+    const outgoingId = await ctx.db.insert("orderNotes", {
       orderId: order!._id,
-      text: "[TEST] Pytanie do ADK Okna w sprawie wymiarów ramy",
+      text: "[TEST] Wiadomość do ADK Okna w sprawie wymiarów ramy",
       authorId: user!._id,
       authorName: userName,
       createdAt: now + 100,
       isPartner: false,
-      isPartnerThreadRoot: true,
-      threadStatus: "pending_response",
+      sentToPartner: true,
     });
 
-    const threadRoot = await ctx.db.get(threadRootId);
-    if (!threadRoot || !threadRoot.isPartnerThreadRoot || threadRoot.threadStatus !== "pending_response") {
-      throw new Error("❌ Test B nie powiódł się: Wątek partnera nie otrzymał statusu pending_response");
+    const outgoingNote = await ctx.db.get(outgoingId);
+    if (!outgoingNote || !outgoingNote.sentToPartner || outgoingNote.isPartner) {
+      throw new Error("❌ Test B nie powiódł się: Wiadomość do partnera nie ma flagi sentToPartner");
     }
 
-    // ── TEST C: Odpowiedź od ADK Okna podpięta pod threadId ──────────────────
+    // ── TEST C: Prosta wiadomość przychodząca od ADK Okna ────────────────────
     const adkReplyId = await ctx.db.insert("orderNotes", {
       orderId: order!._id,
-      text: "[TEST] Odpowiedź od ADK Okna: Wymiary ramy zostały potwierdzone.",
+      text: "[TEST] Wiadomość od ADK Okna: Wymiary ramy zostały potwierdzone.",
       authorId: null,
       authorName: "ADK Okna",
       createdAt: now + 200,
       isPartner: true,
-      threadId: threadRootId,
-      parentNoteId: threadRootId,
     });
 
-    // Zaktualizuj status wątku-matki na "replied"
-    await ctx.db.patch(threadRootId, { threadStatus: "replied" });
-
-    const updatedRoot = await ctx.db.get(threadRootId);
-    if (updatedRoot?.threadStatus !== "replied") {
-      throw new Error("❌ Test C nie powiódł się: Status wątku nie zmienił się na replied");
-    }
-
     const adkReply = await ctx.db.get(adkReplyId);
-    if (!adkReply || adkReply.threadId !== threadRootId || !adkReply.isPartner) {
-      throw new Error("❌ Test C nie powiódł się: Odpowiedź ADK nie jest powiązana z threadId");
-    }
-
-    // ── TEST D: Zamykanie i ponowne otwieranie wątku ─────────────────────────
-    await ctx.db.patch(threadRootId, { threadStatus: "closed" });
-    const closedRoot = await ctx.db.get(threadRootId);
-    if (closedRoot?.threadStatus !== "closed") {
-      throw new Error("❌ Test D nie powiódł się: Nie udało się zamknąć wątku");
-    }
-
-    await ctx.db.patch(threadRootId, { threadStatus: "pending_response" });
-    const reopenedRoot = await ctx.db.get(threadRootId);
-    if (reopenedRoot?.threadStatus !== "pending_response") {
-      throw new Error("❌ Test D nie powiódł się: Nie udało się ponowie otworzyć wątku");
+    if (!adkReply || !adkReply.isPartner || adkReply.threadId) {
+      throw new Error("❌ Test C nie powiódł się: Wiadomość ADK ma nieprawidłowe pola");
     }
 
     // ── SPRZĄTANIE ───────────────────────────────────────────────────────────
     await ctx.db.delete(internalNoteId);
     await ctx.db.delete(adkReplyId);
-    await ctx.db.delete(threadRootId);
+    await ctx.db.delete(outgoingId);
 
     return {
       success: true,
-      message: "Wszystkie testy wątków i notatek partnera zakończone SUKCESEM!",
+      message: "Wszystkie testy prostych wiadomości partnera zakończone SUKCESEM!",
     };
   },
 });
