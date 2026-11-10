@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -25,8 +25,6 @@ interface LotHistoryDrawerProps {
 }
 
 export function LotHistoryDrawer({ materialId, lotId, onClose }: LotHistoryDrawerProps) {
-  const [activeLotFilter, setActiveLotFilter] = useState<Id<"wms_lots"> | "ALL">("ALL");
-
   const data = useQuery(api.wms.lotHistory, {
     materialId,
     lotId,
@@ -51,14 +49,7 @@ export function LotHistoryDrawer({ materialId, lotId, onClose }: LotHistoryDrawe
   }, []);
 
   const lot = data?.lot;
-  const allLots = data?.lots ?? [];
-  const rawMovements = data?.movements ?? [];
-
-  const movements = useMemo(() => {
-    if (activeLotFilter === "ALL") return rawMovements;
-    return rawMovements.filter((m) => m.lotId === activeLotFilter);
-  }, [rawMovements, activeLotFilter]);
-
+  const movements = data?.movements ?? [];
   const totalStock = data?.totalAvailablePieces ?? lot?.quantityPieces ?? 0;
   const unit = lot?.unit || "szt.";
 
@@ -196,73 +187,7 @@ export function LotHistoryDrawer({ materialId, lotId, onClose }: LotHistoryDrawe
               {fmtNum(totalStock)} <span style={{ fontSize: 14, fontWeight: 400, color: "#8b949e" }}>{unit}</span>
             </div>
           </div>
-
-          {allLots.length > 1 && (
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, color: "#8b949e" }}>Dostawy / partie</div>
-              <div style={{ fontSize: 13, color: "#c9d1d9", marginTop: 2, fontWeight: 500 }}>
-                {allLots.length} {allLots.length < 5 ? "dostawy" : "dostaw"}
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* ─── FILTER TABS (TYLKO JEŚLI JEST WIĘCEJ NIŻ 1 PARTIA) ───────────── */}
-        {allLots.length > 1 && (
-          <div
-            style={{
-              padding: "10px 24px",
-              borderBottom: "1px solid #21262d",
-              background: "#0d1117",
-              display: "flex",
-              gap: 6,
-              overflowX: "auto",
-              flexShrink: 0,
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setActiveLotFilter("ALL")}
-              style={{
-                background: activeLotFilter === "ALL" ? "#21262d" : "transparent",
-                color: activeLotFilter === "ALL" ? "#f0f6fc" : "#8b949e",
-                border: "1px solid",
-                borderColor: activeLotFilter === "ALL" ? "#30363d" : "transparent",
-                borderRadius: 5,
-                padding: "4px 10px",
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                transition: "all 0.15s",
-              }}
-            >
-              Wszystkie ({rawMovements.length})
-            </button>
-            {allLots.map((l, i) => (
-              <button
-                key={l._id}
-                type="button"
-                onClick={() => setActiveLotFilter(l._id)}
-                style={{
-                  background: activeLotFilter === l._id ? "#21262d" : "transparent",
-                  color: activeLotFilter === l._id ? "#f0f6fc" : "#8b949e",
-                  border: "1px solid",
-                  borderColor: activeLotFilter === l._id ? "#30363d" : "transparent",
-                  borderRadius: 5,
-                  padding: "4px 10px",
-                  fontSize: 12,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "all 0.15s",
-                }}
-              >
-                Partia {i + 1} ({fmtNum(l.quantityPieces)} {unit})
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* ─── TIMELINE / MOVEMENTS FEED ───────────────────────────────────── */}
         <div
