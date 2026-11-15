@@ -332,42 +332,31 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void triggerDataWedgeSoftScan() {
+        // Legacy Motorola/Symbol DataWedge (TC55 Android 4.4)
+        Intent legacyIntent = new Intent("com.motorolasolutions.emdk.datawedge.api.ACTION_SOFTSCANTRIGGER");
+        legacyIntent.putExtra("com.motorolasolutions.emdk.datawedge.api.EXTRA_PARAMETER", "TOGGLE_SCANNING");
+        sendBroadcast(legacyIntent);
+
+        // Nowszy DataWedge (Symbol / Zebra)
+        Intent symbolIntent = new Intent("com.symbol.datawedge.api.ACTION");
+        symbolIntent.putExtra("com.symbol.datawedge.api.SOFT_SCAN_TRIGGER", "TOGGLE_SCANNING");
+        sendBroadcast(symbolIntent);
+    }
+
     private void renderScanScreen(LinearLayout body) {
-        LinearLayout card = makeCard("#111726", "#38BDF8");
-        TextView t = new TextView(this);
-        t.setText("Gotowy do skanowania");
-        t.setTextColor(Color.parseColor("#F8FAFC"));
-        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        t.setTypeface(null, Typeface.BOLD);
-        t.setGravity(Gravity.CENTER);
-        card.addView(t);
+        LinearLayout centerWrap = new LinearLayout(this);
+        centerWrap.setOrientation(LinearLayout.VERTICAL);
+        centerWrap.setGravity(Gravity.CENTER);
+        centerWrap.setPadding(dp(8), dp(48), dp(8), dp(24));
 
-        TextView sub = new TextView(this);
-        sub.setText("Naciśnij fizyczny spust lasera 1D w Symbol TC55, aby zeskanować kod kreskowy SKU.");
-        sub.setTextColor(Color.parseColor("#94A3B8"));
-        sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, dp(8), 0, 0);
-        card.addView(sub);
-
-        body.addView(card);
-
-        TextView orLabel = new TextView(this);
-        orLabel.setText("Lub wpisz kod SKU ręcznie:");
-        orLabel.setTextColor(Color.parseColor("#94A3B8"));
-        orLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        orLabel.setPadding(0, dp(18), 0, dp(6));
-        body.addView(orLabel);
-
-        final EditText skuInput = makeInput("np. PE50");
-        body.addView(skuInput);
-
-        Button goBtn = makeButton("Szukaj indeksu", "#2563EB", "#FFFFFF", 15);
+        Button scanBtn = makeButton("SKANUJ", "#2563EB", "#FFFFFF", 20);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
-        lp.topMargin = dp(10);
-        goBtn.setOnClickListener(v -> handleScannedRaw(skuInput.getText().toString()));
-        body.addView(goBtn, lp);
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(88));
+        scanBtn.setOnClickListener(v -> triggerDataWedgeSoftScan());
+        centerWrap.addView(scanBtn, lp);
+
+        body.addView(centerWrap);
     }
 
     private void renderPreviewScreen(LinearLayout body) {
