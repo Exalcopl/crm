@@ -22,6 +22,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -53,22 +54,35 @@ public class MainActivity extends Activity {
     // Keystroke HID fallback buffer
     private final StringBuilder keyBuffer = new StringBuilder();
     private long lastKeyAt = 0L;
+    private final Runnable keyFlushRunnable = () -> {
+        if (keyBuffer.length() >= 2) {
+            String raw = keyBuffer.toString();
+            keyBuffer.setLength(0);
+            handleScannedRaw(raw);
+        } else {
+            keyBuffer.setLength(0);
+        }
+    };
 
     private LinearLayout rootContainer;
 
     private final BroadcastReceiver dataWedgeReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent == null) return;
-            String data = intent.getStringExtra("com.symbol.datawedge.data_string");
-            if (data == null) {
-                data = intent.getStringExtra("com.motorolasolutions.emdk.datawedge.data_string");
-            }
-            if (data != null && !data.trim().isEmpty()) {
-                handleScannedRaw(data);
-            }
+            handleDataWedgeIntent(intent);
         }
     };
+
+    private void handleDataWedgeIntent(Intent intent) {
+        if (intent == null) return;
+        String data = intent.getStringExtra("com.symbol.datawedge.data_string");
+        if (data == null) {
+            data = intent.getStringExtra("com.motorolasolutions.emdk.datawedge.data_string");
+        }
+        if (data != null && !data.trim().isEmpty()) {
+            handleScannedRaw(data);
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +95,14 @@ public class MainActivity extends Activity {
         setContentView(rootContainer);
 
         render();
+        handleDataWedgeIntent(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleDataWedgeIntent(intent);
     }
 
     @Override
@@ -88,13 +110,13 @@ public class MainActivity extends Activity {
         super.onResume();
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_DATAWEDGE_SCAN);
-        filter.addCategory(Intent.CATEGORY_DEFAULT);
         registerReceiver(dataWedgeReceiver, filter);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        mainHandler.removeCallbacks(keyFlushRunnable);
         try {
             unregisterReceiver(dataWedgeReceiver);
         } catch (IllegalArgumentException ignored) {}
@@ -103,6 +125,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        mainHandler.removeCallbacks(keyFlushRunnable);
         executor.shutdownNow();
     }
 
@@ -113,7 +136,10 @@ public class MainActivity extends Activity {
             boolean inEditText = focused instanceof EditText;
             if (!inEditText && event.getAction() == KeyEvent.ACTION_DOWN) {
                 int keyCode = event.getKeyCode();
-                if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+                if (keyCode == KeyEvent.KEYCODE_ENTER
+                        || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                        || keyCode == KeyEvent.KEYCODE_TAB) {
+                    mainHandler.removeCallbacks(keyFlushRunnable);
                     if (keyBuffer.length() >= 2) {
                         String raw = keyBuffer.toString();
                         keyBuffer.setLength(0);
@@ -130,6 +156,8 @@ public class MainActivity extends Activity {
                         }
                         lastKeyAt = now;
                         keyBuffer.append((char) unicode);
+                        mainHandler.removeCallbacks(keyFlushRunnable);
+                        mainHandler.postDelayed(keyFlushRunnable, 300);
                     }
                 }
             }
@@ -144,6 +172,7 @@ public class MainActivity extends Activity {
         final String sku = ConvexClient.parseScannedSku(raw);
         if (sku.isEmpty()) return;
 
+        Toast.makeText(this, "Odczytano: " + sku, Toast.LENGTH_SHORT).show();
         loading = true;
         errorMessage = null;
         selectedOrder = null;
@@ -350,7 +379,7 @@ public class MainActivity extends Activity {
         centerWrap.setGravity(Gravity.CENTER);
         centerWrap.setPadding(dp(8), dp(48), dp(8), dp(24));
 
-        Button scanBtn = makeButton("SKANUJ", "#2563EB", "#FFFFFF", 20);
+        Button scanBtn = makeButton("SKANUJ", "#C4162C", "#FFFFFF", 20);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(88));
         scanBtn.setOnClickListener(v -> triggerDataWedgeSoftScan());
