@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -19,10 +19,42 @@ import {
   Package,
   Plus,
   QrCode,
+  ScanBarcode,
   Search,
   Truck,
   X,
 } from "lucide-react";
+
+const SCANNER_MODE_STORAGE_KEY = "wms_scanner_mode";
+type ScannerMode = "camera" | "zebra";
+
+function parseScannedSku(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/[?&]sku=([^&#]+)/i);
+  return (match ? decodeURIComponent(match[1]) : trimmed).toUpperCase();
+}
+
+function subscribeScannerMode(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("wms-scanner-mode-change", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("wms-scanner-mode-change", callback);
+  };
+}
+
+function getScannerModeSnapshot(): ScannerMode {
+  try {
+    const saved = localStorage.getItem(SCANNER_MODE_STORAGE_KEY);
+    return saved === "zebra" ? "zebra" : "camera";
+  } catch {
+    return "camera";
+  }
+}
+
+function getScannerModeServerSnapshot(): ScannerMode {
+  return "camera";
+}
 
 export default function WmsScanPage() {
   return (
@@ -91,9 +123,24 @@ function WmsScanContent() {
 
   // ─── Flow State ───────────────────────────────────────────────────────────
   const [step, setStep] = useState<Step>(initialSku ? "preview" : "scan");
+  const scannerMode = useSyncExternalStore(
+    subscribeScannerMode,
+    getScannerModeSnapshot,
+    getScannerModeServerSnapshot,
+  );
   const [currentSku, setCurrentSku] = useState<string>(initialSku);
   const [manualSkuInput, setManualSkuInput] = useState<string>("");
   const [manualInputOpen, setManualInputOpen] = useState(false);
+
+  function changeScannerMode(mode: ScannerMode) {
+    setManualInputOpen(false);
+    try {
+      localStorage.setItem(SCANNER_MODE_STORAGE_KEY, mode);
+      window.dispatchEvent(new Event("wms-scanner-mode-change"));
+    } catch {
+      // ignore storage errors
+    }
+  }
 
   // Selected Order for RW
   const [selectedOrder, setSelectedOrder] = useState<{
@@ -125,7 +172,7 @@ function WmsScanContent() {
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!session || step !== "scan" || manualInputOpen) {
+    if (!session || step !== "scan" || scannerMode !== "camera" || manualInputOpen) {
       if (scannerRef.current) {
         scannerRef.current.destroy();
         scannerRef.current = null;
@@ -145,11 +192,11 @@ function WmsScanContent() {
         if (!active) return;
         const text = result.data?.trim();
         if (text) {
-          // Wyciągamy kod SKU z URL np. ?sku=PE50 lub przyjmujemy czysty kod
-          const match = text.match(/[?&]sku=([^&#]+)/i);
-          const detectedSku = (match ? decodeURIComponent(match[1]) : text).trim().toUpperCase();
-          setCurrentSku(detectedSku);
-          setStep("preview");
+          const detectedSku = parseScannedSku(text);
+          if (detectedSku) {
+            setCurrentSku(detectedSku);
+            setStep("preview");
+          }
         }
       },
       {
@@ -170,7 +217,7 @@ function WmsScanContent() {
       .catch((err) => {
         if (active) {
           console.warn("Camera start failed:", err);
-          setCameraError("Brak dostępu do aparatu. Użyj wpisywania ręcznego poniżej.");
+          setCameraError("Brak dostępu do aparatu. Przełącz na tryb Zebra lub wpisz kod ręcznie.");
           setCameraActive(false);
         }
       });
@@ -180,7 +227,60 @@ function WmsScanContent() {
       scanner.destroy();
       scannerRef.current = null;
     };
-  }, [session, step, manualInputOpen]);
+  }, [session, step, scannerMode, manualInputOpen]);
+
+  // ─── Hardware Scanner (Zebra DataWedge / HID Keystroke) ───────────────────
+  const scanBufferRef = useRef("");
+  const lastKeyTimeRef = useRef(0);
+
+  useEffect(() => {
+    if (!session || (step !== "scan" && step !== "success")) {
+      scanBufferRef.current = "";
+      return;
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const isInputFocused =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      if (isInputFocused) return;
+
+      if (e.key === "Enter") {
+        const raw = scanBufferRef.current;
+        scanBufferRef.current = "";
+        if (raw.length >= 2) {
+          e.preventDefault();
+          const detectedSku = parseScannedSku(raw);
+          if (detectedSku) {
+            setSelectedOrder(null);
+            setQuantity(1);
+            setErrorMessage(null);
+            setSuccessData(null);
+            setCurrentSku(detectedSku);
+            setStep("preview");
+          }
+        }
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const now = Date.now();
+        if (now - lastKeyTimeRef.current > 250) {
+          scanBufferRef.current = "";
+        }
+        lastKeyTimeRef.current = now;
+        scanBufferRef.current += e.key;
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [session, step]);
 
   // ─── Convex Queries / Mutations ───────────────────────────────────────────
   const indexData = useQuery(
@@ -207,7 +307,7 @@ function WmsScanContent() {
   // ─── Akcje ────────────────────────────────────────────────────────────────
   function handleManualSkuSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
-    const clean = manualSkuInput.trim().toUpperCase();
+    const clean = parseScannedSku(manualSkuInput);
     if (!clean) return;
     setCurrentSku(clean);
     setManualInputOpen(false);
@@ -261,6 +361,7 @@ function WmsScanContent() {
     return (
       <div className="wms-scan-container">
         <div style={{ color: "#94a3b8", fontSize: 14 }}>Inicjalizacja…</div>
+        <WmsScanStyles />
       </div>
     );
   }
@@ -322,6 +423,7 @@ function WmsScanContent() {
             Anuluj
           </button>
         </div>
+        <WmsScanStyles />
       </div>
     );
   }
@@ -363,30 +465,89 @@ function WmsScanContent() {
         </button>
       </header>
 
-      {/* ── KROK 1: APARAT / SKANER ────────────────────────────────────── */}
+      {/* ── KROK 1: APARAT / SKANER ZEBRA ──────────────────────────────── */}
       {step === "scan" && (
         <div className="wms-viewfinder-wrap">
-          <div className="wms-camera-box">
-            <video ref={videoRef} playsInline muted className="wms-video" />
-            <div className="wms-scan-overlay">
-              <div className="wms-reticle">
-                <div className="wms-reticle-corner tl" />
-                <div className="wms-reticle-corner tr" />
-                <div className="wms-reticle-corner bl" />
-                <div className="wms-reticle-corner br" />
-                <div className="wms-scan-laser" />
-              </div>
-              <p className="wms-scan-tip">Skieruj aparat na kod QR na regale</p>
-            </div>
+          {/* Przełącznik trybu skanera */}
+          <div className="wms-mode-switch" role="tablist" aria-label="Tryb skanera">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={scannerMode === "zebra"}
+              onClick={() => changeScannerMode("zebra")}
+              className={`wms-mode-btn ${scannerMode === "zebra" ? "active" : ""}`}
+            >
+              <ScanBarcode size={16} />
+              <span>Skaner Zebra</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={scannerMode === "camera"}
+              onClick={() => changeScannerMode("camera")}
+              className={`wms-mode-btn ${scannerMode === "camera" ? "active" : ""}`}
+            >
+              <Camera size={16} />
+              <span>Aparat</span>
+            </button>
           </div>
 
-          {cameraError && (
-            <div className="wms-error-banner">
-              <span>{cameraError}</span>
+          {scannerMode === "zebra" ? (
+            <div className="wms-zebra-card">
+              <div className="wms-zebra-icon-wrap">
+                <ScanBarcode size={42} color="#38bdf8" />
+              </div>
+              <div className="wms-zebra-title">Gotowy do skanowania</div>
+              <p className="wms-zebra-sub">
+                Naciśnij fizyczny spust skanera Zebra, aby zeskanować kod QR lub kod kreskowy z regału.
+              </p>
+
+              <form onSubmit={handleManualSkuSubmit} className="wms-zebra-input-wrap">
+                <input
+                  type="text"
+                  inputMode="none"
+                  placeholder="Oczekiwanie na skan z Zebry…"
+                  value={manualSkuInput}
+                  onChange={(e) => setManualSkuInput(e.target.value)}
+                  className="wms-manual-input"
+                  aria-label="Pole skanera Zebra"
+                />
+                {manualSkuInput.trim().length > 0 && (
+                  <button type="submit" className="wms-manual-submit">
+                    Szukaj
+                  </button>
+                )}
+              </form>
+
+              <p className="wms-zebra-hint">
+                DataWedge: Keystroke output + Enter (bez wyskakiwania klawiatury ekranowej).
+              </p>
             </div>
+          ) : (
+            <>
+              <div className="wms-camera-box">
+                <video ref={videoRef} playsInline muted className="wms-video" />
+                <div className="wms-scan-overlay">
+                  <div className="wms-reticle">
+                    <div className="wms-reticle-corner tl" />
+                    <div className="wms-reticle-corner tr" />
+                    <div className="wms-reticle-corner bl" />
+                    <div className="wms-reticle-corner br" />
+                    <div className="wms-scan-laser" />
+                  </div>
+                  <p className="wms-scan-tip">Skieruj aparat na kod QR na regale</p>
+                </div>
+              </div>
+
+              {cameraError && (
+                <div className="wms-error-banner">
+                  <span>{cameraError}</span>
+                </div>
+              )}
+            </>
           )}
 
-          {/* Szybkie wpisanie SKU ręcznie */}
+          {/* Szybkie wpisanie SKU ręcznie (z klawiaturą ekranową) */}
           <div className="wms-manual-panel">
             {manualInputOpen ? (
               <form onSubmit={handleManualSkuSubmit} className="wms-manual-form">
@@ -409,7 +570,7 @@ function WmsScanContent() {
                 className="wms-manual-toggle"
               >
                 <Keyboard size={18} />
-                <span>Wpisz kod SKU ręcznie</span>
+                <span>Wpisz kod SKU z klawiatury</span>
               </button>
             )}
           </div>
@@ -754,9 +915,15 @@ function WmsScanContent() {
                 onClick={handleResetToScan}
                 className="wms-btn-primary"
               >
-                <Camera size={18} />
+                {scannerMode === "zebra" ? <ScanBarcode size={18} /> : <Camera size={18} />}
                 <span>Skanuj kolejny indeks</span>
               </button>
+
+              {scannerMode === "zebra" && (
+                <p className="wms-zebra-hint" style={{ textAlign: "center", margin: "2px 0 4px" }}>
+                  Możesz też od razu nacisnąć spust skanera Zebra.
+                </p>
+              )}
 
               <button
                 type="button"
@@ -770,8 +937,14 @@ function WmsScanContent() {
         </div>
       )}
 
-      {/* ── Stylistyka inline dla pełnej niezależności PWA ──────────────── */}
-      <style jsx>{`
+      <WmsScanStyles />
+    </div>
+  );
+}
+
+function WmsScanStyles() {
+  return (
+    <style jsx global>{`
         .wms-scan-shell {
           min-height: 100vh;
           background: #0b0f19;
@@ -1475,7 +1648,82 @@ function WmsScanContent() {
           font-weight: 500;
           color: #94a3b8;
         }
+
+        /* Zebra / Mode Switcher */
+        .wms-mode-switch {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+          padding: 4px;
+          border-radius: 12px;
+          background: #141b2d;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          margin-bottom: 12px;
+        }
+        .wms-mode-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 10px 12px;
+          border-radius: 9px;
+          border: none;
+          background: transparent;
+          color: #94a3b8;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .wms-mode-btn.active {
+          background: #2563eb;
+          color: #ffffff;
+        }
+        .wms-zebra-card {
+          background: #111726;
+          border: 1px solid rgba(56, 189, 248, 0.25);
+          border-radius: 16px;
+          padding: 28px 18px 20px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          gap: 10px;
+        }
+        .wms-zebra-icon-wrap {
+          width: 76px;
+          height: 76px;
+          border-radius: 22px;
+          background: rgba(56, 189, 248, 0.12);
+          border: 1px solid rgba(56, 189, 248, 0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 4px;
+        }
+        .wms-zebra-title {
+          font-size: 17px;
+          font-weight: 700;
+          color: #f8fafc;
+        }
+        .wms-zebra-sub {
+          font-size: 13px;
+          color: #94a3b8;
+          margin: 0 0 6px;
+          line-height: 1.45;
+          max-width: 300px;
+        }
+        .wms-zebra-input-wrap {
+          width: 100%;
+          display: flex;
+          gap: 8px;
+          margin-top: 4px;
+        }
+        .wms-zebra-hint {
+          font-size: 11px;
+          color: #64748b;
+          margin: 4px 0 0;
+        }
       `}</style>
-    </div>
   );
 }
