@@ -11,6 +11,9 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
+import android.text.InputType;
+import android.text.TextWatcher;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -374,6 +377,48 @@ public class MainActivity extends Activity {
     }
 
     private void renderScanScreen(LinearLayout body) {
+        // Ukryte pole przechwytujące tekst z DataWedge (Keystroke Output / commitText) bez wyskakującej klawiatury
+        final EditText hiddenCapture = new EditText(this);
+        hiddenCapture.setInputType(InputType.TYPE_NULL);
+        hiddenCapture.setBackgroundColor(Color.TRANSPARENT);
+        hiddenCapture.setTextColor(Color.TRANSPARENT);
+        hiddenCapture.setCursorVisible(false);
+        hiddenCapture.setFocusableInTouchMode(true);
+        hiddenCapture.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+
+        final Runnable captureFlush = () -> {
+            String raw = hiddenCapture.getText().toString().trim();
+            if (raw.length() >= 2) {
+                hiddenCapture.setText("");
+                handleScannedRaw(raw);
+            }
+        };
+
+        hiddenCapture.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override
+            public void afterTextChanged(Editable s) {
+                String text = s.toString();
+                if (text.contains("\n") || text.contains("\r")) {
+                    mainHandler.removeCallbacks(captureFlush);
+                    String clean = text.replace("\r", "").replace("\n", "").trim();
+                    s.clear();
+                    if (clean.length() >= 2) {
+                        handleScannedRaw(clean);
+                    }
+                    return;
+                }
+                if (text.trim().length() >= 2) {
+                    mainHandler.removeCallbacks(captureFlush);
+                    mainHandler.postDelayed(captureFlush, 250);
+                }
+            }
+        });
+        body.addView(hiddenCapture);
+        hiddenCapture.requestFocus();
+
         LinearLayout centerWrap = new LinearLayout(this);
         centerWrap.setOrientation(LinearLayout.VERTICAL);
         centerWrap.setGravity(Gravity.CENTER);
@@ -382,7 +427,10 @@ public class MainActivity extends Activity {
         Button scanBtn = makeButton("SKANUJ", "#C4162C", "#FFFFFF", 20);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(88));
-        scanBtn.setOnClickListener(v -> triggerDataWedgeSoftScan());
+        scanBtn.setOnClickListener(v -> {
+            hiddenCapture.requestFocus();
+            triggerDataWedgeSoftScan();
+        });
         centerWrap.addView(scanBtn, lp);
 
         body.addView(centerWrap);
