@@ -2048,3 +2048,158 @@ export const wipeWmsData = mutation({
     };
   },
 });
+
+// ─── Dziennik ruchów magazynowych ───────────────────────────────────────────
+
+export const listMovements = query({
+  args: {
+    type: v.optional(
+      v.union(
+        v.literal("PZ"),
+        v.literal("RW"),
+        v.literal("MM"),
+        v.literal("KOREKTA"),
+        v.literal("HOLD"),
+        v.literal("RELEASE"),
+      ),
+    ),
+    search: v.optional(v.string()),
+    sinceMs: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await getAuthUserId(ctx))) {
+      return {
+        items: [],
+        totalMatched: 0,
+        hasMore: false,
+        summary: { totalCount: 0, pzCount: 0, rwCount: 0 },
+      };
+    }
+
+    const limit = Math.min(Math.max(args.limit ?? 50, 10), 300);
+    const term = (args.search ?? "").trim().toLowerCase();
+
+    const rawMovements = await ctx.db
+      .query("wms_movements")
+      .withIndex("by_createdAt", (q) =>
+        args.sinceMs !== undefined ? q.gte("createdAt", args.sinceMs) : q,
+      )
+      .order("desc")
+      .take(500);
+
+    const lotCache = new Map<string, Doc<"wms_lots"> | null>();
+    const matCache = new Map<string, Doc<"materials"> | null>();
+    const docCache = new Map<string, Doc<"wms_documents"> | null>();
+    const orderCache = new Map<string, Doc<"orders"> | null>();
+    const userCache = new Map<string, Doc<"users"> | null>();
+    const locCache = new Map<string, Doc<"wms_locations"> | null>();
+
+    const getLot = async (id: Id<"wms_lots">) => {
+      const k = id as string;
+      if (!lotCache.has(k)) lotCache.set(k, await ctx.db.get(id));
+      return lotCache.get(k) ?? null;
+    };
+    const getMat = async (id: Id<"materials">) => {
+      const k = id as string;
+      if (!matCache.has(k)) matCache.set(k, await ctx.db.get(id));
+      return matCache.get(k) ?? null;
+    };
+    const getDoc = async (id: Id<"wms_documents">) => {
+      const k = id as string;
+      if (!docCache.has(k)) docCache.set(k, await ctx.db.get(id));
+      return docCache.get(k) ?? null;
+    };
+    const getOrder = async (id: Id<"orders">) => {
+      const k = id as string;
+      if (!orderCache.has(k)) orderCache.set(k, await ctx.db.get(id));
+      return orderCache.get(k) ?? null;
+    };
+    const getUser = async (id: Id<"users">) => {
+      const k = id as string;
+      if (!userCache.has(k)) userCache.set(k, await ctx.db.get(id));
+      return userCache.get(k) ?? null;
+    };
+    const getLoc = async (id: Id<"wms_locations">) => {
+      const k = id as string;
+      if (!locCache.has(k)) locCache.set(k, await ctx.db.get(id));
+      return locCache.get(k) ?? null;
+    };
+
+    const byType = args.type ? rawMovements.filter((m) => m.type === args.type) : rawMovements;
+
+    const enriched = await Promise.all(
+      byType.map(async (m) => {
+        const lot = await getLot(m.lotId);
+        const mat = lot ? await getMat(lot.materialId) : null;
+        const doc = m.documentId ? await getDoc(m.documentId) : null;
+        const order = doc?.orderId ? await getOrder(doc.orderId) : null;
+        const operator = await getUser(m.operatorId);
+        const fromLoc = m.fromLocationId ? await getLoc(m.fromLocationId) : null;
+        const toLoc = m.toLocationId ? await getLoc(m.toLocationId) : null;
+
+        return {
+          _id: m._id,
+          createdAt: m.createdAt,
+          type: m.type,
+          quantityDelta: m.quantityDelta,
+          quantityPieces: m.quantityPieces,
+          lotId: m.lotId,
+          materialId: lot?.materialId ?? null,
+          sku: mat?.sku ?? "",
+          materialName: mat?.name ?? "Nieznany indeks",
+          unit: mat?.unit ?? "szt.",
+          documentId: m.documentId ?? null,
+          documentType: doc?.type ?? null,
+          documentNumber: doc?.number ?? null,
+          orderNumber: order?.orderNumber ?? doc?.orderNumber ?? null,
+          customLabel: order?.customLabel ?? null,
+          clientName: order?.clientName ?? null,
+          fromLocationCode: fromLoc?.code ?? null,
+          toLocationCode: toLoc?.code ?? null,
+          note: m.note ?? null,
+          operatorName:
+            (operator?.name as string | undefined) ??
+            operator?.email ??
+            "System",
+        };
+      }),
+    );
+
+    const filtered = term
+      ? enriched.filter((item) => {
+          const haystack = [
+            item.sku,
+            item.materialName,
+            item.documentNumber ?? "",
+            item.orderNumber ?? "",
+            item.customLabel ?? "",
+            item.clientName ?? "",
+            item.operatorName,
+            item.note ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(term);
+        })
+      : enriched;
+
+    let pzCount = 0;
+    let rwCount = 0;
+    for (const item of filtered) {
+      if (item.type === "PZ") pzCount += 1;
+      else if (item.type === "RW") rwCount += 1;
+    }
+
+    return {
+      items: filtered.slice(0, limit),
+      totalMatched: filtered.length,
+      hasMore: filtered.length > limit,
+      summary: {
+        totalCount: filtered.length,
+        pzCount,
+        rwCount,
+      },
+    };
+  },
+});

@@ -111,6 +111,7 @@ const WMS_TABS: TabDef[] = [
     href: "/admin/wms/stany",
     match: (p) => p === "/admin/wms" || p.startsWith("/admin/wms/stany"),
   },
+  { id: "wms-ruchy", label: "Ruchy", href: "/admin/wms/ruchy", match: (p) => p.startsWith("/admin/wms/ruchy") },
   { id: "wms-indeksy", label: "Indeksy", href: "/admin/wms/indeksy", match: (p) => p.startsWith("/admin/wms/indeksy") },
   { id: "wms-pz", label: "PZ", href: "/admin/wms/pz", match: (p) => p.startsWith("/admin/wms/pz") },
   { id: "wms-rw", label: "RW", href: "/admin/wms/rw", match: (p) => p.startsWith("/admin/wms/rw") },
