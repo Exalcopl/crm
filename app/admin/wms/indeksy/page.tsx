@@ -24,6 +24,7 @@ import {
   C,
 } from "../_components/ui";
 import { buildScanUrl, downloadLabelPng, QrSvg } from "../_components/qr";
+import { Barcode128Svg, downloadBarcode128Png } from "../_components/barcode128";
 
 type IndexFormState = {
   id?: Id<"materials">;
@@ -64,6 +65,7 @@ export default function WmsIndeksyPage() {
   // Etykiety QR: zaznaczenie wielu indeksów + podgląd pojedynczego
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qrPreview, setQrPreview] = useState<{ id: string; sku: string; name: string } | null>(null);
+  const [labelFormat, setLabelFormat] = useState<"qr" | "1d">("qr");
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -74,9 +76,10 @@ export default function WmsIndeksyPage() {
     });
   }
 
-  function printLabels(ids: string[]) {
+  function printLabels(ids: string[], format?: "qr" | "1d" | "both") {
     if (ids.length === 0) return;
-    router.push(`/admin/wms/indeksy/etykiety?ids=${ids.join(",")}`);
+    const fmt = format ? `&format=${format}` : "";
+    router.push(`/admin/wms/indeksy/etykiety?ids=${ids.join(",")}${fmt}`);
   }
 
   // Filtry listy
@@ -633,20 +636,65 @@ export default function WmsIndeksyPage() {
               gap: 14,
             }}
           >
-            <div style={{ alignSelf: "stretch" }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>Etykieta QR</div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{qrPreview.name}</div>
+            <div style={{ alignSelf: "stretch", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>
+                  {labelFormat === "qr" ? "Etykieta QR" : "Kod kreskowy 1D (TC55)"}
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>{qrPreview.name}</div>
+              </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  background: "#0d1117",
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 6,
+                  padding: 2,
+                  gap: 2,
+                }}
+              >
+                {(
+                  [
+                    { id: "qr", label: "QR" },
+                    { id: "1d", label: "1D" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setLabelFormat(opt.id)}
+                    style={{
+                      background: labelFormat === opt.id ? "#1f6feb" : "transparent",
+                      color: labelFormat === opt.id ? "#ffffff" : C.muted,
+                      border: "none",
+                      borderRadius: 4,
+                      padding: "4px 9px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div style={{ background: "#fff", padding: 16, borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-              <QrSvg value={buildScanUrl(qrPreview.sku)} size={200} />
+            <div style={{ background: "#fff", padding: 16, borderRadius: 6, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, width: "100%", boxSizing: "border-box" }}>
+              {labelFormat === "qr" ? (
+                <QrSvg value={buildScanUrl(qrPreview.sku)} size={200} />
+              ) : (
+                <Barcode128Svg value={qrPreview.sku} height={80} style={{ width: "100%", height: 80 }} />
+              )}
               <div style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 22, color: "#000" }}>{qrPreview.sku}</div>
             </div>
             <div style={{ fontSize: 11, color: C.muted, textAlign: "center", wordBreak: "break-all" }}>
-              {buildScanUrl(qrPreview.sku)}
+              {labelFormat === "qr" ? buildScanUrl(qrPreview.sku) : `Code 128: ${qrPreview.sku}`}
             </div>
             <div style={{ display: "flex", gap: 8, alignSelf: "stretch" }}>
-              <Btn primary onClick={() => printLabels([qrPreview.id])}>Drukuj</Btn>
-              <Btn onClick={() => downloadLabelPng(qrPreview.sku)}>Pobierz PNG</Btn>
+              <Btn primary onClick={() => printLabels([qrPreview.id], labelFormat)}>Drukuj</Btn>
+              <Btn onClick={() => (labelFormat === "qr" ? downloadLabelPng(qrPreview.sku) : downloadBarcode128Png(qrPreview.sku))}>
+                Pobierz PNG
+              </Btn>
               <div style={{ flex: 1 }} />
               <Btn onClick={() => setQrPreview(null)}>Zamknij</Btn>
             </div>

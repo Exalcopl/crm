@@ -91,3 +91,43 @@ export function Barcode128Svg({
     </svg>
   );
 }
+
+/** Pobiera etykietę z kodem kreskowym Code 128 + SKU jako PNG. */
+export function downloadBarcode128Png(sku: string) {
+  const { bars, totalWidth } = encodeCode128B(sku);
+  const scale = 6;
+  const pad = 40;
+  const barH = 220;
+  const textH = 110;
+  const width = totalWidth * scale + pad * 2;
+  const height = barH + pad * 2 + textH;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "#000000";
+  for (const b of bars) {
+    ctx.fillRect(pad + b.x * scale, pad, b.w * scale, barH);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  let fontSize = 64;
+  ctx.font = `700 ${fontSize}px ui-monospace, Menlo, monospace`;
+  while (ctx.measureText(sku).width > width - pad * 2 && fontSize > 24) {
+    fontSize -= 4;
+    ctx.font = `700 ${fontSize}px ui-monospace, Menlo, monospace`;
+  }
+  ctx.fillText(sku, width / 2, pad + barH + textH / 2 + 8);
+
+  const a = document.createElement("a");
+  a.href = canvas.toDataURL("image/png");
+  a.download = `kod1d-${sku.replace(/[^A-Za-z0-9_-]+/g, "_")}.png`;
+  a.click();
+}
