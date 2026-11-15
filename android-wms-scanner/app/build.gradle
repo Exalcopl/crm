@@ -1,0 +1,34 @@
+plugins {
+    id "com.android.application"
+}
+
+def defaultConvexSiteUrl = System.getenv("CONVEX_SITE_URL") ?: ""
+
+android {
+    namespace "pl.exalco.wms"
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "pl.exalco.wms"
+        minSdk 19
+        targetSdk 33
+        versionCode 1
+        versionName "1.0.0"
+        buildConfigField "String", "DEFAULT_CONVEX_SITE_URL", "\"${defaultConvexSiteUrl}\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation "com.squareup.okhttp3:okhttp:3.12.13"
+}

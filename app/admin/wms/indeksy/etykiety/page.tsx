@@ -1,10 +1,13 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { buildScanUrl, QrSvg } from "../../_components/qr";
+import { Barcode128Svg } from "../../_components/barcode128";
+
+type LabelFormat = "qr" | "1d" | "both";
 
 /**
  * Wydruk etykiet QR dla indeksów (A4, siatka 3 × 8).
@@ -21,6 +24,10 @@ export default function EtykietyPage() {
 
 function EtykietyContent() {
   const params = useSearchParams();
+  const [format, setFormat] = useState<LabelFormat>(() => {
+    const f = params.get("format");
+    return f === "1d" || f === "both" ? f : "qr";
+  });
   const ids = useMemo(() => (params.get("ids") ?? "").split(",").filter(Boolean), [params]);
   const indexes = useQuery(api.wms.listIndexes, {});
 
@@ -64,6 +71,35 @@ function EtykietyContent() {
           max-width: 30mm;
           line-height: 1.1;
         }
+        .qr-label--1d {
+          flex-direction: column;
+          gap: 2mm;
+          padding: 3mm 4mm;
+        }
+        .qr-label--1d .qr-label-sku {
+          max-width: none;
+          font-size: 12pt;
+          letter-spacing: 0.5px;
+          text-align: center;
+        }
+        .qr-label--both {
+          gap: 3mm;
+          padding: 2.5mm 3mm;
+        }
+        .qr-label-both-right {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 1.5mm;
+          flex: 1;
+          min-width: 0;
+        }
+        .qr-label--both .qr-label-sku {
+          max-width: none;
+          font-size: 10pt;
+          text-align: center;
+        }
         @media print {
           @page { size: A4; margin: 0; }
           body * { visibility: hidden !important; }
@@ -86,12 +122,55 @@ function EtykietyContent() {
         }}
       >
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: "#f0f6fc" }}>Etykiety QR ({labels.length})</div>
+          <div style={{ fontSize: 16, fontWeight: 600, color: "#f0f6fc" }}>
+            Etykiety {format === "qr" ? "QR" : format === "1d" ? "1D (Code 128)" : "QR + 1D"} ({labels.length})
+          </div>
           <div style={{ fontSize: 12, color: "#8b949e", marginTop: 2 }}>
-            Arkusz A4, 24 etykiety (3 × 8). Zeskanowanie kodu otwiera wydanie RW w aplikacji mobilnej.
+            Arkusz A4, 24 etykiety (3 × 8).{" "}
+            {format === "qr"
+              ? "Kod QR otwiera skaner w aplikacji mobilnej."
+              : format === "1d"
+                ? "Kod kreskowy Code 128 dla lasera 1D (Symbol TC55)."
+                : "Obsługuje zarówno telefony (QR), jak i laser 1D (Symbol TC55)."}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              background: "#0d1117",
+              border: "1px solid #30363d",
+              borderRadius: 6,
+              padding: 2,
+              gap: 2,
+            }}
+          >
+            {(
+              [
+                { id: "qr", label: "QR" },
+                { id: "1d", label: "Kod 1D (TC55)" },
+                { id: "both", label: "QR + 1D" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setFormat(opt.id)}
+                style={{
+                  background: format === opt.id ? "#1f6feb" : "transparent",
+                  color: format === opt.id ? "#ffffff" : "#8b949e",
+                  border: "none",
+                  borderRadius: 4,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => history.back()}
@@ -136,9 +215,31 @@ function EtykietyContent() {
         ) : (
           <div className="qr-sheet">
             {labels.map((l) => (
-              <div key={l.id} className="qr-label">
-                <QrSvg value={buildScanUrl(l.sku)} size={110} />
-                <div className="qr-label-sku">{l.sku}</div>
+              <div
+                key={l.id}
+                className={`qr-label ${format === "1d" ? "qr-label--1d" : format === "both" ? "qr-label--both" : ""}`}
+              >
+                {format === "qr" && (
+                  <>
+                    <QrSvg value={buildScanUrl(l.sku)} size={110} />
+                    <div className="qr-label-sku">{l.sku}</div>
+                  </>
+                )}
+                {format === "1d" && (
+                  <>
+                    <Barcode128Svg value={l.sku} height={46} style={{ width: "58mm", height: "16mm" }} />
+                    <div className="qr-label-sku">{l.sku}</div>
+                  </>
+                )}
+                {format === "both" && (
+                  <>
+                    <QrSvg value={buildScanUrl(l.sku)} size={82} />
+                    <div className="qr-label-both-right">
+                      <Barcode128Svg value={l.sku} height={40} style={{ width: "34mm", height: "11mm" }} />
+                      <div className="qr-label-sku">{l.sku}</div>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>

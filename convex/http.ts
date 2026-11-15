@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { auth } from "./auth";
 
 const http = httpRouter();
@@ -712,6 +713,127 @@ http.route({
         JSON.stringify({ success: false, error: message }),
         { status: 500, headers: jsonHeaders }
       );
+    }
+  }),
+});
+
+// ─── Mobilna aplikacja Android WMS (Symbol TC55) ────────────────────────────
+
+const wmsCorsHeaders = {
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function wmsJson(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: wmsCorsHeaders });
+}
+
+http.route({
+  pathPrefix: "/api/wms-mobile/",
+  method: "OPTIONS",
+  handler: httpAction(async () => new Response(null, { status: 204, headers: wmsCorsHeaders })),
+});
+
+// POST /api/wms-mobile/pin  { pin: "1234" }
+http.route({
+  path: "/api/wms-mobile/pin",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = (await request.json()) as { pin?: unknown };
+      const pin = typeof body.pin === "string" ? body.pin : "";
+      const session = await ctx.runAction(api.authPin.resolvePin, { pin });
+      if (!session) {
+        return wmsJson({ error: "Nieprawidłowy PIN" }, 401);
+      }
+      return wmsJson(session, 200);
+    } catch (err: unknown) {
+      return wmsJson({ error: err instanceof Error ? err.message : "Błąd autoryzacji PIN" }, 400);
+    }
+  }),
+});
+
+// GET /api/wms-mobile/index?sku=...&userId=...
+http.route({
+  path: "/api/wms-mobile/index",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const sku = (url.searchParams.get("sku") ?? "").trim();
+    const userId = (url.searchParams.get("userId") ?? "").trim();
+    if (!sku || !userId) {
+      return wmsJson({ error: "Wymagane parametry: sku oraz userId" }, 400);
+    }
+    try {
+      const data = await ctx.runQuery(api.wms.appGetIndexBySku, {
+        sku,
+        currentUserId: userId,
+      });
+      if (!data) {
+        return wmsJson({ error: `Nie znaleziono indeksu o SKU "${sku}"` }, 404);
+      }
+      return wmsJson(data, 200);
+    } catch (err: unknown) {
+      return wmsJson({ error: err instanceof Error ? err.message : "Błąd pobierania indeksu" }, 400);
+    }
+  }),
+});
+
+// GET /api/wms-mobile/orders?search=...&userId=...
+http.route({
+  path: "/api/wms-mobile/orders",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search") ?? "";
+    const userId = (url.searchParams.get("userId") ?? "").trim();
+    if (!userId) {
+      return wmsJson({ error: "Wymagany parametr: userId" }, 400);
+    }
+    try {
+      const orders = await ctx.runQuery(api.wms.appSearchOrders, {
+        search,
+        currentUserId: userId,
+      });
+      return wmsJson({ orders }, 200);
+    } catch (err: unknown) {
+      return wmsJson({ error: err instanceof Error ? err.message : "Błąd pobierania zleceń" }, 400);
+    }
+  }),
+});
+
+// POST /api/wms-mobile/rw  { materialId, orderId, quantity, userId }
+http.route({
+  path: "/api/wms-mobile/rw",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = (await request.json()) as {
+        materialId?: unknown;
+        orderId?: unknown;
+        quantity?: unknown;
+        userId?: unknown;
+      };
+      const materialId = typeof body.materialId === "string" ? body.materialId : "";
+      const orderId = typeof body.orderId === "string" ? body.orderId : "";
+      const userId = typeof body.userId === "string" ? body.userId : "";
+      const quantity = typeof body.quantity === "number" ? body.quantity : Number(body.quantity);
+
+      if (!materialId || !orderId || !userId || !Number.isFinite(quantity) || quantity <= 0) {
+        return wmsJson({ error: "Nieprawidłowe dane wydania RW" }, 400);
+      }
+
+      const result = await ctx.runMutation(api.wms.appQuickRw, {
+        materialId: materialId as Id<"materials">,
+        orderId: orderId as Id<"orders">,
+        quantity,
+        currentUserId: userId,
+      });
+      return wmsJson(result, 200);
+    } catch (err: unknown) {
+      return wmsJson({ error: err instanceof Error ? err.message : "Błąd zatwierdzania RW" }, 400);
     }
   }),
 });

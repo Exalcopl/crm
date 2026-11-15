@@ -1,0 +1,45 @@
+name: Build Exalco WMS Android APK (TC55)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "android-wms-scanner/**"
+      - ".github/workflows/build-android-scanner.yml"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 7.6.3
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "7.6.3"
+
+      - name: Bundle ISRG Root X1 certificate for Android 4.4.3
+        run: |
+          mkdir -p android-wms-scanner/app/src/main/res/raw
+          curl -fsSL https://letsencrypt.org/certs/isrgrootx1.pem -o android-wms-scanner/app/src/main/res/raw/isrg_root_x1.pem
+
+      - name: Build Debug APK
+        env:
+          CONVEX_SITE_URL: ${{ vars.CONVEX_SITE_URL }}
+        run: gradle -p android-wms-scanner assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: exalco-wms-tc55
+          path: android-wms-scanner/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

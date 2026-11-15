@@ -1,0 +1,93 @@
+"use client";
+
+import React, { useMemo } from "react";
+
+/**
+ * Wektorowy generator kodów kreskowych Code 128 (Code Set B) jako <svg>.
+ * Obsługuje pełny zakres drukowalnych znaków ASCII (32–126) i daje ostry wydruk
+ * dla skanerów laserowych 1D (np. Symbol TC55).
+ */
+
+// Wzorce szerokości pasków i przerw dla symboli 0..106 w standardzie ISO/IEC 15417 (Code 128).
+const CODE128_PATTERNS: readonly string[] = [
+  "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+  "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+  "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+  "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+  "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+  "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+  "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+  "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+  "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+  "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+  "114131", "311141", "411131", "211412", "211214", "211232", "2331112",
+];
+
+const START_B = 104;
+const STOP = 106;
+const QUIET_ZONE_MODULES = 10;
+
+function encodeCode128B(value: string): { bars: Array<{ x: number; w: number }>; totalWidth: number } {
+  const clean = Array.from(value)
+    .map((ch) => ch.charCodeAt(0))
+    .filter((code) => code >= 32 && code <= 126);
+
+  const values: number[] = [START_B];
+  let checksum = START_B;
+
+  clean.forEach((code, idx) => {
+    const sym = code - 32;
+    values.push(sym);
+    checksum += (idx + 1) * sym;
+  });
+
+  values.push(checksum % 103);
+  values.push(STOP);
+
+  const bars: Array<{ x: number; w: number }> = [];
+  let cursor = QUIET_ZONE_MODULES;
+
+  for (const sym of values) {
+    const pattern = CODE128_PATTERNS[sym];
+    for (let i = 0; i < pattern.length; i++) {
+      const width = Number(pattern[i]);
+      if (i % 2 === 0) {
+        bars.push({ x: cursor, w: width });
+      }
+      cursor += width;
+    }
+  }
+
+  return { bars, totalWidth: cursor + QUIET_ZONE_MODULES };
+}
+
+export function Barcode128Svg({
+  value,
+  height = 48,
+  className,
+  style,
+}: {
+  value: string;
+  height?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const { bars, totalWidth } = useMemo(() => encodeCode128B(value), [value]);
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox={`0 0 ${totalWidth} ${height}`}
+      preserveAspectRatio="none"
+      shapeRendering="crispEdges"
+      className={className}
+      style={{ display: "block", background: "#ffffff", ...style }}
+      aria-label={`Kod kreskowy ${value}`}
+    >
+      <rect x={0} y={0} width={totalWidth} height={height} fill="#ffffff" />
+      {bars.map((b, idx) => (
+        <rect key={idx} x={b.x} y={0} width={b.w} height={height} fill="#000000" />
+      ))}
+    </svg>
+  );
+}
