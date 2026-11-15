@@ -1843,12 +1843,12 @@ export const appGetIndexBySku = query({
 });
 
 export const appSearchOrders = query({
-  args: { search: v.optional(v.string()), currentUserId: v.string() },
-  handler: async (ctx, { search, currentUserId }) => {
+  args: { search: v.optional(v.string()), status: v.optional(v.string()), currentUserId: v.string() },
+  handler: async (ctx, { search, status, currentUserId }) => {
     await requireAppUser(ctx, currentUserId);
     const term = (search ?? "").trim().toLowerCase();
     const orders = (await ctx.db.query("orders").order("desc").collect()).filter(
-      (o) => o.archived !== true,
+      (o) => o.archived !== true && (!status || o.status === status),
     );
     const filtered = term
       ? orders.filter(
@@ -1857,7 +1857,9 @@ export const appSearchOrders = query({
             (o.clientName ?? "").toLowerCase().includes(term) ||
             (o.customLabel ?? "").toLowerCase().includes(term),
         )
-      : orders.filter((o) => o.status !== "gotowe");
+      : status
+        ? orders
+        : orders.filter((o) => o.status !== "gotowe");
     return filtered.slice(0, 25).map((o) => ({
       _id: o._id,
       orderNumber: o.orderNumber,

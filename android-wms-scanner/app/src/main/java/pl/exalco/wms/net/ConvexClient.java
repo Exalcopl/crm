@@ -102,12 +102,14 @@ public class ConvexClient {
         public final String orderNumber;
         public final String clientName;
         public final String status;
+        public final String customLabel;
 
-        public OrderItem(String id, String orderNumber, String clientName, String status) {
+        public OrderItem(String id, String orderNumber, String clientName, String status, String customLabel) {
             this.id = id;
             this.orderNumber = orderNumber;
             this.clientName = clientName;
             this.status = status;
+            this.customLabel = customLabel;
         }
     }
 
@@ -163,7 +165,8 @@ public class ConvexClient {
                         o.getString("_id"),
                         o.optString("orderNumber", ""),
                         o.optString("clientName", ""),
-                        o.optString("status", "")
+                        o.optString("status", ""),
+                        o.isNull("customLabel") ? "" : o.optString("customLabel", "")
                 ));
             }
         }

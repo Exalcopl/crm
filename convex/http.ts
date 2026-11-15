@@ -809,6 +809,7 @@ http.route({
       const userId = await resolveWmsUserId(ctx, providedUserId);
       const orders = await ctx.runQuery(api.wms.appSearchOrders, {
         search,
+        status: "produkcja",
         currentUserId: userId,
       });
       return wmsJson({ orders }, 200);

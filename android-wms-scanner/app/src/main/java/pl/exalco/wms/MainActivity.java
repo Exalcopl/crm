@@ -487,7 +487,7 @@ public class MainActivity extends Activity {
         body.addView(card);
 
         if (currentIndex.totalAvailable > 0) {
-            Button nextBtn = makeButton("Wydaj na zlecenie (RW) →", "#2563EB", "#FFFFFF", 15);
+            Button nextBtn = makeButton("Wydaj na zlecenie (RW) →", "#C4162C", "#FFFFFF", 15);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
             lp.topMargin = dp(14);
@@ -534,10 +534,11 @@ public class MainActivity extends Activity {
         }
 
         for (final ConvexClient.OrderItem order : orders) {
-            LinearLayout row = makeCard("#111726", "#334155");
+            boolean hasCustom = order.customLabel != null && !order.customLabel.trim().isEmpty();
+            LinearLayout row = makeCard("#111726", hasCustom ? "#C4162C" : "#334155");
             LinearLayout.LayoutParams rLp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            rLp.bottomMargin = dp(8);
+            rLp.bottomMargin = dp(10);
             row.setOnClickListener(v -> {
                 selectedOrder = order;
                 step = Step.QUANTITY;
@@ -545,10 +546,20 @@ public class MainActivity extends Activity {
                 render();
             });
 
+            if (hasCustom) {
+                TextView customTv = new TextView(this);
+                customTv.setText(order.customLabel.trim());
+                customTv.setTextColor(Color.parseColor("#FFFFFF"));
+                customTv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
+                customTv.setTypeface(null, Typeface.BOLD);
+                customTv.setPadding(0, 0, 0, dp(4));
+                row.addView(customTv);
+            }
+
             TextView num = new TextView(this);
             num.setText(order.orderNumber);
-            num.setTextColor(Color.parseColor("#F8FAFC"));
-            num.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            num.setTextColor(hasCustom ? Color.parseColor("#38BDF8") : Color.parseColor("#F8FAFC"));
+            num.setTextSize(TypedValue.COMPLEX_UNIT_SP, hasCustom ? 13 : 15);
             num.setTypeface(null, Typeface.BOLD);
             row.addView(num);
 
@@ -556,7 +567,7 @@ public class MainActivity extends Activity {
                 TextView cl = new TextView(this);
                 cl.setText(order.clientName);
                 cl.setTextColor(Color.parseColor("#94A3B8"));
-                cl.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+                cl.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
                 row.addView(cl);
             }
             body.addView(row, rLp);
@@ -667,7 +678,7 @@ public class MainActivity extends Activity {
 
         body.addView(card);
 
-        Button nextBtn = makeButton("Skanuj kolejny indeks", "#2563EB", "#FFFFFF", 15);
+        Button nextBtn = makeButton("Skanuj kolejny indeks", "#C4162C", "#FFFFFF", 15);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         lp.topMargin = dp(16);
