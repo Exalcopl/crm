@@ -23,8 +23,8 @@ import {
   Tr,
   C,
 } from "../_components/ui";
-import { buildScanUrl, downloadLabelPng, QrSvg } from "../_components/qr";
-import { Barcode128Svg, downloadBarcode128Png } from "../_components/barcode128";
+import { buildScanUrl, downloadLabelPng, downloadLabelSvg, QrSvg } from "../_components/qr";
+import { Barcode128Svg, downloadBarcode128Png, downloadBarcode128Svg } from "../_components/barcode128";
 
 type IndexFormState = {
   id?: Id<"materials">;
@@ -690,10 +690,13 @@ export default function WmsIndeksyPage() {
             <div style={{ fontSize: 11, color: C.muted, textAlign: "center", wordBreak: "break-all" }}>
               {labelFormat === "qr" ? buildScanUrl(qrPreview.sku) : `Code 128: ${qrPreview.sku}`}
             </div>
-            <div style={{ display: "flex", gap: 8, alignSelf: "stretch" }}>
+            <div style={{ display: "flex", gap: 8, alignSelf: "stretch", flexWrap: "wrap" }}>
               <Btn primary onClick={() => printLabels([qrPreview.id], labelFormat)}>Drukuj</Btn>
               <Btn onClick={() => (labelFormat === "qr" ? downloadLabelPng(qrPreview.sku) : downloadBarcode128Png(qrPreview.sku))}>
-                Pobierz PNG
+                PNG
+              </Btn>
+              <Btn onClick={() => (labelFormat === "qr" ? downloadLabelSvg(qrPreview.sku) : downloadBarcode128Svg(qrPreview.sku))}>
+                SVG
               </Btn>
               <div style={{ flex: 1 }} />
               <Btn onClick={() => setQrPreview(null)}>Zamknij</Btn>

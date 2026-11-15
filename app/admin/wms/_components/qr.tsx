@@ -66,3 +66,19 @@ export async function downloadLabelPng(sku: string) {
   a.download = `etykieta-${sku.replace(/[^A-Za-z0-9_-]+/g, "_")}.png`;
   a.click();
 }
+
+/** Pobiera etykietę QR jako plik SVG. */
+export async function downloadLabelSvg(sku: string) {
+  const svg = await QRCode.toString(buildScanUrl(sku), {
+    type: "svg",
+    margin: 2,
+    errorCorrectionLevel: "M",
+  });
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `etykieta-${sku.replace(/[^A-Za-z0-9_-]+/g, "_")}.svg`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

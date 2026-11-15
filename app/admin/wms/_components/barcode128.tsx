@@ -131,3 +131,38 @@ export function downloadBarcode128Png(sku: string) {
   a.download = `kod1d-${sku.replace(/[^A-Za-z0-9_-]+/g, "_")}.png`;
   a.click();
 }
+
+/** Pobiera etykietę z kodem kreskowym Code 128 + SKU jako wektorowy plik SVG. */
+export function downloadBarcode128Svg(sku: string) {
+  const { bars, totalWidth } = encodeCode128B(sku);
+  const scale = 3;
+  const pad = 20;
+  const barH = 110;
+  const textH = 44;
+  const width = totalWidth * scale + pad * 2;
+  const height = barH + pad * 2 + textH;
+  const escapedSku = sku
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const rects = bars
+    .map((b) => `<rect x="${pad + b.x * scale}" y="${pad}" width="${b.w * scale}" height="${barH}" fill="#000000"/>`)
+    .join("");
+
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">`,
+    `<rect x="0" y="0" width="${width}" height="${height}" fill="#ffffff"/>`,
+    rects,
+    `<text x="${width / 2}" y="${pad + barH + 30}" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="26" font-weight="700" fill="#000000">${escapedSku}</text>`,
+    `</svg>`,
+  ].join("");
+
+  const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `kod1d-${sku.replace(/[^A-Za-z0-9_-]+/g, "_")}.svg`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
