@@ -350,7 +350,7 @@ const segmentedStyle: React.CSSProperties = {
 
 function segmentedBtnStyle(active: boolean): React.CSSProperties {
   return {
-    background: active ? "#1f6feb" : "transparent",
+    background: active ? "var(--accent-primary)" : "transparent",
     color: active ? "#ffffff" : C.muted,
     border: "none",
     borderRadius: 4,

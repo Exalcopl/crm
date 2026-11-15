@@ -157,7 +157,7 @@ function EtykietyContent() {
                 type="button"
                 onClick={() => setFormat(opt.id)}
                 style={{
-                  background: format === opt.id ? "#1f6feb" : "transparent",
+                  background: format === opt.id ? "var(--accent-primary)" : "transparent",
                   color: format === opt.id ? "#ffffff" : "#8b949e",
                   border: "none",
                   borderRadius: 4,

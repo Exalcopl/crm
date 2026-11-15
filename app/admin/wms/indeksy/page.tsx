@@ -664,7 +664,7 @@ export default function WmsIndeksyPage() {
                     type="button"
                     onClick={() => setLabelFormat(opt.id)}
                     style={{
-                      background: labelFormat === opt.id ? "#1f6feb" : "transparent",
+                      background: labelFormat === opt.id ? "var(--accent-primary)" : "transparent",
                       color: labelFormat === opt.id ? "#ffffff" : C.muted,
                       border: "none",
                       borderRadius: 4,
