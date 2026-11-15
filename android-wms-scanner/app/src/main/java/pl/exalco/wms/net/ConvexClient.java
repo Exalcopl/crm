@@ -136,7 +136,7 @@ public class ConvexClient {
     public IndexInfo getIndexBySku(String sku, String userId) throws Exception {
         ensureBaseUrl();
         String path = "/api/wms-mobile/index?sku=" + URLEncoder.encode(sku, "UTF-8")
-                + "&userId=" + URLEncoder.encode(userId, "UTF-8");
+                + (userId != null && !userId.isEmpty() ? "&userId=" + URLEncoder.encode(userId, "UTF-8") : "");
         JSONObject json = getJson(path);
         return new IndexInfo(
                 json.getString("materialId"),
@@ -152,7 +152,7 @@ public class ConvexClient {
     public List<OrderItem> searchOrders(String search, String userId) throws Exception {
         ensureBaseUrl();
         String path = "/api/wms-mobile/orders?search=" + URLEncoder.encode(search == null ? "" : search, "UTF-8")
-                + "&userId=" + URLEncoder.encode(userId, "UTF-8");
+                + (userId != null && !userId.isEmpty() ? "&userId=" + URLEncoder.encode(userId, "UTF-8") : "");
         JSONObject json = getJson(path);
         JSONArray arr = json.optJSONArray("orders");
         List<OrderItem> list = new ArrayList<>();
@@ -176,7 +176,9 @@ public class ConvexClient {
         payload.put("materialId", materialId);
         payload.put("orderId", orderId);
         payload.put("quantity", quantity);
-        payload.put("userId", userId);
+        if (userId != null && !userId.isEmpty()) {
+            payload.put("userId", userId);
+        }
         JSONObject json = postJson("/api/wms-mobile/rw", payload);
         return new RwResult(
                 json.optString("documentId", ""),

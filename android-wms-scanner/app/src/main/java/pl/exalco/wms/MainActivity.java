@@ -1,19 +1,16 @@
 package pl.exalco.wms;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -25,7 +22,6 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -33,25 +29,20 @@ import java.util.concurrent.Executors;
 import pl.exalco.wms.net.ConvexClient;
 
 public class MainActivity extends Activity {
-    private static final String PREFS_NAME = "exalco_wms_prefs";
-    private static final String KEY_CONVEX_URL = "convex_site_url";
     private static final String ACTION_DATAWEDGE_SCAN = "pl.exalco.wms.SCAN";
 
     private enum Step {
-        PIN, SCAN, PREVIEW, ORDER, QUANTITY, SUCCESS
+        SCAN, PREVIEW, ORDER, QUANTITY, SUCCESS
     }
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ConvexClient client;
-    private SharedPreferences prefs;
 
-    private Step step = Step.PIN;
+    private Step step = Step.SCAN;
     private boolean loading = false;
     private String errorMessage = null;
 
-    private String pinInput = "";
-    private ConvexClient.PinSession session = null;
     private ConvexClient.IndexInfo currentIndex = null;
     private List<ConvexClient.OrderItem> orders = new ArrayList<>();
     private ConvexClient.OrderItem selectedOrder = null;
@@ -82,9 +73,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String savedUrl = prefs.getString(KEY_CONVEX_URL, BuildConfig.DEFAULT_CONVEX_SITE_URL);
-        client = new ConvexClient(this, savedUrl);
+        client = new ConvexClient(this, BuildConfig.DEFAULT_CONVEX_SITE_URL);
 
         rootContainer = new LinearLayout(this);
         rootContainer.setOrientation(LinearLayout.VERTICAL);
@@ -119,7 +108,7 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if ((step == Step.SCAN || step == Step.SUCCESS) && session != null && !loading) {
+        if ((step == Step.SCAN || step == Step.SUCCESS) && !loading) {
             View focused = getCurrentFocus();
             boolean inEditText = focused instanceof EditText;
             if (!inEditText && event.getAction() == KeyEvent.ACTION_DOWN) {
@@ -149,7 +138,7 @@ public class MainActivity extends Activity {
     }
 
     private void handleScannedRaw(String raw) {
-        if (session == null || loading) return;
+        if (loading) return;
         if (step != Step.SCAN && step != Step.SUCCESS && step != Step.PREVIEW) return;
 
         final String sku = ConvexClient.parseScannedSku(raw);
@@ -164,7 +153,7 @@ public class MainActivity extends Activity {
 
         executor.execute(() -> {
             try {
-                ConvexClient.IndexInfo info = client.getIndexBySku(sku, session.userId);
+                ConvexClient.IndexInfo info = client.getIndexBySku(sku, null);
                 mainHandler.post(() -> {
                     loading = false;
                     currentIndex = info;
@@ -183,42 +172,14 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void submitPin(final String pin) {
-        if (loading) return;
-        loading = true;
-        errorMessage = null;
-        render();
-
-        executor.execute(() -> {
-            try {
-                ConvexClient.PinSession s = client.verifyPin(pin);
-                mainHandler.post(() -> {
-                    loading = false;
-                    session = s;
-                    pinInput = "";
-                    step = Step.SCAN;
-                    render();
-                });
-            } catch (final Exception e) {
-                mainHandler.post(() -> {
-                    loading = false;
-                    pinInput = "";
-                    errorMessage = e.getMessage();
-                    render();
-                });
-            }
-        });
-    }
-
     private void loadOrders(final String search) {
-        if (session == null) return;
         loading = true;
         errorMessage = null;
         render();
 
         executor.execute(() -> {
             try {
-                List<ConvexClient.OrderItem> list = client.searchOrders(search, session.userId);
+                List<ConvexClient.OrderItem> list = client.searchOrders(search, null);
                 mainHandler.post(() -> {
                     loading = false;
                     orders = list;
@@ -235,7 +196,7 @@ public class MainActivity extends Activity {
     }
 
     private void submitRw() {
-        if (session == null || currentIndex == null || selectedOrder == null || loading) return;
+        if (currentIndex == null || selectedOrder == null || loading) return;
         if (quantity <= 0 || quantity > currentIndex.totalAvailable) {
             errorMessage = "Ilość musi być od 1 do " + currentIndex.totalAvailable;
             render();
@@ -252,7 +213,7 @@ public class MainActivity extends Activity {
                         currentIndex.materialId,
                         selectedOrder.id,
                         quantity,
-                        session.userId
+                        null
                 );
                 mainHandler.post(() -> {
                     loading = false;
@@ -270,37 +231,10 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void showServerSettingsDialog() {
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        input.setHint("https://twoja-instancja.convex.site");
-        input.setText(client.getBaseUrl());
-        input.setTextColor(Color.WHITE);
-
-        new AlertDialog.Builder(this)
-                .setTitle("Adres serwera Convex")
-                .setMessage("Podaj bazowy adres .convex.site:")
-                .setView(input)
-                .setPositiveButton("Zapisz", (d, w) -> {
-                    String url = input.getText().toString().trim();
-                    prefs.edit().putString(KEY_CONVEX_URL, url).apply();
-                    client.setBaseUrl(url);
-                    Toast.makeText(this, "Zapisano adres serwera", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("Anuluj", null)
-                .show();
-    }
-
     // ─── UI Rendering ────────────────────────────────────────────────────────
 
     private void render() {
         rootContainer.removeAllViews();
-
-        if (step == Step.PIN) {
-            renderPinScreen();
-            return;
-        }
-
         rootContainer.addView(buildTopBar());
 
         ScrollView scroll = new ScrollView(this);
@@ -338,8 +272,6 @@ public class MainActivity extends Activity {
             case SUCCESS:
                 renderSuccessScreen(body);
                 break;
-            default:
-                break;
         }
     }
 
@@ -350,25 +282,23 @@ public class MainActivity extends Activity {
         bar.setBackgroundColor(Color.parseColor("#111726"));
         bar.setPadding(dp(12), dp(10), dp(12), dp(10));
 
-        Button backBtn = makeButton("←", "#1E293B", "#F8FAFC", 16);
-        backBtn.setOnClickListener(v -> {
-            errorMessage = null;
-            if (step == Step.PREVIEW) {
-                step = Step.SCAN;
-            } else if (step == Step.ORDER) {
-                step = Step.PREVIEW;
-            } else if (step == Step.QUANTITY) {
-                step = Step.ORDER;
-            } else if (step == Step.SUCCESS) {
-                step = Step.SCAN;
-            } else {
-                session = null;
-                pinInput = "";
-                step = Step.PIN;
-            }
-            render();
-        });
-        bar.addView(backBtn, new LinearLayout.LayoutParams(dp(44), dp(40)));
+        if (step != Step.SCAN) {
+            Button backBtn = makeButton("←", "#1E293B", "#F8FAFC", 16);
+            backBtn.setOnClickListener(v -> {
+                errorMessage = null;
+                if (step == Step.PREVIEW) {
+                    step = Step.SCAN;
+                } else if (step == Step.ORDER) {
+                    step = Step.PREVIEW;
+                } else if (step == Step.QUANTITY) {
+                    step = Step.ORDER;
+                } else if (step == Step.SUCCESS) {
+                    step = Step.SCAN;
+                }
+                render();
+            });
+            bar.addView(backBtn, new LinearLayout.LayoutParams(dp(44), dp(40)));
+        }
 
         TextView title = new TextView(this);
         title.setText(getStepTitle());
@@ -378,15 +308,15 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
         bar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        Button logoutBtn = makeButton("PIN", "#1E293B", "#94A3B8", 12);
-        logoutBtn.setOnClickListener(v -> {
-            session = null;
-            pinInput = "";
-            errorMessage = null;
-            step = Step.PIN;
-            render();
-        });
-        bar.addView(logoutBtn, new LinearLayout.LayoutParams(dp(54), dp(40)));
+        if (step != Step.SCAN) {
+            Button resetBtn = makeButton("Skan", "#1E293B", "#94A3B8", 12);
+            resetBtn.setOnClickListener(v -> {
+                errorMessage = null;
+                step = Step.SCAN;
+                render();
+            });
+            bar.addView(resetBtn, new LinearLayout.LayoutParams(dp(58), dp(40)));
+        }
 
         return bar;
     }
@@ -399,89 +329,6 @@ public class MainActivity extends Activity {
             case QUANTITY: return "Ilość do wydania";
             case SUCCESS: return "Wydano (RW)";
             default: return "Exalco WMS";
-        }
-    }
-
-    private void renderPinScreen() {
-        LinearLayout wrap = new LinearLayout(this);
-        wrap.setOrientation(LinearLayout.VERTICAL);
-        wrap.setGravity(Gravity.CENTER_HORIZONTAL);
-        wrap.setPadding(dp(20), dp(24), dp(20), dp(20));
-
-        TextView title = new TextView(this);
-        title.setText("Exalco WMS Skaner");
-        title.setTextColor(Color.parseColor("#F8FAFC"));
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        title.setTypeface(null, Typeface.BOLD);
-        wrap.addView(title);
-
-        TextView sub = new TextView(this);
-        sub.setText("Podaj 4-cyfrowy PIN");
-        sub.setTextColor(Color.parseColor("#94A3B8"));
-        sub.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        sub.setPadding(0, dp(4), 0, dp(16));
-        wrap.addView(sub);
-
-        TextView dots = new TextView(this);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 4; i++) {
-            sb.append(i < pinInput.length() ? "●  " : "○  ");
-        }
-        dots.setText(sb.toString().trim());
-        dots.setTextColor(Color.parseColor("#38BDF8"));
-        dots.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
-        dots.setPadding(0, 0, 0, dp(16));
-        wrap.addView(dots);
-
-        if (loading) {
-            wrap.addView(new ProgressBar(this));
-        }
-        if (errorMessage != null) {
-            wrap.addView(buildErrorBanner(errorMessage));
-        }
-
-        String[][] rows = {
-                {"1", "2", "3"},
-                {"4", "5", "6"},
-                {"7", "8", "9"},
-                {"Usuń", "0", "Serwer"}
-        };
-
-        for (String[] row : rows) {
-            LinearLayout rowLayout = new LinearLayout(this);
-            rowLayout.setOrientation(LinearLayout.HORIZONTAL);
-            rowLayout.setGravity(Gravity.CENTER);
-            for (final String key : row) {
-                Button b = makeButton(key, "#141B2D",
-                        key.length() > 1 ? "#94A3B8" : "#F8FAFC",
-                        key.length() > 1 ? 12 : 20);
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(74), dp(58));
-                lp.setMargins(dp(6), dp(6), dp(6), dp(6));
-                b.setOnClickListener(v -> onPinKey(key));
-                rowLayout.addView(b, lp);
-            }
-            wrap.addView(rowLayout);
-        }
-
-        rootContainer.addView(wrap);
-    }
-
-    private void onPinKey(String key) {
-        if (loading) return;
-        errorMessage = null;
-        if ("Usuń".equals(key)) {
-            if (!pinInput.isEmpty()) {
-                pinInput = pinInput.substring(0, pinInput.length() - 1);
-            }
-            render();
-        } else if ("Serwer".equals(key)) {
-            showServerSettingsDialog();
-        } else if (pinInput.length() < 4) {
-            pinInput += key;
-            render();
-            if (pinInput.length() == 4) {
-                submitPin(pinInput);
-            }
         }
     }
 

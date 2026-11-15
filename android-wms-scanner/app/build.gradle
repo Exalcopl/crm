@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
 }
 
-def defaultConvexSiteUrl = System.getenv("CONVEX_SITE_URL") ?: ""
+def defaultConvexSiteUrl = System.getenv("CONVEX_SITE_URL") ?: "https://woozy-gnat-639.eu-west-1.convex.site"
 
 android {
     namespace "pl.exalco.wms"

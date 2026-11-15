@@ -730,6 +730,21 @@ function wmsJson(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: wmsCorsHeaders });
 }
 
+async function resolveWmsUserId(
+  ctx: { runQuery: typeof Function.prototype },
+  providedUserId: string,
+): Promise<string> {
+  if (providedUserId) return providedUserId;
+  const fallback = (await (ctx as { runQuery: (fn: unknown, args: Record<string, never>) => Promise<string | null> }).runQuery(
+    internal.wms.getDefaultScannerUserId,
+    {},
+  )) as string | null;
+  if (!fallback) {
+    throw new Error("Brak użytkowników w systemie.");
+  }
+  return fallback;
+}
+
 http.route({
   pathPrefix: "/api/wms-mobile/",
   method: "OPTIONS",
@@ -762,11 +777,12 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const url = new URL(request.url);
     const sku = (url.searchParams.get("sku") ?? "").trim();
-    const userId = (url.searchParams.get("userId") ?? "").trim();
-    if (!sku || !userId) {
-      return wmsJson({ error: "Wymagane parametry: sku oraz userId" }, 400);
+    const providedUserId = (url.searchParams.get("userId") ?? "").trim();
+    if (!sku) {
+      return wmsJson({ error: "Wymagany parametr: sku" }, 400);
     }
     try {
+      const userId = await resolveWmsUserId(ctx, providedUserId);
       const data = await ctx.runQuery(api.wms.appGetIndexBySku, {
         sku,
         currentUserId: userId,
@@ -788,11 +804,9 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const url = new URL(request.url);
     const search = url.searchParams.get("search") ?? "";
-    const userId = (url.searchParams.get("userId") ?? "").trim();
-    if (!userId) {
-      return wmsJson({ error: "Wymagany parametr: userId" }, 400);
-    }
+    const providedUserId = (url.searchParams.get("userId") ?? "").trim();
     try {
+      const userId = await resolveWmsUserId(ctx, providedUserId);
       const orders = await ctx.runQuery(api.wms.appSearchOrders, {
         search,
         currentUserId: userId,
@@ -804,7 +818,7 @@ http.route({
   }),
 });
 
-// POST /api/wms-mobile/rw  { materialId, orderId, quantity, userId }
+// POST /api/wms-mobile/rw  { materialId, orderId, quantity, userId? }
 http.route({
   path: "/api/wms-mobile/rw",
   method: "POST",
@@ -818,13 +832,14 @@ http.route({
       };
       const materialId = typeof body.materialId === "string" ? body.materialId : "";
       const orderId = typeof body.orderId === "string" ? body.orderId : "";
-      const userId = typeof body.userId === "string" ? body.userId : "";
+      const providedUserId = typeof body.userId === "string" ? body.userId.trim() : "";
       const quantity = typeof body.quantity === "number" ? body.quantity : Number(body.quantity);
 
-      if (!materialId || !orderId || !userId || !Number.isFinite(quantity) || quantity <= 0) {
+      if (!materialId || !orderId || !Number.isFinite(quantity) || quantity <= 0) {
         return wmsJson({ error: "Nieprawidłowe dane wydania RW" }, 400);
       }
 
+      const userId = await resolveWmsUserId(ctx, providedUserId);
       const result = await ctx.runMutation(api.wms.appQuickRw, {
         materialId: materialId as Id<"materials">,
         orderId: orderId as Id<"orders">,

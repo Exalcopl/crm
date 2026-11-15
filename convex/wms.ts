@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -1756,6 +1756,16 @@ async function requireAppUser(ctx: QueryCtx, currentUserId: string) {
   if (!user) throw new Error("Nieprawidłowy użytkownik — zaloguj się ponownie PIN-em.");
   return user._id;
 }
+
+/** Zwraca ID domyślnego użytkownika dla skanera TC55 działającego bez ekranu PIN. */
+export const getDefaultScannerUserId = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<string | null> => {
+    const users = await ctx.db.query("users").collect();
+    const active = users.find((u) => u.isActive !== false) ?? users[0];
+    return active ? (active._id as string) : null;
+  },
+});
 
 /** Wyciąga SKU z zeskanowanej treści: link `...?sku=PE50` albo sam kod. */
 function normalizeScannedSku(raw: string) {
