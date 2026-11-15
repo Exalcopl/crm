@@ -26,7 +26,7 @@ function EtykietyContent() {
   const params = useSearchParams();
   const [format, setFormat] = useState<LabelFormat>(() => {
     const f = params.get("format");
-    return f === "1d" || f === "both" ? f : "qr";
+    return f === "qr" || f === "both" ? f : "1d";
   });
   const ids = useMemo(() => (params.get("ids") ?? "").split(",").filter(Boolean), [params]);
   const indexes = useQuery(api.wms.listIndexes, {});

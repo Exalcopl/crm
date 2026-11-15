@@ -67,7 +67,7 @@ export default function WmsIndeksyPage() {
   // Etykiety QR: zaznaczenie wielu indeksów + podgląd pojedynczego
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [qrPreview, setQrPreview] = useState<{ id: string; sku: string; name: string } | null>(null);
-  const [labelFormat, setLabelFormat] = useState<"qr" | "1d">("qr");
+  const [labelFormat, setLabelFormat] = useState<"qr" | "1d">("1d");
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
