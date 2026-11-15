@@ -32,6 +32,7 @@ type IndexFormState = {
   wmsObjectId: string; // System / Podgrupa (np. Procural)
   sku: string; // Kod indeksu (np. PE50, PE68)
   name: string; // Nazwa indeksu
+  priceUnit: string; // Cena katalogowa netto (PLN)
   supplier: string;
   description: string;
   customAttributes: Record<string, string>;
@@ -42,6 +43,7 @@ const DEFAULT_INDEX_FORM: IndexFormState = {
   wmsObjectId: "",
   sku: "",
   name: "",
+  priceUnit: "",
   supplier: "",
   description: "",
   customAttributes: {},
@@ -124,6 +126,7 @@ export default function WmsIndeksyPage() {
       wmsObjectId: m.wmsObjectId ?? "",
       sku: m.sku ?? "",
       name: m.name,
+      priceUnit: m.priceUnit > 0 ? String(m.priceUnit) : "",
       supplier: m.supplier ?? "",
       description: m.description ?? "",
       customAttributes: (m.customAttributes as Record<string, string>) ?? {},
@@ -145,6 +148,13 @@ export default function WmsIndeksyPage() {
       return;
     }
 
+    const rawPrice = form.priceUnit.trim().replace(",", ".");
+    const parsedPrice = rawPrice === "" ? 0 : Number(rawPrice);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      toast.error("Podaj poprawną cenę jednostkową netto (≥ 0)");
+      return;
+    }
+
     for (const cf of customFields) {
       if (cf.required && !form.customAttributes[cf.key]?.trim()) {
         toast.error(`Parametr "${cf.label}" jest wymagany dla tego systemu`);
@@ -160,6 +170,7 @@ export default function WmsIndeksyPage() {
         wmsCategoryId: (form.categoryId as Id<"wms_categories">) || selectedObj?.categoryId,
         sku: form.sku.trim().toUpperCase(),
         name: form.name.trim(),
+        priceUnit: parsedPrice,
         supplier: form.supplier.trim() || undefined,
         description: form.description.trim() || undefined,
         customAttributes: Object.keys(form.customAttributes).length > 0 ? form.customAttributes : undefined,
@@ -311,13 +322,25 @@ export default function WmsIndeksyPage() {
                 </Field>
               </Grid>
 
-              <Grid cols={2}>
+              <Grid cols={3}>
                 <Field label="4. Nazwa indeksu *">
                   <input
                     style={inputStyle}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder="np. Profil ościeżnicy PE50 / Profil skrzydła PE68"
+                  />
+                </Field>
+
+                <Field label={`5. Cena katalogowa netto (PLN / ${selectedObj?.defaultUnit || "szt."})`}>
+                  <input
+                    style={inputStyle}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.priceUnit}
+                    onChange={(e) => setForm({ ...form, priceUnit: e.target.value })}
+                    placeholder="np. 42.50"
                   />
                 </Field>
 
@@ -495,6 +518,7 @@ export default function WmsIndeksyPage() {
               "Grupa towarowa",
               "System / Podgrupa",
               "Parametry techniczne",
+              "Cena katalogowa netto",
               "Stan magazynowy",
               "Akcje",
             ]}
@@ -582,6 +606,19 @@ export default function WmsIndeksyPage() {
                         </div>
                       );
                     })()}
+                  </Td>
+                  <Td nowrap style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                    {m.priceUnit > 0 ? (
+                      <span style={{ color: C.text }}>
+                        {m.priceUnit.toLocaleString("pl-PL", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                        PLN <span style={{ color: C.muted, fontSize: 11 }}>/ {row.object?.defaultUnit || m.unit || "szt."}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: C.muted }}>—</span>
+                    )}
                   </Td>
                   <Td nowrap style={{ fontWeight: 600 }}>
                     {fmtNum(row.stockPieces)} {row.object?.defaultUnit || m.unit || "szt."}

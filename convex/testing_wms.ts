@@ -786,6 +786,33 @@ export const runWmsTest = mutation({
         "QR RW: ilość ułamkowa jest blokowana",
       );
 
+      // Weryfikacja naliczania kosztów RW wg ceny katalogowej indeksu (priceUnit)
+      await ctx.db.patch(qrMatId, { priceUnit: 42.5, updatedAt: Date.now() });
+      const updatedQrMat = await ctx.db.get(qrMatId);
+      assert(
+        updatedQrMat?.priceUnit === 42.5,
+        "Indeks WMS: zapis i odczyt ceny katalogowej netto (priceUnit = 42.50 PLN)",
+      );
+      const orderRwDocs = await ctx.db
+        .query("wms_documents")
+        .withIndex("by_order", (q) => q.eq("orderId", orderId))
+        .collect();
+      let qrOrderCost = 0;
+      for (const d of orderRwDocs.filter((doc) => doc._id === q1.documentId || doc._id === q2.documentId)) {
+        const ls = await ctx.db
+          .query("wms_document_lines")
+          .withIndex("by_document", (q) => q.eq("documentId", d._id))
+          .collect();
+        for (const l of ls) {
+          const m = l.materialId ? await ctx.db.get(l.materialId) : null;
+          qrOrderCost += Math.round(l.quantityPieces * (m?.priceUnit ?? 0) * 100) / 100;
+        }
+      }
+      assert(
+        Math.round(qrOrderCost * 100) / 100 === 382.5,
+        "Koszty produkcji RW: 9 szt. × 42,50 PLN = 382,50 PLN naliczone dla zlecenia",
+      );
+
       // Sprzątanie danych testu QR
       const qrLotsAll = await ctx.db
         .query("wms_lots")

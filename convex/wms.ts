@@ -713,6 +713,7 @@ export const upsertIndex = mutation({
     sku: v.string(),
     wmsObjectId: v.id("wms_objects"),
     wmsCategoryId: v.optional(v.id("wms_categories")),
+    priceUnit: v.optional(v.number()),
     description: v.optional(v.string()),
     supplier: v.optional(v.string()),
     lengthMm: v.optional(v.number()),
@@ -722,7 +723,7 @@ export const upsertIndex = mutation({
     weightKg: v.optional(v.number()),
     customAttributes: v.optional(v.any()),
   },
-  handler: async (ctx, { id, name, sku, wmsObjectId, wmsCategoryId, ...rest }) => {
+  handler: async (ctx, { id, name, sku, wmsObjectId, wmsCategoryId, priceUnit, ...rest }) => {
     await requireUser(ctx);
     const cleanName = name.trim();
     const cleanSku = sku.trim().toUpperCase();
@@ -748,6 +749,10 @@ export const upsertIndex = mutation({
     const now = Date.now();
     const unit = obj.defaultUnit || "szt.";
     const legacyCategory = cat?.code || "INNE";
+    const normalizedPrice =
+      priceUnit !== undefined && Number.isFinite(priceUnit)
+        ? Math.round(Math.max(0, priceUnit) * 100) / 100
+        : undefined;
 
     if (id) {
       const existing = await ctx.db.get(id);
@@ -758,6 +763,7 @@ export const upsertIndex = mutation({
         wmsObjectId,
         wmsCategoryId: categoryId,
         unit: existing.unit || unit,
+        ...(normalizedPrice !== undefined ? { priceUnit: normalizedPrice } : {}),
         category: legacyCategory,
         ...rest,
         updatedAt: now,
@@ -771,7 +777,7 @@ export const upsertIndex = mutation({
       wmsObjectId,
       wmsCategoryId: categoryId,
       unit,
-      priceUnit: 0,
+      priceUnit: normalizedPrice ?? 0,
       category: legacyCategory,
       ...rest,
       isActive: true,
@@ -1673,7 +1679,9 @@ export const deleteDocument = mutation({
 export const listOrderWmsRw = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, { orderId }) => {
-    if (!(await getAuthUserId(ctx))) return { documents: [], totalPiecesIssued: 0 };
+    if (!(await getAuthUserId(ctx))) {
+      return { documents: [], totalPiecesIssued: 0, totalCostIssued: 0, unpricedLinesCount: 0 };
+    }
     const docs = await ctx.db
       .query("wms_documents")
       .withIndex("by_order", (q) => q.eq("orderId", orderId))
@@ -1685,6 +1693,14 @@ export const listOrderWmsRw = query({
       objectMap(ctx),
     ]);
 
+    const lotCache = new Map<string, Doc<"wms_lots"> | null>();
+    const getLot = async (id: Id<"wms_lots">) => {
+      if (!lotCache.has(id)) {
+        lotCache.set(id, await ctx.db.get(id));
+      }
+      return lotCache.get(id) ?? null;
+    };
+
     const documents = await Promise.all(
       docs
         .sort((a, b) => b.createdAt - a.createdAt)
@@ -1695,30 +1711,53 @@ export const listOrderWmsRw = query({
             .collect();
           const creator = await ctx.db.get(doc.createdBy);
 
-          const linesMapped = lines.map((l) => {
-            const mat = l.materialId ? mats.get(l.materialId) : null;
-            const obj = l.objectId ? objs.get(l.objectId) : mat?.wmsObjectId ? objs.get(mat.wmsObjectId) : null;
-            let dims = "";
-            if (l.widthMm && l.heightMm) dims = `${l.widthMm} × ${l.heightMm} mm`;
-            else if (l.lengthMm) dims = `${l.lengthMm} mm`;
-            else if (mat?.lengthMm) dims = `${mat.lengthMm} mm`;
-            else if (l.thicknessMm) dims = `gr. ${l.thicknessMm} mm`;
+          const linesMapped = await Promise.all(
+            lines.map(async (l) => {
+              const lot = l.lotId ? await getLot(l.lotId) : null;
+              const matId = l.materialId ?? lot?.materialId;
+              const mat = matId ? mats.get(matId) : null;
+              const obj = l.objectId
+                ? objs.get(l.objectId)
+                : lot?.objectId
+                  ? objs.get(lot.objectId)
+                  : mat?.wmsObjectId
+                    ? objs.get(mat.wmsObjectId)
+                    : null;
+              let dims = "";
+              if (l.widthMm && l.heightMm) dims = `${l.widthMm} × ${l.heightMm} mm`;
+              else if (l.lengthMm) dims = `${l.lengthMm} mm`;
+              else if (lot?.lengthMm) dims = `${lot.lengthMm} mm`;
+              else if (mat?.lengthMm) dims = `${mat.lengthMm} mm`;
+              else if (l.thicknessMm) dims = `gr. ${l.thicknessMm} mm`;
 
-            return {
-              _id: l._id,
-              materialName: mat?.name ?? (l.lotId ? "Partia magazynowa" : "—"),
-              materialSku: mat?.sku ?? null,
-              objectName: obj?.name ?? null,
-              dimensionsSummary: dims || "—",
-              quantityPieces: l.quantityPieces,
-              unit: obj?.defaultUnit ?? mat?.unit ?? "szt.",
-              colorCode: l.colorCode,
-              surfaceType: l.surfaceType,
-              heatNumber: l.heatNumber,
-              fromLocationCode: l.fromLocationId ? (locs.get(l.fromLocationId)?.code ?? "—") : "—",
-              note: l.note,
-            };
-          });
+              const unitPrice = mat?.priceUnit ?? 0;
+              const totalCost = Math.round(l.quantityPieces * unitPrice * 100) / 100;
+
+              return {
+                _id: l._id,
+                materialId: mat?._id ?? null,
+                materialName: mat?.name ?? (l.lotId ? "Partia magazynowa" : "—"),
+                materialSku: mat?.sku ?? null,
+                objectName: obj?.name ?? null,
+                dimensionsSummary: dims || "—",
+                quantityPieces: l.quantityPieces,
+                unit: obj?.defaultUnit ?? mat?.unit ?? "szt.",
+                unitPrice,
+                totalCost,
+                colorCode: l.colorCode ?? lot?.colorCode,
+                surfaceType: l.surfaceType ?? lot?.surfaceType,
+                heatNumber: l.heatNumber ?? lot?.heatNumber,
+                fromLocationCode: l.fromLocationId
+                  ? (locs.get(l.fromLocationId)?.code ?? "—")
+                  : lot?.locationId
+                    ? (locs.get(lot.locationId)?.code ?? "—")
+                    : "—",
+                note: l.note,
+              };
+            }),
+          );
+
+          const docTotalCost = Math.round(linesMapped.reduce((s, it) => s + it.totalCost, 0) * 100) / 100;
 
           return {
             _id: doc._id,
@@ -1731,17 +1770,24 @@ export const listOrderWmsRw = query({
             createdByName: creator?.name ?? creator?.email ?? "—",
             lines: linesMapped,
             totalPieces: linesMapped.reduce((s, it) => s + it.quantityPieces, 0),
+            totalCost: docTotalCost,
           };
         }),
     );
 
-    const totalPiecesIssued = documents
-      .filter((d) => d.status === "ZATWIERDZONY")
-      .reduce((s, d) => s + d.totalPieces, 0);
+    const approvedDocs = documents.filter((d) => d.status === "ZATWIERDZONY");
+    const totalPiecesIssued = approvedDocs.reduce((s, d) => s + d.totalPieces, 0);
+    const totalCostIssued = Math.round(approvedDocs.reduce((s, d) => s + d.totalCost, 0) * 100) / 100;
+    const unpricedLinesCount = approvedDocs.reduce(
+      (s, d) => s + d.lines.filter((l) => l.unitPrice <= 0).length,
+      0,
+    );
 
     return {
       documents,
       totalPiecesIssued,
+      totalCostIssued,
+      unpricedLinesCount,
     };
   },
 });

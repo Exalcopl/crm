@@ -6,13 +6,14 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { I } from "../../_lib/icons";
-import { CheckSquare, Square, Package } from "lucide-react";
+import { CheckSquare, Square, Package, Factory } from "lucide-react";
 import { RibbonBtn, RibbonGroup } from "../../_components/ribbon";
 import { toast } from "sonner";
 import Link from "next/link";
 import { QuoteFileBrowser } from "../../wyceny/[id]/_components/quote-file-browser";
 import { OrderFileBrowser } from "./_components/order-file-browser";
 import { OrderRwView } from "./_components/order-rw-view";
+import { OrderProductionView } from "./_components/order-production-view";
 import { OrderSubOrdersView } from "./_components/order-sub-orders-view";
 import { OrderNotesFeed } from "./_components/order-notes-feed";
 import { OrderPreProdGantt } from "../../_components/order-pre-prod-gantt";
@@ -1427,7 +1428,7 @@ export default function OrderDetailPage({
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
-  const [activeView, setActiveView] = useState<"szczegoly" | "rw" | "zamowienia">("szczegoly");
+  const [activeView, setActiveView] = useState<"szczegoly" | "rw" | "zamowienia" | "produkcja">("szczegoly");
   const [showPreProdGantt, setShowPreProdGantt] = useState(false);
 
   // Liczba zadań przedprodukcyjnych dla tego zlecenia
@@ -1562,6 +1563,12 @@ export default function OrderDetailPage({
             onClick={() => setActiveView("rw")}
           />
           <RibbonBtn
+            icon={<Factory size={22} />}
+            label="Produkcja"
+            active={activeView === "produkcja"}
+            onClick={() => setActiveView("produkcja")}
+          />
+          <RibbonBtn
             icon={<Package size={22} />}
             label="Zamówienia"
             active={activeView === "zamowienia"}
@@ -1591,6 +1598,16 @@ export default function OrderDetailPage({
       {activeView === "rw" && (
         <main className="fluent-content" style={{ padding: "16px 24px" }}>
           <OrderRwView orderId={orderId} />
+        </main>
+      )}
+      {activeView === "produkcja" && (
+        <main className="fluent-content" style={{ padding: "16px 24px" }}>
+          <OrderProductionView
+            orderId={orderId}
+            orderNumber={order.orderNumber}
+            orderValueNetto={order.valueNetto ?? 0}
+            customLabel={order.customLabel}
+          />
         </main>
       )}
       {activeView === "zamowienia" && (
