@@ -19,6 +19,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -377,15 +378,24 @@ public class MainActivity extends Activity {
     }
 
     private void renderScanScreen(LinearLayout body) {
-        // Ukryte pole przechwytujące tekst z DataWedge (Keystroke Output / commitText) bez wyskakującej klawiatury
+        // Ukryte pole przechwytujące tekst z DataWedge (Keystroke Output / commitText)
+        // Uwaga: NIE używamy TYPE_NULL, bo DataWedge ignoruje pola z TYPE_NULL!
         final EditText hiddenCapture = new EditText(this);
-        hiddenCapture.setInputType(InputType.TYPE_NULL);
+        hiddenCapture.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         hiddenCapture.setBackgroundColor(Color.TRANSPARENT);
         hiddenCapture.setTextColor(Color.TRANSPARENT);
         hiddenCapture.setCursorVisible(false);
         hiddenCapture.setFocusableInTouchMode(true);
         hiddenCapture.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+        hiddenCapture.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) {
+                InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (imm != null) {
+                    imm.hideSoftInputFromWindow(v.getWindowToken(), 0);
+                }
+            }
+        });
 
         final Runnable captureFlush = () -> {
             String raw = hiddenCapture.getText().toString().trim();
