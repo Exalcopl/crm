@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -135,12 +135,91 @@ export function GanttPanelContent({
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{
+    x: number;
+    y: number;
+    anchorTop: number;
+    anchorBottom: number;
+    placement: "top" | "bottom";
+  } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<any>(null);
+
+  const openBarTooltip = (rect: DOMRect, order: any, type: "production" | "assembly" | "delivery") => {
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    const viewportMargin = 12;
+    const estimatedWidth = 300;
+    const estimatedHeight = 320;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const placement: "top" | "bottom" =
+      spaceBelow < estimatedHeight + viewportMargin && spaceAbove > spaceBelow ? "top" : "bottom";
+    const x = Math.max(
+      viewportMargin,
+      Math.min(rect.left + rect.width / 2 - estimatedWidth / 2, window.innerWidth - estimatedWidth - viewportMargin),
+    );
+    setHoveredOrder(order);
+    setHoveredType(type);
+    setTooltipPos({
+      x,
+      y: placement === "top" ? rect.top - 8 : rect.bottom + 8,
+      anchorTop: rect.top,
+      anchorBottom: rect.bottom,
+      placement,
+    });
+  };
+
+  useLayoutEffect(() => {
+    const el = tooltipRef.current;
+    if (!el || !tooltipPos) return;
+    const viewportMargin = 12;
+    const h = el.offsetHeight;
+    const w = el.offsetWidth;
+    const spaceBelow = window.innerHeight - tooltipPos.anchorBottom - 8;
+    const spaceAbove = tooltipPos.anchorTop - 8;
+
+    let nextPlacement = tooltipPos.placement;
+    if (tooltipPos.placement === "bottom" && h > spaceBelow - viewportMargin && spaceAbove > spaceBelow) {
+      nextPlacement = "top";
+    } else if (tooltipPos.placement === "top" && h > spaceAbove - viewportMargin && spaceBelow > spaceAbove) {
+      nextPlacement = "bottom";
+    }
+
+    const nextY = nextPlacement === "top" ? tooltipPos.anchorTop - 8 : tooltipPos.anchorBottom + 8;
+    const nextX = Math.max(viewportMargin, Math.min(tooltipPos.x, window.innerWidth - w - viewportMargin));
+
+    if (nextPlacement !== tooltipPos.placement || nextY !== tooltipPos.y || nextX !== tooltipPos.x) {
+      setTooltipPos({
+        ...tooltipPos,
+        x: nextX,
+        y: nextY,
+        placement: nextPlacement,
+      });
+    }
+  }, [hoveredOrder, hoveredType, tooltipPos]);
+  const dayWidth = 48;
+  const PAST_BUFFER_DAYS = 30;
+  const TOTAL_TIMELINE_DAYS = 120;
+  const EDGE_THRESHOLD_DAYS = 10;
+  const SHIFT_CHUNK_DAYS = 30;
+
   const lastShiftRef = useRef<number>(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const panStateRef = useRef<{ startX: number; initialScrollLeft: number } | null>(null);
+  const isAdjustingTimelineRef = useRef(false);
+  const pendingScrollRef = useRef<
+    | { type: "absolute"; scrollLeft: number }
+    | { type: "delta"; delta: number }
+    | null
+  >({ type: "absolute", scrollLeft: PAST_BUFFER_DAYS * dayWidth });
   const [isPanning, setIsPanning] = useState(false);
+
+  const [timelineStart, setTimelineStart] = useState(() => {
+    // Default view starts at 5 days before today, with PAST_BUFFER_DAYS pre-rendered to the left
+    const d = new Date();
+    d.setDate(d.getDate() - (5 + PAST_BUFFER_DAYS));
+    return formatDateStr(d);
+  });
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -148,6 +227,46 @@ export function GanttPanelContent({
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
+
+  // Apply scroll compensation synchronously before paint when timelineStart shifts
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const pending = pendingScrollRef.current;
+    if (container && pending) {
+      if (pending.type === "absolute") {
+        container.scrollLeft = pending.scrollLeft;
+      } else {
+        container.scrollLeft += pending.delta;
+      }
+      pendingScrollRef.current = null;
+    }
+    isAdjustingTimelineRef.current = false;
+  }, [timelineStart]);
+
+  const checkTimelineEdges = () => {
+    const container = scrollContainerRef.current;
+    if (!container || isAdjustingTimelineRef.current) return;
+
+    const thresholdPx = EDGE_THRESHOLD_DAYS * dayWidth;
+    const shiftPx = SHIFT_CHUNK_DAYS * dayWidth;
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+
+    if (container.scrollLeft < thresholdPx) {
+      isAdjustingTimelineRef.current = true;
+      pendingScrollRef.current = { type: "delta", delta: shiftPx };
+      if (panStateRef.current) {
+        panStateRef.current.initialScrollLeft += shiftPx;
+      }
+      setTimelineStart((prev) => addDays(prev, -SHIFT_CHUNK_DAYS));
+    } else if (maxScrollLeft > thresholdPx * 2 && maxScrollLeft - container.scrollLeft < thresholdPx) {
+      isAdjustingTimelineRef.current = true;
+      pendingScrollRef.current = { type: "delta", delta: -shiftPx };
+      if (panStateRef.current) {
+        panStateRef.current.initialScrollLeft -= shiftPx;
+      }
+      setTimelineStart((prev) => addDays(prev, SHIFT_CHUNK_DAYS));
+    }
+  };
 
   // Drag-to-pan timeline horizontally when dragging on empty timeline area
   useEffect(() => {
@@ -164,6 +283,7 @@ export function GanttPanelContent({
       if (!container || !pan) return;
       const dx = e.clientX - pan.startX;
       container.scrollLeft = pan.initialScrollLeft - dx;
+      checkTimelineEdges();
     };
 
     const stopPanning = () => {
@@ -183,13 +303,6 @@ export function GanttPanelContent({
       window.removeEventListener("blur", stopPanning);
     };
   }, [isPanning]);
-
-  const [timelineStart, setTimelineStart] = useState(() => {
-    // Default to 5 days before today
-    const d = new Date();
-    d.setDate(d.getDate() - 5);
-    return formatDateStr(d);
-  });
 
   const [drag, setDrag] = useState<DragState | null>(null);
   const [localDates, setLocalDates] = useState<Record<string, { start: string; end: string }>>({});
@@ -233,10 +346,10 @@ export function GanttPanelContent({
     setLocalAssemblyDates(aDates);
   }, [orders, dragAssembly, isMutatingAssemblyId]);
 
-  // Generate 90 days of timeline (3 full months)
+  // Generate timeline days (past buffer + future window)
   const days: { dateStr: string; label: string; dayNum: number; isWeekend: boolean; isToday: boolean }[] = [];
   const todayStr = formatDateStr(new Date());
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < TOTAL_TIMELINE_DAYS; i++) {
     const currentStr = addDays(timelineStart, i);
     const dateObj = new Date(currentStr + "T00:00:00");
     const dayOfWeek = dateObj.getDay();
@@ -384,10 +497,20 @@ export function GanttPanelContent({
     setTimelineStart((prev) => addDays(prev, amount));
   };
 
+  const centerTimelineOn = (visibleStartDate: string) => {
+    const newStart = addDays(visibleStartDate, -PAST_BUFFER_DAYS);
+    if (newStart === timelineStart) {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollLeft = PAST_BUFFER_DAYS * dayWidth;
+      }
+      return;
+    }
+    pendingScrollRef.current = { type: "absolute", scrollLeft: PAST_BUFFER_DAYS * dayWidth };
+    setTimelineStart(newStart);
+  };
+
   const jumpToToday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 5);
-    setTimelineStart(formatDateStr(d));
+    centerTimelineOn(addDays(todayStr, -5));
   };
 
   // Schedule default ranges for unplanned orders
@@ -682,7 +805,6 @@ export function GanttPanelContent({
 
   // Layout parameters
   const leftColWidth = 320;
-  const dayWidth = 48;
   const rowHeight = 58; // single row with two stacked bars
 
   return (
@@ -861,10 +983,14 @@ export function GanttPanelContent({
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         
         {/* Unified Table-Chart Wrapper */}
-        <div ref={scrollContainerRef} style={{ flex: 1, display: "flex", overflow: "auto", position: "relative" }}>
+        <div
+          ref={scrollContainerRef}
+          onScroll={checkTimelineEdges}
+          style={{ flex: 1, display: "flex", overflow: "auto", position: "relative" }}
+        >
           
           {/* Left Columns (Fixed Side) */}
-          <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 3, position: "sticky", left: 0 }}>
+          <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 10, position: "sticky", left: 0 }}>
             {/* Header Row */}
             <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 11, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.5px", gap: 16 }}>
               <span style={{ flex: 1 }}>Zlecenie / Klient</span>
@@ -1045,7 +1171,7 @@ export function GanttPanelContent({
                           <button
                             type="button"
                             title="Centruj na produkcji"
-                            onClick={(e) => { e.stopPropagation(); setTimelineStart(addDays(prodDates.start, -5)); }}
+                            onClick={(e) => { e.stopPropagation(); centerTimelineOn(addDays(prodDates.start, -5)); }}
                             style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 10, padding: "1px 4px", color: "#475569", fontWeight: 600 }}
                             onMouseEnter={(ev) => (ev.currentTarget.style.color = "#38bdf8")}
                             onMouseLeave={(ev) => (ev.currentTarget.style.color = "#475569")}
@@ -1289,6 +1415,7 @@ export function GanttPanelContent({
                       display: "flex",
                       position: "relative",
                       background: "#0d1117",
+                      overflow: "hidden",
                     }}
                   >
                     {/* Background day columns */}
@@ -1369,11 +1496,7 @@ export function GanttPanelContent({
                         }}
                         onMouseDown={(e) => handleMouseDown(e, "move", order._id)}
                         onMouseEnter={(e) => {
-                          if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredOrder(order);
-                          setHoveredType("production");
-                          setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
+                          openBarTooltip(e.currentTarget.getBoundingClientRect(), order, "production");
                         }}
                         onMouseLeave={() => {
                           closeTimeoutRef.current = setTimeout(() => {
@@ -1428,11 +1551,7 @@ export function GanttPanelContent({
                         }}
                         onMouseDown={(e) => handleAssemblyMouseDown(e, "move", order._id)}
                         onMouseEnter={(e) => {
-                          if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHoveredOrder(order);
-                          setHoveredType("assembly");
-                          setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
+                          openBarTooltip(e.currentTarget.getBoundingClientRect(), order, "assembly");
                         }}
                         onMouseLeave={() => {
                           closeTimeoutRef.current = setTimeout(() => {
@@ -1495,11 +1614,7 @@ export function GanttPanelContent({
                             boxShadow: `0 0 6px ${deliveryColor}40`,
                           }}
                           onMouseEnter={(e) => {
-                            if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setHoveredOrder(order);
-                            setHoveredType("delivery");
-                            setTooltipPos({ x: rect.left + rect.width / 2 - 130, y: rect.bottom + window.scrollY + 8 });
+                            openBarTooltip(e.currentTarget.getBoundingClientRect(), order, "delivery");
                           }}
                           onMouseLeave={() => {
                             closeTimeoutRef.current = setTimeout(() => {
@@ -1530,6 +1645,7 @@ export function GanttPanelContent({
         
         return (
           <div
+            ref={tooltipRef}
             onMouseEnter={() => {
               if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
             }}
@@ -1542,6 +1658,9 @@ export function GanttPanelContent({
               position: "fixed",
               left: tooltipPos.x,
               top: tooltipPos.y,
+              transform: tooltipPos.placement === "top" ? "translateY(-100%)" : undefined,
+              maxHeight: "calc(100vh - 24px)",
+              overflowY: "auto",
               background: "rgba(22, 27, 34, 0.95)",
               backdropFilter: "blur(8px)",
               border: "1px solid #30363d",
