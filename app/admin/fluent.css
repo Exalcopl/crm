@@ -1021,6 +1021,10 @@
   white-space: nowrap;
 }
 
+.kanban-card-client:last-child {
+  margin-bottom: 0;
+}
+
 .kanban-card-client--secondary {
   font-size: 12px;
   font-weight: 500;

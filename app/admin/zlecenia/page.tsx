@@ -700,17 +700,6 @@ function KanbanCardContent({
       <div className={`kanban-card-client${customLabel ? " kanban-card-client--secondary" : ""}`}>
         {order.clientName}
       </div>
-      <div className="kanban-card-footer">
-        <div className="kanban-card-value">
-          <span className="kanban-card-value-num">
-            {order.valueNetto.toLocaleString("pl-PL", {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          </span>
-          <span className="kanban-card-value-unit">PLN</span>
-        </div>
-      </div>
     </>
   );
 }
