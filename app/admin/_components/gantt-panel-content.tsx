@@ -1373,37 +1373,27 @@ export function GanttPanelContent({
                   asmShadow = "0 2px 6px rgba(245, 158, 11, 0.3)";
                 }
 
-                // Live delivery date
-                const isDraggingProd = drag && drag.orderId === order._id;
-                const liveDeliveryDate = (isDraggingProd && prodDates)
-                  ? addWorkingDays(prodDates.end, 2)
-                  : order.deliveryDate;
-
-                const deliveryOffsetDays = liveDeliveryDate ? getDaysDiff(timelineStart, liveDeliveryDate) : -1;
-                const isDeliveryVisible = deliveryOffsetDays >= 0 && deliveryOffsetDays < 90;
-                const prodEndOffsetDays = prodDates ? getDaysDiff(timelineStart, prodDates.end) : -999;
-                const diffFromProdEnd = prodDates && liveDeliveryDate ? getDaysDiff(prodDates.end, liveDeliveryDate) : -999;
-                const isWarning = prodDates && (diffFromProdEnd > 2 || diffFromProdEnd < 0);
-                const deliveryColor = isWarning ? "#ef4444" : "#10b981";
-
                 const showProdBar = hasProdBar && (barMode === "all" || barMode === "production");
                 const showAsmBar = hasAsmBar && (barMode === "all" || barMode === "assembly");
 
-                const PROD_TOP = barMode === "production" ? 15 : 4;
-                const PROD_H = barMode === "production" ? 28 : 22;
-                const ASM_TOP = barMode === "assembly" ? 15 : 32;
-                const ASM_H = barMode === "assembly" ? 28 : 18;
+                const barsOverlap =
+                  barMode === "all" &&
+                  showProdBar &&
+                  showAsmBar &&
+                  !!prodDates &&
+                  !!asmDates &&
+                  asmDates.start <= prodDates.end &&
+                  asmDates.end >= prodDates.start;
 
-                // Delivery pickup X coordinate
-                const deliveryX = isDeliveryVisible
-                  ? deliveryOffsetDays * dayWidth + dayWidth / 2
-                  : prodDates ? (prodEndOffsetDays + 1) * dayWidth : -1;
+                const PROD_TOP = barsOverlap ? 4 : 16;
+                const PROD_H = barsOverlap ? 22 : 26;
+                const ASM_TOP = barsOverlap ? 32 : 16;
+                const ASM_H = barsOverlap ? 20 : 26;
 
-                // Connector between Delivery pickup and Assembly start
-                const asmCenterX = showAsmBar ? asmBarLeft : -1;
-                const showAssemblyConnector = barMode === "all" && showProdBar && showAsmBar && deliveryX >= 0 && asmCenterX >= 0;
-                const isAssemblyBeforeDelivery = showAssemblyConnector && asmBarLeft < deliveryX;
-                const asmConnectorColor = isAssemblyBeforeDelivery ? "#ef4444" : "#ea580c";
+                // Connector between Production end and Assembly start
+                const prodEndX = prodBarLeft + prodBarWidth;
+                const showAssemblyConnector =
+                  barMode === "all" && showProdBar && showAsmBar && !barsOverlap && asmBarLeft > prodEndX;
                 const connectorCenterY = ASM_TOP + ASM_H / 2;
 
                 return (
@@ -1433,40 +1423,21 @@ export function GanttPanelContent({
                       />
                     ))}
 
-                    {/* Connector line between Delivery/Pickup and Assembly Start */}
+                    {/* Connector line between Production end and Assembly start */}
                     {showAssemblyConnector && (
-                      <>
-                        {/* Vertical line from Delivery truck Y down to Assembly center Y */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: deliveryX - 1,
-                            top: PROD_TOP + PROD_H,
-                            width: 2,
-                            height: connectorCenterY - (PROD_TOP + PROD_H),
-                            borderLeft: `2px dashed ${asmConnectorColor}`,
-                            opacity: 0.8,
-                            pointerEvents: "none",
-                            zIndex: 1,
-                          }}
-                        />
-                        {/* Horizontal line from Delivery X to Assembly Start X */}
-                        {deliveryX !== asmBarLeft && (
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: Math.min(deliveryX, asmBarLeft),
-                              top: connectorCenterY - 1,
-                              width: Math.abs(asmBarLeft - deliveryX),
-                              height: 2,
-                              borderBottom: `2px dashed ${asmConnectorColor}`,
-                              opacity: 0.8,
-                              pointerEvents: "none",
-                              zIndex: 1,
-                            }}
-                          />
-                        )}
-                      </>
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: prodEndX,
+                          top: connectorCenterY - 1,
+                          width: asmBarLeft - prodEndX,
+                          height: 2,
+                          borderBottom: "2px dashed #ea580c",
+                          opacity: 0.7,
+                          pointerEvents: "none",
+                          zIndex: 1,
+                        }}
+                      />
                     )}
 
                     {/* Production bar */}
@@ -1534,14 +1505,14 @@ export function GanttPanelContent({
                           width: asmBarWidth,
                           height: ASM_H,
                           top: ASM_TOP,
-                          borderRadius: 3,
+                          borderRadius: barsOverlap ? 3 : 4,
                           background: asmGradient,
                           boxShadow: asmShadow,
                           display: "flex",
                           alignItems: "center",
-                          padding: "0 6px",
+                          padding: barsOverlap ? "0 6px" : "0 8px",
                           color: "white",
-                          fontSize: 9,
+                          fontSize: barsOverlap ? 9 : 10,
                           fontWeight: 600,
                           cursor: "grab",
                           userSelect: "none",
@@ -1577,54 +1548,6 @@ export function GanttPanelContent({
                           <div style={{ width: 2, height: 8, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                         </div>
                       </div>
-                    )}
-
-                    {/* Delivery truck indicator */}
-                    {isDeliveryVisible && (
-                      <>
-                        {barMode === "all" && prodDates && deliveryOffsetDays > prodEndOffsetDays + 1 && (
-                          <div style={{
-                            position: "absolute",
-                            left: (prodEndOffsetDays + 1) * dayWidth,
-                            width: (deliveryOffsetDays - prodEndOffsetDays - 1) * dayWidth + dayWidth / 2,
-                            height: 2,
-                            borderBottom: `2px dashed ${deliveryColor}`,
-                            top: PROD_TOP + PROD_H / 2,
-                            zIndex: 1,
-                            opacity: 0.7,
-                            pointerEvents: "none",
-                          }} />
-                        )}
-                        <div
-                          data-gantt-interactive="true"
-                          style={{
-                            position: "absolute",
-                            left: deliveryOffsetDays * dayWidth + dayWidth / 2 - 8,
-                            top: PROD_TOP,
-                            zIndex: 3,
-                            color: deliveryColor,
-                            cursor: "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            background: "#0d1117",
-                            borderRadius: "50%",
-                            padding: 2,
-                            border: `1px solid ${deliveryColor}`,
-                            boxShadow: `0 0 6px ${deliveryColor}40`,
-                          }}
-                          onMouseEnter={(e) => {
-                            openBarTooltip(e.currentTarget.getBoundingClientRect(), order, "delivery");
-                          }}
-                          onMouseLeave={() => {
-                            closeTimeoutRef.current = setTimeout(() => {
-                              setHoveredOrder(null); setHoveredType(null); setTooltipPos(null);
-                            }, 250);
-                          }}
-                        >
-                          <Truck size={10} style={{ strokeWidth: 2.5 }} />
-                        </div>
-                      </>
                     )}
                   </div>
                 );
