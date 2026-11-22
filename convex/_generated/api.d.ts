@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as _lib_orderChecklistProgress from "../_lib/orderChecklistProgress.js";
 import type * as _lib_phone from "../_lib/phone.js";
 import type * as _lib_wmsCore from "../_lib/wmsCore.js";
 import type * as account from "../account.js";
@@ -76,6 +77,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  "_lib/orderChecklistProgress": typeof _lib_orderChecklistProgress;
   "_lib/phone": typeof _lib_phone;
   "_lib/wmsCore": typeof _lib_wmsCore;
   account: typeof account;

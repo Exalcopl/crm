@@ -1015,11 +1015,12 @@
   pointer-events: none;
   padding: 8px 11px;
   background: var(--bg-elevated, #161b22);
-  color: var(--text-primary);
+  color: var(--text-primary, #ffffff);
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-left: 3px solid var(--accent-primary);
+  border-left: 3px solid var(--accent-primary, #d41d3c);
   border-radius: 6px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-family: var(--font, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.45;
@@ -1065,6 +1066,88 @@
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.kanban-card-archive-btn {
+  margin-top: 8px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(63, 185, 80, 0.35);
+  background: rgba(63, 185, 80, 0.1);
+  color: #56d364;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.kanban-card-archive-btn:hover {
+  background: rgba(63, 185, 80, 0.2);
+  border-color: rgba(63, 185, 80, 0.65);
+  color: #ffffff;
+}
+
+.kanban-card-archive-btn:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.kanban-card-progress {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kanban-card-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.kanban-card-progress-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.kanban-card-progress-stats {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kanban-card-progress-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.kanban-card-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #3b82f6;
+  transition: width 220ms ease, background-color 220ms ease;
+}
+
+.kanban-card-progress.is-complete .kanban-card-progress-stats {
+  color: #3fb950;
+}
+
+.kanban-card-progress.is-complete .kanban-card-progress-fill {
+  background: #3fb950;
 }
 
 .kanban-card-value {

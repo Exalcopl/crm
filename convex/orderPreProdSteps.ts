@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { computeOrderChecklistProgress } from "./_lib/orderChecklistProgress";
 
 /** Pobiera wszystkie kroki (zadania + podzadania) zlecenia, posortowane wg pola order */
 export const list = query({
@@ -11,6 +12,18 @@ export const list = query({
       .withIndex("by_order", (q) => q.eq("orderId", orderId))
       .order("asc")
       .collect();
+  },
+});
+
+/** Zwraca mapę orderId → { done, total } dla wszystkich zleceń posiadających zadania na listach */
+export const progressByOrder = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Niezalogowany użytkownik.");
+
+    const steps = await ctx.db.query("orderPreProdSteps").collect();
+    return computeOrderChecklistProgress(steps);
   },
 });
 

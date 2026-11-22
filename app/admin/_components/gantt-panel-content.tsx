@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck } from "lucide-react";
 import { useMemo } from "react";
 import { OrderPreProdGantt } from "./order-pre-prod-gantt";
+import { KanbanCustomLabel } from "./kanban-custom-label";
 
 // Local date formatting – uses date components to avoid UTC timezone shift.
 // toISOString() converts local midnight → UTC, which in UTC+2 gives the previous day.
@@ -877,8 +878,9 @@ export function GanttPanelContent({
                   {/* Top line: custom label (primary) or order number + CTA */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                     {customLabel ? (
-                      <span
-                        title={customLabel}
+                      <KanbanCustomLabel
+                        text={customLabel}
+                        className=""
                         style={{
                           fontSize: 12.5,
                           fontWeight: 700,
@@ -892,9 +894,7 @@ export function GanttPanelContent({
                           flex: 1,
                           minWidth: 0,
                         }}
-                      >
-                        {customLabel}
-                      </span>
+                      />
                     ) : (
                       <span
                         style={{

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
 interface TooltipPosition {
@@ -13,9 +13,13 @@ interface TooltipPosition {
 export function KanbanCustomLabel({
   text,
   disabled = false,
+  className = "kanban-card-custom-label",
+  style,
 }: {
   text: string;
   disabled?: boolean;
+  className?: string;
+  style?: CSSProperties;
 }) {
   const labelRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
@@ -93,7 +97,8 @@ export function KanbanCustomLabel({
     <>
       <div
         ref={labelRef}
-        className="kanban-card-custom-label"
+        className={className}
+        style={style}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={hide}
         onPointerDown={hide}

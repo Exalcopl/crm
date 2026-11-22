@@ -104,8 +104,12 @@ export default function ZleceniaPage() {
   const quotes = useQuery(api.quotes.list) ?? [];
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const allUsersRaw = useQuery(api.users.listAllAssignable) ?? [];
+  const checklistProgressMap = useQuery(api.orderPreProdSteps.progressByOrder) ?? {};
   
   const updateOrderStatus = useMutation(api.orders.updateStatus);
+  const archiveOrder = useMutation(api.orders.archive);
+  const restoreOrder = useMutation(api.orders.restore);
+  const [archivingId, setArchivingId] = useState<Id<"orders"> | null>(null);
 
   const [localOrders, setLocalOrders] = useState<any[]>([]);
   const isDraggingRef = useRef(false);
@@ -161,6 +165,28 @@ export default function ZleceniaPage() {
     }
   }
 
+  async function handleArchiveOrder(order: any) {
+    setArchivingId(order._id);
+    try {
+      await archiveOrder({ id: order._id });
+      const label = order.customLabel || quotesMap.get(order.quoteId)?.customLabel || order.orderNumber;
+      toast.success(`Zarchiwizowano zlecenie ${label}`, {
+        action: {
+          label: "Cofnij",
+          onClick: () => {
+            void restoreOrder({ id: order._id })
+              .then(() => toast.success("Przywrócono zlecenie z archiwum"))
+              .catch((err: any) => toast.error(err.message || "Nie udało się przywrócić zlecenia"));
+          },
+        },
+      });
+    } catch (err: any) {
+      toast.error(err.message || "Błąd podczas archiwizacji zlecenia");
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
   return (
     <>
       <ZleceniaRibbon view={view} onViewChange={setView} />
@@ -174,9 +200,12 @@ export default function ZleceniaPage() {
             setOrders={setLocalOrders}
             filteredOrders={filteredOrders}
             onStatusChange={handleStatusChange}
+            onArchive={handleArchiveOrder}
+            archivingId={archivingId}
             projectTypes={projectTypes}
             quotesMap={quotesMap}
             usersMap={usersMap}
+            checklistProgressMap={checklistProgressMap}
             allUsers={allUsers}
             selectedUserIds={selectedUserIds}
             setSelectedUserIds={setSelectedUserIds}
@@ -300,26 +329,41 @@ export default function ZleceniaPage() {
                           </span>
                         </td>
                         <td className="qvm-td">
-                          <select
-                            value={order.status}
-                            onChange={(e) => void handleStatusChange(order._id, e.target.value as OrderStatus)}
-                            style={{
-                              padding: "4px 8px",
-                              background: "#0d1117",
-                              border: "1px solid #30363d",
-                              borderRadius: 4,
-                              color: "white",
-                              outline: "none",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
-                          >
-                            {Object.entries(STATUS_CONFIG).map(([k, val]) => (
-                              <option key={k} value={k}>
-                                {val.label}
-                              </option>
-                            ))}
-                          </select>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <select
+                              value={order.status}
+                              onChange={(e) => void handleStatusChange(order._id, e.target.value as OrderStatus)}
+                              style={{
+                                padding: "4px 8px",
+                                background: "#0d1117",
+                                border: "1px solid #30363d",
+                                borderRadius: 4,
+                                color: "white",
+                                outline: "none",
+                                fontSize: 12,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {Object.entries(STATUS_CONFIG).map(([k, val]) => (
+                                <option key={k} value={k}>
+                                  {val.label}
+                                </option>
+                              ))}
+                            </select>
+                            {order.status === "gotowe" && (
+                              <button
+                                type="button"
+                                className="kanban-card-archive-btn"
+                                style={{ marginTop: 0, width: "auto", padding: "4px 8px", whiteSpace: "nowrap" }}
+                                disabled={archivingId === order._id}
+                                onClick={() => void handleArchiveOrder(order)}
+                                title="Przenieś zlecenie do archiwum"
+                              >
+                                <I.archive s={12} />
+                                {archivingId === order._id ? "Archiwizowanie..." : "Archiwizuj"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -334,14 +378,19 @@ export default function ZleceniaPage() {
   );
 }
 
+type ChecklistProgressMap = Record<string, { done: number; total: number }>;
+
 function ZleceniaKanbanBoard({
   orders,
   setOrders,
   filteredOrders,
   onStatusChange,
+  onArchive,
+  archivingId,
   projectTypes,
   quotesMap,
   usersMap,
+  checklistProgressMap,
   allUsers,
   selectedUserIds,
   setSelectedUserIds,
@@ -353,9 +402,12 @@ function ZleceniaKanbanBoard({
   setOrders: (updater: any[] | ((prev: any[]) => any[])) => void;
   filteredOrders: any[];
   onStatusChange: (id: Id<"orders">, status: OrderStatus) => void;
+  onArchive: (order: any) => void;
+  archivingId: Id<"orders"> | null;
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  checklistProgressMap: ChecklistProgressMap;
   allUsers: any[];
   selectedUserIds: string[];
   setSelectedUserIds: (updater: string[] | ((prev: string[]) => string[])) => void;
@@ -506,6 +558,9 @@ function ZleceniaKanbanBoard({
             projectTypes={projectTypes}
             quotesMap={quotesMap}
             usersMap={usersMap}
+            checklistProgressMap={checklistProgressMap}
+            onArchive={onArchive}
+            archivingId={archivingId}
           />
         ))}
       </div>
@@ -516,6 +571,7 @@ function ZleceniaKanbanBoard({
             projectTypes={projectTypes}
             quotesMap={quotesMap}
             usersMap={usersMap}
+            checklistProgress={checklistProgressMap[activeOrder._id]}
             overlay
           />
         ) : null}
@@ -531,6 +587,9 @@ function KanbanColumn({
   projectTypes,
   quotesMap,
   usersMap,
+  checklistProgressMap,
+  onArchive,
+  archivingId,
 }: {
   status: OrderStatus;
   color: string;
@@ -538,6 +597,9 @@ function KanbanColumn({
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  checklistProgressMap: ChecklistProgressMap;
+  onArchive: (order: any) => void;
+  archivingId: Id<"orders"> | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const ids = orders.map((o) => o._id);
@@ -558,6 +620,9 @@ function KanbanColumn({
               projectTypes={projectTypes}
               quotesMap={quotesMap}
               usersMap={usersMap}
+              checklistProgress={checklistProgressMap[o._id]}
+              onArchive={onArchive}
+              isArchiving={archivingId === o._id}
             />
           ))}
         </div>
@@ -571,11 +636,17 @@ function SortableKanbanCard({
   projectTypes,
   quotesMap,
   usersMap,
+  checklistProgress,
+  onArchive,
+  isArchiving,
 }: {
   order: any;
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  checklistProgress?: { done: number; total: number };
+  onArchive: (order: any) => void;
+  isArchiving?: boolean;
 }) {
   const router = useRouter();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -611,6 +682,9 @@ function SortableKanbanCard({
         projectTypes={projectTypes}
         quotesMap={quotesMap}
         usersMap={usersMap}
+        checklistProgress={checklistProgress}
+        onArchive={onArchive}
+        isArchiving={isArchiving}
       />
     </div>
   );
@@ -621,12 +695,14 @@ function KanbanCardView({
   projectTypes,
   quotesMap,
   usersMap,
+  checklistProgress,
   overlay,
 }: {
   order: any;
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  checklistProgress?: { done: number; total: number };
   overlay?: boolean;
 }) {
   return (
@@ -636,6 +712,7 @@ function KanbanCardView({
         projectTypes={projectTypes}
         quotesMap={quotesMap}
         usersMap={usersMap}
+        checklistProgress={checklistProgress}
         overlay={overlay}
       />
     </div>
@@ -647,13 +724,19 @@ function KanbanCardContent({
   projectTypes,
   quotesMap,
   usersMap,
+  checklistProgress,
   overlay,
+  onArchive,
+  isArchiving,
 }: {
   order: any;
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  checklistProgress?: { done: number; total: number };
   overlay?: boolean;
+  onArchive?: (order: any) => void;
+  isArchiving?: boolean;
 }) {
   const quote = quotesMap.get(order.quoteId);
   const projectType = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
@@ -661,6 +744,11 @@ function KanbanCardContent({
   const primaryStyle = primaryType ? getProjectTypeStyle(projectTypes, primaryType) : null;
   const customLabel = order.customLabel || quote?.customLabel;
   const ownerName = order.ownerId ? usersMap.get(order.ownerId) || "" : "";
+  const hasProgress = !!checklistProgress && checklistProgress.total > 0;
+  const progressPct = hasProgress
+    ? Math.round((checklistProgress.done / checklistProgress.total) * 100)
+    : 0;
+  const isProgressComplete = hasProgress && checklistProgress.done === checklistProgress.total;
 
   return (
     <>
@@ -702,6 +790,38 @@ function KanbanCardContent({
       <div className={`kanban-card-client${customLabel ? " kanban-card-client--secondary" : ""}`}>
         {order.clientName}
       </div>
+      {hasProgress && (
+        <div className={`kanban-card-progress${isProgressComplete ? " is-complete" : ""}`}>
+          <div className="kanban-card-progress-meta">
+            <span className="kanban-card-progress-label">Zadania</span>
+            <span className="kanban-card-progress-stats">
+              {checklistProgress.done}/{checklistProgress.total} · {progressPct}%
+            </span>
+          </div>
+          <div className="kanban-card-progress-track" aria-hidden>
+            <div
+              className="kanban-card-progress-fill"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {order.status === "gotowe" && !overlay && onArchive && (
+        <button
+          type="button"
+          className="kanban-card-archive-btn"
+          disabled={isArchiving}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchive(order);
+          }}
+          title="Przenieś zlecenie do archiwum"
+        >
+          <I.archive s={12} />
+          {isArchiving ? "Archiwizowanie..." : "Archiwizuj"}
+        </button>
+      )}
     </>
   );
 }
