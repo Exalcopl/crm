@@ -404,6 +404,7 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
   const tone = deadlineTone(quote.deadline);
   const hasValue = quote.value !== null;
   const ownerName = useOwnerName(quote);
+  const customLabel = quote.customLabel;
   return (
     <>
       <div
@@ -419,32 +420,17 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
             : undefined
         }
       />
-      <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
-        <span className="kanban-card-id">{quote.id}</span>
-        {quote.customLabel && (
-          <span
-            style={{
-              fontSize: "9px",
-              fontWeight: "bold",
-              textTransform: "uppercase",
-              color: "var(--accent-primary)",
-              background: "var(--accent-soft)",
-              border: "1px solid var(--accent-line)",
-              padding: "1px 6px",
-              borderRadius: "4px",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "120px",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
-            }}
-            title={quote.customLabel}
-          >
-            🏷️ {quote.customLabel}
-          </span>
+      <div className="kanban-card-head kanban-card-head--order">
+        {customLabel ? (
+          <div className="kanban-card-custom-label" title={customLabel}>
+            {customLabel}
+          </div>
+        ) : (
+          <span className="kanban-card-id kanban-card-id--subtle">{quote.id}</span>
         )}
         <div
           className="kanban-card-owner"
+          style={{ flexShrink: 0 }}
           title={ownerName}
           aria-label={ownerName}
         >
@@ -453,26 +439,14 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
           </span>
         </div>
       </div>
-      <div className="kanban-card-types">
-        {quote.projectType.map((t) => {
-          const s = getProjectTypeStyle(projectTypes, t);
-          return (
-            <span
-              key={t}
-              className="kanban-chip kanban-chip-type"
-              style={{
-                background: s.bg,
-                color: s.fg,
-                borderColor: s.border,
-              }}
-            >
-              <span className="kanban-chip-dot" style={{ background: s.fg }} />
-              {t}
-            </span>
-          );
-        })}
+      {customLabel && (
+        <div className="kanban-card-id kanban-card-id--subtle kanban-card-id--below">
+          {quote.id}
+        </div>
+      )}
+      <div className={`kanban-card-client${customLabel ? " kanban-card-client--secondary" : ""}`}>
+        {quote.contact.name}
       </div>
-      <div className="kanban-card-client">{quote.contact.name}</div>
       <div className="kanban-card-footer">
         {hasValue ? (
           <div className="kanban-card-value">

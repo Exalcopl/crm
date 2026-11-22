@@ -69,7 +69,7 @@ export function GanttPanelContent({
   onClose,
   onOpenOrder,
 }: {
-  onClose: () => void;
+  onClose?: () => void;
   onOpenOrder: (id: Id<"orders">) => void;
 }) {
   const orders = useQuery(api.orders.list) ?? [];
@@ -631,14 +631,16 @@ export function GanttPanelContent({
             {productionOrders.length} {productionOrders.length === 1 ? "zlecenie" : "zleceń"}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", fontSize: 18 }}
-          title="Zamknij"
-        >
-          ✕
-        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", fontSize: 18 }}
+            title="Zamknij"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Toolbar */}

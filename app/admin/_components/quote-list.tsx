@@ -254,25 +254,48 @@ function QuoteListRow({
         }
       }}
     >
-      <div className="quote-list-cell quote-list-cell-id" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-        <span>{quote.id}</span>
-        {quote.customLabel && (
+      <div className="quote-list-cell quote-list-cell-id" style={{ display: "block" }}>
+        {quote.customLabel ? (
+          <>
+            <div
+              style={{
+                fontFamily: "var(--sans, inherit)",
+                fontSize: "13.5px",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                borderLeft: "2.5px solid var(--accent-primary)",
+                paddingLeft: "7px",
+                lineHeight: 1.3,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+              title={quote.customLabel}
+            >
+              {quote.customLabel}
+            </div>
+            <div
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: "11px",
+                fontWeight: 500,
+                color: "var(--text-muted)",
+                marginTop: 2,
+                paddingLeft: "9.5px",
+              }}
+            >
+              {quote.id}
+            </div>
+          </>
+        ) : (
           <span
             style={{
-              fontSize: "9px",
-              fontWeight: "bold",
-              textTransform: "uppercase",
-              color: "var(--accent-primary)",
-              background: "var(--accent-soft)",
-              border: "1px solid var(--accent-line)",
-              padding: "1px 6px",
-              borderRadius: "4px",
-              whiteSpace: "nowrap",
-              boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+              fontFamily: "var(--mono)",
+              fontSize: "12.5px",
+              color: "var(--text-secondary)",
             }}
-            title={quote.customLabel}
           >
-            🏷️ {quote.customLabel}
+            {quote.id}
           </span>
         )}
       </div>

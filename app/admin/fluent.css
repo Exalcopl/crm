@@ -1203,10 +1203,10 @@
 .quote-list-row {
   display: grid;
   grid-template-columns:
-    minmax(110px, 120px)
-    minmax(160px, 1fr)
-    minmax(200px, 1.8fr)
-    minmax(160px, 180px)
+    minmax(160px, 1.1fr)
+    minmax(150px, 1fr)
+    minmax(180px, 1.4fr)
+    minmax(150px, 175px)
     minmax(110px, 130px)
     minmax(110px, 130px)
     64px;

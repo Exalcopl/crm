@@ -60,6 +60,14 @@ const TABS: TabDef[] = [
     action: "read",
   },
   {
+    id: "harmonogram",
+    label: "Harmonogram Produkcji",
+    href: "/admin/harmonogram",
+    match: (p) => p.startsWith("/admin/harmonogram"),
+    resource: "wyceny",
+    action: "read",
+  },
+  {
     id: "zamowienia",
     label: "Zamówienia",
     href: "/admin/zamowienia",

@@ -1520,7 +1520,7 @@ export default function OrderDetailPage({
 
   const handleBack = () => {
     if (fromGantt) {
-      router.push("/admin/zlecenia?gantt=open");
+      router.push("/admin/harmonogram");
     } else {
       router.back();
     }
