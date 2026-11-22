@@ -138,6 +138,9 @@ export function GanttPanelContent({
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const closeTimeoutRef = useRef<any>(null);
   const lastShiftRef = useRef<number>(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const panStateRef = useRef<{ startX: number; initialScrollLeft: number } | null>(null);
+  const [isPanning, setIsPanning] = useState(false);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -145,6 +148,41 @@ export function GanttPanelContent({
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
+
+  // Drag-to-pan timeline horizontally when dragging on empty timeline area
+  useEffect(() => {
+    if (!isPanning) return;
+
+    const prevCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+
+    const handlePanMove = (e: MouseEvent) => {
+      const container = scrollContainerRef.current;
+      const pan = panStateRef.current;
+      if (!container || !pan) return;
+      const dx = e.clientX - pan.startX;
+      container.scrollLeft = pan.initialScrollLeft - dx;
+    };
+
+    const stopPanning = () => {
+      panStateRef.current = null;
+      setIsPanning(false);
+    };
+
+    window.addEventListener("mousemove", handlePanMove);
+    window.addEventListener("mouseup", stopPanning);
+    window.addEventListener("blur", stopPanning);
+
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevUserSelect;
+      window.removeEventListener("mousemove", handlePanMove);
+      window.removeEventListener("mouseup", stopPanning);
+      window.removeEventListener("blur", stopPanning);
+    };
+  }, [isPanning]);
 
   const [timelineStart, setTimelineStart] = useState(() => {
     // Default to 5 days before today
@@ -434,6 +472,7 @@ export function GanttPanelContent({
     orderId: Id<"orders">
   ) => {
     e.preventDefault();
+    e.stopPropagation();
     const dates = localDates[orderId];
     if (!dates) return;
 
@@ -543,6 +582,7 @@ export function GanttPanelContent({
     orderId: Id<"orders">
   ) => {
     e.preventDefault();
+    e.stopPropagation();
     const aDates = localAssemblyDates[orderId];
     if (!aDates) return;
     setDragAssembly({
@@ -552,6 +592,28 @@ export function GanttPanelContent({
       initialStart: aDates.start,
       initialEnd: aDates.end,
     });
+  };
+
+  const handleTimelinePanStart = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || drag || dragAssembly) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('[data-gantt-interactive="true"], button, a, input, select')) {
+      return;
+    }
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    e.preventDefault();
+    if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+    setHoveredOrder(null);
+    setHoveredType(null);
+    setTooltipPos(null);
+
+    panStateRef.current = {
+      startX: e.clientX,
+      initialScrollLeft: container.scrollLeft,
+    };
+    setIsPanning(true);
   };
 
   useEffect(() => {
@@ -799,7 +861,7 @@ export function GanttPanelContent({
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         
         {/* Unified Table-Chart Wrapper */}
-        <div style={{ flex: 1, display: "flex", overflow: "auto", position: "relative" }}>
+        <div ref={scrollContainerRef} style={{ flex: 1, display: "flex", overflow: "auto", position: "relative" }}>
           
           {/* Left Columns (Fixed Side) */}
           <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 3, position: "sticky", left: 0 }}>
@@ -1007,7 +1069,16 @@ export function GanttPanelContent({
           </div>
 
           {/* Right Gantt Chart Area */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative" }}>
+          <div
+            onMouseDown={handleTimelinePanStart}
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              position: "relative",
+              cursor: isPanning ? "grabbing" : "default",
+            }}
+          >
             
             {/* Timeline Headers */}
             <div style={{ display: "flex", flexDirection: "column", height: 54, borderBottom: "2px solid #30363d", background: "#161b22", position: "sticky", top: 0, zIndex: 2 }}>
@@ -1274,6 +1345,7 @@ export function GanttPanelContent({
                     {/* Production bar */}
                     {showProdBar && (
                       <div
+                        data-gantt-interactive="true"
                         style={{
                           position: "absolute",
                           left: prodBarLeft,
@@ -1332,6 +1404,7 @@ export function GanttPanelContent({
                     {/* Assembly bar */}
                     {showAsmBar && (
                       <div
+                        data-gantt-interactive="true"
                         style={{
                           position: "absolute",
                           left: asmBarLeft,
@@ -1404,6 +1477,7 @@ export function GanttPanelContent({
                           }} />
                         )}
                         <div
+                          data-gantt-interactive="true"
                           style={{
                             position: "absolute",
                             left: deliveryOffsetDays * dayWidth + dayWidth / 2 - 8,

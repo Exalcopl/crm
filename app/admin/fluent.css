@@ -1904,13 +1904,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .quote-detail-header-main {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 1 1 0;
   min-width: 0;
 }
 
@@ -1939,6 +1940,14 @@
   display: flex;
   align-items: stretch;
   gap: 14px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .quote-detail-header-row {
+    flex-wrap: wrap;
+  }
 }
 
 .quote-detail-meta-item {
