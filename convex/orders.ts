@@ -212,8 +212,7 @@ export const updateStatus = mutation({
       v.literal("kompletacja"),
       v.literal("produkcja"),
       v.literal("montaz"),
-      v.literal("gotowe"),
-      v.literal("wstrzymane")
+      v.literal("gotowe")
     ),
   },
   handler: async (ctx, args) => {
@@ -253,7 +252,6 @@ export const updateStatus = mutation({
       produkcja: "W produkcji",
       montaz: "Do montażu",
       gotowe: "Zrealizowane",
-      wstrzymane: "Wstrzymane",
     };
 
     if (order.quoteId) {
@@ -932,16 +930,14 @@ export const appendNotesFromPartnerApi = internalMutation({
       isPartner: true,
     });
 
-    // 3. Powiadomienie w systemie dla pracowników CRM
-    await ctx.db.insert("notifications", {
+    // 3. Powiadomienie w systemie dla wszystkich pracowników CRM
+    await triggerNotification(ctx, {
       type: "partner_note_reply",
       title: `Wiadomość od ${authorName}`,
       message: `Otrzymano wiadomość w zleceniu ${order.orderNumber}: "${trimmed.slice(0, 60)}${trimmed.length > 60 ? "..." : ""}"`,
       link: `/admin/zlecenia/${order._id}`,
-      targetUserId: order.ownerId ?? undefined,
-      readBy: [],
+      targetUserId: undefined,
       entityId: order._id,
-      createdAt: now,
     });
 
     // 4. Dodaj wpis do aktywności zlecenia

@@ -20,11 +20,14 @@ export default function UstawieniaPage() {
   // Notification settings
   const notifSettings = useQuery(api.notifications.getSettings);
   const updateNotifSettings = useMutation(api.notifications.updateSettings);
+  const clearAllNotifs = useMutation(api.notifications.clearAllForAdmin);
 
-  const [enableNewQuote, setEnableNewQuote] = useState(true);
-  const [enableNewOrder, setEnableNewOrder] = useState(true);
+  const [enableNewQuote, setEnableNewQuote] = useState(false);
+  const [enableNewOrder, setEnableNewOrder] = useState(false);
+  const [enablePartnerNoteReply, setEnablePartnerNoteReply] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [savingNotif, setSavingNotif] = useState(false);
+  const [clearingNotifs, setClearingNotifs] = useState(false);
   const [notifMessage, setNotifMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   // Sync state with db queries
@@ -38,6 +41,7 @@ export default function UstawieniaPage() {
     if (notifSettings) {
       setEnableNewQuote(notifSettings.enabledTypes.includes("new_quote"));
       setEnableNewOrder(notifSettings.enabledTypes.includes("new_order"));
+      setEnablePartnerNoteReply(notifSettings.enabledTypes.includes("partner_note_reply"));
       setSoundEnabled(notifSettings.soundEnabled);
     }
   }, [notifSettings]);
@@ -83,6 +87,7 @@ export default function UstawieniaPage() {
     const enabledTypes: string[] = [];
     if (enableNewQuote) enabledTypes.push("new_quote");
     if (enableNewOrder) enabledTypes.push("new_order");
+    if (enablePartnerNoteReply) enabledTypes.push("partner_note_reply");
 
     try {
       await updateNotifSettings({
@@ -97,6 +102,29 @@ export default function UstawieniaPage() {
       toast.error(errMsg);
     } finally {
       setSavingNotif(false);
+    }
+  }
+
+  async function handleClearAllNotifs() {
+    if (!window.confirm("Czy na pewno usunąć WSZYSTKIE powiadomienia dla wszystkich użytkowników i zostawić wyłącznie powiadomienia od ADK?")) {
+      return;
+    }
+    setClearingNotifs(true);
+    setNotifMessage(null);
+    try {
+      const res = await clearAllNotifs();
+      setEnableNewQuote(false);
+      setEnableNewOrder(false);
+      setEnablePartnerNoteReply(true);
+      const msg = `Wyczyszczono ${res.deletedCount} powiadomień dla wszystkich użytkowników. Aktywne: wyłącznie wiadomości od ADK.`;
+      setNotifMessage({ text: msg, type: "success" });
+      toast.success(msg);
+    } catch (e: any) {
+      const errMsg = e.message || "Błąd podczas czyszczenia powiadomień.";
+      setNotifMessage({ text: errMsg, type: "error" });
+      toast.error(errMsg);
+    } finally {
+      setClearingNotifs(false);
     }
   }
 
@@ -130,6 +158,38 @@ export default function UstawieniaPage() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {/* Option: Nowa wiadomość od ADK */}
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "14px",
+                borderRadius: "8px",
+                background: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "20px" }}>💬</span>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--text-primary)" }}>
+                    Powiadomienia o nowej wiadomości od ADK
+                  </div>
+                  <div style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" }}>
+                    Generuj powiadomienie w nagłówku dla wszystkich użytkowników CRM po otrzymaniu wiadomości od ADK
+                  </div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={enablePartnerNoteReply}
+                onChange={(e) => setEnablePartnerNoteReply(e.target.checked)}
+                style={{ width: "18px", height: "18px", accentColor: "#d41d3c", cursor: "pointer" }}
+              />
+            </label>
+
             {/* Option: Nowa Wycena */}
             <label
               style={{
@@ -242,25 +302,44 @@ export default function UstawieniaPage() {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={handleSaveNotif}
-            disabled={savingNotif}
-            style={{
-              background: "#d41d3c",
-              color: "#ffffff",
-              padding: "10px 18px",
-              border: "none",
-              borderRadius: "6px",
-              fontWeight: 700,
-              fontSize: "13px",
-              cursor: "pointer",
-              alignSelf: "flex-end",
-              transition: "opacity 150ms ease",
-            }}
-          >
-            {savingNotif ? "Zapisywanie…" : "Zapisz konfigurację powiadomień"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleClearAllNotifs}
+              disabled={clearingNotifs || savingNotif}
+              style={{
+                background: "rgba(239, 68, 68, 0.12)",
+                color: "#f87171",
+                padding: "10px 14px",
+                border: "1px solid rgba(239, 68, 68, 0.35)",
+                borderRadius: "6px",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "opacity 150ms ease",
+              }}
+            >
+              {clearingNotifs ? "Czyszczenie…" : "Wyczyść wszystkie powiadomienia (wszyscy)"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveNotif}
+              disabled={savingNotif || clearingNotifs}
+              style={{
+                background: "#d41d3c",
+                color: "#ffffff",
+                padding: "10px 18px",
+                border: "none",
+                borderRadius: "6px",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: "pointer",
+                transition: "opacity 150ms ease",
+              }}
+            >
+              {savingNotif ? "Zapisywanie…" : "Zapisz konfigurację powiadomień"}
+            </button>
+          </div>
         </div>
 
         {/* Card 2: OCR */}

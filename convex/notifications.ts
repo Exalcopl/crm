@@ -1,8 +1,8 @@
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
-export const DEFAULT_ENABLED_TYPES = ["new_quote", "new_order"];
+export const DEFAULT_ENABLED_TYPES = ["partner_note_reply"];
 
 // List notifications for current user (last 30 days, max 50 items)
 export const list = query({
@@ -205,6 +205,97 @@ export const createNotification = mutation({
   },
   handler: async (ctx, args) => {
     return await triggerNotification(ctx, args);
+  },
+});
+
+// Admin-only mutation callable from /admin/ustawienia UI: clears all notifications
+// for every user and restricts global settings to incoming ADK messages only.
+export const clearAllForAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Brak autoryzacji");
+
+    const user = await ctx.db.get(userId);
+    if (!user?.roleId) throw new Error("Brak uprawnień administratora");
+    const role = await ctx.db.get(user.roleId);
+    if (role?.name !== "admin" && role?.name !== "super_admin") {
+      throw new Error("Brak uprawnień administratora");
+    }
+
+    const allNotifications = await ctx.db.query("notifications").collect();
+    for (const n of allNotifications) {
+      await ctx.db.delete(n._id);
+    }
+
+    const enabledTypes = ["partner_note_reply"];
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("notificationSettings")
+      .withIndex("by_key", (q) => q.eq("key", "global_settings"))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        enabledTypes,
+        updatedAt: now,
+        updatedBy: userId,
+      });
+    } else {
+      await ctx.db.insert("notificationSettings", {
+        key: "global_settings",
+        enabledTypes,
+        soundEnabled: true,
+        updatedAt: now,
+        updatedBy: userId,
+      });
+    }
+
+    return {
+      deletedCount: allNotifications.length,
+      enabledTypes,
+    };
+  },
+});
+
+// Internal admin maintenance mutation: clear all notifications for every user
+// and restrict global notification settings to incoming ADK messages only.
+export const clearAllAndConfigureAdkOnly = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const allNotifications = await ctx.db.query("notifications").collect();
+    for (const n of allNotifications) {
+      await ctx.db.delete(n._id);
+    }
+
+    const enabledTypes = ["partner_note_reply"];
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("notificationSettings")
+      .withIndex("by_key", (q) => q.eq("key", "global_settings"))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        enabledTypes,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("notificationSettings", {
+        key: "global_settings",
+        enabledTypes,
+        soundEnabled: true,
+        updatedAt: now,
+      });
+    }
+
+    const remaining = (await ctx.db.query("notifications").collect()).length;
+
+    return {
+      deletedCount: allNotifications.length,
+      remaining,
+      enabledTypes,
+    };
   },
 });
 
