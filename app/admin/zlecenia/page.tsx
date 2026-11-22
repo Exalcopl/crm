@@ -30,7 +30,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   getProjectTypeStyle,
-  deadlineTone,
   formatDeadline,
   ownerInitials,
 } from "../_lib/quotes";
@@ -221,31 +220,54 @@ export default function ZleceniaPage() {
                     filteredOrders.map((order) => (
                       <tr key={order._id} className="qvm-tr">
                         <td className="qvm-td" style={{ fontWeight: 600 }}>
-                          <Link href={`/admin/zlecenia/${order._id}`} style={{ color: "#58a6ff", textDecoration: "none" }}>
-                            {order.orderNumber}
-                          </Link>
                           {(() => {
                             const q = quotesMap.get(order.quoteId);
                             const label = order.customLabel || q?.customLabel;
-                            if (!label) return null;
-                            return (
-                              <div style={{ marginTop: 2 }}>
-                                <span
-                                  style={{
-                                    fontSize: "9px",
-                                    fontWeight: "bold",
-                                    textTransform: "uppercase",
-                                    color: "var(--accent-primary)",
-                                    background: "var(--accent-soft)",
-                                    border: "1px solid var(--accent-line)",
-                                    padding: "1px 5px",
-                                    borderRadius: "4px",
-                                    display: "inline-block"
-                                  }}
+                            if (label) {
+                              return (
+                                <Link
+                                  href={`/admin/zlecenia/${order._id}`}
+                                  style={{ textDecoration: "none", display: "block" }}
                                 >
-                                  🏷️ {label}
-                                </span>
-                              </div>
+                                  <div
+                                    style={{
+                                      fontSize: "13.5px",
+                                      fontWeight: 700,
+                                      color: "var(--text-primary)",
+                                      borderLeft: "2.5px solid var(--accent-primary)",
+                                      paddingLeft: "7px",
+                                      lineHeight: 1.3,
+                                    }}
+                                  >
+                                    {label}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontFamily: "var(--mono)",
+                                      fontSize: "11px",
+                                      fontWeight: 500,
+                                      color: "var(--text-muted)",
+                                      marginTop: 2,
+                                      paddingLeft: "9.5px",
+                                    }}
+                                  >
+                                    {order.orderNumber}
+                                  </div>
+                                </Link>
+                              );
+                            }
+                            return (
+                              <Link
+                                href={`/admin/zlecenia/${order._id}`}
+                                style={{
+                                  fontFamily: "var(--mono)",
+                                  fontSize: "12.5px",
+                                  color: "var(--text-secondary)",
+                                  textDecoration: "none",
+                                }}
+                              >
+                                {order.orderNumber}
+                              </Link>
                             );
                           })()}
                         </td>
@@ -633,8 +655,7 @@ function KanbanCardContent({
   const projectType = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
   const primaryType = projectType[0];
   const primaryStyle = primaryType ? getProjectTypeStyle(projectTypes, primaryType) : null;
-  const targetDate = order.productionEndDate || order.deadline;
-  const tone = deadlineTone(targetDate);
+  const customLabel = order.customLabel || quote?.customLabel;
   const ownerName = order.ownerId ? usersMap.get(order.ownerId) || "" : "";
 
   return (
@@ -650,37 +671,18 @@ function KanbanCardContent({
             : undefined
         }
       />
-      <div className="kanban-card-head" style={{ flexWrap: "wrap", gap: "6px" }}>
-        <span className="kanban-card-id" style={{ color: "#58a6ff" }}>{order.orderNumber}</span>
-        {(() => {
-          const label = order.customLabel || quote?.customLabel;
-          if (!label) return null;
-          return (
-            <span
-              style={{
-                fontSize: "9px",
-                fontWeight: "bold",
-                textTransform: "uppercase",
-                color: "var(--accent-primary)",
-                background: "var(--accent-soft)",
-                border: "1px solid var(--accent-line)",
-                padding: "1px 6px",
-                borderRadius: "4px",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: "120px",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
-              }}
-              title={label}
-            >
-              🏷️ {label}
-            </span>
-          );
-        })()}
+      <div className="kanban-card-head kanban-card-head--order">
+        {customLabel ? (
+          <div className="kanban-card-custom-label" title={customLabel}>
+            {customLabel}
+          </div>
+        ) : (
+          <span className="kanban-card-id kanban-card-id--subtle">{order.orderNumber}</span>
+        )}
         {ownerName && (
           <div
             className="kanban-card-owner"
+            style={{ flexShrink: 0 }}
             title={ownerName}
             aria-label={ownerName}
           >
@@ -690,26 +692,14 @@ function KanbanCardContent({
           </div>
         )}
       </div>
-      <div className="kanban-card-types">
-        {projectType.map((t: string) => {
-          const s = getProjectTypeStyle(projectTypes, t);
-          return (
-            <span
-              key={t}
-              className="kanban-chip kanban-chip-type"
-              style={{
-                background: s.bg,
-                color: s.fg,
-                borderColor: s.border,
-              }}
-            >
-              <span className="kanban-chip-dot" style={{ background: s.fg }} />
-              {t}
-            </span>
-          );
-        })}
+      {customLabel && (
+        <div className="kanban-card-id kanban-card-id--subtle kanban-card-id--below">
+          {order.orderNumber}
+        </div>
+      )}
+      <div className={`kanban-card-client${customLabel ? " kanban-card-client--secondary" : ""}`}>
+        {order.clientName}
       </div>
-      <div className="kanban-card-client">{order.clientName}</div>
       <div className="kanban-card-footer">
         <div className="kanban-card-value">
           <span className="kanban-card-value-num">
