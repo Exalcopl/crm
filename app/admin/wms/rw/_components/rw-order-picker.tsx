@@ -21,7 +21,6 @@ const ORDER_STATUS_COLORS: Record<string, { bg: string; text: string; label: str
   produkcja: { bg: "rgba(16, 185, 129, 0.15)", text: "#34d399", label: "W produkcji" },
   montaz: { bg: "rgba(236, 72, 153, 0.15)", text: "#f472b6", label: "Montaż" },
   gotowe: { bg: "rgba(52, 211, 153, 0.2)", text: "#10b981", label: "Gotowe" },
-  wstrzymane: { bg: "rgba(239, 68, 68, 0.15)", text: "#f87171", label: "Wstrzymane" },
 };
 
 export function RwOrderPicker({

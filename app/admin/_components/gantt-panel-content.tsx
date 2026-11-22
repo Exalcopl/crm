@@ -90,7 +90,6 @@ export function GanttPanelContent({
     { id: "produkcja", label: "Produkcja", color: "#10b981" },
     { id: "montaz", label: "Montaż", color: "#f97316" },
     { id: "gotowe", label: "Gotowe", color: "#8b5cf6" },
-    { id: "wstrzymane", label: "Wstrzymane", color: "#ef4444" },
   ];
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["produkcja"]);
 

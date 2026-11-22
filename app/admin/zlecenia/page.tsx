@@ -42,7 +42,7 @@ import {
 import { KanbanCustomLabel } from "../_components/kanban-custom-label";
 
 type ZleceniaViewMode = "kanban" | "lista";
-type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
+type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   nowe: { label: "Nowe", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
@@ -51,7 +51,6 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: str
   produkcja: { label: "W produkcji", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
   montaz: { label: "Do montażu", color: "#d29922", bg: "rgba(210, 153, 34, 0.15)" },
   gotowe: { label: "Zrealizowane", color: "#3fb950", bg: "rgba(63, 185, 80, 0.15)" },
-  wstrzymane: { label: "Wstrzymane", color: "#8b949e", bg: "rgba(139, 148, 158, 0.15)" },
 };
 
 function formatCurrency(val: number) {
@@ -315,18 +314,27 @@ export default function ZleceniaPage() {
                           ) : "—"}
                         </td>
                         <td className="qvm-td">
-                          <span
-                            style={{
-                              padding: "2px 8px",
-                              borderRadius: 99,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              background: STATUS_CONFIG[order.status as OrderStatus].bg,
-                              color: STATUS_CONFIG[order.status as OrderStatus].color,
-                            }}
-                          >
-                            {STATUS_CONFIG[order.status as OrderStatus].label}
-                          </span>
+                          {(() => {
+                            const cfg = STATUS_CONFIG[order.status as OrderStatus] ?? {
+                              label: order.status,
+                              color: "#8b949e",
+                              bg: "rgba(139, 148, 158, 0.15)",
+                            };
+                            return (
+                              <span
+                                style={{
+                                  padding: "2px 8px",
+                                  borderRadius: 99,
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  background: cfg.bg,
+                                  color: cfg.color,
+                                }}
+                              >
+                                {cfg.label}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="qvm-td">
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -431,7 +439,6 @@ function ZleceniaKanbanBoard({
       produkcja: [],
       montaz: [],
       gotowe: [],
-      wstrzymane: [],
     };
     filteredOrders.forEach((o) => {
       if (map[o.status as OrderStatus]) {

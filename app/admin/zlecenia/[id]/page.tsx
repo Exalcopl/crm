@@ -28,7 +28,7 @@ import {
   type Quote,
 } from "../../_lib/quotes";
 
-type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
+type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe";
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   nowe: { label: "Nowe", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
@@ -37,7 +37,6 @@ const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: str
   produkcja: { label: "W produkcji", color: "#58a6ff", bg: "rgba(88, 166, 255, 0.15)" },
   montaz: { label: "Do montażu", color: "#d29922", bg: "rgba(210, 153, 34, 0.15)" },
   gotowe: { label: "Zrealizowane", color: "#3fb950", bg: "rgba(63, 185, 80, 0.15)" },
-  wstrzymane: { label: "Wstrzymane", color: "#8b949e", bg: "rgba(139, 148, 158, 0.15)" },
 };
 
 function formatCurrency(val: number) {
@@ -1514,7 +1513,11 @@ export default function OrderDetailPage({
   }
 
   const currentStatus = order.status as OrderStatus;
-  const config = STATUS_CONFIG[currentStatus];
+  const config = STATUS_CONFIG[currentStatus] ?? {
+    label: currentStatus,
+    color: "#8b949e",
+    bg: "rgba(139, 148, 158, 0.15)",
+  };
   const statuses = Object.keys(STATUS_CONFIG) as OrderStatus[];
   const statusIndex = statuses.indexOf(currentStatus);
 
