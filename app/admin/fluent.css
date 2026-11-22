@@ -9681,3 +9681,200 @@ select.fluent-input {
   padding: 24px 16px;
   line-height: 1.5;
 }
+
+/* Gantt filter client multi-select (Fluent system UI) */
+.gantt-multiselect {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+}
+
+.gantt-multiselect-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gantt-multiselect-clear {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-accent, #ff9eaf);
+  padding: 0 2px;
+  transition: color 120ms ease;
+}
+
+.gantt-multiselect-clear:hover {
+  color: var(--accent-hover, #e63350);
+}
+
+.gantt-multiselect-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--bg-base, #0d1117);
+  border: 1px solid var(--border-subtle, #30363d);
+  border-radius: 6px;
+  color: var(--text-muted, #8b949e);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.gantt-multiselect-trigger.has-value {
+  color: var(--text-primary, #ffffff);
+  border-color: var(--accent-line, rgba(212, 29, 60, 0.45));
+}
+
+.gantt-multiselect-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.gantt-multiselect-trigger.is-open {
+  border-color: var(--accent-primary, #d41d3c);
+  box-shadow: 0 0 0 2px var(--accent-soft, rgba(212, 29, 60, 0.16));
+}
+
+.gantt-multiselect-trigger-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.gantt-multiselect-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted, #8b949e);
+  transition: transform 150ms ease;
+}
+
+.gantt-multiselect-chevron.is-open {
+  transform: rotate(180deg);
+  color: var(--text-primary, #ffffff);
+}
+
+.gantt-multiselect-menu {
+  margin-top: 2px;
+  background: var(--bg-base, #0d1117);
+  border: 1px solid var(--border-subtle, #30363d);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.gantt-multiselect-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--border-default, #21262d);
+  background: var(--bg-surface, #161b22);
+}
+
+.gantt-multiselect-search input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary, #ffffff);
+  font-size: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.gantt-multiselect-search input::placeholder {
+  color: var(--text-muted, #8b949e);
+}
+
+.gantt-multiselect-search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #8b949e);
+  padding: 0;
+}
+
+.gantt-multiselect-search-clear:hover {
+  color: var(--text-primary, #ffffff);
+}
+
+.gantt-multiselect-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gantt-multiselect-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-secondary, #c9d1d9);
+  text-align: left;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.gantt-multiselect-option:hover {
+  background: var(--bg-hover, #2d3748);
+  color: var(--text-primary, #ffffff);
+}
+
+.gantt-multiselect-option.is-selected {
+  background: var(--accent-soft, rgba(212, 29, 60, 0.16));
+  color: var(--text-primary, #ffffff);
+}
+
+.gantt-multiselect-check {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, #30363d);
+  background: var(--bg-surface, #161b22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.gantt-multiselect-check.is-checked {
+  background: var(--accent-primary, #d41d3c);
+  border-color: var(--accent-primary, #d41d3c);
+}
+
+.gantt-multiselect-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt-multiselect-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-muted, #8b949e);
+  flex-shrink: 0;
+}
+
+.gantt-multiselect-empty {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--text-muted, #8b949e);
+}

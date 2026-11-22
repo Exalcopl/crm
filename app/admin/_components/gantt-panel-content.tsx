@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { toast } from "sonner";
-import { BarChart3, ChevronLeft, ChevronRight, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck } from "lucide-react";
+import { BarChart3, ChevronLeft, ChevronRight, ChevronDown, Check, Plus, Search, Calendar, Landmark, User, Clock, UserCheck, Coins, Truck, SlidersHorizontal, X } from "lucide-react";
 import { useMemo } from "react";
 import { OrderPreProdGantt } from "./order-pre-prod-gantt";
 import { KanbanCustomLabel } from "./kanban-custom-label";
@@ -131,7 +131,27 @@ export function GanttPanelContent({
 
   const [search, setSearch] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedClients, setSelectedClients] = useState<string[]>([]);
   const [barMode, setBarMode] = useState<"all" | "production" | "assembly">("all");
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+  const [clientQuery, setClientQuery] = useState("");
+
+  const availableClients = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const o of productionOrders) {
+      if (!o.clientName) continue;
+      counts.set(o.clientName, (counts.get(o.clientName) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, "pl"));
+  }, [productionOrders]);
+
+  const visibleClients = useMemo(() => {
+    const q = clientQuery.trim().toLowerCase();
+    if (!q) return availableClients;
+    return availableClients.filter((c) => c.name.toLowerCase().includes(q));
+  }, [availableClients, clientQuery]);
 
   const [hoveredOrder, setHoveredOrder] = useState<any | null>(null);
   const [hoveredType, setHoveredType] = useState<"production" | "assembly" | "delivery" | null>(null);
@@ -144,6 +164,43 @@ export function GanttPanelContent({
   } | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const closeTimeoutRef = useRef<any>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
+
+  const activeFilterCount =
+    (search.trim() ? 1 : 0) +
+    selectedTypes.length +
+    selectedClients.length +
+    (barMode !== "all" ? 1 : 0);
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setSelectedTypes([]);
+    setSelectedClients([]);
+    setBarMode("all");
+  };
+
+  useEffect(() => {
+    if (!isFilterOpen) {
+      setIsClientDropdownOpen(false);
+      setClientQuery("");
+      return;
+    }
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(e.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFilterOpen(false);
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isFilterOpen]);
 
   const openBarTooltip = (rect: DOMRect, order: any, type: "production" | "assembly" | "delivery") => {
     if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
@@ -453,6 +510,11 @@ export function GanttPanelContent({
       (o.customLabel && o.customLabel.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
+
+    // Filter by selected clients
+    if (selectedClients.length > 0 && !selectedClients.includes(o.clientName)) {
+      return false;
+    }
 
     // Filter by project types
     if (selectedTypes.length > 0) {
@@ -810,133 +872,6 @@ export function GanttPanelContent({
   return (
     <>
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#0d1117", color: "#c9d1d9" }}>
-      {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #30363d", background: "#0d1117", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", flex: 1 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#161b22", borderRadius: 6, padding: "4px 10px", border: "1px solid #30363d", width: 260 }}>
-            <Search size={14} style={{ color: "#8b949e" }} />
-            <input
-              type="text"
-              placeholder="Szukaj nazwy, zlecenia, klienta..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ background: "transparent", border: "none", color: "white", outline: "none", fontSize: 13, width: "100%" }}
-            />
-          </div>
-
-          {/* Project Type Filter Chips */}
-          {projectTypes.length > 0 && (
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Typ projektu:</span>
-              {projectTypes.map((type) => {
-                const isActive = selectedTypes.includes(type.name);
-                return (
-                  <button
-                    key={type.name}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTypes(prev => 
-                        prev.includes(type.name) 
-                          ? prev.filter(t => t !== type.name) 
-                          : [...prev, type.name]
-                      );
-                    }}
-                    style={{
-                      background: isActive ? type.color || "#2563eb" : "#21262d",
-                      color: isActive ? "#ffffff" : "#c9d1d9",
-                      border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
-                      borderRadius: 12,
-                      padding: "2px 10px",
-                      fontSize: 11,
-                      cursor: "pointer",
-                      fontWeight: 500,
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    {type.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-
-          {/* Status filter chips — temporarily hidden */}
-          {false && (
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Status:</span>
-            {ALL_ORDER_STATUSES.map((s) => {
-              const active = selectedStatuses.includes(s.id);
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleStatus(s.id)}
-                  style={{
-                    background: active ? `${s.color}22` : "#161b22",
-                    color: active ? s.color : "#475569",
-                    border: `1px solid ${active ? s.color + "66" : "#30363d"}`,
-                    borderRadius: 12, padding: "2px 10px",
-                    fontSize: 11, cursor: "pointer", fontWeight: active ? 700 : 500,
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-          </div>
-          )}
-
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginLeft: 4 }}>
-            <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 500 }}>Obszar realizacji:</span>
-            {[
-              { id: "all", label: "Wszystkie" },
-              { id: "production", label: "Produkcja", color: "#059669" },
-              { id: "assembly", label: "Montaż", color: "#ea580c" },
-            ].map((chip) => {
-              const isActive = barMode === chip.id;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setBarMode(chip.id as any)}
-                  style={{
-                    background: isActive ? (chip.color || "#2563eb") : "#21262d",
-                    color: isActive ? "#ffffff" : "#c9d1d9",
-                    border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
-                    borderRadius: 12,
-                    padding: "2px 10px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                    transition: "all 0.15s",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  {chip.color && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#ffffff" : chip.color }} />
-                  )}
-                  {chip.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", fontSize: 18 }}
-            title="Zamknij"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-
       {/* Main Content Area */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         
@@ -950,18 +885,339 @@ export function GanttPanelContent({
           {/* Left Columns (Fixed Side) */}
           <div style={{ width: leftColWidth, flexShrink: 0, borderRight: "1px solid #30363d", background: "#161b22", zIndex: 10, position: "sticky", left: 0 }}>
             {/* Header Row */}
-            <div style={{ height: 54, borderBottom: "2px solid #30363d", display: "flex", alignItems: "center", padding: "0 16px", fontWeight: 600, fontSize: 11, color: "#8b949e", textTransform: "uppercase", letterSpacing: "0.5px", gap: 16 }}>
-              <span style={{ flex: 1 }}>Zlecenie / Klient</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 10 }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#059669", display: "inline-block" }} />
-                  Produkcja
+            <div
+              ref={filterPopoverRef}
+              style={{
+                height: 54,
+                borderBottom: "2px solid #30363d",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 12px 0 16px",
+                fontWeight: 600,
+                fontSize: 11,
+                color: "#8b949e",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                gap: 8,
+                position: "sticky",
+                top: 0,
+                zIndex: 15,
+                background: "#161b22",
+              }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+                <span>Zlecenie / Klient</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 9.5, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: "#059669", display: "inline-block" }} />
+                    Produkcja
+                  </span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 2, background: "#ea580c", display: "inline-block" }} />
+                    Montaż
+                  </span>
                 </span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: "#ea580c", display: "inline-block" }} />
-                  Montaż
-                </span>
-              </span>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setIsFilterOpen((v) => !v)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 11px",
+                    borderRadius: 7,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    textTransform: "none",
+                    letterSpacing: 0,
+                    cursor: "pointer",
+                    background: isFilterOpen || activeFilterCount > 0 ? "var(--accent-primary, #d41d3c)" : "#21262d",
+                    color: isFilterOpen || activeFilterCount > 0 ? "#ffffff" : "#e6edf3",
+                    border: `1px solid ${isFilterOpen || activeFilterCount > 0 ? "transparent" : "#30363d"}`,
+                    boxShadow: isFilterOpen || activeFilterCount > 0 ? "0 2px 10px rgba(212, 29, 60, 0.35)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>Filtr</span>
+                  {activeFilterCount > 0 && (
+                    <span
+                      style={{
+                        minWidth: 17,
+                        height: 17,
+                        padding: "0 4px",
+                        borderRadius: 999,
+                        background: "rgba(255, 255, 255, 0.22)",
+                        color: "#ffffff",
+                        fontSize: 10,
+                        fontWeight: 700,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    style={{ background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", fontSize: 16, padding: "2px 4px" }}
+                    title="Zamknij"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Popover */}
+              {isFilterOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 6px)",
+                    left: 12,
+                    width: 320,
+                    background: "#161b22",
+                    border: "1px solid #30363d",
+                    borderRadius: 10,
+                    padding: 14,
+                    boxShadow: "0 16px 40px rgba(0, 0, 0, 0.65)",
+                    zIndex: 60,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 14,
+                    textTransform: "none",
+                    letterSpacing: 0,
+                    fontWeight: 400,
+                    color: "#c9d1d9",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: "#f0f6fc" }}>Filtry harmonogramu</span>
+                    {activeFilterCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearAllFilters}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#f85149",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: "2px 4px",
+                        }}
+                      >
+                        Wyczyść ({activeFilterCount})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Search */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 600 }}>Wyszukaj</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, background: "#0d1117", borderRadius: 6, padding: "6px 10px", border: "1px solid #30363d" }}>
+                      <Search size={13} style={{ color: "#8b949e", flexShrink: 0 }} />
+                      <input
+                        type="text"
+                        placeholder="Nazwa, numer zlecenia, klient..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        autoFocus
+                        style={{ background: "transparent", border: "none", color: "white", outline: "none", fontSize: 12.5, width: "100%" }}
+                      />
+                      {search && (
+                        <button
+                          type="button"
+                          onClick={() => setSearch("")}
+                          style={{ background: "transparent", border: "none", color: "#8b949e", cursor: "pointer", display: "flex", padding: 0 }}
+                          aria-label="Wyczyść wyszukiwanie"
+                        >
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Client Multi-Select Dropdown */}
+                  {availableClients.length > 0 && (
+                    <div className="gantt-multiselect">
+                      <div className="gantt-multiselect-label-row">
+                        <span style={{ fontSize: 11, color: "var(--text-muted, #8b949e)", fontWeight: 600 }}>Klient</span>
+                        {selectedClients.length > 0 && (
+                          <button
+                            type="button"
+                            className="gantt-multiselect-clear"
+                            onClick={() => setSelectedClients([])}
+                          >
+                            Odznacz ({selectedClients.length})
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className={`gantt-multiselect-trigger${isClientDropdownOpen ? " is-open" : ""}${selectedClients.length > 0 ? " has-value" : ""}`}
+                        onClick={() => setIsClientDropdownOpen((v) => !v)}
+                        aria-expanded={isClientDropdownOpen}
+                      >
+                        <span className="gantt-multiselect-trigger-text">
+                          {selectedClients.length === 0
+                            ? "Wszyscy klienci"
+                            : selectedClients.length === 1
+                              ? selectedClients[0]
+                              : `${selectedClients[0]} +${selectedClients.length - 1}`}
+                        </span>
+                        <ChevronDown
+                          size={14}
+                          className={`gantt-multiselect-chevron${isClientDropdownOpen ? " is-open" : ""}`}
+                        />
+                      </button>
+
+                      {isClientDropdownOpen && (
+                        <div className="gantt-multiselect-menu">
+                          <div className="gantt-multiselect-search">
+                            <Search size={12} style={{ color: "var(--text-muted, #8b949e)", flexShrink: 0 }} />
+                            <input
+                              type="text"
+                              placeholder="Filtruj klientów..."
+                              value={clientQuery}
+                              onChange={(e) => setClientQuery(e.target.value)}
+                            />
+                            {clientQuery && (
+                              <button
+                                type="button"
+                                className="gantt-multiselect-search-clear"
+                                onClick={() => setClientQuery("")}
+                                aria-label="Wyczyść filtr klientów"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
+                          <div className="gantt-multiselect-list" role="listbox" aria-multiselectable="true">
+                            {visibleClients.length === 0 ? (
+                              <div className="gantt-multiselect-empty">Brak pasujących klientów</div>
+                            ) : (
+                              visibleClients.map((client) => {
+                                const isChecked = selectedClients.includes(client.name);
+                                return (
+                                  <button
+                                    key={client.name}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={isChecked}
+                                    className={`gantt-multiselect-option${isChecked ? " is-selected" : ""}`}
+                                    onClick={() => {
+                                      setSelectedClients((prev) =>
+                                        prev.includes(client.name)
+                                          ? prev.filter((c) => c !== client.name)
+                                          : [...prev, client.name]
+                                      );
+                                    }}
+                                  >
+                                    <span className={`gantt-multiselect-check${isChecked ? " is-checked" : ""}`} aria-hidden>
+                                      {isChecked && <Check size={10} strokeWidth={3} />}
+                                    </span>
+                                    <span className="gantt-multiselect-option-name" title={client.name}>
+                                      {client.name}
+                                    </span>
+                                    <span className="gantt-multiselect-count">{client.count}</span>
+                                  </button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Project Type */}
+                  {projectTypes.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 600 }}>Typ projektu</span>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {projectTypes.map((type) => {
+                          const isActive = selectedTypes.includes(type.name);
+                          return (
+                            <button
+                              key={type.name}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTypes((prev) =>
+                                  prev.includes(type.name)
+                                    ? prev.filter((t) => t !== type.name)
+                                    : [...prev, type.name]
+                                );
+                              }}
+                              style={{
+                                background: isActive ? type.color || "#2563eb" : "#21262d",
+                                color: isActive ? "#ffffff" : "#c9d1d9",
+                                border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
+                                borderRadius: 12,
+                                padding: "3px 10px",
+                                fontSize: 11,
+                                cursor: "pointer",
+                                fontWeight: 500,
+                                transition: "all 0.15s",
+                              }}
+                            >
+                              {type.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Obszar realizacji */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <span style={{ fontSize: 11, color: "#8b949e", fontWeight: 600 }}>Obszar realizacji</span>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {[
+                        { id: "all", label: "Wszystkie" },
+                        { id: "production", label: "Produkcja", color: "#059669" },
+                        { id: "assembly", label: "Montaż", color: "#ea580c" },
+                      ].map((chip) => {
+                        const isActive = barMode === chip.id;
+                        return (
+                          <button
+                            key={chip.id}
+                            type="button"
+                            onClick={() => setBarMode(chip.id as any)}
+                            style={{
+                              background: isActive ? chip.color || "#2563eb" : "#21262d",
+                              color: isActive ? "#ffffff" : "#c9d1d9",
+                              border: `1px solid ${isActive ? "transparent" : "#30363d"}`,
+                              borderRadius: 12,
+                              padding: "3px 10px",
+                              fontSize: 11,
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              transition: "all 0.15s",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
+                            {chip.color && (
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: isActive ? "#ffffff" : chip.color }} />
+                            )}
+                            {chip.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Grouped Client and Order Rows */}
