@@ -39,6 +39,7 @@ import {
   computeProjectTypeCounts,
   type ProjectTypeFilter,
 } from "../_components/project-type-filter";
+import { KanbanCustomLabel } from "../_components/kanban-custom-label";
 
 type ZleceniaViewMode = "kanban" | "lista";
 type OrderStatus = "nowe" | "akceptacja" | "kompletacja" | "produkcja" | "montaz" | "gotowe" | "wstrzymane";
@@ -635,6 +636,7 @@ function KanbanCardView({
         projectTypes={projectTypes}
         quotesMap={quotesMap}
         usersMap={usersMap}
+        overlay={overlay}
       />
     </div>
   );
@@ -645,11 +647,13 @@ function KanbanCardContent({
   projectTypes,
   quotesMap,
   usersMap,
+  overlay,
 }: {
   order: any;
   projectTypes: any[];
   quotesMap: Map<string, any>;
   usersMap: Map<string, string>;
+  overlay?: boolean;
 }) {
   const quote = quotesMap.get(order.quoteId);
   const projectType = order.projectType && order.projectType.length > 0 ? order.projectType : (quote?.projectType || []);
@@ -673,9 +677,7 @@ function KanbanCardContent({
       />
       <div className="kanban-card-head kanban-card-head--order">
         {customLabel ? (
-          <div className="kanban-card-custom-label" title={customLabel}>
-            {customLabel}
-          </div>
+          <KanbanCustomLabel text={customLabel} disabled={overlay} />
         ) : (
           <span className="kanban-card-id kanban-card-id--subtle">{order.orderNumber}</span>
         )}

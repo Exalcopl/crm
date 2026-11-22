@@ -123,6 +123,7 @@ export function GanttPanelContent({
         return {
           ...o,
           projectType: resolvedTypes,
+          customLabel: o.customLabel || q?.customLabel || "",
         };
       });
   }, [orders, quotesMap, selectedStatuses]);
@@ -293,9 +294,11 @@ export function GanttPanelContent({
 
   // Filter orders by search term and selected project types
   const filteredOrders = productionOrders.filter((o) => {
+    const q = search.toLowerCase();
     const matchesSearch =
-      o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-      o.clientName.toLowerCase().includes(search.toLowerCase());
+      o.orderNumber.toLowerCase().includes(q) ||
+      o.clientName.toLowerCase().includes(q) ||
+      (o.customLabel && o.customLabel.toLowerCase().includes(q));
 
     if (!matchesSearch) return false;
 
@@ -650,7 +653,7 @@ export function GanttPanelContent({
             <Search size={14} style={{ color: "#8b949e" }} />
             <input
               type="text"
-              placeholder="Szukaj zlecenia, klienta..."
+              placeholder="Szukaj nazwy, zlecenia, klienta..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ background: "transparent", border: "none", color: "white", outline: "none", fontSize: 13, width: "100%" }}
@@ -848,8 +851,7 @@ export function GanttPanelContent({
               }
 
               const order = row.order!;
-              const q = quotesMap.get(order.quoteId);
-              const customLabel = order.customLabel || q?.customLabel;
+              const customLabel = order.customLabel;
               const prodDates = localDates[order._id];
               const asmDates = localAssemblyDates[order._id];
               const isPlanned = !!prodDates;
@@ -866,22 +868,48 @@ export function GanttPanelContent({
                     background: "#0d1117",
                     cursor: "pointer",
                     transition: "background 0.15s",
-                    gap: 3,
+                    gap: 4,
                   }}
                   onClick={() => setPreProdOrder({ id: order._id, orderNumber: order.orderNumber, clientName: order.clientName })}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "#161b22")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "#0d1117")}
                 >
-                  {/* Top line: order number + client + CTA */}
+                  {/* Top line: custom label (primary) or order number + CTA */}
                   <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#f0f6fc", whiteSpace: "nowrap" }}>
-                      #{order.orderNumber}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#8b949e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                      {order.clientName}
-                    </span>
-                    {customLabel && (
-                      <span style={{ fontSize: 9, color: "#f59e0b", fontWeight: 600, whiteSpace: "nowrap" }}>[{customLabel}]</span>
+                    {customLabel ? (
+                      <span
+                        title={customLabel}
+                        style={{
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          color: "#f0f6fc",
+                          borderLeft: "2.5px solid #d41d3c",
+                          paddingLeft: 6,
+                          lineHeight: 1.25,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        {customLabel}
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: "#c9d1d9",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        #{order.orderNumber}
+                      </span>
                     )}
                     {/* CTA: open order detail */}
                     <button
@@ -895,16 +923,33 @@ export function GanttPanelContent({
                       ↗
                     </button>
                   </div>
-                  {/* Bottom line: dates and actions */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {/* Bottom line: subtle order number (when customLabel exists) + dates + actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                    {customLabel && (
+                      <>
+                        <span
+                          style={{
+                            fontFamily: "var(--mono)",
+                            fontSize: 9.5,
+                            fontWeight: 500,
+                            color: "#6e7681",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {order.orderNumber}
+                        </span>
+                        <span style={{ color: "#30363d", fontSize: 10 }}>·</span>
+                      </>
+                    )}
                     {/* Prod indicator */}
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: prodDates ? "#34d399" : "#475569", fontWeight: 600 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: prodDates ? "#34d399" : "#475569", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <span style={{ width: 6, height: 6, borderRadius: 1, background: prodDates ? "#059669" : "#374151", display: "inline-block" }} />
                       {prodDates ? `${getDaysDiff(prodDates.start, prodDates.end) + 1}d prod.` : "brak prod."}
                     </span>
                     <span style={{ color: "#30363d", fontSize: 10 }}>·</span>
                     {/* Assembly indicator */}
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: asmDates ? "#fb923c" : "#475569", fontWeight: 600 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, color: asmDates ? "#fb923c" : "#475569", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <span style={{ width: 6, height: 6, borderRadius: 1, background: asmDates ? "#ea580c" : "#374151", display: "inline-block" }} />
                       {asmDates ? `${getDaysDiff(asmDates.start, asmDates.end) + 1}d mont.` : "brak mont."}
                     </span>
@@ -1272,7 +1317,7 @@ export function GanttPanelContent({
                           <div style={{ width: 2, height: 10, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                         </div>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "center", pointerEvents: "none", fontSize: 10 }}>
-                          {isMutatingId === order._id ? "⏳" : `${order.orderNumber} · ${order.clientName}`}
+                          {isMutatingId === order._id ? "⏳" : (order.customLabel || `${order.orderNumber} · ${order.clientName}`)}
                         </span>
                         {/* Resize right */}
                         <div
@@ -1330,7 +1375,7 @@ export function GanttPanelContent({
                           <div style={{ width: 2, height: 8, background: "rgba(255,255,255,0.4)", borderRadius: 1 }} />
                         </div>
                         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "center", pointerEvents: "none" }}>
-                          {isMutatingAssemblyId === order._id ? "⏳" : order.orderNumber}
+                          {isMutatingAssemblyId === order._id ? "⏳" : (order.customLabel || order.orderNumber)}
                         </span>
                         {/* Resize right */}
                         <div
@@ -1441,10 +1486,40 @@ export function GanttPanelContent({
               fontFamily: "inherit"
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #21262d", paddingBottom: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#58a6ff" }}>{hoveredOrder.orderNumber}</span>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, borderBottom: "1px solid #21262d", paddingBottom: 6 }}>
+              {hoveredOrder.customLabel ? (
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: 13.5,
+                      fontWeight: 700,
+                      color: "#f0f6fc",
+                      borderLeft: "2.5px solid #d41d3c",
+                      paddingLeft: 7,
+                      lineHeight: 1.3,
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {hoveredOrder.customLabel}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--mono)",
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: "#8b949e",
+                      marginTop: 2,
+                      paddingLeft: 9.5,
+                    }}
+                  >
+                    {hoveredOrder.orderNumber}
+                  </div>
+                </div>
+              ) : (
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#58a6ff" }}>{hoveredOrder.orderNumber}</span>
+              )}
               {duration > 0 && (
-                <span style={{ background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>
+                <span style={{ flexShrink: 0, background: "rgba(245, 158, 11, 0.15)", color: "#f59e0b", fontSize: 10, padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>
                   {duration} dni
                 </span>
               )}
@@ -1525,16 +1600,6 @@ export function GanttPanelContent({
                 <Coins size={11} />
                 <span>Wartość Netto: <strong style={{ color: "#3fb950" }}>{formatCurrency(hoveredOrder.valueNetto || 0)}</strong></span>
               </div>
-              {(() => {
-                const q = quotesMap.get(hoveredOrder.quoteId);
-                const label = hoveredOrder.customLabel || q?.customLabel;
-                if (!label) return null;
-                return (
-                  <div style={{ fontSize: 11, color: "#f59e0b", fontWeight: 600, marginTop: 2 }}>
-                    {label}
-                  </div>
-                );
-              })()}
             </div>
 
             {hoveredOrder.projectType && hoveredOrder.projectType.length > 0 && (

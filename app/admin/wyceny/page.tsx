@@ -44,6 +44,7 @@ import {
 } from "../_components/project-type-filter";
 import { QuoteListView } from "../_components/quote-list";
 import { UserFilterBar } from "../_components/user-filter-bar";
+import { KanbanCustomLabel } from "../_components/kanban-custom-label";
 
 type WycenyViewMode = "kanban" | "lista";
 
@@ -392,12 +393,12 @@ function SortableKanbanCard({ quote }: { quote: Quote }) {
 function KanbanCardView({ quote, overlay }: { quote: Quote; overlay?: boolean }) {
   return (
     <div className={`kanban-card${overlay ? " is-overlay" : ""}`}>
-      <KanbanCardContent quote={quote} />
+      <KanbanCardContent quote={quote} overlay={overlay} />
     </div>
   );
 }
 
-function KanbanCardContent({ quote }: { quote: Quote }) {
+function KanbanCardContent({ quote, overlay }: { quote: Quote; overlay?: boolean }) {
   const projectTypes = (useQuery(api.projectTypes.list) ?? []) as Array<{ name: string; color: string }>;
   const primaryType = quote.projectType[0];
   const primaryStyle = primaryType ? getProjectTypeStyle(projectTypes, primaryType) : null;
@@ -422,9 +423,7 @@ function KanbanCardContent({ quote }: { quote: Quote }) {
       />
       <div className="kanban-card-head kanban-card-head--order">
         {customLabel ? (
-          <div className="kanban-card-custom-label" title={customLabel}>
-            {customLabel}
-          </div>
+          <KanbanCustomLabel text={customLabel} disabled={overlay} />
         ) : (
           <span className="kanban-card-id kanban-card-id--subtle">{quote.id}</span>
         )}

@@ -1009,6 +1009,42 @@
   word-break: break-word;
 }
 
+.kanban-label-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 8px 11px;
+  background: var(--bg-elevated, #161b22);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  animation: kanbanTooltipFadeIn 120ms ease-out forwards;
+}
+
+.kanban-label-tooltip--top {
+  transform: translateY(-100%);
+}
+
+.kanban-label-tooltip--bottom {
+  transform: translateY(0);
+}
+
+@keyframes kanbanTooltipFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .kanban-card-client {
   font-size: 13px;
   font-weight: 600;
